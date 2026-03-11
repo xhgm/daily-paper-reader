@@ -1,0 +1,893 @@
+Title: Articulation in Motion: Prior-free Part Mobility Analysis for Articulated Objects By Dynamic-Static Disentanglement
+
+URL Source: https://arxiv.org/pdf/2603.02910v1
+
+Published Time: Wed, 04 Mar 2026 02:16:58 GMT
+
+Number of Pages: 26
+
+Markdown Content:
+Published as a conference paper at ICLR 2026 
+
+# Articulation in Motion : PRIOR -FREE PART MOBIL -
+
+# ITY ANALYSIS FOR ARTICULATED OBJECTS BY
+
+# DYNAMIC -S TATIC DISENTANGLEMENT 
+
+Hao Ai ∗,1, Wenjie Chang ∗,2, Jianbo Jiao ⋆, 1, Ales Leonardis ⋆, 1, Eyal Ofek †,⋆, 1 
+
+> 1
+
+School of Computer Science, University of Birmingham, Birmingham, UK  
+
+> 2
+
+University of Science and Technology of China 
+
+ABSTRACT 
+
+Articulated objects are ubiquitous in daily life. Our goal is to achieve a high-quality reconstruction, segmentation of independent moving parts, and analysis of articulation. Recent methods analyse two different articulation states and perform per-point part segmentation, optimising per-part articulation using cross-state cor-respondences, given a priori knowledge of the number of parts. Such assump-tions greatly limit their applications and performance. Their robustness is reduced when objects cannot be clearly visible in both states. To address these issues, in this paper, we present a new framework, Articulation in Motion ( AIM). We infer part-level decomposition, articulation kinematics, and reconstruct an interactive 3D digital replica from a user–object interaction video and a start-state scan. We propose a dual-Gaussian scene representation that is learned from an initial 3DGS scan of the object and a video that shows the movement of separate parts. It uses motion cues to segment the object into parts and assign articulation joints. Subse-quently, a robust, sequential RANSAC is employed to achieve part mobility analy-sis without any part-level structural priors , which clusters moving primitives into rigid parts and estimates kinematics while automatically determining the number of parts. The proposed approach separates the object into parts, each represented as a 3D Gaussian set, enabling high-quality rendering. Our approach yields higher quality part segmentation than previous methods, without prior knowledge. Ex-tensive experimental analysis on both simple and complex objects validates the effectiveness and strong generalisation ability of our approach. Project page: https://haoai-1997.github.io/AiM/. 
+
+“Motion is the cause of all life.” 
+
+Leonardo da Vinci 
+
+1 INTRODUCTION 
+
+Everyday environments are abounded with articulated objects *, composed of multiple rigid parts linked by joints (Mueller, 2019) ( e.g. doors with revolute joints and drawers with prismatic joints). Modelling of such objects is valuable for practical applications across scene understanding (Jia et al., 2024; Huang et al., 2024b), robotics (Kerr et al., 2024; Wu et al., 2025b), mixed reality (MR) (Taylor et al., 2020; Jiang et al., 2024), and embodied AI applications (Puig et al., 2023; Zhou et al., 2025). Advances in neural 3D representations (Mildenhall et al., 2021; Kerbl et al., 2023; MacSwayne et al., 2025) enable high-fidelity object-level 3D reconstruction; however, reconstructing part-level structure, articulation dynamics, and functionality of articulated objects remains challenging. Substantial efforts have been devoted to building 3D physics-consistent and interaction-ready asser-tions of articulated objects from RGB or RGB-D observations (Wei et al., 2022; Song et al., 2024; 
+
+> ∗
+
+Equal contribution. †Correspondence: e.ofek@bham.ac.uk . ⋆Equal advice. 
+
+> *
+
+In this work, we only discuss the human-made articulated objects with rigid parts. 
+
+1
+
+> arXiv:2603.02910v1 [cs.CV] 3 Mar 2026
+
+Published as a conference paper at ICLR 2026 Start GT End DTA ArtGS Ours   
+
+> Figure 1: Left : Prior two-state methods often degrade on the sequences from closed-start to open-end. Right :Results of the proposed A IM, compared to ground truth (GT) geometry.
+
+Wu et al., 2025a). Some approaches (Mu et al., 2021; Jiang et al., 2022b; Heppert et al., 2023) rely on the parameters of known joints in learning articulated shape representations. However, col-lecting such data at scale can be time-consuming and often has limited generalisation to previously unseen objects. To mitigate these issues, some unsupervised, part-level reconstruction methods have been proposed (Liu et al., 2023a; Deng et al., 2024; Weng et al., 2024; Liu et al., 2025). Most of them assume multi-view observations of the objects in two distinct articulation states, denoted as 
+
+start and end states. Liu et al. (2023a); Deng et al. (2024) recovered a deformation field between the NeRF-based start-state and end-state geometries. However, optimisation is unstable and highly sensitive to initialisation. Similarly, the 3D Gaussian splatting (3DGS) based method (Wu et al., 2025a) learns a per-Gaussian start-to-end deformation field, enabling static-dynamic segmentation of up to one moving part per step. As deformation is defined over all Gaussians, threshold-based separation is prone to noise. Lately, given a known number of articulated parts, DTA (Weng et al., 2024) simultaneously reconstructs a start and end point cloud, predicts per-part segmentation prob-abilities, and estimates articulation parameters via linear blend skinning (Kavan et al., 2007) to align the parts across the two states. Meanwhile, ArtGS (Liu et al., 2025) constructs start and end Gaus-sian sets and uses their geometric correspondence to initialise a canonical mid-state Gaussian set. It then learns part-centre locations, predicts Gaussian-to-part assignments (Huang et al., 2024c), and optimises per-part articulation following the blend skinning (Song et al., 2024). Although effective, these two-state methods degrade substantially when the number of articulated parts is unknown (as shown in Fig. 2), and their stability is limited by the reliance on geometric correspondence between the two states. Specifically, the commonly used two-state input setting has inherent limitations: 
+
+Many articulated objects cannot be well represented by only a start and an end state . When the end state reveals regions absent in the start state, breaking cross-state correspondence ( e.g. the interior of a refrigerator or oven, as shown in Fig. 2), these methods are prone to degraded segmentation. In this paper, we introduce Articulation in Motion ( AIM), a new framework that reconstructs the geometry, segmentation, and kinematics of articulated objects by analysing a video of their articu-lated motion, which is simple, practical, and better aligned with the way humans learn articulation through continuous interaction (Fig. 3) rather than using isolated start and end states. Furthermore, continuous motion cues avoid cross-state correspondence failures when the end state reveals newly seen regions (see Fig. 1 and Fig. 2). We do not assume a known number of articulated parts, any prior knowledge of their joint types or motion parameters, or visibility along the entire motion. We recover the articulation parameters stably for interactive manipulation. It comprises three stages (see Fig. 3 and Fig. 5): I) 3DGS is used to reconstruct the initial geometry and appearance. II) We in-troduce a dual-Gaussian scene representation, which contains the pre-built start-state Gaussian and a deformable 3DGS, which tracks motion on the interaction video. A pre-built start-state Gaussian is gradually pruned as a static base, achieving dynamic-static disentanglement based on the motion cues. III) Depending on the trajectories of only-moving Gaussians, an optimisation-free sequen-tial Random Sample Consensus (RANSAC) clusters them into rigid parts and estimates per-part articulation parameters without any part prior . Our contributions are summarised as follows: • We present Articulation in Motion ( AIM), which reconstructs part-level articulated objects, with extracted joints, based on a video that shows the objects’ degrees of freedom. It opens a way to use interactive natural videos for reconstruction. 2Published as a conference paper at ICLR 2026 • We propose a dual-Gaussian representation to disentangle the statics and dynamics, and track the moving primitives. Additionally, we introduce a static-during-motion detection module to handle newly revealed but static regions during interaction. • Our method achieves robust part segmentation and articulation estimation using Sequential RANSAC, without any structural prior. • Extensive experiments demonstrate that our method can independently segment stably and accu-rately moving parts of the object, reconstruct the geometry and articulation parameters of each part, and its appearance, under challenging scenarios. 
+
+2 RELATED WORKS 
+
+Articulated object reconstruction from videos or images. This work focuses on articulated ob-jects, composed of rigid parts and connected by joints. For such objects, research has focused primarily on improving piecewise rigidity, identifying part-level mobility, and enabling control-lable 3D model generation. REACTO (Song et al., 2024) reconstructs the canonical object state, represented by NeRF, and learns a deformation field with enhanced part rigidity from a captured video. However, REACTO reconstructs articulated objects as a single unified surface, without part-level geometry, which limits physically realistic interaction. Jiang et al. (2022b); Liu et al. (2023a); Deng et al. (2024); Weng et al. (2024); Liu et al. (2025) proposed to reconstruct articu-lated objects at the part level and estimate joint parameters from multi-view RGB/RGB-D obser-vations of two different articulation states, i.e. the state before interaction and the end state after interaction. PARIS (Liu et al., 2023a) learns a deformable field that applies two inverse mo-tion parameters to a hypothetical intermediate-state NeRF. Similarly, REArtGS (Wu et al., 2025a) builds on 3DGS to learn a static-to-dynamic deformation field for the intermediate state and iden-tify the dynamic part. Both are limited to objects with one moving sub-part. To support multi-ple movable parts, Weng et al. (2024); Deng et al. (2024); Liu et al. (2025) directly predict part-wise segmentation probabilities for each point and learn the motion parameters per part to con-struct the cross-state correspondence fields, similar to linear blend skinning (Kavan et al., 2007). DTA     
+
+> ArtGS
+> DTA ArtGS
+> GT
+> Ours Ours Ours
+> Figure 2: Left: DTA and ArtGS fail to recover from an in-correct input number of parts (4 here) and result in over-segmentations; Right : Visual results of DTA and ArtGS with closed-start and open-end states. The static part is gray and the moving part is green. In contrast, Ours requires no geometric priors and recovers accurate part-level segmentation from the continuous closed-start →open-end interaction process.
+
+Part mobility analysis. Part mobility analysis typically involves part segmenta-tion and articulation estimation, e.g. joint type, axis and state. For supervised learning, Jiang et al. (2022a); Qian et al. (2022); Sun et al. (2024); Wang et al. (2024) leverage advanced network archi-tectures to predict part mobility directly from a single RGB image or a motion video, while Weng et al. (2021); Liu et al. (2022; 2023b) jointly predict part-level 3D segmentation and per-part mo-tion properties from a single point cloud. To reduce the dependence on annotated datasets, recent work has explored unsu-pervised solutions. A representative two-state-based pipeline (Zhong et al., 2023; Liu et al., 2023a; Weng et al., 2024; Wu et al., 2025a) predict the part segmentation probabilities for each point and the articulation param-eters per part, supervised by the point correspondence field between 3D shapes of two given input states. However, these methods depend on the input part number, lacking sufficient generalisation to real-world scenarios with unknown structural details, e.g. for objects with unknown structural details, optimisation becomes unstable. It often fails to converge to the correct number of parts (see Fig. 2). Additionally, as shown in Fig. 2, capturing multi-view observations for two distinct states can easily introduce ambiguities when cross-state correspondences are undefined for regions that appear only in the end state, instead, inspired by (Shi et al., 2021; Yan et al., 2019), which segment point clouds using trajectories from registered sequences, our framework infers part-level structure and articulation information from the motion trajectories in a single video. RSRD (Kerr et al., 2024), POD (Wu et al., 2025c) and Video2Articulation Peng et al. (2025), use a similar video-based input, 3Published as a conference paper at ICLR 2026 Multi -view Scan                 
+
+> 3DGS modeling
+> Start GS 𝓖 𝑺
+> 𝓖 𝒊
+> 𝑺
+> 𝒔 𝒊 𝒓 𝒊 𝝁 𝒊 𝝈 𝒊 𝒔𝒉 𝒊
+> 𝒕 =𝟎
+> Stage I : Start Static Modeling
+> Stage II : Dual -Gaussian Joint Optimisation Interaction video
+> ℱ𝜽 𝜹𝝁 𝒕 !,𝜹 𝒓 𝒕 !
+> Moving GS 𝓖 𝑴
+> Time 𝒕 &
+> 𝓖 𝒑
+> 𝑺
+> 𝓖 𝑴 ,𝒕 =𝒕 $
+> 𝝁 𝑴
+> Camera
+> Diff.
+> Rasterization
+> 𝓡 𝑺
+> 𝓡 𝑴 ,𝒕 &
+> 𝓡 𝒕 &
+> 𝓛 𝒍𝒐𝒔𝒔
+> 𝓖 𝑺
+> >10k
+> iter. Adaptive
+> Densify
+> Control
+> SDMD
+> Only
+> Prune
+> <10k
+> iter.
+> Densification
+> & Prune
+> 𝓖 𝑴 ,𝒕 =𝒕 $
+
+Figure 3: Overview of the first two stages: I) 3DGS start-state {G S } reconstruction from a multi-view RGB scan. II) A deformable 3DGS {G M , t } tracks motion video, while joint optimisation prunes moving compo-nents from {G S }. Pruned static Gaussian set {G Sp } encodes the static base. An SDMD module handles newly revealed but static Gaussians. Together, these yield two separated Gaussian sets ( {G Sp } and {G M , t }) for the articulation analysis (Fig. 5). 
+
+but both focus on per-part pose tracking and require segmentation masks from pre-trained mod-els. They cannot perform part segmentation autonomously, and the performance is fundamentally bounded by the pre-trained segmentation models (see Fig. A7). 
+
+Dynamic Gaussian splatting. 3DGS (Kerbl et al., 2023) provides an explicit point-based represen-tation, enabling real-time, differentiable splatting-based rendering. As a result, there is increasing interest in extending 3DGS to dynamic scene modelling (Duisterhof et al., 2023; Luiten et al., 2024; Yang et al., 2024; Wu et al., 2024). Luiten et al. (2024) tracks attribute changes of each Gaussian primitive while Yang et al. (2024) learns an MLP-based deformation field from time and primi-tive positions to represent scene flow. Additionally, several methods (Wu et al., 2024; Duisterhof et al., 2023) introduce more efficient representations to encode temporal and structural information, and employ motion clustering strategies for compactness. Tracking all Gaussians is expensive, and motion can reduce motion-based segmentation (see Fig. A14 in Appendix). Our dual-Gaussian de-tects static parts of the geometry, represented by 3DGS, while moving geometry is tracked using deformable 3DGS; clear dynamic-static disentanglement enables stable segmentation. 
+
+3 OUR METHOD 
+
+The proposed Articulation in Motion includes three stages. Stage I: We reconstruct a 3DGS model (preliminaries e.g. 3DGS and Deformable 3DGS please see Appendix A.) of the object on an initial static state {G S }. Stage II: Given a video in which parts of the object are moved, we propose a dual-Gaussian representation (Sec. 3.1) that jointly optimises {G S } that models the static part of the object and a deformable GS {G M , t } that captures the moving parts of the object. Moreover, an additional static-during-motion detection (SDMD) module handles the newly static parts that are revealed during the video and adds them to the static part of the object. After obtaining {G M , t } with the time-dependent deformation, we infer the trajectories of each moving primitive and introduce the sequential RANSAC to group the moving primitives in Stage III , achieve motion-based part segmentation and articulation estimation (Sec. 3.2). The entire training is supervised solely by RGB observations: the start-state scan and the monocular video frames. Below we describe A IM in detail: 3.1 DUAL -G AUSSIAN FOR DYNAMIC -STATIC DISENTANGLEMENT 
+
+To achieve motion-based part segmentation and articulation analysis, it is essential to accurately describe the trajectories of Gaussian primitives based on the given motion video. Although D-3DGS (Yang et al., 2024) can learn time-dependent deformation fields from motion cues in the video, it assigns a displacement to all Gaussians, including static ones. This introduces noise that may harm segmentation and articulation estimation, especially with multiple moving parts, where 4Published as a conference paper at ICLR 2026 all-Gaussian trajectories confuse the part-level structure (see Fig. A14 in Appendix). To address this issue, we propose a dual-Gaussian representation that comprises two sets of Gaussians to separately model the static base body and the moving components in the given video. The methodology is visually summarised in Fig. 3. Firstly, we train a vanilla 3DGS based on multiple views of the object in a start state, namely {G S }, following Eq. 8. Subsequently, given the motion video, we follow D-3DGS to initialise a moving Gaussian set {G M , t } and train it with Eq. 9, to make these Gaussians capture the moving parts in the video and predict the spatiotemporal deformation field. We jointly render and optimize both sets, {GS } ∪ { GM , t }, directing {G Mt } to model motion cues and removing these moving elements from {G S } to obtain the static base {G Sp }, achieving clean dynamic–static disentanglement for subsequent part mobility analysis. Newly emerging regions, initially captured by the moving Gaussian set, are identified by a static-during-motion detection (SDMD) module, which locates locally rigid components, estimates their local rigid motions, and reassigns them to the static set according to the predicted transformations. 
+
+Dual-Gaussian joint optimisation. Using the multi-view scan of the start state, we model the object’s geometry and appearance via the original 3DGS pipeline. Following the standard train-ing settings, we obtain a set of initial Gaussians GS (μi, s i, r i, σ i, h i)Ns
+
+> i=1
+
+, where Ns denotes the total number of Gaussians, including both static and dynamic components. Thereafter, we ini-tialise a sparse point cloud and prepare to learn a time-indexed deformable Gaussian set, denoted as {G M (μj , s j , r j ), t }Nm 
+
+> j
+
+. Then, we employ an MLP-based deformation network Fθ alongside the moving Gaussian set to capture the motion trajectory. Specifically, {G M (μj , s j , r j )}Nm 
+
+> j
+
+represents the geometric priors in the canonical space, while the changes (δμ, δ r) in the position and rotations are learned by the deformation network as: 
+
+(δμ j , δr j ) = Fθ (γ(sg (μj )) , γ (t)) , (1) where t is the input time index, sg represents a stop-gradient operation, and γ indicates the position encoding (Vaswani et al., 2017). We employ the same network architecture as D-3DGS Yang et al. (2024). To constrain the moving Gaussian set to encode only continu-ously moving content in the video, while the start-state Gaussian set {G S } remains static-focused, we jointly optimise these two Gaussian sets. As shown in Fig. 3, during the ini-tial 10k iterations of the optimisation, we freeze all attributes of {GS } except opacity σ, while 
+
+{G M , t } and the deformation network Fθ are trained with the normal adaptive density control.     
+
+> Figure 4: Renderings of the start (left), and end (middle) states. Without SDMD detection, some newly revealed static parts are wrongly associated with the moving Gaussian set (right).
+
+In this process, we progressively prune the moving elements of 
+
+{G S } as their opacity decreases over time to obtain the static Gaussian set, namely {G Sp }, while {G M , t } fits the moving components in the video (see Fig. A4). In the following itera-tions, we unfreeze the static Gaussian set, and jointly perform densification and pruning on both sets. Through the differen-tiable rendering on the combination of {G Sp } and {G M , t = t′},we supervise the total training process with the video frame at the corresponding timestep t = t′. Since previously unseen ar-eas in the start state, e.g. the interior structures of refrigerators, washing machines, and cabinets, will be captured by the mov-ing Gaussian set, an SDMD detection module is introduced to audit the moving Gaussian set and prevent static leakage. 
+
+Static-during-motion detection. During the first 10k itera-tions, we freeze all position-related attributes of {G S }, allow-ing {G M , t } to thoroughly learn the moving parts while also adapting to newly revealed static content (Fig. 4). Although such content becomes stationary once revealed, it is often already occupied by moving Gaussians, which hampers the static set from learn-ing this geometry. To address this, we introduce a static-during-motion detection (SDMD) scheme. During joint densification and pruning, we perform trajectory inference for the moving Gaussians 
+
+{G M , t } every 2,000 iterations at t ∈ { 0, 0.5, 1}. We then apply sequential RANSAC with the Kab-sch algorithm (Magri & Fusiello, 2016) and a fixed inlier threshold of 0.05 to the resulting trajectory sequence to extract locally rigid motion patterns (details in Sec. 3.2). Groups whose motion magni-tude falls below the preset threshold (defined in Sec. 3.2) are identified as static, and their Gaussian primitives are reassigned from {G M , t } to {G Sp }. Compared with a simple motion-distance filter, our SDMD avoids misassignment near the joint axis (where motion trajectories are near zero). 5Published as a conference paper at ICLR 2026 Motion                                                                
+
+> hypothesis
+> Kabsch
+> solver
+> Minimal set sampling Support set
+> selection
+> Sequential RANSAC
+> ×𝑵𝑵
+> 𝓖𝓖 𝑴𝑴 ,𝒕𝒕 =𝟏𝟏 𝓖𝓖 𝑴𝑴 ,𝒕𝒕 =𝟎𝟎 .𝟓𝟓 𝓖𝓖 𝑴𝑴 ,𝒕𝒕 =𝟎𝟎
+> 𝓖𝓖 𝑴𝑴 ,𝒕𝒕 =𝟏𝟏 𝓖𝓖 𝑴𝑴 ,𝒕𝒕 =𝟎𝟎 .𝟓𝟓 𝓖𝓖 𝑴𝑴 ,𝒕𝒕 =𝟎𝟎
+> 𝓖𝓖 𝒑𝒑 𝑺𝑺 :𝒄𝒄 =𝟎𝟎 :Static;
+> 𝓖𝓖 𝒊𝒊=𝟏𝟏 𝑴𝑴 :𝒄𝒄 =𝟏𝟏 :Prismatic joint ,
+> {𝐝𝐝 =[−0.02,1.00,0.08] ,𝚽𝚽 =0.41 };
+> 𝓖𝓖 𝒊𝒊=𝟐𝟐 𝑴𝑴 :𝒄𝒄 =𝟐𝟐 :Revolute joint ,{𝐝𝐝 =[1.00,−0.00,0.00] ,𝚯𝚯 =1.54 }.
+> 𝓖𝓖 𝒑𝒑 𝑺𝑺 :𝒄𝒄 =𝟎𝟎 :Static;
+> 𝓖𝓖 𝑴𝑴 :𝒄𝒄 =𝟏𝟏 :Prismatic
+> {𝐝𝐝 =[0.02,0.99,0.02] ,𝚽𝚽 =0.35 }.
+
+Figure 5: Stage III : Motion-based part segmentation and articulation analysis . As the clean {G M , t } pro-vides time-varying trajectories, Sequential RANSAC groups trajectories into rigid parts (multi-part supported) without priors or optimisation, and directly outputs per-part articulation parameters. The green (top) and purple (bottom) points are our predicted moving Gaussians. 
+
+3.2 MOTION -BASED PART MOBILITY ANALYSIS 
+
+Existing methods typically assume a known number of object parts to infer part mobility. In practice, they input the ground-truth part count to establish cross-state correspondences, which then serve as priors for clustering-based part segmentation. In contrast, our core idea is to understand the part mobility based on the motion cues in the interaction videos. Once the dual-Gaussian representation decouples the static base and dynamic components, we recover accurate, time-parameterised tra-jectories for the moving Gaussian primitives over arbitrary time horizons with selectively sampled timesteps . This enables motion-based part segmentation by clustering moving Gaussians with the same motion patterns into rigid parts. Therefore, as shown in Fig. 5, based on the clean inferred mo-tion trajectories, we introduce a simple, robust, purely analysis-based sequential RANSAC (Magri & Fusiello, 2016) to achieve the part segmentation and estimate articulation parameters. Built on sequential RANSAC with Kabsch solver (Magri & Fusiello, 2016), A IM automatically recovers the part number and its kinematic parameters, i.e. joint type, axis direction, and motion magnitude. 
+
+Part segmentation. From the time-dependent moving Gaussian set {G M , t } with learned deforma-tion field Fθ , we can infer the centers positions of moving Guassian at timestep t as Pt = {μMi,t }Nm
+
+> i=1
+
+.Furthermore, we can easily obtain the one-to-one corresponding trajectory between timestep t and 
+
+t′, recorded as {P t→t′ }. To extract rigid parts, we employ a sequential RANSAC with a Kabsch solver (Kabsch, 1976). Unlike conventional start-end matching methods ( t = 0 v.s. t = 1 ) or pre-trained segmentation-driven approaches, which require structural priors from manual input or pre-trained models, our method aggregates evidence across trajectories spanning multiple time windows to capture diverse motions and improve robustness. For one trajectory of time window {P a→b}, the optimal rigid transform is estimated by Kabsch solver, as 
+
+(R∗
+
+> a→b
+
+, t∗
+
+> a→b
+
+) = arg min 
+
+> R,t
+
+X
+
+> i∈S min
+
+μMi,b − (RμMi,a + t) 2 , (2) where Smin is a randomly sampled minimal set. The residual error of each moving Gaussian {G Mi }
+
+is defined as: err i = ∥μMi,b − (R∗
+
+> a→b
+
+μMi,a + t∗
+
+> a→b
+
+)∥. (3) A Gaussian GMi is accepted as an inlier if err i < ϵ in . After Nsampling iterations, the largest consen-sus set is selected as the support set. The motion parameters (R, t ) are subsequently re-estimated from all inliers using the Kabsch solver to obtain one motion hypothesis. The identified inliers are removed, and the process is repeated on the remaining Gaussians. The procedure terminates when no valid support set is found, when the maximum iteration budget Nmax iter is reached, or when the largest inlier set is small. This sequential RANSAC yields a collection of support sets, each cor-responding to one rigid part. In this work, to balance accuracy and efficiency, we simultaneously employ the trajectories of two time windows, P0→0.5 and P0→1, and compute the mean residual error across them to determine inliers, as: err i = 12 ∥μMi, 0.5 − (R∗
+
+> 0→0.5
+
+μMi, 0 + t∗
+
+> 0→0.5
+
+)∥
+
++ 12 ∥μMi, 1 − (R∗
+
+> 0→1
+
+μMi, 0 + t∗
+
+> 0→1
+
+)∥. (4) 6Published as a conference paper at ICLR 2026 
+
+Per-part articulation parameters estimation. With the selected support sets, we employ the Kab-sch algorithm to estimate the rigid transformation {(Rk, tk)}Kk=1 , K is the number of support sets, i.e. the number of parts. Furthermore, we extract the underlying articulation parameters to characterise the motion. We follow existing works (Liu et al., 2023a; 2025; Weng et al., 2024) and focus on the following joint articulation parameters: the joint axis position p, joint axis direction 
+
+u, translation distance Φ, rotation angle Θ, and joint type (prismatic or revolute). According to Rodrigues’ rotation formula (Rodrigues, 1840), the rotation matrix Rk can be expressed as: 
+
+Rk = cos Θ kI + sin Θ k[uk]× + (1 − cos Θ k)( uk ⊗ uk), (5) where direction uk is a unit vector, I is the identity matrix, [·]× is the cross product and ⊗ is the outer product. From Eq. 5, we can obtain the uk and Θk, respectively, as: 
+
+uk = 12 sin Θ k
+
+Rk[2 , 1] − Rk[1 , 2] 
+
+Rk[0 , 2] − Rk[2 , 0] 
+
+Rk[1 , 0] − Rk[0 , 1] 
+
+!
+
+, Θk = arccos 
+
+ tr( Rk) − 12
+
+
+
+. (6) For the translation distance Φ and the position p (start point) of joint axis, we can calculate them based on the rotation matrix Rk and translation component tk as: 
+
+Φk = uk · tk
+
+∥uk∥2 , pk = ( Rk − I)−1 · (Φ k · uk − tk). (7) For the joint type, inspired by (Shi et al., 2021; Liu et al., 2025), we classify it as revolute when the rotation degree Θ exceeds a threshold ϵrevol = 10 ◦ (about 0.17 radians) and prismatic by contrast. Based on this, in static-during-motion detection, a region in a moving Gaussian set is considered static if the rotation angle Θ ≤ 0.1 radians and translation magnitude Φ ≤ 0.05 units. 
+
+4 EXPERIMENT 
+
+4.1 DATASET , M ETRICS , AND IMPLEMENTATION 
+
+Dataset. We select various articulated objects from PartNet-Mobility (Mo et al., 2019) . We rendered a video of articulated motion using a camera trajectory around the object. To verify the effectiveness of our prior-free part segmentation, we render objects with multiple parts moving simultaneously in a variety of motions. For two-state baselines, we render 100 random upper-hemisphere views of the start and end states, respectively. Our benchmarks include challenging 8 two-part objects, 2 three-part objects, and 2 multi-part objects. Most interior parts are gradually revealed over time, reflecting real-world applications. (Additional examples are provided in the Appendix C. )Metrics. We conduct comparisons from three perspectives: 1) Part segmentation performance. To consider the points inside the surface, we voxelize the meshes and evaluate part-level segmentation with 3D Intersection-over-Union (IoU) (Nie et al., 2021); 2) Reconstruction quality. Following prior works, we compute the bi-directional Chamfer Distance (mm) to measure the reconstruction quality; 3) Articulation estimation accuracy . Following prior works, We report the Axis Ang Err (◦), Axis Pos Err (0.1m) , and Part Motion ( ◦ or m) . (More details please refer to Appendix B). 
+
+Implementation details. We evaluate against recent state-of-the-art methods, PARIS †, DTA, and ArtGS, that use RGB–Depth inputs. Our approach requires an RGB video with 200 frames for two-and three-part objects and 500 frames for more complex objects. We present a baseline, Ours-b ,which replaces the proposed dual-Gaussian representation with a single deformable 3D Gaussian shape (3DGS). Following ArtGS, we use a truncated signed distance function (TSDF) volume for mesh reconstruction, render depth maps, and marching cubes (Huang et al., 2024a). 4.2 QUALITATIVE AND QUANTITATIVE EVALUATION 
+
+Part segmentation. As shown in Tab. 1, our method attains the best 3D IoU on almost all objects in both two-part and multi-part settings. On complex objects, the gains are large, e.g. on Storage 
+
+(6 moving parts), our mean dynamic-part IoU exceeds the prior SoTA by +27.11 %. Standard devi-ations are consistently lower, indicating greater stability than two-state inference ( e.g. DTA/ArtGS on Fridge , Oven ). Compared with Ours-b , the dual-Gaussian dynamic–static separation further im-proves accuracy by suppressing static interference. 
+
+> †PARIS is augmented with depth supervision
+
+7Published as a conference paper at ICLR 2026 
+
+Table 1: Part segmentation performance on articulated objects. (a) Two-part; (b) Three-part; (c) Complex objects. For two-part objects, 3D IoU(%) is reported as mean ±std over 10 trials, while for three-part and complex objects, we report mean 3D IoU(%) over 10 trials. Davg represents the average over all movable parts. F denotes failure. Higher is better, with the best highlighted in bold .; Gray means two-state methods. (a) Two-part objects 
+
+3D IoU (%) ↑ Method Two-part objects Fridge Oven Scissor USB Washer Blade Storage PARIS 85.23 ±9.20 92.19 ±6.33 83.13 ±3.71 F 98.53 ±0.48 87.84 ±2.60 86.73 ±3.18 
+
+Static DTA 86.27 ±6.58 91.11 ±3.50 66.01 ±3.38 86.30 ±1.84 88.49 ±10 .94 83.22 ±2.03 88.87 ±1.84 
+
+Part ArtGS 87.69 ±10 .46 94.55 ±3.76 84.70 ±4.27 88.62 ±2.32 94.51 ±4.04 90.91 ±1.57 88.68 ±2.66 
+
+Ours-b 83.70 ±4.70 94.46 ±2.31 81.27 ±2.84 55.15 ±14 .96 F 83.59 ±1.41 88.57 ±3.07 
+
+Ours 88.01 ±6.37 97.72 ±0.52 92.42 ±1.05 92.93 ±1.30 96.98 ±2.22 84.33 ±1.65 91.41 ±2.78 
+
+PARIS 55.97 ±29 .62 45.42 ±43 .90 67.81 ±15 .09 F 32.75 ±29 .62 34.42 ±10 .85 42.88 ±16 .99 
+
+Dynamic DTA 52.06 ±22 .22 41.23 ±22 .06 53.58 ±7.44 79.81 ±2.71 5.97 ±5.64 27.92 ±11 .62 39.01 ±10 .74 
+
+Part ArtGS 58.78 ±36 .40 65.68 ±24 .50 75.04 ±9.69 86.85 ±2.37 35.62 ±36 .43 28.95 ±16 .08 65.30 ±9.66 
+
+Ours-b 57.09 ±17 .60 72.50 ±9.45 77.74 ±3.75 55.36 ±14 .52 F 41.76 ±3.34 35.54 ±26 .04 
+
+Ours 75.19 ±14 .61 89.61 ±1.50 92.21 ±1.19 91.95 ±1.18 68.52 ±13 .80 43.92 ±6.97 69.01 ±7.42 
+
+PARIS 70.60 ±19 .40 68.80 ±25 .11 75.47 ±9.01 F 65.64 ±14 .34 61.13 ±6.64 64.81 ±10 .08 
+
+DTA 69.16 ±13 .56 66.17 ±12 .75 59.79 ±5.41 83.05 ±2.26 47.23 ±6.89 55.57 ±6.80 63.94 ±4.57 
+
+Mean ArtGS 73.24 ±23 .42 80.12 ±14 .13 79.87 ±6.19 87.73 ±2.10 65.06 ±20 .21 59.93 ±8.82 76.99 ±6.17 
+
+Ours-b 70.40 ±11 .13 83.48 ±5.86 79.51 ±3.26 55.26 ±14 .51 F 62.68 ±2.47 62.06 ±13 .79 
+
+Ours 81.60 ±10 .48 93.66 ±0.98 92.31 ±1.12 92.44 ±1.24 82.75 ±7.99 64.12 ±4.29 80.21 ±7.37 
+
+(b) Three-part objects 
+
+3D IoU PARIS-m DTA ArtGS Ours 
+
+S 89.77 88.53 92.23 94.20 
+
+Storage D0 F 55.32 51.78 94.95 
+
+47024 D1 60.72 96.00 79.75 
+
+S 89.55 81.05 94.80 95.42 
+
+Fridge D0 25.73 55.28 88.53 89.95 
+
+11304 D1 45.31 61.19 80.48 91.42 
+
+(c) Complex objects 
+
+3D IoU (%) DTA ArtGS Ours 
+
+Storage 47648 
+
+S 87.95 93.32 97.01 
+
+Davg 26.38 52.23 79.34 
+
+Mean 35.18 58.14 81.87 
+
+Table 31249 
+
+S 89.81 90.44 91.75 
+
+Davg 37.29 38.07 43.92 
+
+Mean 47.80 48.55 53.49 
+
+Table 2: Mesh reconstruction comparison. (a) Two-part objects; (b) Three-part objects; (c) Complex objects. For two-part objects, we report CD distance (mm) as mean ±std across 10 trials. For three-part and complex objects, we only report the mean value, while we report average CD for movable parts. Lower ( ↓) is better. (a) Two-part objects 
+
+Metric Method Two-part objects Fridge Oven Scissor USB Washer Blade Storage DTA 3.19 ±0.80 9.10 ±3.59 9.41 ±1.00 2.04 ±0.12 5.03 ±3.44 0.33 ±0.00 4.94 ±0.14 
+
+CD-S ArtGS 1.58 ±0.28 8.39 ±0.29 0.80 ±0.99 11.01 ±0.43 6.63 ±0.17 1.23 ±0.01 7.50 ±0.15 
+
+Ours-b 4.73 ±0.53 10.08 ±1.43 2.22 ±1.07 34.61 ±1.73 F 1.90 ±0.06 7.27 ±0.78 
+
+Ours 3.45 ±0.09 10.36 ±0.73 0.14 ±0.00 1.54 ±0.14 9.25 ±0.99 1.76 ±0.02 7.09 ±0.49 
+
+DTA 4.08 ±0.60 77.61 ±86 .59 141.99 ±35 .39 1.90 ±0.51 481.06 ±66 .34 19.30 ±2.09 67.33 ±3.03 
+
+CD-m ArtGS 43.51 ±0.47 64.34 ±3.66 53.71 ±28 .82 50.00 ±19 .77 155.65 ±22 .79 473.72 ±7.62 6.92 ±0.54 
+
+Ours-b 18.27 ±4.22 5.17 ±2.54 73.13 ±50 .33 19.46 ±0.46 F 110.46 ±36 .00 88.85 ±73 .10 
+
+Ours 2.21 ±0.18 1.63 ±0.25 0.27 ±0.03 0.89 ±0.10 21.03 ±1.02 2.36 ±0.09 18.95 ±2.57 
+
+(b) Three-part objects 
+
+↓ PARIS-m DTA ArtGS Ours CD-s 8.05 3.20 3.58 10.37 Storage CD-D0 F 275.87 253.69 0.81  
+
+> 47024
+
+CD-D1 287.70 1.21 27.35 CD-s 6.91 4.90 2.93 8.16 Fridge CD-D0 298.29 29.95 12.83 3.85  
+
+> 11304
+
+CD-D1 189.85 323.06 12.17 2.12 
+
+(c) Complex objects 
+
+↓ DTA ArtGS Ours 
+
+Storage 47648 
+
+CD-s 2.08 2.96 2.63 CD-m avg 200.15 71.17 8.36 
+
+Table 31249 
+
+CD-s 2.56 3.65 3.08 CD-m avg 152.93 51.40 4.99 
+
+Mesh reconstruction. We report mesh-reconstruction results in Tab. 2. Despite using RGB-only 
+
+inputs, our CD on static parts is competitive with PARIS and ArtGS, and our errors on dynamic parts are much lower e.g. Storage 47648 : 8.36 vs. 71.17 (ArtGS); Table : 4.99 vs. 51.40. 
+
+Articulation estimation. Our framework attains highly accurate joint predictions (see Tab. 3). For two-part objects, our axis-angle errors are consistently minimal ( e.g. Oven : 0.27 ◦ vs. 5.39 ◦ of DTA). For complex objects, the improvements are striking: on Storage , we reduce axis-angle error from 12.78 ◦ (ArtGS) to 0.58 ◦, and part motion errors to nearly zero (0.02 for prismatic joints). This evidences the advantage of dual-Gaussian representation and motion-based fitting. 
+
+Analysis of two-state limitations. From qualitative and quantitative results, it can be observed that two-state methods strongly rely on geometric correspondence between the start and end states. Once this correspondence is broken, such as the open-end state reveals interior regions absent from the close-start, these methods are forced to match dissimilar geometry, leading to degraded part segmen-tation and unstable articulation estimation. Most notably, on two-part objects such as the fridge and oven in Fig. 6, the newly revealed interior structures cause the canonical mid-state Gaussian initial-isation in ArtGS to fail. This disturbed canonical initialisation propagates to articulation estimation 8Published as a conference paper at ICLR 2026 
+
+Table 3: Quantitative evaluation of articulation estimation. (a) Two-part; (b) Three-part; (c) Complex objects. For complex objects, we report the average of all moving parts. Due to the different magnitudes of part motion for revolute and prismatic joints, we report both of them. F denotes failure. W T denotes that more than 6 out of 10 trials result in an incorrect joint-type prediction. − indicates prismatic joints w/o rotation axis. (a) Two-part objects 
+
+Metric Method Two-part objects Fridge Oven Scissor USB Washer Blade Storage Axis DTA 1.86 ±3.80 5.39 ±7.16 1.01 ±1.23 0.22 ±0.11 17.34 ±25 .59 1.65 ±0.35 8.18 ±6.80 
+
+Ang ArtGS WT WT 2.39 ±1.91 23.86 ±35 .02 WT 1.31 ±0.14 0.00 ±0.01 
+
+Ours-b 6.76 ±3.40 3.36 ±3.31 5.12 ±0.46 6.65 ±4.20 F 0.25 ±4.20 1.72 ±0.67 
+
+Ours 2.70 ±1.73 0.27 ±0.25 1.60 ±0.38 0.59 ±0.30 1.63 ±0.90 0.18 ±0.17 1.52 ±0.88 
+
+Axis DTA 1.75 ±1.20 4.98 ±4.38 8.84 ±4.76 0.01 ±0.01 26.50 ±42 .41 − −
+
+Pos ArtGS WT WT 1.73 ±1.70 6.01 ±8.60 WT − −
+
+Ours-b 1.22 ±0.86 1.24 ±0.86 0.86 ±0.55 0.84 ±0.37 F − −
+
+Ours 0.86 ±0.34 1.13 ±0.68 0.75 ±0.05 1.45 ±0.71 1.12 ±0.29 − −
+
+PARIS 167.60 ±14 .49 144.80 ±11 .20 122.05 ±42 .50 F 86.13 ±3.11 0.08 ±0.06 0.10 ±0.02 
+
+Part DTA 171.77 ±13 .43 142.10 ±33 .62 150.50 ±11 .29 0.32 ±0.15 76.43 ±11 .27 0.02 ±0.00 0.07 ±0.06 
+
+Motion ArtGS WT WT 99.09 ±67 .18 120.05 ±19 .63 WT 0.14 ±0.00 0.00 ±0.00 
+
+Ours-b 10.67 ±3.49 7.64 ±1.77 5.20 ±0.40 16.94 ±1.85 F 0.25 ±4.20 1.72 ±0.67 
+
+Ours 6.76 ±3.40 3.36 ±3.31 5.12 ±0.46 6.65 ±4.20 6.90 ±2.88 0.01 ±0.00 0.02 ±0.00 
+
+(b) Three-part objects                                                
+
+> Methods D0D1
+> Axis Ang Axis Pos Part Motion Axis Ang Axis Pos Part Motion DTA 58.63 38.59 96.56 0.50 −0.01
+> Storage ArtGS 20.63 3.83 107.56 1.75 −0.13
+> 47024 Ours 0.56 1.26 1.66 1.03 −0.06 DTA 22.02 359.06 178.80 9.48 6.22 38.36 Fridge ArtGS 13.94 46.95 176.52 3.33 15.79 41.81
+> 11304 Ours 0.68 3.58 3.57 1.67 0.68 4.81
+
+(c) Complex objects                         
+
+> ↓Ang avg Pose avg Motion ravg Motion pavg
+> Storage ArtGS 12.78 3.34 81.93 0.18
+> 47648 Ours 0.58 1.31 10.56 0.02
+> Table ArtGS 33.19 2.42 82.29 0.43
+> 31249 Ours 1.19 0.81 1.10 0.01
+
+Start 
+
+ArtGS 
+
+GT 
+
+DTA 
+
+Ours 
+
+End  Start  End 
+
+GT 
+
+DTA 
+
+ArtGS 
+
+Ours 
+
+ArtGS 
+
+Ours 
+
+End 
+
+Figure 6: Qualitative results of part segmentation and articulation estimation on two two-part objects (fridge, left; oven, middle) and a complex multi-part object (Storage-47648, right). For complex object, each predicted joint axis is visualised using the same colour as its corresponding part segmentation mask. Across the two-part objects, DTA and ArtGS often struggle with mis-segmentation and inaccurate joint-axis/type predictions. In contrast, our method produces clean part segmentation and consistent joint-axis estimation across all objects. 
+
+and results in joint-type errors, often predicting a prismatic joint instead of the correct revolute joint. By contrast, DTA is relatively more stable due to its symmetric optimisation of both the start-to-end and end-to-start transformations, yet it still misclassifies newly revealed structures, e.g. predicting the oven interior as dynamic or assigning large portions of the moving fridge door to the static part. 
+
+Summary. Overall, compared to two-state motion inference, our method demonstrates stronger and more stable performance under a challenging close-start/open-end setting. In the two- and three-part datasets, Articulation in Motion achieves the best results on the vast majority of objects. On complex objects, our approach shows a clear advantage, significantly surpassing prior methods 
+
+(more visualisations in Appendix D and Fig. A4) . For mesh reconstruction, while our approach still has limitations in overall mesh fidelity compared with NeRF-based methods, the strength of our part mobility analysis enables consistently superior reconstruction of dynamic parts over prior state-of-the-art methods. 9Published as a conference paper at ICLR 2026 
+
+Table 4: Ablation studies on complex objects. We report the average metrics of dynamic parts. And we calculate the mean across three trials.                                                                                           
+
+> Ang avg ↓Pose avg ↓Motion ravg ↓Motion pavg ↓CD-m avg ↓3D IoU Davg ↑
+> ArtGS 12.78 3.34 81.93 0.18 71.17 52.23
+> w/o start state scan 1.57 1.49 20.61 0.05 97.65 37.60 Storage w/o SDMD 2.62 1.41 14.72 0.06 91.52 77.45
+> 47648 w/o dual-GS 2.95 1.77 15.36 0.08 17.43 67.66
+> w/o RANSAC 3.80 1.41 12.62 0.38 78.54 67.06 Full 0.58 1.31 10.56 0.02 8.36 79.34 ArtGS 33.19 2.42 82.29 0.43 51.40 38.07
+> w/o start state scan FTable w/o SDMD 11.62 1.49 23.74 0.21 18.05 37.10
+> 31249 w/o dual-GS 1.49 0.94 1.47 0.37 6.26 41.74
+> w/o RANSAC 1.28 0.91 1.25 0.37 6.02 40.65 Full 1.19 0.81 1.10 0.01 4.99 43.92
+
+4.3 ABLATION STUDY 
+
+Effectiveness of start state scan. As shown in Tab. 4, while directly training the dual-Gaussian representation with a set of random Gaussians as the static, 3D IoU D avg drops from 79.34 % to 
+
+37.60 %. On Table , the pipeline cannot detect the moving Gaussians. These results indicate that the start state can anchor the shape and appearance of objects and is essential for capturing motion cues. 
+
+Effectiveness of the static-during-motion detection (SDMD). Disabling SDMD consistently harms dynamic geometry and motion recovery. In particular, the sharp increase in CD-m Davg in both storage and table shows that the filtering of static noise during motion capture is critical to part mobility analysis. (More visual results please see Fig. A13 in Appendix.) 
+
+Effectiveness of the dual-GS representation. We assess the dual-Gaussian representation by replacing it with the original deformable-3DGS. Across metrics, articulation accuracy and part-segmentation IoU degrade markedly without our dual-Gaussian representation. This confirms that explicit dynamic–static disentanglement is a cornerstone for prior-free part mobility analysis. (More visual results please see Fig. A14 in Appendix.) 
+
+Effectiveness of sequential RANSAC. We first attempted prior-free density clustering with DB-SCAN (Ester et al., 1996), which failed to produce valid partitions across objects. We then applied K-means (Pham et al., 2004) with the provided part count, yielding reasonable groups but infe-rior articulation and segmentation. In contrast, sequential RANSAC delivers the best prior-free performance while remaining robust to motion variability. Given our accurate motion trajectories, K-means outperforms ArtGS, underscoring the quality of our motion cue extraction. 
+
+5 CONCLUSION AND LIMITATION 
+
+Conclusion. In this work, we presented a compact pipeline, Articulation in Motion (A IM), to achieve a prior-free and stable part-mobility analysis. Compared to previous works based on two-state shape correspondence, our method utilises more natural motion and human-object interaction videos as input. It introduced a dual-Gaussian scene representation to analyse motion cues in the video. With the dual-Gaussian dynamic–static separation, we obtained clean motion trajectories; coupled with the robustness of sequential RANSAC, this enables prior-free part segmentation and articulation on unseen objects. Comprehensive experimental evaluations validated the effectiveness and stability of the proposed A IM in diverse challenging scenarios. 
+
+Limitations and future work. Our A IM generates higher quality segmentation of articulated ob-jects and recovery of their degrees of freedom (DoF) compared to prior work. We do not require the use of depth sensing, as done by most prior art techniques; however, we do utilise a video that captures the DoFs of the object’s parts. Such a video contains more information than a three-dimensional reconstruction of the object at the start and end states. Yet, in many common cases, this is easier to capture compared to the former type of data: some objects contain many DoFs, and some are dependent on each other, making it hard to capture all of them with only two static states. The capture of a video is a more natural way for a person to introduce an object, where they can expose each DoF at a time. Capturing the whole geometry of internal parts, such as drawers, an extended blade of a knife, or the blades of a pair of scissors, requires the full disassembly of the articulated object. The generated geometry is limited to the visible geometry and, as such, may be limited in its application for developing interactive models. Future work may utilise a data-driven approach to complete such parts of the whole geometry, given a dataset of these parts. 10 Published as a conference paper at ICLR 2026 ACKNOWLEDGMENTS 
+
+This project is supported by the Amazon Research Award “PCo3D: Physically Plausible Control-lable 3D Generative Models”. The project is also supported by an unrestricted charitable donation from Meta (Aria Project Partnership) to the University of Birmingham. The computations in this research were supported by the Baskerville Tier 2 HPC service. Baskerville was funded by the EP-SRC and UKRI through the World Class Labs scheme (EP \T022221 \1) and the Digital Research Infrastructure programme (EP \W032244 \1) and is operated by Advanced Research Computing at the University of Birmingham. 
+
+REFERENCES 
+
+Jianning Deng, Kartic Subr, and Hakan Bilen. Articulate your nerf: Unsupervised articulated object modeling via conditional view synthesis. arXiv preprint arXiv:2406.16623 , 2024. Bardienus P Duisterhof, Zhao Mandi, Yunchao Yao, Jia-Wei Liu, Mike Zheng Shou, Shuran Song, and Jeffrey Ichnowski. Md-splatting: Learning metric deformation from 4d gaussians in highly deformable scenes. arXiv preprint arXiv:2312.00583 , 2(3), 2023. Jakob Engel, Kiran Somasundaram, Michael Goesele, Albert Sun, Alexander Gamino, Andrew Turner, Arjang Talattof, Arnie Yuan, Bilal Souti, Brighid Meredith, Cheng Peng, Chris Sweeney, Cole Wilson, Dan Barnes, Daniel DeTone, David Caruso, Derek Valleroy, Dinesh Ginjupalli, Duncan Frost, Edward Miller, Elias Mueggler, Evgeniy Oleinik, Fan Zhang, Guruprasad Soma-sundaram, Gustavo Solaira, Harry Lanaras, Henry Howard-Jenkins, Huixuan Tang, Hyo Jin Kim, Jaime Rivera, Ji Luo, Jing Dong, Julian Straub, Kevin Bailey, Kevin Eckenhoff, Lingni Ma, Luis Pesqueira, Mark Schwesinger, Maurizio Monge, Nan Yang, Nick Charron, Nikhil Raina, Omkar Parkhi, Peter Borschowa, Pierre Moulon, Prince Gupta, Raul Mur-Artal, Robbie Pennington, Sachin Kulkarni, Sagar Miglani, Santosh Gondi, Saransh Solanki, Sean Diener, Shangyi Cheng, Simon Green, Steve Saarinen, Suvam Patra, Tassos Mourikis, Thomas Whelan, Tripti Singh, Vasileios Balntas, Vijay Baiyya, Wilson Dreewes, Xiaqing Pan, Yang Lou, Yipu Zhao, Yusuf Mansour, Yuyang Zou, Zhaoyang Lv, Zijian Wang, Mingfei Yan, Carl Ren, Renzo De Nardi, and Richard Newcombe. Project aria: A new tool for egocentric multi-modal ai research, 2023. URL 
+
+https://arxiv.org/abs/2308.13561 .Martin Ester, Hans-Peter Kriegel, J¨ org Sander, Xiaowei Xu, et al. A density-based algorithm for discovering clusters in large spatial databases with noise. In kdd , volume 96, pp. 226–231, 1996. Nick Heppert, Muhammad Zubair Irshad, Sergey Zakharov, Katherine Liu, Rares Andrei Ambrus, Jeannette Bohg, Abhinav Valada, and Thomas Kollar. Carto: Category and joint agnostic recon-struction of articulated objects. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pp. 21201–21210, 2023. Binbin Huang, Zehao Yu, Anpei Chen, Andreas Geiger, and Shenghua Gao. 2d gaussian splatting for geometrically accurate radiance fields. In ACM SIGGRAPH 2024 conference papers , pp. 1–11, 2024a. Jiangyong Huang, Silong Yong, Xiaojian Ma, Xiongkun Linghu, Puhao Li, Yan Wang, Qing Li, Song-Chun Zhu, Baoxiong Jia, and Siyuan Huang. An embodied generalist agent in 3d world. In 
+
+Proceedings of the International Conference on Machine Learning (ICML) , 2024b. Yi-Hua Huang, Yang-Tian Sun, Ziyi Yang, Xiaoyang Lyu, Yan-Pei Cao, and Xiaojuan Qi. Sc-gs: Sparse-controlled gaussian splatting for editable dynamic scenes. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pp. 4220–4230, 2024c. Baoxiong Jia, Yixin Chen, Huangyue Yu, Yan Wang, Xuesong Niu, Tengyu Liu, Qing Li, and Siyuan Huang. Sceneverse: Scaling 3d vision-language learning for grounded scene understanding. In 
+
+European Conference on Computer Vision , 2024. URL https://api.semanticscholar. org/CorpusID:267028244 .Hanxiao Jiang, Yongsen Mao, Manolis Savva, and Angel X Chang. Opd: Single-view 3d openable part detection. In European Conference on Computer Vision , pp. 410–426. Springer, 2022a. 11 Published as a conference paper at ICLR 2026 Ying Jiang, Chang Yu, Tianyi Xie, Xuan Li, Yutao Feng, Huamin Wang, Minchen Li, Henry Lau, Feng Gao, Yin Yang, and Chenfanfu Jiang. Vr-gs: A physical dynamics-aware interactive gaus-sian splatting system in virtual reality. ACM SIGGRAPH 2024 Conference Papers , 2024. URL 
+
+https://api.semanticscholar.org/CorpusID:267320640 .Zhenyu Jiang, Cheng-Chun Hsu, and Yuke Zhu. Ditto: Building digital twins of articulated objects from interaction. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pp. 5616–5626, 2022b. Wolfgang Kabsch. A solution for the best rotation to relate two sets of vectors. Foundations of Crystallography , 32(5):922–923, 1976. Ladislav Kavan, Steven Collins, Jir´ ı Z´ ara, and Carol O’Sullivan. Skinning with dual quaternions. 
+
+Proceedings of the 2007 symposium on Interactive 3D graphics and games , 2007. URL https: //api.semanticscholar.org/CorpusID:8680967 .Bernhard Kerbl, Georgios Kopanas, Thomas Leimk¨ uhler, and George Drettakis. 3d gaussian splat-ting for real-time radiance field rendering. ACM Trans. Graph. , 42(4):139–1, 2023. Justin Kerr, Chung Min Kim, Mingxuan Wu, Brent Yi, Qianqian Wang, Ken Goldberg, and Angjoo Kanazawa. Robot see robot do: Imitating articulated object manipulation with monoc-ular 4d reconstruction. In Conference on Robot Learning , 2024. URL https://api. semanticscholar.org/CorpusID:272910721 .Jiayi Liu, Ali Mahdavi-Amiri, and Manolis Savva. Paris: Part-level reconstruction and motion analysis for articulated objects. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pp. 352–363, 2023a. Liu Liu, Han Xue, Wenqiang Xu, Haoyuan Fu, and Cewu Lu. Toward real-world category-level articulation pose estimation. IEEE Transactions on Image Processing , 31:1072–1083, 2022. Liu Liu, Jianming Du, Hao Wu, Xun Yang, Zhenguang Liu, Richang Hong, and Meng Wang. Category-level articulated object 9d pose estimation via reinforcement learning. In Proceedings of the 31st ACM International Conference on Multimedia , pp. 728–736, 2023b. Yu Liu, Baoxiong Jia, Ruijie Lu, Junfeng Ni, Song-Chun Zhu, and Siyuan Huang. Building inter-actable replicas of complex articulated objects via gaussian splatting. In The Thirteenth Interna-tional Conference on Learning Representations , 2025. Jonathon Luiten, Georgios Kopanas, Bastian Leibe, and Deva Ramanan. Dynamic 3d gaussians: Tracking by persistent dynamic view synthesis. In 2024 International Conference on 3D Vision (3DV) , pp. 800–809. IEEE, 2024. Daniel MacSwayne, Ales Leonardis, and Jianbo Jiao. 3d superquadric splatting. In The IEEE/CVF Winter Conference on Applications of Computer Vision 2026 , 2025. Luca Magri and Andrea Fusiello. Multiple model fitting as a set coverage problem. In Proceedings of the IEEE conference on computer vision and pattern recognition , pp. 3318–3326, 2016. Ben Mildenhall, Pratul P Srinivasan, Matthew Tancik, Jonathan T Barron, Ravi Ramamoorthi, and Ren Ng. Nerf: Representing scenes as neural radiance fields for view synthesis. Communications of the ACM , 65(1):99–106, 2021. Kaichun Mo, Shilin Zhu, Angel X. Chang, Li Yi, Subarna Tripathi, Leonidas J. Guibas, and Hao Su. PartNet: A large-scale benchmark for fine-grained and hierarchical part-level 3D object understanding. In The IEEE Conference on Computer Vision and Pattern Recognition (CVPR) ,June 2019. Jiteng Mu, Weichao Qiu, Adam Kortylewski, Alan Yuille, Nuno Vasconcelos, and Xiaolong Wang. A-sdf: Learning disentangled signed distance functions for articulated shape representation. In 
+
+Proceedings of the IEEE/CVF International Conference on Computer Vision , pp. 13001–13011, 2021. 12 Published as a conference paper at ICLR 2026 Andreas Mueller. Modern robotics: Mechanics, planning, and control. IEEE Control Sys-tems , 39:100–102, 2019. URL https://api.semanticscholar.org/CorpusID: 208033954 .Yinyu Nie, Ji Hou, Xiaoguang Han, and Matthias Nießner. Rfd-net: Point scene understanding by semantic instance reconstruction. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pp. 4608–4618, 2021. Weikun Peng, Jun Lv, Cewu Lu, and Manolis Savva. iTACO: Interactable Digital Twins of Articu-lated Objects from Casually Captured RGBD Videos. In 3DV 2026 , 2025. Duc Truong Pham, Stefan Simeonov Dimov, and CD Nguyen. An incremental k-means algorithm. 
+
+Proceedings of the Institution of Mechanical Engineers, Part C: Journal of Mechanical Engineer-ing Science , 218(7):783–795, 2004. Xavier Puig, Eric Undersander, Andrew Szot, Mikael Dallaire Cote, Tsung-Yen Yang, Ruslan Part-sey, Ruta Desai, Alexander William Clegg, Michal Hlavac, So Yeon Min, et al. Habitat 3.0: A co-habitat for humans, avatars and robots. arXiv preprint arXiv:2310.13724 , 2023. Shengyi Qian, Linyi Jin, Chris Rockwell, Siyi Chen, and David F Fouhey. Understanding 3d object articulation in internet videos. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pp. 1599–1609, 2022. Nikhila Ravi, Valentin Gabeur, Yuan-Ting Hu, Ronghang Hu, Chaitanya Ryali, Tengyu Ma, Haitham Khedr, Roman R¨ adle, Chloe Rolland, Laura Gustafson, et al. Sam 2: Segment anything in images and videos. arXiv preprint arXiv:2408.00714 , 2024. Tianhe Ren, Shilong Liu, Ailing Zeng, Jing Lin, Kunchang Li, He Cao, Jiayu Chen, Xinyu Huang, Yukang Chen, Feng Yan, Zhaoyang Zeng, Hao Zhang, Feng Li, Jie Yang, Hongyang Li, Qing Jiang, and Lei Zhang. Grounded sam: Assembling open-world models for diverse visual tasks, 2024. Olinde Rodrigues. Des lois g´ eom´ etriques qui r´ egissent les d´ eplacements d’un syst` eme solide dans l’espace, et de la variation des coordonn´ ees provenant de ces d´ eplacements consid´ er´ es ind´ ependamment des causes qui peuvent les produire. Journal de Math´ ematiques Pures et Appliqu´ ees , 1e s´ erie, 5:380–440, 1840. URL https://www.numdam.org/item/JMPA_ 1840_1_5__380_0/ .Johannes L. Schonberger and Jan-Michael Frahm. Structure-from-motion revisited. In Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR) , June 2016. Yahao Shi, Xinyu Cao, and Bin Zhou. Self-supervised learning of part mobility from point cloud sequence. In Computer Graphics Forum , volume 40, pp. 104–116. Wiley Online Library, 2021. Chaoyue Song, Jiacheng Wei, Chuan Sheng Foo, Guosheng Lin, and Fayao Liu. Reacto: Recon-structing articulated objects from a single video. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pp. 5384–5395, 2024. Xiaohao Sun, Hanxiao Jiang, Manolis Savva, and Angel Chang. Opdmulti: Openable part detection for multiple objects. In 2024 International Conference on 3D Vision (3DV) , pp. 169–178. IEEE, 2024. Catherine Taylor, Robin McNicholas, and Darren P. Cosker. Towards an egocentric framework for rigid and articulated object tracking in virtual reality. 2020 IEEE Conference on Virtual Reality and 3D User Interfaces Abstracts and Workshops (VRW) , pp. 354–359, 2020. URL https: //api.semanticscholar.org/CorpusID:218597438 .Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. Attention is all you need. Advances in neural informa-tion processing systems , 30, 2017. Ruiqi Wang, Akshay Gadi Patil, Fenggen Yu, and Hao Zhang. Active coarse-to-fine segmentation of moveable parts from real images. In European Conference on Computer Vision , pp. 111–127. Springer, 2024. 13 Published as a conference paper at ICLR 2026 Fangyin Wei, Rohan Chabra, Lingni Ma, Christoph Lassner, Michael Zollh¨ ofer, Szymon Rusinkiewicz, Chris Sweeney, Richard Newcombe, and Mira Slavcheva. Self-supervised neu-ral articulated shape and appearance models. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pp. 15816–15826, 2022. Yijia Weng, He Wang, Qiang Zhou, Yuzhe Qin, Yueqi Duan, Qingnan Fan, Baoquan Chen, Hao Su, and Leonidas J Guibas. Captra: Category-level pose tracking for rigid and articulated objects from point clouds. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pp. 13209–13218, 2021. Yijia Weng, Bowen Wen, Jonathan Tremblay, Valts Blukis, Dieter Fox, Leonidas Guibas, and Stan Birchfield. Neural implicit representation for building digital twins of unknown articulated ob-jects. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pp. 3141–3150, 2024. Di Wu, Liu Liu, Zhou Linli, Anran Huang, Liangtu Song, Qiaojun Yu, Qi Wu, and Cewu Lu. Reartgs: Reconstructing and generating articulated objects via 3d gaussian splatting with geo-metric and motion constraints. arXiv preprint arXiv:2503.06677 , 2025a. Guanjun Wu, Taoran Yi, Jiemin Fang, Lingxi Xie, Xiaopeng Zhang, Wei Wei, Wenyu Liu, Qi Tian, and Xinggang Wang. 4d gaussian splatting for real-time dynamic scene rendering. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pp. 20310–20320, 2024. Mingxuan Wu, Huang Huang, Justin Kerr, Chung Min Kim, Anthony Zhang, Brent Yi, and Angjoo Kanazawa. Predict-optimize-distill: A self-improving cycle for 4d object understand-ing. ArXiv , abs/2504.17441, 2025b. URL https://api.semanticscholar.org/ CorpusID:278032952 .Mingxuan Wu, Huang Huang, Justin Kerr, Chung Min Kim, Anthony Zhang, Brent Yi, and Angjoo Kanazawa. Predict-optimize-distill: A self-improving cycle for 4d object understanding. arXiv preprint arXiv:2504.17441 , 2025c. Zihao Yan, Ruizhen Hu, Xingguang Yan, Luanmin Chen, Oliver Matias van Kaick, Hao Zhang, and Hui Huang. Rpm-net. ACM Transactions on Graphics (TOG) , 38:1 – 15, 2019. URL 
+
+https://api.semanticscholar.org/CorpusID:220285890 .Ziyi Yang, Xinyu Gao, Wen Zhou, Shaohui Jiao, Yuqing Zhang, and Xiaogang Jin. Deformable 3d gaussians for high-fidelity monocular dynamic scene reconstruction. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pp. 20331–20341, 2024. Junyi Zhang, Charles Herrmann, Junhwa Hur, Varun Jampani, Trevor Darrell, Forrester Cole, De-qing Sun, and Ming-Hsuan Yang. Monst3r: A simple approach for estimating geometry in the presence of motion. arXiv preprint arXiv:2410.03825 , 2024. Jia-Xing Zhong, Ta-Ying Cheng, Yuhang He, Kai Lu, Kaichen Zhou, Andrew Markham, and Niki Trigoni. Multi-body se (3) equivariance for unsupervised rigid segmentation and motion estima-tion. Advances in Neural Information Processing Systems , 36:76085–76097, 2023. Qinhong Zhou, Hongxin Zhang, Xiangye Lin, Zheyuan Zhang, Yutian Chen, Wenjun Liu, Zunzhe Zhang, Sunli Chen, Lixing Fang, Qiushi Lyu, et al. Virtual community: An open world for humans, robots, and society. arXiv preprint arXiv:2508.14893 , 2025. Zrporz. Autoseg-sam2, 2024. URL https://github.com/zrporz/AutoSeg-SAM2 . Au-tomated image segmentation tool based on Segment Anything Model (SAM). 14 Published as a conference paper at ICLR 2026 
+
+APPENDIX 
+
+This is the appendix for the main paper. Here is a general roadmap describing the contents of each part of this document supporting the main paper: • In Section A, we first review the core 3DGS (Kerbl et al., 2023) and Deformable 3DGS (Yang et al., 2024) formulations to unify notation and provide the foundational baseline for our dual-Gaussian representation in the main paper. • In Section B, we detail three evaluation aspects: part segmentation, reconstruction quality, and articulation estimation accuracy . • In Section C, we provide additional details to our rendered datasets, which include the detailed splits/statistics and representative multi-view examples. • Section D provides more experimental results, including more visual comparisons among DTA (Weng et al., 2024), ArtGS (Liu et al., 2025) and ours (Section D.1), more quantitative and qualitative results compared with pre-trained segmentation driven method Video2Articulation (Peng et al., 2025) (Section D.2), more results compared with DTA and ArtGS under the open-start and open-end setting (Section D.3). Sec. D.4 details our real-world data ac-quisition and preprocessing pipeline, and reports visual results. • Section E provides additional qualitative results for the ablation study. 
+
+A PRELIMINARY 
+
+3D Gausssian splatting 3DGS represents the scene as an explicit point-based 3D structure, en-abling orders of magnitude faster reconstruction and rendering. In this work, we build on 3DGS to reconstruct the articulated objects with the part-level structures. In details, each 3D Gaussian Gi is defined by a center position μi ∈ R3, opacity σi ∈ R, a covariance matrix Σi parameterized by a 3D scale si ∈ R3 and a rotation ri ∈ R4, as well as spherical harmonics (SH) coefficients hi for view-dependent color modeling (Kerbl et al., 2023). Given image captures of the scene, we optimise a collection of Gaussians {G} = {G i}Ni=1 via blending-based differentiable rendering: 
+
+I =
+
+> N
+
+X
+
+> i=1
+
+ciTiα2Di , α 2Di (u) = σiexp( − 12 (u − μ2Di )T Σ2Di
+
+> −1
+
+(u − μ2Di )) , T i =
+
+> i−1
+
+Y
+
+> j=1
+
+(1 − α2Dj ), (8) where μ2Di and Σ2Di denote the 2D projections of the 3D center μi and covariance matrix Σi, respec-tively; u represents the pixel coordinate; and ci is the colour of Gi, determined by the SH coefficients 
+
+hi and the view direction. Ti represents the transmittance from the start of rendering to Gi.
+
+Deformable 3D Gaussian splatting. To model the time-varying changes of geometry and appear-ance in a dynamic scene, Deformable-3DGS (Yang et al., 2024) introduces a learnable deformation field to model temporal transformations in the centre positions μ, rotations r, and scales s of 3D Gaussians. This deformation field is parameterised by a multi-layer perceptron (MLP), which pre-dicts offsets based on time and the canonical Gaussian Gc. Specifically, at time step t, the deformed Gaussian Gd is defined as: 
+
+Gd(μi, s i, r i, σ i, h i) = Gc(μi + δμ, s i + δs, r i + δr, σ i, h i), (9) where the offsets δμ, δs, δr are given by Fθ (γ(t), γ (μi)) , with Fθ representing the deformation field and γ denoting the positional encoding function. With differentiable rendering, both the Gaussian parameters and the deformation network parameters are jointly optimised. Here, we only consider the time-varying transformation of position δμ and rotation δr .
+
+B METRICS AND EVALUATION DETAILS 
+
+We evaluate from three perspectives consistent with the main text: (1) part segmentation via 3D IoU on voxelized meshes, (2) reconstruction quality via bi-directional Chamfer Distance (mm), and (3) 
+
+articulation estimation accuracy via axis and motion errors. 15 Published as a conference paper at ICLR 2026 1. P ART SEGMENTATION PERFORMANCE (3D I OU) For each predicted part and its ground-truth (GT) counterpart, we voxelize both meshes onto a shared binary occupancy grid (identical bounds and voxel size). Let Vp and Vg be the sets of occupied voxels. The part-level segmentation score is 
+
+IoU = |V p ∩ V g ||V p ∪ V g | , (10) as in prior work (Nie et al., 2021). 2. R ECONSTRUCTION QUALITY (C HAMFER DISTANCE , MM )We uniformly sample points on the surfaces of the predicted and GT meshes and compute the sym-metric (bi-directional) Chamfer Distance in millimetres. For point sets X and Y ,
+
+CD( X, Y ) = 1
+
+|X|
+
+X
+
+> x∈X
+
+min 
+
+> y∈Y
+
+∥x − y∥2 + 1
+
+|Y |
+
+X
+
+> y∈Y
+
+min 
+
+> x∈X
+
+∥y − x∥2 . (11) We report CD for the whole object ( CD-w ), the static parts ( CD-s ), and the movable parts ( CD-m ). 3. A RTICULATION ESTIMATION ACCURACY 
+
+For each dynamic joint, we report three metrics: 
+
+Axis Ang Err ( ◦). Let ˆap, ˆag ∈ R3 be the unit axis directions (predicted and GT). The angular error (orientation-invariant) is 
+
+θ = min 
+
+n
+
+arccos(ˆ ap · ˆag ), 180 ◦ − arccos(ˆ ap · ˆag )
+
+o
+
+. (12) 
+
+Axis Pos Err (0.1m). Let the axes be lines ℓp(s) = op + s ˆap and ℓg (t) = og + t ˆag . The shortest distance d between two 3D lines is used, and we report it in units of 0.1m by 
+
+AxisPosErr = 10 × d, d = (ˆ ap × ˆag ) · (op − og )
+
+∥ˆap × ˆag ∥ (for non-parallel axes) , (13) and d = ∥(og − op) × ˆap∥ for (nearly) parallel axes. This metric is reported for revolute joints only. 
+
+Part Motion ( ◦ or m). Between the start state t=0 and end state t=1 , we measure the state error: (i) revolute : geodesic angle on SO(3) between the predicted and GT relative rotations ∆Rp =
+
+Rp
+
+> 1
+
+(Rp 
+
+> 0
+
+)⊤ and ∆Rg = Rg 
+
+> 1
+
+(Rg 
+
+> 0
+
+)⊤,
+
+ϕ = arccos 
+
+ tr(∆ Rp(∆ Rg )⊤)−12
+
+
+
+· 180 ◦ 
+
+> π
+
+; (14) (ii) prismatic : Euclidean difference between relative translations ∆tp = tp 
+
+> 1
+
+− tp 
+
+> 0
+
+and ∆tg = tg 
+
+> 1
+
+− tg
+
+> 0
+
+,
+
+s = ∥∆tp − ∆tg ∥2 (meters) . (15) 
+
+C DATASETS 
+
+C.1 SYNTHETIC DATASET 
+
+We build a dataset to evaluate motion segmentation under increasing difficulty. Detailed splits and statistics are reported in Table A1, Table A2, and Table A3. Each scene contains a start (static) state, a continuous motion segment, and an end (static) state. We also provide visual examples from the dataset. Fig. A1 shows a two-object scene with 100 multi-view images for the start state, 200 for the motion segment. Fig. A2 shows a three-object scene with the same counts: 100/200. Fig. A3 is a complex object scene with a longer motion segment: 100/500. 16 Published as a conference paper at ICLR 2026 
+
+Figure A1: Examples from the Two objects dataset 
+
+Figure A2: Examples from the Three objects dataset 
+
+17 Published as a conference paper at ICLR 2026 
+
+Table A1: Motion type and motion records across ten scenes on the Two-part objects dataset                              
+
+> Scene Blade 103706 Fridge 10905 Oven 101917 Scissor 11100 Stapler 103111 Storage 45135 USB 100109 Washer 103776 Motion type Translate Rotate Rotate Rotate Rotate Translate Rotate Rotate Motion 0→0.5−110 ◦→0◦0◦→90 ◦45 ◦→ − 45 ◦0◦→ − 80 ◦0→0.50◦→ − 90 ◦0◦→ − 60 ◦
+
+Table A2: Motion types and ranges extracted from the two scenes of the Three-part objects dataset. 
+
+Scene Part ID Motion Type Range Part ID Motion Type Range Fridge 11304 0 Rotate 0 → − 180 ◦ 1 Rotate 0◦ → − 90 ◦
+
+Storage 47024 0 Rotate 0◦ → 90 ◦ 1 Translate 0 → 0.7
+
+Table A3: Motion types and ranges extracted from two additional scenes of the Complex objects dataset. 
+
+Scene Part ID Motion Type Range Part ID Motion Type Range Storage 47648 0 Rotate 0 → 120 ◦ 1 Rotate 0 → − 120 ◦
+
+2 Rotate 0 → − 60 ◦ 3 Rotate 0 → 60 ◦
+
+4 Translate 0 → 0.1 5 Translate 0 → 0.16 
+
+Table 31249 0 Translate 0 → 0.38 1 Translate 0.35 → 0
+
+3 Rotate 0 → − 90 ◦ 4 Rotate 0 → 90 ◦
+
+Figure A3: Examples from the Complex objects dataset 
+
+18 Published as a conference paper at ICLR 2026 
+
+Table A4: Comparison results with Video2Articulation (Peng et al., 2025). We report four metrics, i.e. Axis Ang ( ◦), Axis Pose (0.1m), CD-m (mm) and CD-s (mm). Especially, for two-part objects, we report the metrics as mean ±std across 10 trials. For a three-part object, we report the mean value on different moving parts. Fail 
+
+represents that Video2Articulation fails to detect the correct part segmentation masks, and ( %) shows the failure rate. Bold means better performance.                                                                
+
+> Method Two-part Three-part
+> Fridge Storage USB Washer Fridge (Joint0) Fridge (Joint1) Axis Video2Articulation 3.80 ±0.00 6.53 ±0.00 1.89 ±0.00 Fail (100%) 2.17 1.35 Ang ( ◦)Ours 2.70 ±1.73 1.52 ±0.88 0.59 ±0.30 1.63 ±0.90 1.67 0.68
+> Axis Video2Articulation 0.95 ±0.00 —0.12 ±0.00 Fail (100%) 0.71 1.92
+> Pose (0.1m) Ours 0.86 ±0.34 —1.45 ±0.71 1.12 ±0.29 0.68 3.58 CD-m Video2Articulation 8.06 ±0.16 141.95 ±12 .02 24.68 ±0.49 Fail (100%) 2.88 41.38 (mm) Ours 2.21 ±0.18 18.95 ±2.57 0.89 ±0.10 21.03 ±1.02 2.12 3.85
+> CD-s Video2Articulation 7.21 ±0.12 8.66 ±0.47 101.42 ±0.72 Fail (100%) 44.45 44.45 (mm) Ours 3.45 ±0.09 7.09 ±0.49 1.54 ±0.14 9.25 ±0.99 8.16 8.16
+
+D ADDITIONAL RESULTS 
+
+D.1 ADDITIONAL RESULTS ON OUR DATASET 
+
+As shown in Fig. A4, we provide more rendering results of our A IM. Additionally, we provide more visual comparisons among DTA, ArtGS, and ours. As shown in Fig. A5 and Fig. A6, we compare the rendering quality with ArtGS, and compare the part segmentation performance with DTA and ArtGS. Especially, all the results are with the start state and generated with the estimated motion parameters. From the results, we can see that our method achieves more stable and accurate part mobility analysis. Furthermore, the point clouds in Fig. A6 are presented to show the geometry recovery. Laptop 10211   
+
+> Washer 103776
+> Oven 101917
+> Foldchair 102255 Storage 47024 Storage 47648
+
+Figure A4: Rendering of our dual-Gaussian representation ( left : static result {R S }, right : moving result 
+
+{R M,t =1}). All objects ( category instance ) are from PartNet-Mobility dataset (Mo et al., 2019). 
+
+D.2 ADDITIONAL COMPARISON WITH PRE -TRAINED SEGMENTATION DRIVEN METHOD 
+
+As introduced in Sec. 2, our work primarily focuses on self-contained methods, namely approaches that can independently perform part-level mobility analysis without relying on any externally pre-trained segmentation models or segmentation-mask pools. Therefore, we select PARIS, DTA, and ArtGS as our baselines. Furthermore, motivated by the inherent limitations shared by these two-state-based methods, we propose A IM, which leverages motion cues from common close-to-open interaction videos to achieve part prior-free mobility analysis without any structural priors. To further demonstrate the effectiveness of our method beyond the self-contained setting, we additionally report both quantitative and qualitative comparisons against the recent pre-trained segmentation-driven approach, Video2Articulation Peng et al. (2025). Since Video2Articulation requires preprocessing through Monst3r Zhang et al. (2024) and AutoSeg-SAM Zrporz (2024), we directly use the overlapping subset of objects provided in their released dataset. Specifically, we evaluate on four two-part objects (Fridge-10905, Storage-45135, USB-100109, Washer-103776) and one three-part object (Fridge-11304) and reproduce the official codes using the official settings. These results could be found in Tab. A4 and Fig. A7. 19 Published as a conference paper at ICLR 2026 GT 
+
+# ArtGS 
+
+# Ours 
+
+# GT 
+
+# ArtGS 
+
+# Ours 
+
+Figure A5: Rendering results based on articulation estimation parameters for the start state of two-part objects: 
+
+Top (fridge): From the visualisation, it can be observed that the newly seen interior content severely influences the performance of ArtGS’s articulation estimation, causing the door located inside the body. Bottom (oven): Similarly, during opening the oven, the newly seen content could not be well aligned between the two states, leading to wrong axis estimation and joint type estimation. The handle moves into the oven. 
+
+20 Published as a conference paper at ICLR 2026 (a) GT  (b) DTA  (c) ArtGS  (d)Ours 
+
+Figure A6: Qualitative comparison between DTA, ArtGS and ours, w.r.t. GT. 
+
+21 Published as a conference paper at ICLR 2026 Video2Articulation  Ours        
+
+> whole moving static Pre -trained segmentation mask whole moving static part segmentation
+> results
+
+Figure A7: Visual results of Video2Articulation Peng et al. (2025) (Left) and ours (Right) (Notably, as the expensive pre-processing process of Video2Articulation, we directly use their released dataset to reproduce Video2Articulation, there is some colour difference). Left : From the visualisations, we observe that the pre-trained-segmentation–driven Video2Articulation method fails to predict correct moving parts when the underlying pre-trained segmentation models cannot provide reliable masks. Typical failure cases include mis-segmenting the drawer and its cabinet, or losing track of the inside of the refrigerator door once it opens. Right: 
+
+In contrast, our approach performs part mobility analysis by directly exploiting motion cues from the interac-tion video. After achieving clean static–dynamic separation, we apply multi-model fitting based on the inferred motion patterns, which leads to consistently more robust and accurate results. Table A5: Quantitative evaluation of articulation estimation under the open-start and open-end condi-tions. (a) Two-part; (b) Three-part; (c) Complex objects. For complex objects, we report the average of all moving parts. Due to the different magnitudes of part motion for revolute and prismatic joints, we report both of them. − indicates prismatic joints w/o rotation axis. (a) Two-part objects 
+
+Metric Method Two-part objects Fridge Oven Scissor USB Washer Blade Storage Axis DTA 0.08 ±0.03 0.10 ±0.04 0.05 ±0.02 0.83 ±0.49 2.05 ±1.20 0.41 ±0.11 0.14 ±0.07 
+
+Ang ArtGS 0.00 ±0.00 0.01 ±0.00 0.07 ±0.00 0.01 ±0.00 0.03 ±0.02 0.02 ±0.00 0.00 ±0.00 
+
+Ours 0.19 ±0.08 0.06 ±0.03 0.21 ±0.01 0.20 ±0.06 0.05 ±0.02 0.03 ±0.01 0.05 ±0.02 
+
+Axis DTA 0.01 ±0.00 0.06 ±0.03 0.01 ±0.00 0.03 ±0.02 3.05 ±4.31 − −
+
+Pos ArtGS 0.00 ±0.00 0.01 ±0.00 0.00 ±0.00 0.00 ±0.00 0.00 ±0.00 − −
+
+Ours 0.04 ±0.02 0.05 ±0.04 0.00 ±0.00 0.02 ±0.01 0.02 ±0.01 − −
+
+Part DTA 0.12 ±0.04 0.20 ±0.09 0.04 ±0.02 0.66 ±0.38 12.13 ±11 .07 0.00 ±0.00 0.00 ±0.00 
+
+Motion ArtGS 0.01 ±0.00 0.04 ±0.00 0.05 ±0.00 0.00 ±0.00 0.03 ±0.00 0.00 ±0.00 0.00 ±0.00 
+
+Ours 0.79 ±0.34 0.46 ±0.16 0.58 ±0.05 1.19 ±0.07 0.10 ±0.04 0.00 ±0.00 0.00 ±0.00 
+
+(b) Three-part objects 
+
+Methods 
+
+D0 D1
+
+Axis Axis Part Axis Axis Part Ang Pos Motion Ang Pos Motion DTA 0.09 0.02 0.07 0.32 − 0.00 Storage ArtGS 0.04 0.00 0.01 0.05 − 0.00  
+
+> 47254
+
+Ours 0.18 0.05 0.22 0.05 − 0.00 DTA 0.26 0.01 0.19 0.18 0.01 0.26 Fridge ArtGS 0.02 0.00 0.01 0.00 0.00 0.05  
+
+> 10489
+
+Ours 0.09 0.01 0.42 0.06 0.04 0.85 
+
+(c) Complex objects                         
+
+> ↓Ang avg Pose avg Motion ravg Motion pavg
+> Storage ArtGS 10.18 0.43 10.91 0.13
+> 47648 Ours 0.08 0.24 1.62 0.03 Table ArtGS 0.02 0.00 0.01 0.00
+> 31249 Ours 0.36 0.00 0.27 0.00
+
+22 Published as a conference paper at ICLR 2026 
+
+Table A6: Mesh reconstruction comparison under the open-start and open-end condition. (a) Two-part objects; (b) Three-part objects; (c) Complex objects. For two-part objects, we report CD distance (mm) as mean ±std across 5 trials. For three-part and complex objects, we only report the mean value, while we report the average CD for movable parts. Lower ( ↓) is better. (a) Two-part objects                                                                              
+
+> Metric Method Two-part objects Fridge Oven Scissor USB Washer Blade Storage DTA 0.62 ±0.02 4.59 ±0.13 0.71 ±0.51 3.19 ±1.07 1.69 ±1.10 0.80 ±0.10 2.78 ±0.04
+> CD-S ArtGS 0.50 ±0.00 4.74 ±0.02 0.82 ±0.23 2.58 ±0.01 0.96 ±0.01 0.71 ±0.00 4.65 ±0.03
+> Ours 0.53 ±0.00 4.59 ±0.18 0.57 ±0.00 2.95 ±0.13 0.85 ±0.01 0.72 ±0.00 5.84 ±1.60
+> DTA 0.30 ±0.01 0.47 ±0.01 0.46 ±0.13 3.52 ±1.92 1.38 ±0.65 3.28 ±0.33 0.40 ±0.00
+> CD-m ArtGS 0.27 ±0.00 0.52 ±0.00 0.79 ±0.25 2.27 ±0.05 0.27 ±0.01 2.80 ±0.14 1.61 ±0.02
+> Ours 0.25 ±0.00 0.63 ±0.06 0.49 ±0.00 1.33 ±0.04 0.32 ±0.01 0.75 ±0.01 2.94 ±0.31
+> (b) Three-part objects
+> ↓DTA ArtGS Ours CD-s 1.01 0.95 1.58 Storage CD-D00.49 0.25 0.18
+> 47254 CD-D11.11 0.41 0.46 CD-s 2.66 1.97 2.12 Fridge CD-D03.56 1.26 1.26
+> 10289 CD-D12.78 0.76 0.69
+> (c) Complex objects
+
+↓ ArtGS Ours 
+
+Storage 47648 
+
+CD-s 1.52 1.64 CD-m avg 3.89 4.36 
+
+Table 31249 
+
+CD-s 2.11 2.08 CD-m avg 3.60 4.19 Project Aria: A New Tool for Egocentric Multi-Modal AI Research 
+
+b Engel, Kiran Somasundaram, Michael Goesele, Albert Sun, Alexander Gamino, Andrew Turner, ng Talattof, Arnie Yuan, Bilal Souti, Brighid Meredith, Cheng Peng, Chris Sweeney, Cole Wilson, Dan Barnes, Daniel DeTone, David Caruso, Derek Valleroy , Dinesh Ginjupalli, Duncan Frost, ward Miller, Elias Mueggler, Evgeniy Oleinik, Fan Zhang, Guruprasad Somasundaram, Gustavo aira, Harry Lanaras, Henry Howard-Jenkins, Huixuan Tang, Hyo Jin Kim, Jaime Rivera, Ji Luo, Jing Dong, Julian Straub, Kevin Bailey, Kevin Eckenhoff, Lingni Ma, Luis Pesqueira, Mark Schwesinger, Maurizio Monge, Nan Yang, Nick Charron, Nikhil Raina, Omkar Parkhi, Peter chowa, Pierre Moulon, Prince Gupta, Raul Mur-Artal, Robbie Pennington, Sachin Kulkarni, Sagar ani, Santosh Gondi, Saransh Solanki, Sean Diener, Shangyi Cheng, Simon Green, Steve Saarinen, am Patra, Tassos Mourikis, Thomas Whelan, Tripti Singh, Vasileios Balntas, Vijay Baiyya, Wilson reewes, Xiaqing Pan, Yang Lou, Yipu Zhao, Yusuf Mansour, Yuyang Zou, Zhaoyang Lv, Zijian Wang, Mingfei Yan, Carl Ren, Renzo De Nardi, Richard Newcombe Meta Reality Labs Research 
+
+Abstract 
+
+ocentric, multi-modal data as available on future aug-d reality (AR) devices provides unique challenges and unities for machine perception. These future devices ed to be all-day wearable in a socially acceptable actor to support always available, context-aware and nalized AI applications. Our team at Meta Reality esearch built the Project Aria device: An egocen-ulti-modal data recording and streaming device with al to foster and accelerate research in this area. In per, we describe the Project Aria device hardware ing its sensor configuration, the corresponding soft-ools, and the available machine perception function-that make it the ideal tool for egocentric machine ption and contextual AI research. 
+
+roduction 
+
+-day wearable AR glasses promise to be the next big gm shift in computing: They can lift interaction with ital world from 2D screens into the 3D world around nding seamlessly into our lives as opposed to di-g our attention into small 2D rectangles held in our Yet, in order to be more than mere 3D versions of 2D s, they also require a new compute- and interaction-gm that is context-aware, highly personalized and l to interact with. Creating this new paradigm is a cant challenge that still requires a broad range of re-
+
+> Figure 1. The Project Aria device.
+
+search to be solved. Fortunately, the recent breakthrough of internet-trained Large Language Models such as GPT4 [15] and llama2 [7] promise to solve a major part of this chal-lenge, making it a lot more tractable: They demonstrate that modern Transformer architectures combined with suf-ficient training data enable both long-range reasoning and information retrieval while also adopting seamlessly to new tasks using a local context window and prompt engineer-ing. Taken together, this enables human-level interaction with digital agents that blend into how we humans interact naturally. 
+
+1.1. Project Aria 
+
+However, we believe that this paradigm shift in person-alized computing requires another crucial ingredient: the ability for AI Agents to adapt to the unique, personal con-text and preferences of the individual user . Some of this can be achieved by leveraging a persons digital footprint – the 1
+
+Figure A8: The Meta Project Aria Glasses. 
+
+D.3 ADDITIONAL RESULTS UNDER THE OPEN -S TART AND OPEN -E ND SETTING 
+
+As shown in Tab. A5 and Tab. A6, we evaluate all methods under the same input setting used in ArtGS and DTA, namely, the open-start and open-end configuration. Meanwhile, we render the sequences using the motion parameters provided by ArtGS. Under this setting, both ArtGS and DTA achieve good articulation estimation, particularly because the geometric correspondence between the two states is clear and the part number is known. This also makes the articulation estimation of ArtGS stable, with almost zero variance in the evaluation of articulation estimation. Meanwhile, without structural priors as input, our A IM also achieves accurate and stable articulation estimation through dual-Gaussian–based dynamic–static disentanglement and robust motion-based Sequential RANSAC. As shown in Tab. A5, Tab. A6, our results are comparable to these optimisation-based baselines, and in challenging complex-object cases, A IM is more stable. Meanwhile, A IM’s part segmentation, driven only by motion cues in interaction videos and without requiring the number of parts, remains on par with or even surpasses recent state-of-the-art ArtGS. D.4 ADDITIONAL RESULTS ON REAL -WORLD DATA 
+
+D.4.1 REAL -W ORLD DATASET ACQUISITION 
+
+To better support natural human–object interaction during data capture, we leverage the Meta Project Aria Glasses (as shown in Fig. A8) to record the interaction video. In detail, videos are recorded in real time using the device’s built-in fisheye cameras while the user observes the target object and manipulates its movable parts. As shown in the video, during the interaction process, the user first walks into the scene and observes both the surrounding environment and the articulated objects in their closed-start state. To achieve the automatic pipeline, the user then signals the beginning of interaction by using the hand to touch the target object ( i.e. the oven). While manipulating the movable part, the user freely moves the head to observe the object from different viewpoints. The 23 Published as a conference paper at ICLR 2026 hand is then removed to inspect the object again. The user subsequently touches another object ( i.e. the storage) and repeats the same manipulation-and-observation procedure. Start 
+
+> End
+> Hand in
+> Hand in
+> Hand out
+> Hand out
+
+Figure A9: The captured interaction videos (The video could be found in the Supplementary Material). In particular, we use the hand as an indicator to automatically detect the motion start ( hand in ) and end times (hand out ), enabling a fully automated data-processing pipeline. 
+
+Figure A10: The estimated pose of real-world video via using COLMAP Schonberger & Frahm (2016). 
+
+For data processing, we first extract the recordings from the Aria glasses. Since the RGB cameras on Aria glasses are fisheye cameras, we apply the official Project Aria toolkit (Engel et al., 2023) to rectify each frame and re-project it into a pinhole camera mode. This produces a set of undistorted pinhole frames along with their corresponding timestamps (see Fig. A9). We then extract keyframes with FFMPEG and manually filter the frames to remove blurred or low-quality images. Finally, as shown in Fig. A10, the curated images are fed into COLMAP (Schonberger & Frahm, 2016) to estimate camera poses via structure-from-motion, which are used as inputs for subsequent recon-struction. Especially, we follow the process, introduced in video2articulation Peng et al. (2025), to obtain the whole articulated object ( i.e. oven and storage) via Grounded SAM2 Ravi et al. (2024); Ren et al. (2024) with the two text prompts: “silver microwave” and “wooden storage”. The final inputs to A IM consist of 100 start-state frames and 87 motion frames for the oven sequence, and 24 Published as a conference paper at ICLR 2026 
+
+77 start-state frames and 58 motion frames for the storage sequence. Although the number of mo-tion frames is much smaller than in our rendered dataset, the following results show that A IM still performs robustly and accurately under this limited motion input. D.4.2 EXPERIMENTAL RESULTS ON REAL -WORLD DATA 
+
+As shown in Fig. A11 and Fig. A12, we present our results on the real-world captured sequences. AIM performs robust and accurate part mobility analysis purely from RGB inputs, without any struc-tural prior knowledge. Notably, A IM reliably predicts the correct joint-axis direction and achieves low-error articulation estimation, such as the oven door’s nearly 85 ◦ opening motion, which is pre-dicted as about 82 ◦. Moreover, our SDMD module correctly reassigns newly revealed static regions during motion, such as the oven interior. For the storage example, despite significant occlusion from the oven and the user’s hand, A IM still produces correct part-level segmentation and articu-lation estimation. These results further confirm the strong motion analysis ability of dual-Gaussian representation and the generalisation capability of A IM in challenging real-world scenarios. 
+
+Limitations : From the real-world data, we observe that when motion introduces structural ambiguities— particularly those caused by specular reflections, such as the glass door of the oven in the video —our vanilla 3DGS-based reconstruction in A IM can be affected. In future work, we plan to further address such challenges, for example, by incorporating depth information to improve robustness under complex lighting and reflective surfaces. Moreover, as discussed in Sec. 5, we will extend A IM to more diverse and larger real-world scenes in future work. GT  Rendered                   
+
+> Results Rendered Results with
+> predicted masks
+> Articulation Estimation
+> 𝓖 𝒑
+> 𝑺 :𝒄 =𝟎 :Static ;
+> 𝓖 𝑴 :𝒄 =𝟏 :Revolute
+> {𝐝 =[
+> 0.29 8,0.939, 0.17 1],𝚯 =1. 409 }.
+
+Figure A11: Qualitative results of our A IM on the real-world data of the oven. Left: Comparison between the ground-truth views and rendered views. Besides, we provide the rendered masks based on our dual-Gaussian representation (via directly changing the spherical harmonics of Gaussians) . Due to the strong specular re-flections on the oven’s glass door, the appearance of the moving part undergoes frequent and significant changes during interaction. Despite this challenge, our dual-Gaussian representation still achieves clean dynamic–static disentanglement by relying on stable motion cues. Moreover, the SDMD module reliably reassigns the newly revealed static interior regions back to the static base as the motion unfolds, further improving the quality of disentanglement and reconstruction. Right: Our prior-free part mobility analysis. Based on our dual-Gaussian representation, we can easily infer the trajectories of moving Gaussians, and obtain the articulation parameters based on the optimisation-free and robust sequential RANSAC without any prior structural knowledge. 
+
+E ABLATION STUDY 
+
+In Fig. A13, we present qualitative ablations by removing individual modules, highlighting the im-portance of each component. As shown in Fig. A14, we also provide the comparisons between our dual Gaussian representation and the deformable Gaussian. The dynamic-static disentanglement of our dual Gaussian representation can better track the moving regions and support more accurate trajectory-based part segmentation. 25 Published as a conference paper at ICLR 2026 GT  Rendered                  
+
+> Results Rendered Results with
+> predicted masks
+> Articulation Estimation
+> 𝓖 𝒑
+> 𝑺 :𝒄 =𝟎 :Static ;
+> 𝓖 𝑴 :𝒄 =𝟏 :Prismatic
+> {𝐝 =[−0.289, 0.31 8,−0.90 3],𝚽 =1.023 }.
+
+Figure A12: Qualitative results of our A IM on the real-world data of storage. Left: Comparison between the ground-truth views and rendered views. Besides, we provide the rendered masks based on our dual-Gaussian representation (via directly changing the spherical harmonics of Gaussians). Although large regions of the stor-age are occluded by the oven and the hand during the interaction video (see Fig. A9), A IM remains robust and accurately performs dynamic–static disentanglement, enabling clean separation of the static base and the mov-ing part purely from motion cues. Right: Our prior-free part mobility analysis. Based on our dual-Gaussian representation, we can easily infer the trajectories of moving Gaussians, and obtain the articulation parameters based on the optimisation-free and robust sequential RANSAC without any prior structural knowledge. (No-tably, for prismatic joint, we do not consider the axis pose). Full  w/o dual -GS  w/o RANSAC  w/o SDMD  w/o start state scan 
+
+Figure A13: Qualitative comparisons for the ablation studies. Deformable 3DGS  Our Dual-GS 
+
+Figure A14: Part segmentation results based on Deformable 3DGS and our dual-Gaussian representation. We cluster Gaussians using the same sequential RANSAC settings; colours denote groups. Static noise in De-formable 3DGS noticeably degrades the segmentation. 
+
+26

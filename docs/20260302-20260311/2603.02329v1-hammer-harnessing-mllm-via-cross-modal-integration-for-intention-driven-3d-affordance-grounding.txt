@@ -1,0 +1,834 @@
+Title: HAMMER: Harnessing MLLM via Cross-Modal Integration for Intention-Driven 3D Affordance Grounding
+
+URL Source: https://arxiv.org/pdf/2603.02329v1
+
+Published Time: Wed, 04 Mar 2026 01:07:29 GMT
+
+Number of Pages: 22
+
+Markdown Content:
+# HAMMER: Harnessing MLLM via Cross-Modal Integration for Intention-Driven 3D Affordance Grounding 
+
+## Lei Yao 1 Yong Chen 2 Yuejiao Su 1 Yi Wang 1* Moyun Liu 2 Lap-Pui Chau 1* 1The Hong Kong Polytechnic University 2Huazhong University of Science and Technology 
+
+https://rayyoh.github.io/Hammer/ 
+
+## Abstract 
+
+Humans commonly identify 3D object affordance through observed interactions in images or videos, and once formed, such knowledge can be generically generalized to novel ob-jects. Inspired by this principle, we advocate for a novel framework that leverages emerging multimodal large lan-guage models (MLLMs) for interaction intention-driven 3D affordance grounding, namely HAMMER. Instead of gen-erating explicit object attribute descriptions or relying on off-the-shelf 2D segmenters, we alternatively aggregate the interaction intention depicted in the image into a contact-aware embedding and guide the model to infer textual af-fordance labels, ensuring it thoroughly excavates object se-mantics and contextual cues. We further devise a hierar-chical cross-modal integration mechanism to fully exploit the complementary information from the MLLM for 3D rep-resentation refinement and introduce a multi-granular ge-ometry lifting module that infuses spatial characteristics into the extracted intention embedding, thus facilitating ac-curate 3D affordance localization. Extensive experiments on public datasets and our newly constructed corrupted benchmark demonstrate the superiority and robustness of HAMMER compared to existing approaches. All code and weights are publicly available. 
+
+## 1. Introduction 
+
+Object affordance refers to the properties indicating how it can be used or interacted with [9]. Intention-driven 3D af-fordance grounding [44] intends to anticipate potential ac-tionable regions on point clouds based on corresponding in-teraction images, which attempts to mimic mankind’s innate ability in perceiving object functionalities through observed demonstrations. This task naturally bridges the gap between visual comprehension and physical world interaction, facil-itating the development of embodied agents for various ap-plications, including robot dexterous manipulation [24, 50],     
+
+> *Corresponding author. Image Backbone
+> Point Backbone Afford Dec
+> MLLM Fusion
+> Image Point Cloud Multi-View Images Frozen 2D Mask Text
+> MLLM Lift
+> Point Backbone Cross-Modal Enhance
+> Afford Dec
+> SAM Enc
+> MLLM
+> SAM Dec
+> Back Project
+> (a) Generation-based ( GREAT )(b) Render-based ( InteractVLM )(c) Integration and lifting ( Ours )
+
+Figure 1. Comparison of current architectures and HAMMER. 
+
+(a) GREAT [33] generates texts to assist the fusion process. (b) InteractVLM [7] first produces 2D masks and back-projects them into 3D space. (c) HAMMER enhances point cloud features with cross-modal information from MLLMs and lifts the extracted in-tention embedding to 3D for accurate affordance localization. 
+
+imitation learning [2, 40], and augmented reality [29]. Precise 3D affordance grounding necessitates both com-prehensive visual understanding and spatial cognition. The former focuses on deciphering object semantics, contextual cues, and interaction intentions, while the latter concerns the spatial and geometric interpretation of 3D structures. Although the provided image hints at crucial insights into human intention and interaction patterns, the target 3D ob-ject often exhibits significant variations in shape and scale. Thus, refining object representation across modalities to ensure image features can complement 3D data presents a significant challenge. Furthermore, effectively integrat-ing interaction knowledge implied in the given image is another critical aspect for accurate affordance prediction. Current generation-based methods, like [33], design sepa-rate branches for modality-specific perception and produce elaborate language descriptions of object properties and in-teraction contexts using pre-trained multimodal large lan-guage models (MLLMs) [3, 19] as priors to promote the fusion process ( cf . Fig. 1a). However, it requires manually 1
+
+> arXiv:2603.02329v1 [cs.CV] 2 Mar 2026
+
+annotated templates and a two-stage training pipeline. An-other line of work, such as [7], fine-tunes an off-the-shelf segmenter [15, 16] to yield 2D contact maps by render-ing point clouds onto multi-view planes and back-projecting them into 3D space ( cf . Fig. 1b). These existing frameworks either fail to fully exploit the powerful understanding capa-bilities of MLLMs or suffer from inevitable detail loss and error accumulation, resulting in suboptimal performance. In this paper, we present HAMMER, a novel archi-tecture for intention-driven 3D affordance grounding ( cf .Fig. 1c). Without resorting to intermediate texts or 2D masks, we process the image via an MLLM and aggre-gate the underlying intention into a contact-aware embed-ding. Given the MLLM’s prominent multimodal percep-tion capability, we adhere to auxiliary supervision to guide the model toward predicting textual affordance labels, en-suring it sufficiently seizes object semantics and contextual cues. Beyond using the MLLM solely for intention ex-traction, we further explore a hierarchical cross-modal in-tegration mechanism to incorporate the knowledge encap-sulated in its hidden states into point features, enhancing object representation alignment. This design is motivated by the observation that such hidden states inherently grasp task-relevant content, which helps alleviate the discrepan-cies arising from different modalities and promotes more coherent feature expression. Despite the obtained inten-tion embedding already containing abundant 2D interaction clues, our intuition is that it lacks explicit spatial informa-tion, which is vital for precise affordance localization. To address this, we propose a multi-granular geometry lifting module that progressively infuses geometric characteristics into the embedding, thereby strengthening its 3D aware-ness. We then apply a decoder to jointly process the re-fined point features and the geometry-enhanced embedding for 3D affordance region prediction. Extensive experiments on standard datasets consistently show that HAMMER out-performs state-of-the-art methods across multiple evalua-tion metrics and settings. Additionally, HAMMER exhibits remarkable resilience against various perturbations on our newly established corrupted benchmark with noise-infused point clouds. In summary, our contributions are as follows: • We propose HAMMER, a new framework that extracts a contact-aware intention embedding and leverages knowl-edge from an MLLM to enrich 3D representations via a hierarchical cross-modal integration mechanism. • We introduce a multi-granular geometry lifting module that injects different levels of spatial cues into the inten-tion embedding for accurate 3D affordance localization. • We evaluate HAMMER on standard datasets and a newly constructed corrupted benchmark, validating its consis-tent performance gains and robustness compared to exist-ing approaches. 
+
+## 2. Related Work 
+
+2.1. Affordance Learning 
+
+Affordance learning, which focuses on identifying poten-tial actionable regions on objects, has attracted consider-able interest across multiple research domains. UAD [35] proposes an unsupervised distillation strategy that directly extracts task-conditioned affordance from vision founda-tion models like CLIP [30] for 2D images. In parallel, GLOVER [24] treats the output embeddings of large lan-guage models as specific prompts to generate affordance masks using SAM [15], extending the task to an open-vocabulary setting. Meanwhile, several studies have con-centrated on affordance prediction from 3D point clouds. For instance, OpenAD [26] estimates affordance regions by calculating the similarity between linguistic descriptions and latent point features, whereas OVAD [37] introduces a distillation mechanism to transfer knowledge from a teacher model pre-trained on large-scale 3D datasets. Moreover, LASO [17] investigates the fusion of linguistic and geomet-ric features and designs a learnable query-driven decoder. GEAL [23] utilizes 3D Gaussian Splatting (3DGS) [12] for image rendering to incorporate 2D perceptual cues and enhances representation learning by a cross-modal consis-tency alignment module, a paradigm similar to that of Gaus-sianCross [48]. SceneFun3D [6] further extends the task to scene-level scenarios [47], achieving affordance under-standing in complex environments. 
+
+2.2. Intention-Driven 3D Affordance Grounding 
+
+Departing from language-prompted affordance prediction, IAGNet [44] proposes grounding 3D affordance from in-tentions depicted in interaction images and constructs the first benchmark, PIAD [44]. Subsequent work [33] scales it with additional affordance categories and 3D instances for more comprehensive evaluation. In order to improve gen-eralization, MIFAG [8] extracts invariant affordance knowl-edge from multiple reference images and maintains a dic-tionary for adaptive feature fusion. Beyond object affor-dance estimation, LEMON [45] synergistically models hu-man contact and spatial relations by tailored interaction in-tention excavation and geometric correlation modules, en-abling broader functional understanding. Further extending the scope, EgoChoir [46] adapts this paradigm to egocentric views by incorporating head motion information. To reduce dependency on real images, ComA [13] and DAViD [14] leverage in-the-wild diffusion models to synthesize realistic human-object interaction samples, which are subsequently used for 3D affordance estimation. While our method is also built upon the task of grounding 3D affordance from in-teraction images, it distinctively focuses on harnessing the rich multimodal understanding of MLLMs to extract and leverage the nuanced information embedded in such im-2ages, setting it apart from prior works. 
+
+2.3. MLLMs for 3D Affordance 
+
+Benefit from large-scale pre-training, MLLMs have shown great potential across diverse tasks. As a pioneering explo-ration, PAVLM [20] directly adds point features to instruc-tion embeddings and fine-tunes LLaMa [36] for affordance prediction. 3D-ADLLM [5], however, pre-trains the model using a referring object part segmentation task to acquire general knowledge, then fine-tunes it with LoRA [11] for instruction-based reasoning affordance. In contrast, SeqAf-ford [49] uses the intrinsic object understanding capability of ShapeLLM [28] to address sequential affordance seg-mentation. For intention-driven 3D affordance grounding, GREAT [33] designs a chain-of-thought prompting strategy to extract object attributes and interaction descriptions from an MLLM, and proposes a multi-branch fusion strategy that integrates image, text, and point features. Although effec-tive, it underutilizes the MLLM’s inherent 2D comprehen-sion capacity, relying instead on a separate image encoder. InteractVLM [7] renders point clouds onto multi-view im-ages, infers 2D affordance masks via LISA [16], and lifts them to 3D by back-projection, though this may lead to geometric inconsistencies due to incomplete shape cover-age. In comparison, our HAMMER fully utilizes the pow-erful reasoning and understanding of MLLMs by introduc-ing a hierarchical cross-modal integration mechanism and a multi-granular geometry lifting module, enabling more ef-fective extraction of image-based interaction cues and yield-ing more accurate 3D affordance predictions. 
+
+## 3. Methodology 
+
+3.1. Overview 
+
+Given a point cloud P ∈ RN ×3 and its paired interaction image I ∈ RH×W ×3, our goal is to ground a 3D affor-dance map p = {pi}Ni=0 , where pi ∈ [0 , 1] , N is point number, H and W are the height and width of the image, respectively. We first process I using an MLLM to extract a contact-aware embedding fc ∈ Rd, which comprehen-sively excavates the hinted interaction intention (Sec. 3.2), where d is the feature dimension. To improve interaction understanding, we guide the MLLM to generate textual af-fordance labels as an auxiliary task. We then enhance the 3D point features via a hierarchical cross-modal integration mechanism using hidden states of the MLLM (Sec. 3.3). To alleviate geometric deficiency of the 2D-derived embedding 
+
+fc, we propose a multi-granular geometry lifting module (Sec. 3.4) that leverages multi-level spatial features to pro-duce a 3D-aware embedding f 3Dc ∈ Rd. Finally, we decode the enhanced point features ˜fp ∈ RN ×d and lifted embed-ding f 3Dc into the affordance map p (Sec. 3.5). The overall architecture of HAMMER is illustrated in Fig. 2. 
+
+3.2. Affordance-Guided Intention Embedding 
+
+Inspired by the success of MLLM in visual tasks [16, 24], we employ a pre-trained MLLM Fθ to interpret the in-put image I and extract a contact-aware intention embed-ding fc, where θ denotes the trainable parameters. Con-cretely, we extend the model’s vocabulary by introducing a special token [CONT] to aggregate interaction-related in-formation. Since images often contain visually distracting elements that may impede learning, we design an object-centric prompting strategy that comprises object categori-cal labels in the text prompt T, guiding the model to focus on relevant object semantics and contextual cues. An ex-ample of our prompting template is shown in Fig. 2, where 
+
+class name is the given class prior and affordance 
+
+is the inferred affordance label. Without additional pre-processing, we feed the image-text pair (I, T) into Fθ and extract the last-layer hidden states h ∈ RL×dh for all to-kens, where L is the sequence length and dh is the hidden dimension. The intention embedding fc is obtained by pro-jecting [CONT] ’s hidden state h[CONT] ∈ Rdh via an MLP head ψc, i.e ., fc = ψc(h[CONT] ). Simultaneously, we re-quest the model to generate an associated response T , in-corporating the textual affordance label prediction Taff as an auxiliary task to enhance the model’s awareness of task-related details. With available ground-truth labels and de-scriptions, we supervise the process with the standard lan-guage modeling loss Ltxt [3]. This technique effectively consolidates interaction-related information into fc, sup-porting subsequent operations. 
+
+3.3. Hierarchical Cross-Modal Integration 
+
+Existing methods [23, 33, 44] typically extract point fea-tures using 3D backbones, but they often lack sufficient semantic and interaction information, resulting in subopti-mal performance. To overcome this limitation, we propose a hierarchical cross-modal integration mechanism that en-hances point encoding by leveraging the hidden states h of MLLM Fθ , which possesses rich visual understanding and world knowledge. Adopting the standard encoder-decoder paradigm for point cloud processing, we introduce a two-stage integration strategy to fuse cross-modal information, thereby improving cross-model representation alignment. The point cloud P is first processed by an encoder Eenc ψ
+
+to produce bottleneck features f enc p , while the hidden states 
+
+h are projected into a latent space via a shallow MLP ϕh:
+
+f enc p = Eenc ψ (P) ∈ RNR×d, fh = ϕh(h) ∈ RL×d, (1) where NR indicates down-sampling point size and d is the feature dimension. Here, f enc p provides a compact global representation of the object geometry, and fh offers contex-tual cues regarding the interaction. To fully combine these complementary sources, we enhance f enc p by incorporating 32
+
+## LoRA 
+
+# Multi-Modal LLM ℱఏ
+
+𝓔 𝝍 𝐈 𝒇 ୡ𝐏     
+
+> This interaction suggests an affordance of {affordance} with {class_name }, and the object contact region is [CONT] .
+
+Output Answer 
+
+𝒑 𝒇 ௖ଷ஽ 
+
+Affordance-Guided Intention Embedding 
+
+Text Prompt 
+
+> Describe the affordance associated with the physical interaction on the
+> {class_name }, and highlight the contact areas with a segmentation mask..
+> e.g. e.g.
+
+Point Cloud 
+
+𝒇 ෨ ௣
+
+Multi-Granular Geometry Lifting 
+
+Affordance Decoder 
+
+[CONT] embedding 
+
+# HAMMER 
+
+Trainable Frozen Add & Norm Cross-Attn 
+
+Lifting 
+
+Lifting 
+
+Lifting 
+
+𝒇 ୡ𝒇 ୡଷୈ 
+
+Multi-Granular Geometry Lifting 
+
+> Add & Norm MLP
+> 𝑞 𝑘, 𝑣 𝑘, 𝑣 𝑘, 𝑣 𝑞 𝑣 𝑞
+> Multi-Scale Point Features
+> 𝑘
+
+Hierarchical Cross-Modal Integration 
+
+𝐓 𝓣 Figure 2. Overview of our HAMMER. Given a 3D point cloud P and its corresponding interaction image I, our framework first processes 
+
+I through a pre-trained MLLM Fθ to extract an affordance-guided intention embedding fc (Sec. 3.2). This embedding is then used to enhance point cloud features via a hierarchical cross-modal integration mechanism (Sec. 3.3). To imbue fc with 3D spatial awareness, we apply a multi-granular geometry lifting module that incorporates multi-scale geometric cues (Sec. 3.4). Finally, the refined point features 
+
+˜fp and the 3D-aware intention embedding f 3Dc are decoded to produce the final affordance map p (Sec. 3.5). 
+
+fh via an attention-based mechanism. By treating f enc p as the query and fh as the key and value, the cross-attention operation [38] allows each point to selectively attend to rel-evant interaction cues, leading to more discriminative point representation: 
+
+˜f enc p = CrossAttn (f enc p , fh, fh) ∈ RNR×d. (2) The refined ˜f enc p is then passed to a decoder Edec ψ to itera-tively recover the full-resolution feature map f (0)  
+
+> p
+
+and ex-tract multi-scale features {f (i) 
+
+> p
+
+}Ri=1 from intermediate lay-ers: 
+
+{f (i) 
+
+> p
+
+}Ri=1 , f (0)  
+
+> p
+
+= Edec ψ ( ˜f enc p ), (3) where f (i) 
+
+> p
+
+∈ RNi×d is the feature at layer i with point count Ni and R is the number of layers. f (0)  
+
+> p
+
+∈ RN ×d is the output at the original point resolution N . This upsampling process helps restore fine spatial details, and the interme-diate features {f (i) 
+
+> p
+
+}Ri=1 capture geometric cues at multiple scales. We further refine f (0)  
+
+> p
+
+to incorporate object-level semantics from fh for a more holistic representation. Since objects usually occupy a limited portion of the image, we use a gating mechanism to adaptively weight the tokens in 
+
+fh, yielding a global descriptor: 
+
+s = exp( fh · ws)
+
+PLm=1 exp( fh,m · ws) , f gh =
+
+> L
+
+X
+
+> m=1
+
+sm · fh,m , (4) where ws ∈ Rd×1 is a learnable weight vector. The global descriptor f gh is then duplicated to align with the spatial di-mension of f (0)  
+
+> p
+
+:
+
+f g∗ 
+
+> h
+
+= Duplicate (f gh , N ). (5) Finally, we concatenate f (0)  
+
+> p
+
+with f g∗ 
+
+> h
+
+along the feature di-mension and apply an MLP ϕf to achieve the final enhance-ment: ˜fp = ϕf
+
+h 
+
+f (0)  
+
+> p
+
+|| f gh
+
+i 
+
+, (6) where [·||· ] means vector concatenation. The proposed hi-erarchical integration strategy effectively fuses multimodal cues at both global and local levels. The initial enhancement at the bottleneck stage enables point features to absorb rich contextual information, while the subsequent feature-level refinement promotes a comprehensive understanding of ob-ject semantics. 43.4. Multi-Granular Geometry Lifting 
+
+Intuitively, the contact-aware intention embedding fc from the MLLM can capture interaction intention and contact in-formation. However, owing to the inherent limitations of 2D representations, fc lacks the geometric details essential for precise 3D localization. Instead of lifting 2D contact maps to spatial space as in InteractVLM [7], our approach directly improves the 3D awareness of fc by multi-scale geometric features in a general way. This design eliminates the need for camera parameters or intermediate 2D results, offering greater flexibility and applicability. The 3D features {f (i) 
+
+> p
+
+}Ri=1 from Edec ψ provide different levels of geometry, spanning from coarse structure to fine-grained details. We progressively lift the embedding fc by incorporating these geometric cues to enhance its 3D aware-ness, as demonstrated in Fig. 2 (bottom left). Specifically, for each scale i, we form the query, key, and value as: 
+
+q(i) = f (i−1)  
+
+> c
+
+wq , k(i) = f (i) 
+
+> p
+
+wk, v(i) = f (i) 
+
+> p
+
+wv (7) by projecting f (i−1)  
+
+> c
+
+and f (i) 
+
+> p
+
+with weights wq , wk, wv ∈
+
+Rd×d, where f (0)  
+
+> c
+
+= fc and i ∈ { 1, 2, . . . , R }. For simplic-ity, the index i is omitted for corresponding weights. The correlation between the embedding and geometric features is modeled via an attention mechanism, and the embedding is updated with a residual connection [10]: 
+
+f ′(i) 
+
+> c
+
+= f (i−1)  
+
+> c
+
++ Softmax 
+
+ q(i)(k(i))T
+
+√d
+
+
+
+v(i). (8) The lifted f (i) 
+
+> c
+
+at scale i is then obtained by passing through a feed-forward network (FFN) with another residual con-nection: 
+
+f (i) 
+
+> c
+
+= f ′(i) 
+
+> c
+
++ FFN (f ′(i) 
+
+> c
+
+). (9) By progressively integrating multi-scale geometric features, the embedding captures both global shape and local surface characteristics. The final embedding f 3Dc = f (R) 
+
+> c
+
+thus be-comes geometrically enriched and fully 3D-aware. 
+
+3.5. Affordance Decoding and Loss Functions 
+
+We decode the enhanced point-wise features ˜fp into the affordance feature f using a point-to-intention attention layer [49], which attends to the 3D-aware intention embed-ding f 3Dc . The final affordance map p is obtained by pro-jecting f through an MLP head ϕd followed by a sigmoid activation σ(·):
+
+p = σ(ϕd(f )) . (10) During training, we adopt a combined loss for affordance supervision, following the practice in GREAT [33], which includes a focal loss [18] and a dice loss [25]: 
+
+Laf f = Lf ocal + Ldice . (11) The overall training objective L is a weighted sum of lan-guage modeling loss Ltxt and the affordance loss Laf f :
+
+L = λtxt Ltxt + λaf f Laf f , (12) where λtxt and λaf f are balancing coefficients. 
+
+## 4. Experiment 
+
+4.1. Experimental Settings 
+
+Datasets and Metrics. We evaluate our method on two standard point-image affordance datasets: PIAD [44] and PIADv2 [33]. PIAD includes over 7k point clouds spanning 23 object categories and 17 affordance types, while PIADv2 
+
+extends this to 38.8k object instances with 43 categories and 24 affordance types. PIADv2 is organized into three partitions: Seen , Unseen Object , and Unseen Affordance .The Seen split shares the same objects and affordances be-tween training and testing, while the Unseen Object and Unseen Affordance splits contain novel object types and novel affordance categories not present during training, re-spectively. PIAD merges the latter two splits into a sin-gle Unseen partition. To further evaluate the robustness, we construct a corrupted benchmark by introducing vari-ous noise types to point clouds, building upon GEAL [23] and PIAD [44]. Following established evaluation proto-cols [7, 17, 33, 44], we report four metrics: average Interac-tion Overlap ( aIOU ), Area Under the ROC Curve ( AUC ), Similarity ( SIM ), and Mean Absolute Error ( MAE ). 
+
+Implementation Details. Our HAMMER framework inte-grates the 2D MLLM Qwen2.5-VL [3] with the 3D back-bone PointNet++ [27]. The model is trained end-to-end us-ing mixed BF16 precision, with the point backbone main-tained in full precision for stable optimization. We apply LoRA [11] fine-tuning to the language component of the MLLM using a rank of 16. Training is performed on 4 NVIDIA H20 GPUs with a global batch size of 64. We use AdamW [22] as the optimizer, with an initial learning rate of 1e − 4 and a linear learning rate scheduler. The loss weights are set to λtxt = 1 .0 and λaf f = 2 .0.
+
+4.2. Main Results 
+
+Evaluation on PIAD and PIADv2. Tab. 1 and Tab. 2 compare the performance of HAMMER against current state-of-the-art works, including intention-driven [7, 33, 49] and language-driven [17, 23] approaches. As shown in Tab. 1, our method consistently outperforms other intention-driven counterparts across both seen and unseen splits. Specifically, HAMMER surpasses GREAT [33] and IAGNet [44] by 2.59% and 1.69% in aIOU on the seen subset, respectively. As for the unseen split, HAMMER achieves a substantial improvement of 5.39% in aIOU over GREAT, demonstrating superior generalization to novel ob-jects and affordances. Our approach also exhibits advan-tages over language-driven methods such as LASO [17] and 5Table 1. Performance comparison on PIAD [44]. Best results are highlight in bold . aIOU and AUC are reported in percentage (%). 
+
+Methods Venue Seen Unseen 
+
+aIOU ↑ AUC ↑ SIM ↑ MAE ↓ aIOU ↑ AUC ↑ SIM ↑ MAE ↓
+
+Intention-Driven 3D Affordance Grounding 
+
+PMF [52] ICCV 21 10.13 75.05 0.425 0.141 4.67 60.25 0.330 0.211 ILN [4] SIGGRAPH 22 11.25 75.84 0.427 0.137 4.71 59.69 0.325 0.207 FRCNN [42] Remote Sensing 23 11.97 76.05 0.429 0.136 4.71 61.92 0.332 0.195 PFusion [41] CVPR 18 12.31 77.50 0.432 0.135 5.33 61.87 0.330 0.193 XMFNet [1] NeurIPS 22 12.94 78.25 0.441 0.127 5.68 62.58 0.342 0.188 IAGNet [44] ICCV 23 20.51 84.85 0.545 0.098 7.95 71.84 0.352 0.127 GREAT [33] CVPR 25 19.61 85.22 0.569 0.093 8.32 67.46 0.330 0.121 
+
+HAMMER (Ours) - 22.20 88.43 0.605 0.083 13.71 80.92 0.449 0.109 
+
+∆ - +1.69 +3.21 +0.036 +0.010 +5.39 +9.06 +0.097 +0.012 
+
+Language-Driven 3D Affordance Grounding 
+
+LASO [17] CVPR 24 19.70 84.20 0.590 0.096 8.00 69.20 0.386 0.118 GEAL [23] CVPR 25 22.50 85.00 0.600 0.092 8.70 72.50 0.390 0.102 
+
+Table 2. Performance comparison on PIADv2 [33]. Best results are highlight in bold . aIOU and AUC are reported in percentage (%). 
+
+Methods Year Seen Unseen Object Unseen Affordance 
+
+aIOU ↑ AUC ↑ SIM ↑ MAE ↓ aIOU ↑ AUC ↑ SIM ↑ MAE ↓ aIOU ↑ AUC ↑ SIM ↑ MAE ↓
+
+OpenAD [26] 2023 31.88 89.54 0.526 0.104 16.62 73.49 0.339 0.159 8.00 61.22 0.229 0.167 FRCNN [42] 2023 33.55 87.05 0.600 0.082 18.08 72.20 0.362 0.152 7.96 59.08 0.210 0.156 XMFNet [1] 2022 33.91 87.39 0.604 0.078 17.40 74.61 0.361 0.126 8.11 60.99 0.225 0.152 IAGNet [44] 2024 34.29 89.03 0.623 0.076 16.78 73.03 0.351 0.123 8.99 62.29 0.251 0.141 LASO [17] 2024 34.88 90.34 0.627 0.077 16.05 73.32 0.354 0.123 8.37 64.07 0.228 0.140 GREAT [33] 2025 37.61 91.24 0.660 0.067 19.16 76.90 0.384 0.119 12.78 69.26 0.297 0.135 
+
+HAMMER - 40.06 94.19 0.698 0.063 24.28 84.78 0.449 0.112 13.28 72.21 0.302 0.128 
+
+GEAL [23] on most metrics, particularly in AUC and SIM. On the more extensive PIADv2 benchmark (Tab. 2), HAM-MER obtains the best performance across all three splits, exceeding GREAT by 2.45%, 5.12%, and 0.5% in aIOU for Seen, Unseen Object, and Unseen Affordance, respectively. The significant gain on unseen objects highlights our ar-chitecture’s capability to comprehensively understand novel object geometries. Although the improvement for unseen affordances is more modest, this is expected given the in-herent difficulty of generalizing to entirely new interaction types without prior exposure. These results collectively val-idate the effectiveness of our framework in handling diverse and complex affordance grounding scenarios. 
+
+Robustness Assessment. We further validate the robust-ness of HAMMER on a corrupted benchmark constructed following GEAL [23] by introducing various noise types to point clouds. Please see Sec. S.3 in the supplementary material for detailed benchmark construction. As shown in Tab. 3, our method achieves superior performance than GREAT [33] under various corruption styles, indicating ro-bust affordance grounding in challenging conditions. No-
+
+Table 3. Robustness evaluation. Drop , L and G indicate dropout, local and global corruptions, respectively.                                                                    
+
+> Type aIOU ↑AUC ↑SIM ↑MAE ↓
+> GREAT Ours GREAT Ours GREAT Ours GREAT Ours Scale 13.41 19.18 77.77 85.73 0.490 0.596 0.116 0.093 Jitter 11.67 17.36 75.65 84.57 0.461 0.568 0.115 0.095 Rotate 12.61 18.33 76.99 85.31 0.483 0.591 0.116 0.095 Drop-L 8.67 17.98 72.38 84.59 0.420 0.568 0.122 0.098 Drop-G 13.62 20.38 78.26 86.76 0.494 0.611 0.112 0.089 Add-L 11.50 17.67 75.16 86.04 0.438 0.552 0.109 0.093 Add-G 9.63 19.09 71.25 86.36 0.432 0.578 0.108 0.090
+
+tably, HAMMER outperforms GREAT by significant mar-gins of 5.69%, 9.31%, and 6.17% in aIOU under jitter, dropout-local, and add-local corruptions, respectively. 
+
+4.3. Ablation Studies and Analysis 
+
+This section presents extensive ablation studies conducted on PIAD to verify the efficacy of our proposed components and provide an in-depth analysis of our design choices. 6PIAD Unseen PIAD Seen 
+
+Lay Wear Sit Grasp Open Bed Vase Laptop Hat Chair Earphone Scissors Faucet Image 
+
+> 01GREAT Ours GT
+
+Lift Press Wrap grasp Figure 3. Qualitative comparison on PIAD [44]. Our HAMMER generates more precise and complete affordance predictions compared to GREAT [33], highlighting its enhanced capability in understanding interaction intentions and reasoning about 3D affordances. Table 4. Ablation study on affordance-guided intention embed-ding. w/ cls and w/ afford denote including object category in the prompt and predicting affordance label in the output, respectively. 
+
+Type w/ cls w/ afford aIOU ↑ AUC ↑ SIM ↑ MAE ↓
+
+> Seen
+
+✓ ✓ 22.20 88.43 0.605 0.083 
+
+✗ ✓ 21.95 87.73 0.594 0.085 
+
+✗ ✗ 19.72 84.36 0.564 0.094 Unseen  ✓ ✓ 13.71 80.92 0.449 0.109 
+
+✗ ✓ 12.35 79.28 0.425 0.113 
+
+✗ ✗ 8.78 66.33 0.345 0.132 
+
+Core Components Ablation. We first examine the im-pact of our affordance-guided intention embedding strategy in Tab. 4. We gradually ablate the object-centric prompt strategy by removing the category from the prompt and dis-abling textual affordance label prediction in the MLLM out-put. Results indicate that excluding category information (w/o cls ) and affordance labels ( w/o afford ) leads to per-formance degradation of 2.49% and 4.93% in aIOU for the seen and unseen splits, respectively, demonstrating their im-portance in capturing object and contextual cues. We further evaluate the hierarchical cross-modal integration and multi-granular geometry lifting modules in Tab. 5. Removing the integration mechanism ( w/o Hier. Integ. ) results in de-                                                    
+
+> Table 5. Ablation study of core components. Hier. Integ. and
+> Geo. Lifting mean the hierarchical cross-modal integration and multi-granular geometry lifting, respectively.
+> Type Ablation aIOU ↑AUC ↑SIM ↑MAE ↓
+> Seen  HAMMER 22.20 88.43 0.605 0.083
+> w/o Hier. Integ. 21.15 87.64 0.597 0.085
+> w/o Geo. Lifting 20.46 87.25 0.588 0.087
+> w/o Both 19.55 86.67 0.587 0.088
+> w/o Ltxt 20.69 87.66 0.603 0.086 Unseen  HAMMER 13.71 80.92 0.449 0.109
+> w/o Hier. Integ. 10.50 74.72 0.407 0.116
+> w/o Geo. Lifting 10.20 77.71 0.418 0.115
+> w/o Both 7.86 75.88 0.393 0.123
+> w/o Ltxt 9.78 74.27 0.412 0.111
+
+creased performance across all metrics, validating its effec-tiveness in fusing complementary information for improved representation alignment. To visualize this effect, we ap-ply PCA to reduce the dimension of integrated features (see Fig. 5 right and supplementary figure Fig. S.4). The en-hanced features exhibit clearer clustering patterns, indicat-ing improved discriminative capability for different regions. Eliminating the geometry lifting module ( w/o Geo. Lifting )also causes significant performance degradation, with aIOU dropping by 1.74% and 3.51% on the seen and unseen splits, 7Add Global Rotate Jitter Dropout Local Add Local Scale Dropout Global 
+
+> 01Ours GREAT Ours GREAT Ours GREAT Ours GREAT Ours GREAT Ours GREAT Ours GREAT
+
+Chair Move Figure 4. Qualitative comparison on corrupted point clouds. 
+
+> The proposed HAMMER realizes stronger robustness in accu-rately localizing affordance regions under severe noise corruption, while GREAT [33] struggles to maintain reliable predictions.
+
+respectively, underscoring its crucial role in enriching geo-metric awareness. The absence of both components ( w/o Both ) leads to the most pronounced performance decline, confirming their complementary contributions in achieving accurate 3D affordance grounding. Additionally, we find the textual loss Ltxt also contributes to performance. 
+
+Sensitivity to MLLMs. We investigate the impact of differ-ent MLLM backbones in Fig. 5 left . Although LISA [16] and LISA++ [43] are specifically fine-tuned for segmenta-tion tasks, Qwen2.5-VL [3] still achieves superior perfor-mance, particularly on the unseen split. This suggests that robust visual-language understanding and broader world knowledge are more beneficial for 3D affordance ground-ing than specialized segmentation capabilities. While the Qwen2.5-VL-7B yields slightly higher aIOU than the 3B version, we select the latter to strike a balance between per-formance and computational efficiency. More experiments are provided in Sec. S.2 of the supplementary material. 
+
+4.4. Qualitative Results 
+
+To illustrate the effectiveness and robustness of HAMMER, we present visualization comparisons on PIAD [44] and our constructed corrupted benchmark. Fig. 3 shows sev-w/ Integ. w/o Integ. 
+
+> Figure 5. Impact of MLLM backbones ( left ) and visualization of point-wise features via PCA ( right ).
+
+eral representative examples comparing our method with GREAT [33] against ground truth annotations across both seen and unseen object splits. The visual results indicate that HAMMER produces more precise and complete affor-dance predictions compared to GREAT. For instance, our method accurately identifies the operable region of a faucet handle, while GREAT incorrectly attributes affordance to larger portions of the faucet body. In the case of unseen ob-jects, HAMMER correctly localizes the press area of a lap-top, but GREAT yields fragmented and inaccurate predic-tions. Furthermore, Fig. 4 presents results on point clouds corrupted with various noise patterns. Under challenging conditions such as coordinate jitter and local point dropout, HAMMER maintains stable and accurate affordance local-ization, while GREAT exhibits performance degradation with inconsistent and unreliable outputs. These qualitative comparisons substantiate the superior effectiveness and re-silience of our framework in real-world scenarios with im-perfect data. Please refer to Sec. S.4 in the supplementary material for more visualization results. 
+
+## 5. Conclusion 
+
+In this paper, we present HAMMER, an innovative frame-work empowered by an MLLM for intention-driven 3D af-fordance grounding. Our affordance-guided intention em-bedding technique effectively captures interaction-related information and contextual cues from the input image, providing essential priors for affordance prediction. The proposed hierarchical cross-modal integration mechanism incorporates sufficient cross-modal knowledge into point cloud features for enhanced object representation align-ment, while the multi-granular geometry lifting enriches 3D awareness of the intention embedding with detailed geomet-ric cues for precise spatial localization. Extensive experi-ments on standard benchmarks and our newly constructed corrupted dataset demonstrate the superiority and robust-ness of our method. Comprehensive ablation studies sys-tematically validate the effectiveness of each component. For future work, we plan to extend our framework to scene-level affordance grounding tasks, aiming to handle more complex environments and diverse interactions. 8Acknowledgement 
+
+The research work described in this paper was con-ducted in the JC STEM Lab of Machine Learning and Computer Vision funded by The Hong Kong Jockey Club Charities Trust. This research received partially support from the Global STEM Professorship Scheme from the Hong Kong Special Administrative Region. 
+
+## References 
+
+[1] Emanuele Aiello, Diego Valsesia, and Enrico Magli. Cross-modal learning for image-guided point cloud shape comple-tion. Advances in Neural Information Processing Systems ,35:37349–37362, 2022. 6 [2] Shikhar Bahl, Russell Mendonca, Lili Chen, Unnat Jain, and Deepak Pathak. Affordances from human videos as a versatile representation for robotics. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 13778–13790, 2023. 1 [3] Shuai Bai, Keqin Chen, Xuejing Liu, Jialin Wang, Wenbin Ge, Sibo Song, Kai Dang, Peng Wang, Shijie Wang, Jun Tang, et al. Qwen2. 5-vl technical report. arXiv preprint arXiv:2502.13923 , 2025. 1, 3, 5, 8, 12 [4] Honghua Chen, Zeyong Wei, Yabin Xu, Mingqiang Wei, and Jun Wang. Imlovenet: Misaligned image-supported regis-tration network for low-overlap point cloud pairs. In ACM SIGGRAPH 2022 conference proceedings , pages 1–9, 2022. 6[5] Hengshuo Chu, Xiang Deng, Xiaoyang Chen, Yinchuan Li, Jianye Hao, and Liqiang Nie. 3d-affordancellm: Harnessing large language models for open-vocabulary affordance de-tection in 3d worlds. In International Conference on Learn-ing Representations , 2025. 3 [6] Alexandros Delitzas, Ayca Takmaz, Federico Tombari, Robert Sumner, Marc Pollefeys, and Francis Engelmann. Scenefun3d: fine-grained functionality and affordance un-derstanding in 3d scenes. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pages 14531–14542, 2024. 2 [7] Sai Kumar Dwivedi, Dimitrije Anti´ c, Shashank Tripathi, Omid Taheri, Cordelia Schmid, Michael J. Black, and Dim-itrios Tzionas. Interactvlm: 3d interaction reasoning from 2d foundational models. In Proceedings of the IEEE/CVF Con-ference on Computer Vision and Pattern Recognition , 2025. 1, 2, 3, 5, 13, 14, 15 [8] Xianqiang Gao, Pingrui Zhang, Delin Qu, Dong Wang, Zhi-gang Wang, Yan Ding, and Bin Zhao. Learning 2d invariant affordance knowledge for 3d affordance grounding. In Pro-ceedings of the AAAI Conference on Artificial Intelligence ,2025. 2 [9] James J Gibson. The theory of affordances:(1979). In The people, place, and space reader , pages 56–60. Routledge, 2014. 1 [10] Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun. Deep residual learning for image recognition. In Proceed-ings of the IEEE conference on computer vision and pattern recognition , pages 770–778, 2016. 5 [11] Edward J Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, Weizhu Chen, et al. Lora: Low-rank adaptation of large language models. In In-ternational Conference on Learning Representations , 2022. 3, 5, 12 [12] Bernhard Kerbl, Georgios Kopanas, Thomas Leimk¨ uhler, and George Drettakis. 3d gaussian splatting for real-time radiance field rendering. ACM Transactions on Graphics , 42 (4):139–1, 2023. 2 [13] Hyeonwoo Kim, Sookwan Han, Patrick Kwon, and Hanbyul Joo. Beyond the contact: Discovering comprehensive affor-dance for 3d objects from pre-trained 2d diffusion models. In 
+
+European Conference on Computer Vision , pages 400–419. Springer, 2024. 2 [14] Hyeonwoo Kim, Sangwon Beak, and Hanbyul Joo. David: Modeling dynamic affordance of 3d objects using pre-trained video diffusion models. In Proceedings of the IEEE/CVF International Conference on Computer Vision ,2025. 2 [15] Alexander Kirillov, Eric Mintun, Nikhila Ravi, Hanzi Mao, Chloe Rolland, Laura Gustafson, Tete Xiao, Spencer White-head, Alexander C Berg, Wan-Yen Lo, et al. Segment any-thing. In Proceedings of the IEEE/CVF International Con-ference on Computer Vision , pages 4015–4026, 2023. 2 [16] Xin Lai, Zhuotao Tian, Yukang Chen, Yanwei Li, Yuhui Yuan, Shu Liu, and Jiaya Jia. Lisa: Reasoning segmentation via large language model. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pages 9579–9589, 2024. 2, 3, 8, 15 [17] Yicong Li, Na Zhao, Junbin Xiao, Chun Feng, Xiang Wang, and Tat-seng Chua. Laso: Language-guided affordance seg-mentation on 3d object. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pages 14251–14260, 2024. 2, 5, 6 [18] Tsung-Yi Lin, Priya Goyal, Ross Girshick, Kaiming He, and Piotr Doll´ ar. Focal loss for dense object detection. In Pro-ceedings of the IEEE international conference on computer vision , pages 2980–2988, 2017. 5 [19] Haotian Liu, Chunyuan Li, Qingyang Wu, and Yong Jae Lee. Visual instruction tuning. Advances in neural information processing systems , 36:34892–34916, 2023. 1 [20] Shang-Ching Liu, Van Nhiem Tran, Wenkai Chen, Wei-Lun Cheng, Yen-Lin Huang, I-Bin Liao, Yung-Hui Li, and Jian-wei Zhang. Pavlm: Advancing point cloud based affordance understanding via vision-language model. arXiv preprint arXiv:2410.11564 , 2024. 3 [21] Jorge M Lobo, Alberto Jim´ enez-Valverde, and Raimundo Real. Auc: a misleading measure of the performance of pre-dictive distribution models. Global ecology and Biogeogra-phy , 17(2):145–151, 2008. 13 [22] Ilya Loshchilov and Frank Hutter. Decoupled weight decay regularization. arXiv preprint arXiv:1711.05101 , 2017. 5, 12 [23] Dongyue Lu, Lingdong Kong, Tianxin Huang, and Gim Hee Lee. Geal: Generalizable 3d affordance learning with cross-modal consistency. In Proceedings of the IEEE/CVF Confer-ence on Computer Vision and Pattern Recognition , 2025. 2, 3, 5, 6, 17 
+
+9[24] Teli Ma, Zifan Wang, Jiaming Zhou, Mengmeng Wang, and Junwei Liang. Glover: Generalizable open-vocabulary affor-dance reasoning for task-oriented grasping. arXiv preprint arXiv:2411.12286 , 2024. 1, 2, 3 [25] Fausto Milletari, Nassir Navab, and Seyed-Ahmad Ahmadi. V-net: Fully convolutional neural networks for volumetric medical image segmentation. In 2016 fourth international conference on 3D vision (3DV) , pages 565–571. Ieee, 2016. 5[26] Toan Nguyen, Minh Nhat Vu, An Vuong, Dzung Nguyen, Thieu Vo, Ngan Le, and Anh Nguyen. Open-vocabulary af-fordance detection in 3d point clouds. In IEEE/RSJ Interna-tional Conference on Intelligent Robots and Systems (IROS) ,pages 5692–5698. IEEE, 2023. 2, 6 [27] Charles Ruizhongtai Qi, Li Yi, Hao Su, and Leonidas J Guibas. Pointnet++: Deep hierarchical feature learning on point sets in a metric space. Advances in Neural Information Processing Systems , 30, 2017. 5, 12, 14 [28] Zekun Qi, Runpei Dong, Shaochen Zhang, Haoran Geng, Chunrui Han, Zheng Ge, Li Yi, and Kaisheng Ma. Shapellm: Universal 3d object understanding for embodied interaction. In European Conference on Computer Vision , pages 214– 238. Springer, 2024. 3 [29] Rodrigo Chac´ on Quesada and Yiannis Demiris. Proactive robot assistance: Affordance-aware augmented reality user interfaces. IEEE Robotics & Automation Magazine , 29(1): 22–34, 2022. 1 [30] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learn-ing transferable visual models from natural language super-vision. In International Conference on Machine Learning ,pages 8748–8763, 2021. 2 [31] Md Atiqur Rahman and Yang Wang. Optimizing intersection-over-union in deep neural networks for image segmentation. In International symposium on visual com-puting , pages 234–244. Springer, 2016. 12 [32] Jeff Rasley, Samyam Rajbhandari, Olatunji Ruwase, and Yuxiong He. Deepspeed: System optimizations enable train-ing deep learning models with over 100 billion parameters. In Proceedings of the 26th ACM SIGKDD international con-ference on knowledge discovery & data mining , pages 3505– 3506, 2020. 12 [33] Yawen Shao, Wei Zhai, Yuhang Yang, Hongchen Luo, Yang Cao, and Zheng-Jun Zha. Great: Geometry-intention collab-orative inference for open-vocabulary 3d object affordance grounding. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2025. 1, 2, 3, 5, 6, 7, 8, 12, 15, 17, 18, 19, 20, 21 [34] Michael J Swain and Dana H Ballard. Color indexing. Inter-national journal of computer vision , 7(1):11–32, 1991. 13 [35] Yihe Tang, Wenlong Huang, Yingke Wang, Chengshu Li, Roy Yuan, Ruohan Zhang, Jiajun Wu, and Li Fei-Fei. Uad: Unsupervised affordance distillation for generalization in robotic manipulation. In IEEE International Conference on Robotics and Automation (ICRA) , 2025. 2 [36] Hugo Touvron, Thibaut Lavril, Gautier Izacard, Xavier Martinet, Marie-Anne Lachaux, Timoth´ ee Lacroix, Baptiste Rozi` ere, Naman Goyal, Eric Hambro, Faisal Azhar, et al. Llama: Open and efficient foundation language models. 
+
+arXiv preprint arXiv:2302.13971 , 2023. 3 [37] Tuan Van Vo, Minh Nhat Vu, Baoru Huang, Toan Nguyen, Ngan Le, Thieu Vo, and Anh Nguyen. Open-vocabulary affordance detection using knowledge distillation and text-point correlation. In IEEE International Conference on Robotics and Automation (ICRA) , pages 13968–13975. IEEE, 2024. 2 [38] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszko-reit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. Attention is all you need. Advances in Neural Information Processing Systems , 30, 2017. 4 [39] Cort J Willmott and Kenji Matsuura. Advantages of the mean absolute error (mae) over the root mean square error (rmse) in assessing average model performance. Climate research ,30(1):79–82, 2005. 13 [40] Shijie Wu, Yihang Zhu, Yunao Huang, Kaizhen Zhu, Jiayuan Gu, Jingyi Yu, Ye Shi, and Jingya Wang. Afforddp: Gen-eralizable diffusion policy with transferable affordance. In 
+
+Proceedings of the Computer Vision and Pattern Recognition Conference , pages 6971–6980, 2025. 1 [41] Danfei Xu, Dragomir Anguelov, and Ashesh Jain. Pointfu-sion: Deep sensor fusion for 3d bounding box estimation. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 244–253, 2018. 6 [42] Xinli Xu, Shaocong Dong, Tingfa Xu, Lihe Ding, Jie Wang, Peng Jiang, Liqiang Song, and Jianan Li. Fusionrcnn: Lidar-camera fusion for two-stage 3d object detection. Remote Sensing , 15(7):1839, 2023. 6 [43] Senqiao Yang, Tianyuan Qu, Xin Lai, Zhuotao Tian, Bohao Peng, Shu Liu, and Jiaya Jia. Lisa++: An improved baseline for reasoning segmentation with large language model. arXiv preprint arXiv:2312.17240 , 2023. 8 [44] Yuhang Yang, Wei Zhai, Hongchen Luo, Yang Cao, Jiebo Luo, and Zheng-Jun Zha. Grounding 3d object affordance from 2d interactions in images. In Proceedings of the IEEE/CVF International Conference on Computer Vision ,pages 10905–10915, 2023. 1, 2, 3, 5, 6, 7, 8, 13, 15 [45] Yuhang Yang, Wei Zhai, Hongchen Luo, Yang Cao, and Zheng-Jun Zha. Lemon: Learning 3d human-object in-teraction relation from 2d images. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 16284–16295, 2024. 2 [46] Yuhang Yang, Wei Zhai, Chengfeng Wang, Chengjun Yu, Yang Cao, and Zheng-Jun Zha. Egochoir: Capturing 3d human-object interaction regions from egocentric views. 
+
+Advances in Neural Information Processing Systems , 37: 54529–54557, 2025. 2 [47] Lei Yao, Yi Wang, Moyun Liu, and Lap-Pui Chau. Sgi-former: Semantic-guided and geometric-enhanced interleav-ing transformer for 3d instance segmentation. IEEE Trans-actions on Circuits and Systems for Video Technology , 2025. 2[48] Lei Yao, Yi Wang, Yi Zhang, Moyun Liu, and Lap-Pui Chau. Gaussiancross: Cross-modal self-supervised 3d rep-resentation learning via gaussian splatting. arXiv preprint arXiv:2508.02172 , 2025. 2 
+
+10 [49] Chunlin Yu, Hanqing Wang, Ye Shi, Haoyang Luo, Sibei Yang, Jingyi Yu, and Jingya Wang. Seqafford: Sequential 3d affordance reasoning via multimodal large language model. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2025. 3, 5, 14 [50] Ying Zheng, Lei Yao, Yuejiao Su, Yi Zhang, Yi Wang, Sicheng Zhao, Yiyi Zhang, and Lap-Pui Chau. A survey of embodied learning for object-centric robotic manipulation. 
+
+Machine Intelligence Research , pages 1–39, 2025. 1 [51] Junsheng Zhou, Jinsheng Wang, Baorui Ma, Yu-Shen Liu, Tiejun Huang, and Xinlong Wang. Uni3d: Exploring unified 3d representation at scale. arXiv preprint arXiv:2310.06773 ,2023. 14 [52] Zhuangwei Zhuang, Rong Li, Kui Jia, Qicheng Wang, Yuan-qing Li, and Mingkui Tan. Perception-aware multi-sensor fusion for 3d lidar semantic segmentation. In Proceedings of the IEEE/CVF International Conference on Computer Vi-sion , pages 16280–16290, 2021. 6 
+
+11 HAMMER: Harnessing MLLM via Cross-Modal Integration for Intention-Driven 3D Affordance Grounding 
+
+# Supplementary Material 
+
+## Contents 
+
+S.1. Implementation Details 12 
+
+S.1.1. Model Details . . . . . . . . . . . . . . . . 12 S.1.2. Training Details . . . . . . . . . . . . . . . 12 S.1.3. Evaluation Metrics . . . . . . . . . . . . . 12 
+
+S.2. Additional Experiments 13 
+
+S.2.1. Ablation on Hierarchical Integration . . . . 13 S.2.2. Alternative Lifting Strategies . . . . . . . . 14 S.2.3. Sensitivity to Point Backbones . . . . . . . 14 S.2.4. Fine-tune vs. Freeze MLLM . . . . . . . . 14 S.2.5. Comparison with InteractVLM . . . . . . . 15 S.2.6. Detailed Performance on Public Datasets . 15 S.2.7. Detailed Robustness Performance . . . . . 15 
+
+S.3. Corrupted Benchmark Construction 17 S.4. More Visualizations 17 
+
+S.4.1. Visualization on PIADv2 . . . . . . . . . . 17 S.4.2. Visualization of Point Features . . . . . . . 18 S.4.3. Visualization of Corrupted Point Clouds . . 19 S.4.4. Failure Cases . . . . . . . . . . . . . . . . 19 
+
+## Overview 
+
+This supplementary document provides extended imple-mentation details, further experimental evaluations, details on the construction of our corrupted benchmark, and addi-tional qualitative results for the proposed approach. The material is organized as follows. Sec. S.1 elaborates on the model architecture, training configuration, and evalua-tion metrics. Sec. S.2 presents supplementary experiments, which include more ablation studies, sensitivity analysis of point backbones, and a detailed assessment of robustness. The construction procedure of our corrupted benchmark is delineated in Sec. S.3. Finally, Sec. S.4 demonstrates fur-ther qualitative visualizations, including results on the PI-ADv2 dataset [33], predictions on corrupted point clouds, visual analysis of enhanced point features, and an examina-tion of several failure cases. 
+
+## S.1. Implementation Details 
+
+S.1.1. Model Details 
+
+Our framework employs the Qwen2.5-VL multimodal large language model (MLLM) [3] for interpreting reference im-ages and utilizes PointNet++ [27] as the backbone for extracting geometric features from 3D objects. Specif-ically, we adopt the 3B parameter version of Qwen2.5-VL, which comprises 36 layers in its language module and 32 layers in the vision transformer (ViT) component. The PointNet++ backbone is configured with 3 set abstrac-tion layers and 3 feature propagation layers to effectively capture multi-scale geometric structures from raw point clouds. The point-wise features generated by PointNet++ have a dimensionality of 512, while the contact-aware in-tention embedding [CONT] is designed with a dimension of 256. To ensure compatibility between modalities, the 
+
+[CONT] embedding is projected via a linear layer to match the point feature dimension. All input point clouds have a fixed size of 2,048 points. The entire model is implemented within the PyTorch deep learning framework. 
+
+S.1.2. Training Details 
+
+The proposed HAMMER is trained in an end-to-end man-ner using the DeepSpeed [32] to accelerate the training pro-cess. To maintain numerical stability during optimization, the point cloud backbone is trained in full precision, while the remaining components of the model employ mixed pre-cision (BF16) to reduce memory consumption and increase computational throughput. Fine-tuning of the MLLM’s lan-guage component is performed using Low-Rank Adapta-tion (LoRA) [11] with a rank of 16 and a scaling factor of 32, whereas the vision component of the MLLM remains frozen to preserve its pre-trained representational capabili-ties. Training is executed on 4 NVIDIA H20 GPUs with a global batch size of 64. The model is optimized using the AdamW optimizer [22] with an initial learning rate of 1e−4
+
+and a linear learning rate scheduling strategy. The complete training procedure spans 30 epochs to ensure convergence. 
+
+S.1.3. Evaluation Metrics 
+
+To comprehensively assess the performance of intention-driven 3D affordance grounding, we employ four widely recognized evaluation metrics: average Interaction Over-lap ( aIOU ), Area Under the ROC Curve ( AUC ), Similar-ity ( SIM ), and Mean Absolute Error ( MAE ). These met-rics collectively measure different aspects of the prediction quality. The definitions of these metrics are as follows: • aIOU [31]: The Interaction Overlap (IOU) is a funda-mental metric for evaluating the spatial agreement be-tween two regions at a given threshold. It is defined as the ratio of the intersection to the union of the predicted 12 and ground-truth areas: IOU = T P T P + F P + F N ,
+
+where T P , F P , and F N represent the number of true positives, false positives, and false negatives, respectively. The aIOU metric aggregates IOU values across T differ-ent thresholds to provide a more robust evaluation, com-puted as: aIOU = 1
+
+T
+
+> T
+
+X
+
+> t=1
+
+IOU i.
+
+This averaging reduces the sensitivity to threshold selec-tion and offers a stable measure of overall performance. • AUC [21]: The Area Under the ROC Curve (AUC) quan-tifies the model’s ability to distinguish between positive and negative samples across all classification thresholds. The ROC curve plots the true positive rate (TPR) against the false positive rate (FPR) at various threshold settings. • SIM [34]: The Similarity (SIM) metric evaluates the dis-tributional alignment between the predicted affordance map and the ground-truth distribution. It is computed as the sum of the minimum values at each point after nor-malization: 
+
+SIM (P , ˆP ) = 
+
+> N
+
+X
+
+> i=1
+
+min( Pi, ˆPi),
+
+where Pi = pi
+
+PNj=1 pj
+
+, ˆPi = ˆpi
+
+PNj=1 ˆpj
+
+.
+
+Here, P and ˆP denote the normalized predicted and ground-truth affordance score distributions, respectively. SIM measures the overall congruence between the two distributions, with higher values indicating greater resem-blance. • MAE [39]: The Mean Absolute Error (MAE) computes the average absolute deviation between the predicted and ground-truth affordance scores. It is defined as: MAE = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+|ei|, w.r.t. ei = pi − ˆpi,
+
+where N is the total number of points, and pi and ˆpi are the predicted and ground-truth affordance scores for the i-th point, respectively. MAE provides a direct measure of the average prediction error and is less sensitive to outliers compared to squared error metrics. In summary, aIOU measures the spatial overlap of predic-tions and ground truth, AUC evaluates the model’s capa-bility to differentiate between positive and negative sam-ples, SIM assesses the distributional similarity, and MAE captures the average point-wise prediction error. Together, these metrics offer a multi-faceted and holistic evaluation framework for 3D affordance grounding models .   
+
+> Table S.1. Ablation study on the hierarchical cross-modal in-tegration mechanism. This analysis evaluates the contribution of each integration stage to the overall performance of HAMMER.
+
+Type Stage I Stage II aIOU ↑ AUC ↑ SIM ↑ MAE ↓
+
+> Seen
+
+✓ ✓ 22.20 88.43 0.605 0.083 
+
+✗ ✓ 21.55 87.79 0.598 0.084 
+
+✓ ✗ 21.70 88.00 0.603 0.084 
+
+✗ ✗ 21.15 87.64 0.597 0.085 Unseen  ✓ ✓ 13.71 80.92 0.449 0.109 
+
+✗ ✓ 11.85 79.55 0.433 0.110 
+
+✓ ✗ 11.99 77.99 0.442 0.106 
+
+✗ ✗ 10.50 74.72 0.407 0.116                                
+
+> Table S.2. Alternative lifting strategies. We compare the perfor-mance of our proposed lifting strategy with two alternatives: (1) single-stage lifting, and (2) simple concatenation.
+> Type Ablation aIOU ↑AUC ↑SIM ↑MAE ↓
+> Seen  HAMMER 22.20 88.43 0.605 0.083
+> Single Lift 21.40 88.17 0.603 0.085
+> Concat. Lift 21.05 87.95 0.597 0.084 Unseen  HAMMER 13.71 80.92 0.449 0.109
+> Single Lift 12.26 80.64 0.441 0.111
+> Concat. Lift 11.45 78.12 0.421 0.110
+
+## S.2. Additional Experiments 
+
+This section presents extended experimental analyses to comprehensively evaluate the efficacy of the proposed HAMMER. We perform ablation studies on the hierarchi-cal cross-modal integration mechanism to quantify the con-tribution of each stage, investigate the sensitivity of our ap-proach to point cloud backbones, and compare the strategies of fine-tuning versus freezing the MLLM. Furthermore, we include a comparative analysis against InteractVLM [7], re-port object-level and affordance-level performance on pub-lic benchmarks, and present detailed robustness perfor-mance to rigorously examine the model’s stability and gen-eralization capability 
+
+S.2.1. Ablation on Hierarchical Integration 
+
+Our hierarchical cross-modal integration mechanism com-prises two sequential refinement stages. To evaluate the individual contribution of each stage, we conduct an abla-tion study on the PIAD benchmark [44]. As summarized in Tab. S.1, removing either stage leads to a performance degradation, which is particularly pronounced on the Un-seen split. The absence of Stage I results in a more signif-icant performance drop, underscoring its critical role in the overall framework. This indicates that the initial, coarse-grained enhancement is fundamental for injecting rich con-13 Table S.3. Performance analysis with different point cloud backbones. We evaluate the capability of HAMMER using PointNet++ [27] and Uni3D [51] as 3D feature extractors.                                                                 
+
+> Backbones PIAD Seen PIAD Unseen PIADv2 Seen PIADv2 Unseen Object PIADv2 Unseen Affordance
+> aIOU ↑AUC ↑SIM ↑MAE ↓aIOU ↑AUC ↑SIM ↑MAE ↓aIOU ↑AUC ↑SIM ↑MAE ↓aIOU ↑AUC ↑SIM ↑MAE ↓aIOU ↑AUC ↑SIM ↑MAE ↓
+> PointNet++ 22.20 88.43 0.605 0.083 13.71 80.92 0.449 0.109 40.06 94.19 0.698 0.063 24.28 84.78 0.449 0.112 13.28 72.21 0.302 0.128 Uni3D 24.67 89.77 0.635 0.078 12.28 77.75 0.412 0.102 40.66 93.94 0.690 0.065 24.02 81.07 0.426 0.131 14.49 71.00 0.272 0.128
+
+textual cues from the reference image into the point cloud features. The subsequent Stage II , which performs a fine-grained refinement, provides complementary object-level semantic information, further boosting the performance. The initial stage focuses on integrating broader contex-tual information, while the subsequent refinement enables a more detailed, semantic-aware adjustment, resulting in a more accurate cross-modal object representation for effec-tive affordance grounding. 
+
+S.2.2. Alternative Lifting Strategies 
+
+To validate the effectiveness of our multi-granular geome-try lifting, we compare it against two alternative strategies: (1) Single Lift , which directly lifts the intention embedding with the last stage of point features, and (2) Concat. Lift ,which simply concatenates the embedding with point fea-tures. As shown in Tab. S.2, our proposed multi-granular lifting consistently outperforms both alternatives across all evaluation metrics on the PIAD benchmark. The single-stage lifting approach may fail to capture the complemen-tary information present at different levels of the point fea-ture hierarchy, while the concatenation method may not ef-fectively leverage the spatial characteristics 3D features. 
+
+S.2.3. Sensitivity to Point Backbones 
+
+In this section, we analyze the performance of our HAM-MER with different 3D point cloud backbones. We eval-uate two widely used architectures: PointNet++ [27] and Uni3D [51]. Specifically, the PointNet++ is trained from scratch, while the Uni3D is initialized with a weight pre-trained on large-scale 3D datasets, following the practice of SeqAfford [49]. The results are summarized in Tab. S.3. On the PIAD dataset, Uni3D achieves higher performance on the Seen split, but PointNet++ yields superior results on the Unseen split. This discrepancy may stem from Uni3D’s pre-trained weights potentially leading to overfitting on the seen categories, whereas training PointNet++ from scratch may facilitate better adaptation to the specific characteristics of the PIAD benchmark. On the PIADv2 dataset, which con-tains a broader variety of object instances, PointNet++ con-sistently outperforms Uni3D across all three splits in most metrics, underscoring its stronger generalization capability in handling diverse 3D objects and affordance types. 
+
+Table S.4. Comparison of MLLM fine-tuning strategies. We evaluate the performance when applying LoRA fine-tuning to the MLLM versus keeping its weights entirely frozen during training. 
+
+Type Ablation aIOU ↑ AUC ↑ SIM ↑ MAE ↓
+
+> Seen
+
+w/ Fine-tuning 22.20 88.43 0.605 0.083 
+
+w/o Fine-tuning 19.67 85.53 0.568 0.092 Unseen  w/ Fine-tuning 13.71 80.92 0.449 0.109 
+
+w/o Fine-tuning 7.55 64.89 0.311 0.142 
+
+Table S.5. Comparison to InteractVLM [7] on PIAD. We evalu-ate the performance of our HAMMER against InteractVLM across both Seen and Unseen splits of the PIAD dataset.                             
+
+> Methods Size Seen Unseen
+> aIOU ↑AUC ↑SIM ↑MAE ↓aIOU ↑AUC ↑SIM ↑MAE ↓
+> InteractVLM 13B 21.20 86.47 0.627 0.081 8.50 75.45 0.414 0.099 HAMMER 3B 22.20 88.43 0.605 0.083 13.71 80.92 0.449 0.109
+
+S.2.4. Fine-tune vs. Freeze MLLM 
+
+In the training of HAMMER, the language component of the MLLM is fine-tuned using LoRA, while the vision com-ponent remains frozen. To evaluate its efficacy, we conduct a comparative analysis between fine-tuning the MLLM’s language component and freezing the entire MLLM. The experimental results, detailed in Tab. S.4, clearly demon-strate that fine-tuning yields a significant performance im-provement across all evaluation metrics on both the Seen and Unseen splits. The performance gain is particularly substantial on the Unseen split, which is critical for assess-ing model generalization. Specifically, fine-tuning leads to a remarkable increase in aIOU from 7.55 to 13.71, AUC from 64.89 to 80.92, and SIM from 0.311 to 0.449, accompa-nied by a reduction in MAE from 0.142 to 0.109. This pro-nounced improvement underscores the necessity of adapt-ing the MLLM to the specific task of intention-driven 3D affordance grounding. By fine-tuning the language compo-nent with LoRA, the model learns to better interpret and correlate the linguistic descriptions of interactions with the visual cues from the image and the geometric structure of the 3D point cloud. This enhanced cross-modal understand-14 Table S.6. Evaluation Metrics in PIAD Seen. Results of each affordance type in the Seen. cont. , supp. , wrap. , and disp. denote contain ,
+
+support , wrapgrasp , and display , respectively.                                                                                                                                                                                                                                                                                                   
+
+> Method Metrics grasp cont. lift open lay sit supp. wrap. pour move disp. push listen wear press cut stab XMFNet
+> aIOU ↑12.82 10.41 13.24 9.17 17.00 26.65 7.89 5.24 7.81 6.46 17.25 2.68 5.31 5.34 7.87 6.35 5.88
+> AUC ↑62.98 79.97 78.93 79.74 88.93 94.91 84.56 56.47 82.15 54.97 82.91 63.74 74.93 70.57 88.18 79.17 69.97
+> SIM ↑0.415 0.401 0.334 0.184 0.427 0.619 0.659 0.569 0.399 0.391 0.508 0.535 0.433 0.565 0.237 0.427 0.394
+> MAE ↓0.121 0.131 0.138 0.131 0.129 0.093 0.119 0.128 0.159 0.192 0.127 0.083 0.164 0.129 0.113 0.135 0.152 IAGNet
+> aIOU ↑16.83 17.12 31.95 28.39 31.80 37.72 12.04 6.02 20.33 5.57 30.57 1.79 15.59 6.55 14.42 12.95 9.48
+> AUC ↑77.53 83.84 95.05 90.89 93.54 95.94 84.58 66.71 86.02 63.09 89.29 84.71 87.13 71.16 89.46 86.69 76.4
+> SIM ↑0.530 0.534 0.368 0.401 0.685 0.723 0.716 0.571 0.525 0.443 0.657 0.418 0.671 0.563 0.402 0.507 0.280
+> MAE ↓0.108 0.093 0.030 0.044 0.081 0.066 0.100 0.143 0.096 0.174 0.084 0.085 0.090 0.129 0.059 0.085 0.099 GREAT
+> aIOU ↑12.99 14.24 40.99 19.68 28.65 39.37 11.34 5.09 7.95 4.90 26.30 3.32 14.73 6.42 12.99 12.34 6.31
+> AUC ↑76.65 79.96 94.09 89.02 94.03 96.09 85.51 68.00 89.47 67.70 88.47 88.08 88.02 74.29 88.50 88.08 79.10
+> SIM ↑0.447 0.513 0.450 0.342 0.719 0.722 0.725 0.610 0.372 0.534 0.618 0.474 0.656 0.575 0.378 0.495 0.370
+> MAE ↓0.126 0.109 0.030 0.067 0.083 0.069 0.105 0.136 0.132 0.162 0.096 0.089 0.097 0.142 0.070 0.089 0.104
+> HAMMER aIOU ↑21.65 22.00 36.71 24.93 29.57 38.86 11.85 5.69 23.02 9.98 30.60 3.85 13.41 5.08 13.15 15.13 37.87
+> AUC ↑85.63 89.04 80.57 92.14 92.81 96.47 85.36 69.01 94.93 79.46 91.10 87.60 87.81 72.26 89.49 93.59 99.87
+> SIM ↑0.656 0.606 0.367 0.392 0.651 0.718 0.720 0.661 0.587 0.606 0.674 0.591 0.642 0.568 0.399 0.688 0.574
+> MAE ↓0.090 0.086 0.078 0.054 0.091 0.066 0.100 0.128 0.083 0.134 0.087 0.083 0.096 0.146 0.061 0.061 0.018
+
+ing enables the MLLM to capture the intricate relationships between language, image, and 3D geometry more effec-tively, which in turn translates to superior affordance pre-diction capabilities, especially when generalizing to novel objects and scenarios not encountered during training. 
+
+S.2.5. Comparison with InteractVLM 
+
+In Tab. S.5, we present a comparison between our HAM-MER and InteractVLM [7] on the PIAD benchmark. It is noteworthy that InteractVLM employs a 13B parameter version of LISA [16] as its MLLM backbone to enhance performance. Despite utilizing a significantly smaller 3B parameter MLLM, our HAMMER consistently surpasses InteractVLM across both the Seen and Unseen splits in terms of aIOU and AUC metrics. Specifically, on the Seen split, HAMMER achieves an aIOU of 22.20 and an AUC of 88.43, outperforming InteractVLM, which yields 21.20 and 86.47, respectively. The performance advantage is more pronounced on the challenging Unseen split, where HAM-MER attains an aIOU of 13.71 and an AUC of 80.92, sub-stantially exceeding InteractVLM’s 8.50 and 75.45. These results underscore the efficacy of our hierarchical cross-modal integration and geometry lifting modules in enhanc-ing 3D affordance grounding capabilities, even with a more compact MLLM architecture. 
+
+S.2.6. Detailed Performance on Public Datasets 
+
+In the main paper, we report the overall performance of dif-ferent methods on PIAD [44] and PIADv2 [33]. In this sec-tion, we provide a fine-grained analysis by breaking down the results according to object categories and affordance types, offering deeper insights into the specific strengths and generalization capabilities of HAMMER relative to ex-isting approaches. Tab. S.6 presents the per-affordance performance on the PIAD Seen split. Our method achieves superior results across most affordance categories, demonstrating its consis-tent effectiveness in accurately grounding diverse functional properties. The analysis on the Unseen split in Tab. S.7 reveals that HAMMER achieves significant improvements over baseline methods, with particularly notable gains on challenging affordance types such as contain , wrapgrasp ,and display . This underscores the model’s strong general-ization capacity to novel affordances beyond the training distribution. Further evaluation on the more challenging PI-ADv2 benchmark corroborates these findings. As shown in Tab. S.8, which details performance per affordance type on the Unseen Affordance split, HAMMER attains leading performance across the majority of categories. This indi-cates its ability to effectively capture the nuanced character-istics of various affordances, even when they are completely unseen during training. Similarly, the per-category results on the Unseen Object split (Tab. S.10) highlight its adapt-ability to diverse 3D shapes and structural configurations. Collectively, these results provide comprehensive evidence validating the efficacy of HAMMER in intention-driven 3D affordance grounding. The consistent performance gains across different datasets and splits confirm the generaliz-ability of our proposed framework in addressing various challenges in 3D affordance perception. 
+
+S.2.7. Detailed Robustness Performance 
+
+In the main manuscript, we present a comparative analysis of the overall robustness between our method HAMMER and the baseline GREAT [33] on our newly established cor-15 Table S.7. Evaluation Metrics in PIAD Unseen. Results of each affordance type in the Unseen. cont. , wrap. , and disp. denote contain ,
+
+wrapgrasp , and display , respectively. 
+
+Method Metrics cont. lay lift wrap. open disp. stab grasp press cut XMFNet 
+
+aIOU ↑ 6.29 15.10 7.29 1.42 4.32 6.20 6.12 3.97 5.71 13.95 
+
+AUC ↑ 67.98 84.02 68.45 45.74 78.53 62.20 76.92 59.19 69.32 85.87 
+
+SIM ↑ 0.412 0.503 0.403 0.451 0.156 0.075 0.351 0.278 0.270 0.435 
+
+MAE ↓ 0.137 0.135 0.144 0.156 0.094 0.240 0.087 0.117 0.124 0.078 IAGNet 
+
+aIOU ↑ 7.24 18.12 8.47 1.89 12.28 16.28 10.39 4.79 4.22 21.47 
+
+AUC ↑ 67.96 84.82 71.10 56.39 90.91 85.51 98.83 78.60 68.07 95.95 
+
+SIM ↑ 0.430 0.525 0.407 0.556 0.227 0.393 0.437 0.533 0.194 0.599 
+
+MAE ↓ 0.125 0.130 0.143 0.150 0.050 0.130 0.044 0.102 0.122 0.057 GREAT 
+
+aIOU ↑ 12.08 20.57 9.40 1.24 2.23 1.36 0.07 0.23 12.85 0.36 
+
+AUC ↑ 80.07 87.09 74.12 39.03 75.61 19.97 49.58 51.13 86.68 49.23 
+
+SIM ↑ 0.444 0.533 0.410 0.326 0.102 0.054 0.056 0.201 0.417 0.101 
+
+MAE ↓ 0.112 0.115 0.124 0.176 0.069 0.211 0.068 0.118 0.098 0.079 
+
+HAMMER aIOU ↑ 17.57 23.62 11.96 2.48 15.00 22.28 3.36 0.61 14.55 3.37 
+
+AUC ↑ 86.08 84.60 73.68 54.47 91.53 91.09 96.06 33.90 90.98 79.51 
+
+SIM ↑ 0.521 0.530 0.394 0.553 0.275 0.462 0.212 0.413 0.430 0.253 
+
+MAE ↓ 0.106 0.124 0.139 0.163 0.069 0.111 0.154 0.179 0.065 0.173 
+
+Table S.8. Evaluation Metrics in PIADv2 Unseen Affordance. 
+
+Results of each affordance type in the Unseen Affordance split. 
+
+Method Metrics Carry Listen Lay Pour Cut Pull XMFNet 
+
+aIOU ↑ 5.89 3.89 10.93 6.85 5.77 24.52 
+
+AUC ↑ 54.08 56.07 73.16 63.97 44.85 91.40 
+
+SIM ↑ 0.195 0.216 0.399 0.187 0.115 0.349 
+
+MAE ↓ 0.158 0.179 0.130 0.130 0.213 0.050 IAGNet 
+
+aIOU ↑ 8.10 3.71 10.47 4.92 4.40 38.27 
+
+AUC ↑ 63.98 54.13 69.94 59.89 49.97 93.72 
+
+SIM ↑ 0.239 0.221 0.402 0.146 0.148 0.562 
+
+MAE ↓ 0.142 0.168 0.130 0.146 0.175 0.028 GREAT 
+
+aIOU ↑ 12.59 2.48 10.66 11.28 8.53 41.53 
+
+AUC ↑ 82.13 51.36 77.53 72.82 52.21 97.39 
+
+SIM ↑ 0.356 0.125 0.412 0.290 0.143 0.599 
+
+MAE ↓ 0.105 0.182 0.129 0.108 0.171 0.018 
+
+HAMMER aIOU ↑ 17.53 1.99 10.42 10.06 16.35 41.56 
+
+AUC ↑ 75.33 38.11 75.85 81.31 87.95 96.67 
+
+SIM ↑ 0.378 0.072 0.393 0.194 0.262 0.537 
+
+MAE ↓ 0.141 0.229 0.132 0.105 0.090 0.025 
+
+rupted benchmark. This section provides a detailed evalu-ation by examining the performance under individual cor-ruption types, including scale, jitter, rotation, local dropout, global dropout, local additive noise, and global additive noise. Each corruption type is assessed across five sever-ity levels, ranging from 0 to 4. This benchmark serves as a proxy for real-world imperfections in 3D data, such as sen-sor noise, occlusions, and partial observations. As shown 
+
+Table S.9. Statistics of the constructed corrupted benchmark.                                                                            
+
+> #Object Category Affordance Type Num
+> 1TrashCan contain, open, pour 69 2Door open, push 47 3Display display 52 4Earphone grasp, listen 70 5Vase contain, wrapgrasp 90 6Hat grasp, wear 66 7Bottle contain, wrapgrasp, pour, open 225 8Keyboard press 25 9Knife grasp, cut, stab 138 10 Refrigerator contain, open 53 11 Laptop display, press 112 12 Dishwasher contain, open 39 13 Bowl contain, wrapgrasp, pour 83 14 Clock display 915 StorageFurniture contain, open 92 16 Scissors grasp, cut, stab 29 17 Table support, move 194 18 Bag grasp, contain, lift, open 50 19 Faucet grasp, open 95 20 Mug grasp, contain, wrapgrasp, pour 126 21 Chair sit, move 392 22 Bed lay, sit 56 23 Microwave contain, open 47
+> Total 23 Categories 17 Affordance Types 2159
+
+in Tab. S.11, HAMMER consistently outperforms GREAT under all corruption conditions and severity levels. This robust performance indicates the effectiveness of our ap-proach in handling diverse corruptions in 3D data, demon-16 Table S.10. Evaluation Metrics in PIADv2 Unseen Object. Results of each object category in the Unseen Object split. Base. , Motor. ,  
+
+> Refri. , Scus. and Skat. denote Baseballbat, Motorcycle, Refrigerator, Scissors, and Skateboard, respectively.
+
+Method Metrics Base. Bucket Clock Fork Kettle Laptop Mop Motor. Refri. Scis. Skat. XMFNet 
+
+aIOU ↑ 37.62 10.26 19.13 27.23 5.50 8.66 20.53 5.54 9.41 10.24 18.38 
+
+AUC ↑ 76.75 59.73 77.86 81.93 61.74 73.52 79.09 69.02 84.22 56.31 81.80 
+
+SIM ↑ 0.528 0.169 0.444 0.497 0.107 0.314 0.400 0.162 0.336 0.261 0.482 
+
+MAE ↓ 0.171 0.165 0.137 0.120 0.123 0.128 0.136 0.033 0.094 0.165 0.151 IAGNet 
+
+aIOU ↑ 42.84 12.56 13.48 22.60 2.65 6.95 37.66 9.30 14.43 7.37 4.61 
+
+AUC ↑ 85.32 65.52 69.21 73.63 54.38 78.17 92.09 79.74 80.63 56.62 58.84 
+
+SIM ↑ 0.592 0.231 0.385 0.422 0.070 0.299 0.658 0.227 0.335 0.250 0.273 
+
+MAE ↓ 0.169 0.146 0.148 0.149 0.120 0.104 0.085 0.023 0.092 0.187 0.167 GREAT 
+
+aIOU ↑ 41.93 28.75 20.23 31.83 7.33 5.17 32.37 17.79 13.45 12.97 8.72 
+
+AUC ↑ 82.73 83.41 84.00 89.28 79.33 74.98 91.80 95.73 78.69 64.83 59.50 
+
+SIM ↑ 0.584 0.469 0.486 0.567 0.182 0.242 0.612 0.356 0.294 0.283 0.324 
+
+MAE ↓ 0.148 0.081 0.111 0.135 0.048 0.130 0.104 0.033 0.073 0.159 0.149 
+
+HAMMER aIOU ↑ 49.99 36.68 18.68 40.51 6.93 13.27 37.62 9.41 21.84 13.99 17.43 
+
+AUC ↑ 87.17 91.49 80.55 87.50 59.38 87.60 93.39 83.17 92.15 63.48 91.65 
+
+SIM ↑ 0.673 0.525 0.434 0.530 0.126 0.383 0.653 0.230 0.440 0.307 0.512 
+
+MAE ↓ 0.133 0.062 0.150 0.118 0.140 0.084 0.084 0.037 0.069 0.181 0.158 
+
+strating its potential for real-world applications where in-complete or noisy point clouds are common. 
+
+## S.3. Corrupted Benchmark Construction 
+
+To evaluate the robustness of language-prompted 3D affor-dance grounding models, GEAL [23] introduced a set of corruption types applied to 3D point clouds. However, our work addresses intention-driven 3D affordance grounding, which requires both 3D point clouds and their correspond-ing reference images. Accordingly, we construct a cor-rupted benchmark by applying the same corruption types and severity levels as defined in GEAL to the 3D point clouds. The corruption types include scale, jitter, rotation, dropout-local, dropout-global, add-local, and add-global. Each type is evaluated under five severity levels, ranging from 0 to 4. For implementation details regarding the op-eration of these corruptions, we refer readers to the supple-mentary material of GEAL [23]. Since the PIAD dataset provides multiple interaction images for each object, we randomly select one reference image from the available im-ages for each corrupted 3D object. For every combination of corruption type and severity level, the benchmark con-tains 2,159 image-point cloud pairs, covering 23 object cat-egories and 17 affordance types. The detailed statistics of the corrupted benchmark are summarized in Tab. S.9. 
+
+## S.4. More Visualizations 
+
+S.4.1. Visualization on PIADv2 
+
+To further illustrate the efficacy of our HAMMER, we pro-vide more qualitative comparisons on PIADv2 [33], com-plementing the results presented in the main manuscript. Fig. S.2 showcases additional visual examples on the Seen split of PIADv2, comparing our method with GREAT [33]. The results indicate that HAMMER consistently generates more accurate and complete affordance maps, which align more closely with the ground-truth annotations. For in-stance, in the case of the broom, our model correctly iden-tifies the handle region suitable for the wrapgrasp affor-dance, whereas GREAT erroneously highlights the cleaning area. Similarly, for the hammer, our approach precisely lo-calizes the beating surface, while GREAT produces a less accurate region that includes portions of the handle. Fur-thermore, Fig. S.3 provides more qualitative results on the Unseen Object and Unseen Affordance splits of PIADv2. These examples show the strong generalization capability of HAMMER when confronted with novel object categories and affordance types. For example, when presented with a bucket (an unseen object), our model accurately identifies the handle region for the lift affordance, but GREAT yields an incomplete affordance map that omits critical parts. In another case involving the novel affordance listening ap-plied to earphones, our method successfully highlights the 17 Table S.11. Detailed robustness performance under different levels of corruptions. We evaluate the robustness of our HAMMER and GREAT [33] on 7 corruption types. Each corruption type is evaluated under 5 severity levels (0-4). The results demonstrate that HAM-MER consistently outperforms GREAT across all corruption types and severity levels, highlighting its superior robustness in handling corrupted 3D objects. 
+
+Corrupt Type Level GREAT HAMMER aIOU ↑ AUC ↑ SIM ↑ MAE ↓ aIOU ↑ AUC ↑ SIM ↑ MAE ↓
+
+Scale 
+
+0 13.85 78.63 0.497 0.115 19.76 86.04 0.604 0.091 1 13.59 77.89 0.495 0.116 19.26 85.75 0.598 0.093 2 13.50 77.82 0.491 0.116 19.15 85.83 0.594 0.094 3 13.11 77.21 0.486 0.117 18.94 85.52 0.591 0.095 4 13.01 77.30 0.483 0.117 18.81 85.51 0.591 0.094 
+
+Jitter 
+
+0 14.51 79.79 0.510 0.114 20.13 86.57 0.609 0.090 1 13.30 78.66 0.492 0.113 18.81 85.79 0.588 0.092 2 11.69 75.99 0.463 0.114 17.35 84.61 0.566 0.095 3 10.13 73.39 0.433 0.115 15.86 83.61 0.547 0.098 4 8.74 70.42 0.407 0.117 14.64 82.25 0.531 0.101 
+
+Rotate 
+
+0 14.62 80.07 0.512 0.114 20.30 86.74 0.613 0.089 1 14.00 79.17 0.505 0.114 19.56 86.33 0.634 0.091 2 12.88 77.43 0.484 0.116 18.55 85.65 0.588 0.094 3 11.55 75.34 0.467 0.117 17.46 84.54 0.571 0.097 4 9.98 72.94 0.445 0.119 15.77 83.30 0.549 0.102 
+
+Dropout-Local 
+
+0 9.24 73.50 0.435 0.123 18.08 84.67 0.568 0.098 1 8.83 73.07 0.426 0.122 18.29 84.81 0.570 0.098 2 8.92 72.87 0.423 0.122 18.07 84.78 0.571 0.098 3 8.38 71.73 0.416 0.122 17.90 84.54 0.568 0.098 4 7.97 70.74 0.402 0.121 17.54 84.16 0.561 0.099 
+
+Dropout-Global 
+
+0 14.72 79.86 0.513 0.113 20.47 86.88 0.616 0.089 1 14.49 79.63 0.509 0.112 20.52 86.94 0.616 0.089 2 14.13 79.08 0.504 0.112 20.38 86.84 0.613 0.089 3 13.40 77.73 0.488 0.112 20.40 86.66 0.611 0.089 4 11.38 75.00 0.456 0.113 20.14 86.47 0.601 0.091 
+
+Add-Local 
+
+0 12.53 76.17 0.466 0.110 18.98 86.35 0.584 0.091 1 11.68 74.95 0.445 0.110 18.26 86.32 0.568 0.092 2 11.41 74.97 0.435 0.109 17.68 86.03 0.553 0.093 3 11.00 74.67 0.424 0.108 16.97 85.81 0.536 0.094 4 10.87 75.03 0.419 0.107 16.46 85.67 0.521 0.096 
+
+Add-Global 
+
+0 12.04 75.19 0.469 0.108 19.90 86.65 0.597 0.089 1 10.35 72.39 0.442 0.108 19.46 86.57 0.588 0.089 2 9.05 70.66 0.425 0.108 18.98 86.20 0.576 0.090 3 8.63 69.35 0.416 0.108 18.59 86.28 0.567 0.091 4 8.06 68.65 0.406 0.108 18.53 86.09 0.561 0.091 
+
+appropriate component, while GREAT’s prediction includes irrelevant regions. These visual comparisons reinforce the effectiveness of HAMMER. 
+
+S.4.2. Visualization of Point Features 
+
+In the main paper, we analyze the influence of our hierar-chical cross-modal integration mechanism on point features by visualizing two examples of PCA-reduced features. This section provides additional visualizations in Fig. S.4 to of-fer a more comprehensive evaluation. The results clearly demonstrate that the proposed integration mechanism suc-cessfully incorporates contextual information from the ref-erence image into the point features, yielding more discrim-inative and semantically enriched representations. For the bed shown in the second row, the point features are en-hanced through our hierarchical integration form distinct clusters corresponding to key components such as the bed frame and other parts, which are essential for accurately grounding the lay affordance. In contrast, the original fea-tures without integration appear more dispersed and less 18 structured. Similarly, for the laptop and the bottle depicted in the first row, the integrated features exhibit improved sep-aration between different functional regions, such as the keyboard and screen of the laptop, and the body and cap of the bottle. This enhancement in feature representation contributes to more precise affordance predictions, as sup-ported by the qualitative results presented in the main text. GT Ours Bag Open Chair Sit  
+
+> Figure S.1. Failure cases of our HAMMER model on PIAD.
+
+S.4.3. Visualization of Corrupted Point Clouds 
+
+Complementing the example in the main paper, we provide further qualitative results in Fig. S.5 to illustrate the cor-rupted point clouds utilized for robustness assessment. In the case of the sit affordance on the chair, our HAMMER accurately identifies the seat region despite the presence of jitter and dropout corruptions, whereas GREAT [33] yields incomplete affordance maps. For the grasp affordance on the earphone, HAMMER effectively localizes the handle area under rotation and additive noise corruptions, while GREAT’s predictions are less precise and incorporate ir-relevant regions. These additional visualizations show the robustness of HAMMER in handling diverse corruptions in 3D point clouds, enabling reliable affordance grounding in challenging scenarios. 
+
+S.4.4. Failure Cases 
+
+Although the proposed framework achieves competitive performance, it still exhibits certain limitations in challeng-ing scenarios. Fig. S.1 illustrates two representative failure cases. In the first example, which involves the open affor-dance on a bag, the model fails to accurately localize the full zipper region suitable for opening and only activates in a limited area. In the second example, regarding the sit af-fordance on a chair, the model incorrectly predicts the han-drest region as part of the sittable area, indicating a mis-alignment between the inferred interaction and the object geometry. The error seems to arise from ambiguity in the intention embedding derived from the image, where the de-picted interaction introduces uncertainty in distinguishing between relevant and irrelevant parts. These cases highlight specific challenges in disambiguating subtle visual cues and refining spatial awareness in complex interaction scenarios. Future work may explore more robust intention represen-tation learning and enhanced geometric reasoning to over-come these limitations. 19 GREAT Ours GT  Image Carry Backpack Bicycle Broom Microphone Fork Hammer Kettle Spoon Ride Speak Pour Beat Contain Stab Wrap grasp Figure S.2. Visualization on PIADv2 Seen. We compare our HAMMER with GREAT [33] on several examples from the Seen subset of PIADv2. 
+
+20 GREAT Ours GT  Image Baseball Bucket Clock Skateboard Earphone Suitcase Surfboard Scissors Wrap grasp Lift Display Support Carry Pull Cut Listen 
+
+PIADv2 Unseen Obj PIADv2 Unseen Afford 
+
+> 01
+
+Figure S.3. Visualization on PIADv2 Unseen Object and Unseen Affordance subsets. We compare our HAMMER with GREAT [33] on several examples from the Unseen Object and Unseen Affordance subsets of PIADv2. w/ Integ. w/o Integ. w/ Integ. w/o Integ. w/ Integ. w/o Integ. 
+
+Figure S.4. Visualization of point features with and without hierarchical cross-modal integration. We visualize the PCA-reduced point features for several examples to demonstrate the effectiveness of our proposed hierarchical cross-modal integration mechanism. 
+
+21 Scale Rotate Drop Local Drop Global 
+
+# GREAT Ours GT GREAT Ours GT 
+
+> Add Global Add Local Add Global Jitter  Add Local Jitter Scale Drop Local Drop Global Rotate
+
+Figure S.5. Visualization of corrupted point clouds. We illustrate two additional examples of corrupted point clouds from our constructed benchmark. 
+
+22

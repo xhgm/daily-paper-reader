@@ -1,0 +1,546 @@
+Title: EvoDriveVLA: Evolving Autonomous Driving Vision-Language-Action Model via Collaborative Perception-Planning Distillation
+
+URL Source: https://arxiv.org/pdf/2603.09465v1
+
+Published Time: Wed, 11 Mar 2026 01:01:04 GMT
+
+Number of Pages: 16
+
+Markdown Content:
+# EvoDriveVLA: Evolving Autonomous Driving Vision–Language–Action Model via Collaborative Perception-Planning Distillation 
+
+Jiajun Cao * 1 2 Xiaoan Zhang * 1 2 Xiaobao Wei * 1 Liyuqiu Huang 1 2 Wang Zijian 2
+
+Hanzhen Zhang 2 Zhengyu Jia 2 Wei Mao 2 Hao Wang 1 Xianming Liu 2
+
+Shuchang Zhou 2 Yang Wang 2 Shanghang Zhang 1
+
+## Abstract 
+
+Vision-Language-Action models have shown great promise for autonomous driving, yet they suffer from degraded perception after unfreez-ing the visual encoder and struggle with accumu-lated instability in long-term planning. To address these challenges, we propose EvoDriveVLA —a novel collaborative perception-planning distilla-tion framework that integrates self-anchored per-ceptual constraints and oracle-guided trajectory optimization. Specifically, self-anchored visual distillation leverages self-anchor teacher to de-liver visual anchoring constraints, regularizing student representations via trajectory-guided key-region awareness. In parallel, oracle-guided tra-jectory distillation employs a future-aware oracle teacher with coarse-to-fine trajectory refinement and Monte Carlo dropout sampling to produce high-quality trajectory candidates, thereby select-ing the optimal trajectory to guide the student’s prediction. EvoDriveVLA achieves SOTA perfor-mance in open-loop evaluation and significantly enhances performance in closed-loop evaluation. Our code is available at: https://github.com/hey-cjj/EvoDriveVLA. 
+
+## 1. Introduction 
+
+With the rapid advances of Vision-Language Models (VLMs) (Liu et al., 2023; Bai et al., 2025; Zhang et al., 2025b), increasing attention has been directed towards lever-aging VLMs for autonomous driving, giving rise to driving Vision-Language-Action (VLA) models that can directly output driving actions and trajectories. Compared to tradi-tional end-to-end approaches (Hu et al., 2023; Jiang et al., 
+
+> 1
+
+State Key Laboratory of Multimedia Information Processing, School of Computer Science, Peking University 2XPeng Motors. Correspondence to: Yang Wang <116716818@qq.com >, Shang-hang Zhang <shanghang@pku.edu.cn >.
+
+Preprint. March 11, 2026. 
+
+2023; Gao et al., 2025), VLA models are capable of not only predicting trajectories, but also understanding naviga-tion instructions (Peng et al., 2025), performing scene-based question answering (Sima et al., 2024), and utilizing chain-of-thought reasoning (Li et al., 2025d). Their superior gen-eralization and reasoning potential make them the mainstay in autonomous driving. However, during practical training, VLA models suffer from degraded perceptual capabilities after unfreezing the visual encoder, as well as trajectory instability in long-term planning. As a pivotal technique for boosting the performance of au-tonomous driving systems, knowledge distillation (Hinton et al., 2015) has gained significant traction in recent re-search. As illustrated in Fig. 1, existing distillation methods can be categorized into single-trajectory distillation and multi-trajectory distillation. Single-trajectory approaches, exemplified by DiMA (Hegde et al., 2025), directly super-vise the student using trajectories predicted by a teacher model. In contrast, multi-trajectory methods, such as Dis-tillDrive (Yu et al., 2025), encourage the teacher to produce diverse trajectory outputs by constructing a planning vocab-ulary, aiming to enrich planning knowledge in distillation through structured trajectory candidates and alleviate the limited expressiveness and poor scenario adaptability caused by relying on a single trajectory. However, existing methods have not considered sufficiently the principled design of knowledge distillation for au-tonomous driving: (1) The visual encoder, which serves as the core component of scene perception, has not been adequately emphasized or effectively handled during the dis-tillation process in existing training pipelines. (2) When the teacher and student models are trained under identical set-tings, the teacher offers no substantial advantage in planning capability, and therefore fails to provide more accurate or in-formative knowledge for distillation. (3) Although existing multi-trajectory distillation methods increase the diversity of teacher-generated trajectories, such diversity is largely con-strained by predefined planning vocabularies, limiting their ability to truly adapt to the dynamic and context-dependent nature of real-world driving scenarios. 1 
+
+> arXiv:2603.09465v1 [cs.CV] 10 Mar 2026 EvoDriveVLA: Evolving Autonomous Driving VLA Models via Collaborative Perception-Planning Distillation
+> Figure 1. Comparison of existing knowledge distillation paradigms for autonomous driving. (a) Single-Trajectory Distillation; (b) Multi-Trajectory Distillation; (c) Collaborative Perception-Planning Distillation (Ours).
+
+To address the limitations of existing knowledge distil-lation methods for VLA-based autonomous driving, we propose EvoDriveVLA, a novel collaborative perception-planning distillation framework incorporating self-anchored and oracle-guided distillation for autonomous driving. As il-lustrated in Fig. 2, the proposed framework consists of ”self-anchored visual distillation” and ”oracle-guided trajectory distillation” to synergistically enhance visual representation and trajectory prediction. Specifically, at the perceptual dis-tillation level, we introduce a self-anchor teacher to provide visual anchoring constraints, preventing the visual encoder from losing its pre-trained representation capabilities after being unfrozen. Simultaneously, trajectory-guided attention is integrated to impose stronger anchoring constraints specif-ically on critical perceptual regions. At the planning distil-lation level, we construct a future-aware oracle teacher by incorporating privileged information, including future scene images and ego status, thereby endowing the teacher with superior trajectory prediction accuracy. We further employ a coarse-to-fine trajectory refinement strategy combined with Monte Carlo dropout (MC-Dropout) sampling to generate a diverse set of high-quality trajectory candidates for each sce-nario. Subsequently, the optimal trajectory is selected as a soft target for distillation, enabling more refined knowledge transfer in multimodal reasoning and motion prediction. Ex-perimental results demonstrate that EvoDriveVLA achieves leading performance in both open-loop nuScenes (Caesar et al., 2020) and closed-loop NAVSIM (Dauner et al., 2024) evaluations. Our contributions are summarized as follows: • We propose EvoDriveVLA, a novel collaborative perception-planning distillation framework with self-anchored and oracle-guided distillation for driving. • We introduce self-anchored visual distillation, impos-ing visual anchoring constraints on trajectory-guided key regions to enhance perceptual capabilities. • We propose oracle-guided trajectory distillation, lever-aging an oracle teacher to generate high-quality candi-dates via trajectory refinement and MC-Dropout. • Our proposed method achieves SOTA performance in open-loop evaluation and significantly enhances per-formance in closed-loop evaluation. 
+
+## 2. Related Work 
+
+2.1. End-to-End Autonomous Driving 
+
+Represented by works such as UniAD (Hu et al., 2023), end-to-end methods establish a unified mapping framework from perception to planning, significantly improving the overall adaptability and performance of the system. Fur-thermore, VAD (Jiang et al., 2023) and VADv2 (Chen et al., 2024) enhance the generalization capability of perception and planning through large-scale visual pre-training, while RAD (Gao et al., 2025) builds high-fidelity simulation en-vironments based on 3D Gaussian Splatting (Kerbl et al., 2023; Wei et al., 2025; Huang et al., 2024; Wei et al., 2026) for closed-loop optimization. With the rise of generative 2EvoDriveVLA: Evolving Autonomous Driving VLA Models via Collaborative Perception-Planning Distillation 
+
+models, approaches such as DiffusionDrive (Liao et al., 2025a) leverage diffusion models to generate high-quality multimodal trajectories, and DiffusionDrivev2 (Zou et al., 2025) further integrates reinforcement learning to improve prediction diversity and safety in complex scenarios. 
+
+2.2. Vision-Language-Action Models in Driving 
+
+Benefiting from the emergent capabilities of visual language models (VLMs), Vision–Language–Action models (Chi et al., 2025; Cao et al., 2025a) have increasingly emerged as a promising paradigm in end-to-end autonomous driv-ing. Early works (Sima et al., 2024; Tian et al., 2024) pioneered the use of VLMs for scene understanding via question answering and trajectory planning. Subsequently, OmniDrive (Wang et al., 2025) and OpenDriveVLA (Zhou et al., 2025) further incorporated reasoning tasks and 3D perception modules to improve the accuracy of trajectory prediction and the completeness of environmental model-ing. Meanwhile, inspired by the success of reinforcement learning in large language models, an increasing number of studies (Li et al., 2025d; Guo & Zhang, 2025) are in-tegrating reinforcement learning frameworks into driving VLA models to optimize decision-making. In addition, sev-eral works (Zeng et al., 2025; Li et al., 2025c) explore the integration of trajectory prediction with future scene genera-tion, demonstrating superior performance in long-horizon trajectory prediction tasks. 
+
+2.3. Distilling Knowledge for Autonomous Driving 
+
+The success of knowledge distillation in VLMs (Cai et al., 2025; Cao et al., 2025b) is gradually being extended to au-tonomous driving. Early works (Li et al., 2024a; 2025a) focused on traditional end-to-end models, distilling prior knowledge including traffic rules and safety constraints to improve the accuracy and safety of trajectory prediction. DSDrive (Liu et al., 2025) distills the trajectory outputs of VLMs teacher as soft targets to improve prediction quality, while DistillDrive (Yu et al., 2025) further introduces a plan-ning vocabulary to diversify teacher-generated trajectories. Furthermore, some studies (Khanzada & Kwon, 2025) dis-till dense-reward dynamics from teacher world models into sparse-reward policies for efficient reinforcement learning, while others enhance robustness via cross-modal probabilis-tic distillation (Liao et al., 2025b) or bridge semantic plan-ning and scene understanding through fine-grained feature distillation in diffusion-based planners (Zhang et al., 2025a). 
+
+## 3. Methodology 
+
+3.1. Preliminary 
+
+In autonomous driving, Vision-Language-Action (VLA) models formulate trajectory planning as the prediction of future waypoint sequences conditioned on multi-modal observations. At each time step t, the model receives a set of multi-view camera images It = {I(v) 
+
+> t
+
+}Vv=1 , a textual instruction prompt Pt, and the ego-vehicle state 
+
+St = ( xt, y t, v t, a t, δ t), which includes vehicle position, velocity, acceleration, and steering angle. The model out-puts a sequence of future waypoints Wt = {wt+τ }Tτ =1 ,where each waypoint wt+τ = ( xt+τ , y t+τ ) represents the vehicle position at future step t + τ .From a modeling perspective, we treat the waypoint se-quence Wt as actions and regard multi-view images, in-struction prompts, and ego-vehicle states as multi-modal observations Ot = ( It, P t, S t). Our goal is to model the conditional distribution of future actions given these ob-servations. Specifically, we aim to learn a parameterized policy pθ that captures the joint dependencies among the vision, language, and action modalities. During training, we optimize the negative log-likelihood of the predicted distri-bution with respect to the ground-truth waypoint sequence 
+
+W ∗ 
+
+> t
+
+= {w∗ 
+
+> t+τ
+
+}Tτ =1 , which is defined as the training loss: 
+
+L = −
+
+> T
+
+X 
+
+> τ=1
+
+log pθ
+
+ wt+τ = w∗ 
+
+> t+τ
+
+| O t, w ∗ 
+
+> <t +τ−1
+
+ , (1) where θ denotes the learnable model parameters, and 
+
+w∗ 
+
+> <t +τ
+
+= {w∗
+
+> t+1
+
+, . . . , w ∗ 
+
+> t+τ−1
+
+}. The training objective is to minimize the loss L.
+
+3.2. Self-Anchored Visual Distillation 
+
+A long-standing question in Vision-Language Model (VLM) research concerns whether the visual encoder should be fully fine-tuned during the supervised fine-tuning (SFT) stage. Some studies (Tong et al., 2024; Shi et al., 2024) argue that unfreezing the visual encoder facilitates cross-domain adap-tation and improves visual perception in new domains or downstream tasks. In contrast, other works (Karamcheti et al., 2024; Kachaev et al., 2025) suggest that directly fine-tuning the visual encoder may degrade the general-purpose visual representations learned during large-scale pre-training, leading to reduced perceptual robustness and overfitting to the training dataset, thereby harming the model’s generalization ability. Therefore, we ask how to en-hance task-relevant visual perception for autonomous driv-ing scenarios while preserving the original perceptual capa-bilities of the visual encoder. 
+
+Tajectory-Guided Anchoring Constraints. To address the degradation-adaptation dilemma of visual encoders dur-ing supervised fine-tuning, we propose a self-anchored visual distillation. Specifically, we create a self-anchor teacher by copying the student visual encoder before fine-tuning. During training, the stable visual representations produced by this self-anchor teacher are used as distilla-3EvoDriveVLA: Evolving Autonomous Driving VLA Models via Collaborative Perception-Planning Distillation  
+
+> Figure 2. Overview of the EvoDriveVLA framework. (Left) Self-anchored visual distillation imposes token-leve visual anchoring constraints across the scene; (Right) Oracle-guided trajectory distillation leverages future ground-truth information for trajectory refinement and diversity sampling; (Middle) Collaborative perception-planning distillation enhances autonomous driving VLA model capabilities in both perception and planning to achieve superior driving performance.
+
+tion constraints, ensuring that the student visual encoder enhances its perception capability for autonomous driving scenarios while preserving its original visual representation power. Unlike conventional sample-level anchor distillation methods (Tang et al., 2024), we further improve granular-ity by introducing trajectory-guided token-level anchored distillation. To this end, we design AnchorFormer, which assigns adaptive anchor weights to different spatial regions in the scene, where higher weights correlate with intensified anchoring constraints for those regions. 
+
+AnchorFormer Architecture. AnchorFormer consists of an AnchorLayer and an AnchorScorer. The AnchorLayer shares the same architecture as a single LLM decoder layer, while the AnchorScorer is implemented as a single linear layer. Given multi-view images It, the self-anchor teacher and student visual encoders produce visual tokens ztea v and 
+
+zstu v , respectively. The textual instruction prompt Pt, ego-vehicle state St, and ground-truth future waypoints W ∗ 
+
+> t
+
+are encoded into token representations zp, zs, and zw∗ .To enable the self-anchor teacher to assign adaptive anchor-ing weights to visual tokens conditioned on the instruction, ego state, and future trajectory, we introduce a set of learn-able query tokens q. These tokens are concatenated with the observation tokens zo = [ ztea v , zp, zs] and the trajectory tokens zw∗ , and then fed into the AnchorLayer: 
+
+˜zo, ˜zw∗ , ˜q = AnchorLayer ( zo, zw∗ , q) , (2) where ˜zo = (˜ ztv , ˜zp, ˜zs).We compute token-level anchor scores by applying the An-chorScorer to the Hadamard product between the updated visual tokens ˜ztv and query tokens ˜q:
+
+Sa = AnchorScorer  ˜ztv ⊙ ˜q . (3) The anchor weights are subsequently obtained via a temperature-scaled sigmoid normalization: 
+
+Wa = 11 + exp( −Sa/τ v ) , (4) where the temperature is set to τv = 2 .0.
+
+Visual Distillation Loss. We adopt a mean squared error (MSE) loss to constrain the student’s visual tokens zstu v
+
+with the self-anchor teacher’s visual tokens ztea v , weighted by the token-level anchor weights Wa. The resulting self-anchored distillation loss La is defined as: 
+
+La = 1
+
+NvNvX
+
+> i=1
+
+W(i) 
+
+> a
+
+ztea (i) 
+
+> v
+
+− zstu (i)
+
+> v
+> 22
+
+, (5) where Nv denotes the number of visual tokens. 4EvoDriveVLA: Evolving Autonomous Driving VLA Models via Collaborative Perception-Planning Distillation 
+
+Table 1. Open-loop evaluation on nuScenes. We conduct open-loop trajectory planning evaluation on the nuScenes benchmark, comparing our method against traditional, LLM-based, and distillation-based baselines.                                                                                                                                                                                                                                                                                                                                                          
+
+> Method ST-P3 UniAD L2 (m) ↓Collision (%) ↓L2 (m) ↓Collision (%) ↓
+> 1s 2s 3s Avg. 1s 2s 3s Avg. 1s 2s 3s Avg. 1s 2s 3s Avg.
+> Traditional
+> ST-P3 [ECCV 22] 1.44 2.11 2.90 2.11 0.23 0.62 1.27 0.71 --------VAD [ICCV 23] 0.17 0.34 0.60 0.37 0.04 0.27 0.67 0.33 --------BEV-Planner [CVPR 24] 0.16 0.32 0.57 0.35 0.00 0.29 0.73 0.34 --------DiffusionDrive [CVPR 25] 0.27 0.54 0.90 0.57 0.03 0.05 0.16 0.08 --------FF [CVPR 21] --------0.55 1.20 2.54 1.43 0.06 0.17 1.07 0.43 EO [ECCV 22] --------0.67 1.36 2.78 1.60 0.04 0.09 0.88 0.33 PreWorld [ICLR 25] --------0.49 1.22 2.32 1.34 0.19 0.57 2.65 1.14 UniAD [CVPR 23] 0.44 0.67 0.96 0.69 0.04 0.08 0.23 0.12 0.48 0.96 1.65 1.03 0.05 0.17 0.71 0.31
+> LLM-Based
+> DriveVLM [CoRL 24] 0.18 0.34 0.68 0.40 0.10 0.22 0.45 0.27 --------OmniDrive [CVPR 25] 0.14 0.29 0.55 0.33 0.00 0.13 0.78 0.30 --------ORION [ICCV 25] 0.17 0.31 0.55 0.34 0.05 0.25 0.80 0.37 --------ELM [ECCV 24] --------0.34 1.23 2.57 1.38 0.12 0.50 2.36 0.99 DME-Driver [AAAI 25] --------0.45 0.91 1.58 0.98 0.05 0.28 0.55 0.29 GPT-Driver [NeurIPS 23] 0.20 0.40 0.70 0.44 0.04 0.12 0.36 0.17 0.27 0.74 1.52 0.84 0.07 0.15 1.10 0.44 OccWorld [ECCV 24] 0.39 0.73 1.18 0.77 0.11 0.19 0.67 0.32 0.52 1.27 2.41 1.40 0.12 0.40 2.08 0.87 OpenDriveVLA [AAAI 26] 0.14 0.30 0.55 0.33 0.02 0.07 0.22 0.10 0.19 0.58 1.24 0.67 0.02 0.18 0.70 0.30
+> Distillation-Based
+> DistillDrive [ICCV 25] 0.28 0.54 0.83 0.57 0.00 0.03 0.17 0.06 --------DiMA [CVPR 25] 0.12 0.25 0.44 0.27 0.04 0.06 0.15 0.08 0.18 0.48 1.01 0.57 0.00 0.05 0.16 0.07 EvoDriveVLA(Ours) 0.12 0.24 0.43 0.26 0.02 0.05 0.12 0.06 0.16 0.44 0.96 0.52 0.02 0.02 0.33 0.12
+
+3.3. Oracle-Guided Trajectory Distillation The Future-Aware Oracle Teacher. In knowledge dis-tillation, the teacher model plays a decisive role in guiding the student toward faster convergence and improved perfor-mance. Consequently, identifying a more capable teacher model is critical for distillation in autonomous driving. How-ever, existing approaches either directly adopt a larger-scale Vision-Language model as the teacher (Liu et al., 2025) , or jointly train the teacher with trajectory prediction super-vision during the distillation process (Hegde et al., 2025). Although the latter appears to enhance the teacher’s trajec-tory prediction capability, in practice, when trajectory pre-diction relies solely on the current observation, the teacher’s capability is essentially indistinguishable from that of the student. Therefore, the key to trajectory distillation lies in enhancing the teacher’s trajectory prediction capability. Inspired by prior works (Zeng et al., 2025; Li et al., 2025c) that incorporate future image prediction, we construct an oracle teacher model equipped with future-aware percep-tion. In addition to current images and ego-vehicle states, we further condition the model on images and ego-vehicle states over the next T seconds. Despite using privileged future information, this approach substantially boosts the teacher’s predictive performance while maintaining a fair evaluation environment for the student model. Moreover, to fully exploit the value of future-aware inputs, we use the oracle teacher’s coarse trajectory predictions W ct as addi-tional input to obtain more accurate trajectories W ft , thereby endowing the model with a progressive coarse-to-fine tra-jectory refinement capability, which is modeled as follows: 
+
+pθ (W ct | · ) = 
+
+> T
+
+Y 
+
+> τ=1
+
+pθ (wt+τ | O <t +T , w <t +τ ) ,pθ (W ft | · ) = 
+
+> T
+
+Y 
+
+> τ=1
+
+pθ (wt+τ | O <t +T , W ct , w <t +τ ) ,
+
+(6) where O<t +τ = {O t+1 , . . . , Ot+τ −1}.During the training of the oracle teacher, we employ a sampling-based strategy to jointly optimize both trajectory modeling schemes. This enables the model to learn coarse and fine-grained predictions simultaneously. 
+
+Coarse-to-Fine Trajectory Refinement. We feed the coarse trajectories generated by the oracle teacher back into the model to facilitate iterative trajectory refinement. Lever-aging its global perception of future information, the oracle teacher rectifies candidate trajectories for spatio-temporal consistency, yielding smoother and physically plausible op-timized paths. This recursive generate-refine process effec-tively simulates the progressive trajectory evolution under oracle guidance. Accordingly, to provide the student model with more accurate trajectory candidates, we include the hid-den states and logits corresponding to both coarse and fine-grained trajectories into the candidate sets Sh = {hc, hf},5EvoDriveVLA: Evolving Autonomous Driving VLA Models via Collaborative Perception-Planning Distillation 
+
+Sl = {lc, lf}, respectively. This strategy enables the stu-dent to effectively inherit the nuanced corrective reasoning capabilities of the oracle teacher. 
+
+MC-Dropout Trajectory Sampling. Although the coarse-to-fine trajectory refinement strategy yields relatively accu-rate candidate trajectories, we further aim to enhance trajec-tory diversity in order to provide the student model with a more plausible and diverse trajectory distribution. To this end, we propose a Monte Carlo Dropout (MC-Dropout) sam-pling strategy. Specifically, for each hidden state h ∈ S h,we apply N stochastic dropout perturbations while keeping the model parameters fixed, resulting in a set of diversified hidden state samples: 
+
+h(n) = Dropout( h; p) , n = 1 , . . . , N, (7) where p = 0 .1 denotes the dropout rate and N = 10 .The sampled hidden states are then fed into the model’s 
+
+lm head to obtain the corresponding logits. Finally, all sampled hidden states and their associated logits are incor-porated into the candidate sets Sh and Sl, respectively: 
+
+Sh ← S h ∪
+
+n
+
+h(n)oNn=1 
+
+,
+
+Sl ← S l ∪
+
+n
+
+l(n) = lm head 
+
+
+
+h(n)o Nn=1 
+
+.
+
+(8) Since MC-Dropout is applied only to the hidden states and the logits are computed through the lightweight lm head ,this strategy incurs minimal overhead while significantly diversifying the candidate sets. 
+
+Trajectory Distillation Loss. We compute the cross-entropy loss between the predicted logits of each trajectory in the candidate set Sl and the ground-truth trajectory, and select the optimal trajectory with the minimum loss. 
+
+ˆk = arg min  
+
+> lk∈S l
+
+LCE (lk, W∗) . (9) We then distill the student model using the hidden states and logits associated with this optimal trajectory as soft targets, encouraging the student to align with the oracle teacher in both the latent representation space and the predictive distribution. The formulation is given as follows: 
+
+Lh = 1
+
+NtNtX
+
+> i=1
+
+h(i) 
+
+> stu
+
+− h(i)ˆk
+
+> 22
+
+,
+
+Ll = KL  softmax( lˆk/τ t) ∥ softmax( lstu /τ t) ,
+
+(10) where τt = 5 , Nt denotes the number of trajectory tokens, 
+
+hstu and lstu are student’s hidden states and logist, respec-tively. Essentially, this dual-level alignment enables the student to not only replicate the oracle teacher’s output but also internalize the underlying semantic reasoning required for complex trajectory refinement. 
+
+3.4. Overall Training Loss 
+
+The overall training loss Lall of the student model is a weighted combination composed of the trajectory prediction loss L, the self-anchored visual distillation loss La, and the oracle-guided trajectory distillation loss terms Lh and Ll,which can be formulated as follows: 
+
+Lall = L + λa ∗ L a + λh ∗ L h + λl ∗ L l, (11) where we set λa = 0 .05 , λh = 0 .1, and λl = 0 .2.
+
+## 4. Experiments 
+
+4.1. Experimental Settings Implementation Details. Both the student model and the oracle teacher share the same Qwen2.5-VL 3B (Bai et al., 2025) architecture, while the corresponding visual encoder serves as the self-anchor teacher. Furthermore, the Anchor-Layer is initialized with the weights from its final LLM layer. During the distillation training process, the weights of both the oracle teacher and the self-anchor teacher remain frozen, while only the parameters of the student model and the AnchorFormer are actively optimized. 
+
+Datasets and Evaluations. For open-loop evaluation, we utilize the nuScenes benchmark (Caesar et al., 2020), which comprises 1,000 driving scenes, each lasting approximately 20 seconds. The dataset is partitioned into training and validation sets according to the standard data split. Our evaluation protocol strictly follows the settings established by both ST-P3 (Hu et al., 2022) and UniAD (Hu et al., 2023). The performance is measured using L2 displacement errors at 1, 2, and 3-second intervals, along with the average collision rate throughout the prediction horizon. For closed-loop evaluation, we employ the NAVSIM bench-mark (Dauner et al., 2024). The dataset is partitioned into navtrain (1,192 training scenes) and navtest (136 evalua-tion scenes). We adopt the PDM-Score (PDMS) as the primary evaluation metric, which provides a comprehen-sive assessment through several sub-metrics: No Collision (NC), Drivable Area Compliance (DAC), Time to Collision (TTC), Comfort (Comf.), and Ego Progress (EP). Further-more, we evaluate and report the planning performance over a 4-second prediction horizon. 
+
+4.2. Open-loop Evaluation 
+
+We evaluate the open-loop trajectory planning performance on the nuScenes (Caesar et al., 2020) benchmark. Specifi-cally, we compare our method against three categories of 6EvoDriveVLA: Evolving Autonomous Driving VLA Models via Collaborative Perception-Planning Distillation 
+
+Table 2. Performance comparison on NAVSIM navtest using closed-loop metrics. 
+
+Method NC ↑ DAC ↑ TTC ↑ Comf. ↑ EP ↑ PDMS ↑
+
+Constant Velocity 68.0 57.8 50.0 100 19.4 20.6 Ego Status MLP 93.0 77.3 83.6 100 62.8 65.6 VADv2-V8192 [ICCV 23] 97.2 89.1 91.6 100 76.0 80.9 UniAD [CVPR 23] 97.8 91.9 92.9 100 78.8 83.4 TransFuser [TPAMI 23] 97.7 92.8 92.8 100 79.2 84.0 PARA-Drive [CVPR 24] 97.9 92.4 93.0 99.8 79.3 84.0 QwenVL2.5-3B [arXiv 25] 97.3 90.4 92.9 99.6 77.6 81.9 QwenVL2.5-8B [arXiv 25] 97.8 92.1 92.8 100 78.3 83.3 InternVL3-8B [arXiv 25] 97.0 92.4 91.8 100 78.9 83.3 EvoDriveVLA(Ours) 98.0 93.3 93.1 100 81.1 85.3 
+
+Table 3. Ablation study on algorithmic components. Results are evaluated using UniAD metrics on the nuScenes benchmark.                                             
+
+> Ablation L2 (m)) ↓
+> Traj KD Traj Refine MC-Dropout Visual KD 1s 2s 3s Avg.
+> ××××0.17 0.47 1.02 0.55
+> ✓×××0.17 0.46 1.00 0.54
+> ✓✓××0.16 0.46 0.99 0.53
+> ✓✓✓×0.16 0.45 0.98 0.53
+> ✓✓✓✓0.16 0.44 0.96 0.52
+
+Figure 3. Kernel density estimation of trajectory loss distributions for pre-refine and post-refine trajectories. The overlaid boxplots summarize the median, interquartile range, and extreme values. 
+
+baselines: traditional (Hu et al., 2022; Jiang et al., 2023; Li et al., 2024b; Liao et al., 2025a; Hu et al., 2021; Khu-rana et al., 2022; Li et al., 2025b; Hu et al., 2023), LLM-based (Tian et al., 2024; Wang et al., 2025; Fu et al., 2025; Zhou et al., 2024; Han et al., 2025; Mao et al., 2023; Zheng et al., 2024; Zhou et al., 2025), and distillation-based (Yu et al., 2025; Hegde et al., 2025) approaches. As illustrated in Tab. 1, our method achieves state-of-the-art performance across all three categories, significantly outper-forming both traditional and LLM-based baselines by a sub-stantial margin. Compared to OpenDriveVLA, our method achieves significant performance gains: specifically, we im-prove L2 error and Collision rate by 21% and 40% under 
+
+Figure 4. Comparison of trajectory loss distributions before and after MC-Dropout trajectory sampling. 
+
+Table 4. Oracle teacher performance on nuScenes.                            
+
+> Metric L2 (m) ↓Collision (%) ↓
+> 1s 2s 3s Avg. 1s 2s 3s Avg. ST-P3 0.10 0.14 0.18 0.14 0.02 0.03 0.05 0.04 UniAD 0.13 0.20 0.27 0.20 0.02 0.05 0.05 0.04
+
+the ST-P3 setting, and by 22% and 60% under the UniAD protocol, respectively. Among knowledge distillation-based methods, only DiMA shows a marginal advantage in the collision metric under the UniAD evaluation protocol. Nev-ertheless, our approach remains significantly superior across all other evaluation dimension, achieving 9% improvement in L2 error rate over it under the UniAD setting. 
+
+4.3. Close-loop Evaluation 
+
+In the closed-loop evaluation, we compared our approach with other camera-only methods (Chen et al., 2024; Hu et al., 2023; Chitta et al., 2022; Weng et al., 2024) on the NAVSIM benchmark. As shown in Tab. 2, our method achieves SOTA performance among these competitors. Additionally, we in-troduced the 3B and 8B versions of Qwen2.5-VL (Bai et al., 2025), alongside InternVL3-8B (Zhu et al., 2025), as base-lines. Experimental results demonstrate that our proposed 7EvoDriveVLA: Evolving Autonomous Driving VLA Models via Collaborative Perception-Planning Distillation  
+
+> Figure 5. Qualitative comparison on nuScenes. Our method achieves more accurate long-horizon predictions than VAD and OmniDrive.
+
+distillation algorithm improves the PDMS score of the 3B base model by 3.4 points (a 4.2% increase). Remarkably, the distilled 3B model even outperforms larger-scale models such as Qwen2.5-VL 8B and InternVL3-8B, achieving a 2.0-point lead (a 2.4% increase) in PDMS. These results underscore the effectiveness of our distillation approach in enhancing the model’s closed-loop driving performance. 
+
+4.4. Ablation Study 
+
+We conduct ablation studies on the nuScenes benchmark to evaluate the effectiveness of proposed algorithmic compo-nents, with results summarized in Tab. 3. The results show that oracle-guided trajectory distillation significantly en-hances prediction accuracy. This improvement is attributed to the superior trajectory prediction capability of the oracle teacher, as well as the coarse-to-fine refinement and MC-Dropout sampling strategies. As illustrated in Tab. 4, it is evident that the oracle teacher, empowered by future infor-mation input, significantly outperforms existing methods in terms of both L2 error and collision rate. Meanwhile, self-anchored visual distillation imposes constraints on the student model’s original perceptual representations, which in turn further reduces the L2 error in trajectory prediction. Specifically, within the oracle-guided trajectory distilla-tion, both the coarse-to-fine trajectory refinement and MC-Dropout trajectory sampling strategies contribute to con-sistent improvements in planning accuracy and safety. To further demonstrate their individual effectiveness, we pro-vide detailed visual quantitative analysis for each strategy. We statistically analyze the loss distribution between teacher-predicted trajectories and ground truth before and after the coarse-to-fine trajectory refinement, visualized via kernel density estimation (KDE) plots. As illustrated in Fig. 3, the refinement process causes the trajectory loss distribution to shift significantly toward the lower-value region. Notably, the density near zero markedly increases, while the long-tail distribution of outliers is substantially alleviated. These observations demonstrate the effectiveness of coarse-to-fine refinement in enhancing teacher trajectory prediction. Furthermore, we analyze the variation in teacher trajec-tory loss across different samples before and after applying MC-Dropout trajectory sampling. As illustrated in Fig. 4, this operation further reduces the teacher’s prediction error, thereby providing the student with more precise trajectory guidance. Notably, the loss in the near-zero region is re-duced by approximately 50%, resulting in nearly 30% of the teacher trajectories achieving an L2 loss of less than 0.1 relative to the ground truth. These results validate the effec-tiveness of MC-Dropout trajectory sampling in enhancing the quality of teacher-generated trajectories. 
+
+4.5. Qualitative Results 
+
+Fig. 5 presents a qualitative comparison between our method and other baselines on nuScenes. It is evident that our ap-proach significantly outperforms VAD (Jiang et al., 2023) and OmniDrive (Wang et al., 2025) in long-horizon pre-diction across diverse weather (sunny/overcast) and road geometries (straight/curved). Specifically, VAD tends to pro-duce overly short longitudinal predictions, while OmniDrive often exhibits lateral deviations. 
+
+## 5. Conclusion 
+
+We introduce EvoDriveVLA, a novel collaborative perception-planning distillation framework with self- an-chored and oracle-guided distillation for driving. To ad-dress the challenges of visual representation degradation and insufficient trajectory precision in existing methods, we propose self-anchored visual distillation to ensure the 8EvoDriveVLA: Evolving Autonomous Driving VLA Models via Collaborative Perception-Planning Distillation 
+
+visual encoder retains its intrinsic perceptual capabilities. Furthermore, we leverage an oracle teacher model integrat-ing privileged future information to provide high-quality trajectory guidance. By incorporating coarse-to-fine itera-tive refinement and MC-Dropout sampling, the quality of teacher-to-student knowledge transfer is further enhanced. This research establishes a new paradigm for the efficient distillation of VLA models in autonomous driving. 
+
+## Impact Statements 
+
+This paper presents work whose goal is to advance the field of autonomous driving. There are many potential societal consequences of our work, none of which we feel must be specifically highlighted here. 
+
+## References 
+
+Bai, S., Chen, K., Liu, X., Wang, J., Ge, W., Song, S., Dang, K., Wang, P., Wang, S., Tang, J., et al. Qwen2. 5-vl technical report. arXiv preprint arXiv:2502.13923 , 2025. Caesar, H., Bankiti, V., Lang, A. H., Vora, S., Liong, V. E., Xu, Q., Krishnan, A., Pan, Y., Baldan, G., and Beijbom, O. nuscenes: A multimodal dataset for autonomous driving. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pp. 11621–11631, 2020. Cai, Y., Zhang, J., He, H., He, X., Tong, A., Gan, Z., Wang, C., Xue, Z., Liu, Y., and Bai, X. Llava-kd: A framework of distilling multimodal large language models. In Pro-ceedings of the IEEE/CVF International Conference on Computer Vision , pp. 239–249, 2025. Cao, J., Zhang, Q., Jia, P., Zhao, X., Lan, B., Zhang, X., Li, Z., Wei, X., Chen, S., Li, L., et al. Fastdrivevla: Effi-cient end-to-end driving via plug-and-play reconstruction-based token pruning. arXiv preprint arXiv:2507.23318 ,2025a. Cao, J., Zhang, Y., Huang, T., Lu, M., Zhang, Q., An, R., Ma, N., and Zhang, S. Move-kd: Knowledge distillation for vlms with mixture of visual encoders. In Proceedings of the Computer Vision and Pattern Recognition Conference ,pp. 19846–19856, 2025b. Chen, S., Jiang, B., Gao, H., Liao, B., Xu, Q., Zhang, Q., Huang, C., Liu, W., and Wang, X. Vadv2: End-to-end vectorized autonomous driving via probabilistic planning. 
+
+arXiv preprint arXiv:2402.13243 , 2024. Chi, H., Gao, H.-a., Liu, Z., Liu, J., Liu, C., Li, J., Yang, K., Yu, Y., Wang, Z., Li, W., et al. Impromptu vla: Open weights and open data for driving vision-language-action models. arXiv preprint arXiv:2505.23757 , 2025. Chitta, K., Prakash, A., Jaeger, B., Yu, Z., Renz, K., and Geiger, A. Transfuser: Imitation with transformer-based sensor fusion for autonomous driving. IEEE transactions on pattern analysis and machine intelligence , 45(11): 12878–12895, 2022. Dauner, D., Hallgarten, M., Li, T., Weng, X., Huang, Z., Yang, Z., Li, H., Gilitschenski, I., Ivanovic, B., Pavone, M., et al. Navsim: Data-driven non-reactive autonomous vehicle simulation and benchmarking. Advances in Neu-ral Information Processing Systems , 37:28706–28719, 2024. Fu, H., Zhang, D., Zhao, Z., Cui, J., Liang, D., Zhang, C., Zhang, D., Xie, H., Wang, B., and Bai, X. Orion: A holis-tic end-to-end autonomous driving framework by vision-language instructed action generation. arXiv preprint arXiv:2503.19755 , 2025. Gao, H., Chen, S., Jiang, B., Liao, B., Shi, Y., Guo, X., Pu, Y., Yin, H., Li, X., Zhang, X., et al. Rad: Training an end-to-end driving policy via large-scale 3dgs-based reinforcement learning. arXiv preprint arXiv:2502.13144 ,2025. Guo, Z. and Zhang, Z. Vdrive: Leveraging reinforced vla and diffusion policy for end-to-end autonomous driving. 
+
+arXiv preprint arXiv:2510.15446 , 2025. Han, W., Guo, D., Xu, C.-Z., and Shen, J. Dme-driver: Inte-grating human decision logic and 3d scene perception in autonomous driving. In Proceedings of the AAAI Confer-ence on Artificial Intelligence , volume 39, pp. 3347–3355, 2025. Hegde, D., Yasarla, R., Cai, H., Han, S., Bhattacharyya, A., Mahajan, S., Liu, L., Garrepalli, R., Patel, V. M., and Porikli, F. Distilling multi-modal large language models for autonomous driving. In Proceedings of the Computer Vision and Pattern Recognition Conference , pp. 27575– 27585, 2025. Hinton, G., Vinyals, O., and Dean, J. Distilling the knowledge in a neural network. arXiv preprint arXiv:1503.02531 , 2015. Hu, P., Huang, A., Dolan, J., Held, D., and Ramanan, D. Safe local motion planning with self-supervised freespace forecasting. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pp. 12732– 12741, 2021. Hu, S., Chen, L., Wu, P., Li, H., Yan, J., and Tao, D. St-p3: End-to-end vision-based autonomous driving via spatial-temporal feature learning. In European Conference on Computer Vision , pp. 533–549. Springer, 2022. 9EvoDriveVLA: Evolving Autonomous Driving VLA Models via Collaborative Perception-Planning Distillation 
+
+Hu, Y., Yang, J., Chen, L., Li, K., Sima, C., Zhu, X., Chai, S., Du, S., Lin, T., Wang, W., et al. Planning-oriented autonomous driving. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition ,pp. 17853–17862, 2023. Huang, N., Wei, X., Zheng, W., An, P., Lu, M., Zhan, W., Tomizuka, M., Keutzer, K., and Zhang, S. S3gaussian: Self-supervised street gaussians for autonomous driving. 
+
+arXiv preprint arXiv:2405.20323 , 2024. Jiang, B., Chen, S., Xu, Q., Liao, B., Chen, J., Zhou, H., Zhang, Q., Liu, W., Huang, C., and Wang, X. Vad: Vectorized scene representation for efficient autonomous driving. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pp. 8340–8350, 2023. Kachaev, N., Kolosov, M., Zelezetsky, D., Kovalev, A. K., and Panov, A. I. Don’t blind your vla: Aligning visual representations for ood generalization. arXiv preprint arXiv:2510.25616 , 2025. Karamcheti, S., Nair, S., Balakrishna, A., Liang, P., Kol-lar, T., and Sadigh, D. Prismatic vlms: Investigating the design space of visually-conditioned language mod-els. In Forty-first International Conference on Machine Learning , 2024. Kerbl, B., Kopanas, G., Leimk ¨uhler, T., and Drettakis, G. 3d gaussian splatting for real-time radiance field rendering. 
+
+ACM Trans. Graph. , 42(4):139–1, 2023. Khanzada, F. K. and Kwon, J. Driving beyond privilege: Distilling dense-reward knowledge into sparse-reward policies. arXiv preprint arXiv:2512.04279 , 2025. Khurana, T., Hu, P., Dave, A., Ziglar, J., Held, D., and Ra-manan, D. Differentiable raycasting for self-supervised occupancy forecasting. In European Conference on Com-puter Vision , pp. 353–369. Springer, 2022. Li, K., Li, Z., Lan, S., Xie, Y., Zhang, Z., Liu, J., Wu, Z., Yu, Z., and Alvarez, J. M. Hydra-mdp++: Advancing end-to-end driving via expert-guided hydra-distillation. 
+
+arXiv preprint arXiv:2503.12820 , 2025a. Li, X., Li, P., Zheng, Y., Sun, W., Wang, Y., and Chen, Y. Semi-supervised vision-centric 3d occupancy world model for autonomous driving. arXiv preprint arXiv:2502.07309 , 2025b. Li, Y., Shang, S., Liu, W., Zhan, B., Wang, H., Wang, Y., Chen, Y., Wang, X., An, Y., Tang, C., et al. Drivevla-w0: World models amplify data scaling law in autonomous driving. arXiv preprint arXiv:2510.12796 , 2025c. Li, Y., Xiong, K., Guo, X., Li, F., Yan, S., Xu, G., Zhou, L., Chen, L., Sun, H., Wang, B., et al. Recogdrive: A rein-forced cognitive framework for end-to-end autonomous driving. arXiv preprint arXiv:2506.08052 , 2025d. Li, Z., Li, K., Wang, S., Lan, S., Yu, Z., Ji, Y., Li, Z., Zhu, Z., Kautz, J., Wu, Z., et al. Hydra-mdp: End-to-end multimodal planning with multi-target hydra-distillation. 
+
+arXiv preprint arXiv:2406.06978 , 2024a. Li, Z., Yu, Z., Lan, S., Li, J., Kautz, J., Lu, T., and Alvarez, J. M. Is ego status all you need for open-loop end-to-end autonomous driving? In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pp. 14864–14873, 2024b. Liao, B., Chen, S., Yin, H., Jiang, B., Wang, C., Yan, S., Zhang, X., Li, X., Zhang, Y., Zhang, Q., et al. Diffu-siondrive: Truncated diffusion model for end-to-end au-tonomous driving. In Proceedings of the Computer Vision and Pattern Recognition Conference , pp. 12037–12047, 2025a. Liao, D., Qi, M., Shu, P., Zhang, Z., Lin, Y., Liu, L., and Ma, H. Robodrivevlm: A novel benchmark and baseline towards robust vision-language models for autonomous driving. arXiv preprint arXiv:2512.01300 , 2025b. Liu, H., Li, C., Wu, Q., and Lee, Y. J. Visual instruction tun-ing. Advances in neural information processing systems ,36:34892–34916, 2023. Liu, W., Liu, P., and Ma, J. Dsdrive: Distilling large lan-guage model for lightweight end-to-end autonomous driv-ing with unified reasoning and planning. arXiv preprint arXiv:2505.05360 , 2025. Mao, J., Qian, Y., Ye, J., Zhao, H., and Wang, Y. Gpt-driver: Learning to drive with gpt. arXiv preprint arXiv:2310.01415 , 2023. Peng, Q., Bai, C., Zhang, G., Xu, B., Liu, X., Zheng, X., Chen, C., and Lu, C. Navigscene: Bridging local per-ception and global navigation for beyond-visual-range autonomous driving. In Proceedings of the 33rd ACM International Conference on Multimedia , pp. 4193–4202, 2025. Shi, M., Liu, F., Wang, S., Liao, S., Radhakrishnan, S., Zhao, Y., Huang, D.-A., Yin, H., Sapra, K., Yacoob, Y., et al. Ea-gle: Exploring the design space for multimodal llms with mixture of encoders. arXiv preprint arXiv:2408.15998 ,2024. Sima, C., Renz, K., Chitta, K., Chen, L., Zhang, H., Xie, C., Beißwenger, J., Luo, P., Geiger, A., and Li, H. Driv-elm: Driving with graph visual question answering. In 
+
+European conference on computer vision , pp. 256–274. Springer, 2024. 10 EvoDriveVLA: Evolving Autonomous Driving VLA Models via Collaborative Perception-Planning Distillation 
+
+Tang, Z., Lv, Z., Zhang, S., Zhou, Y., Duan, X., Wu, F., and Kuang, K. Aug-kd: Anchor-based mixup generation for out-of-domain knowledge distillation. arXiv preprint arXiv:2403.07030 , 2024. Tian, X., Gu, J., Li, B., Liu, Y., Wang, Y., Zhao, Z., Zhan, K., Jia, P., Lang, X., and Zhao, H. Drivevlm: The conver-gence of autonomous driving and large vision-language models. arXiv preprint arXiv:2402.12289 , 2024. Tong, P., Brown, E., Wu, P., Woo, S., IYER, A. J. V., Akula, S. C., Yang, S., Yang, J., Middepogu, M., Wang, Z., et al. Cambrian-1: A fully open, vision-centric exploration of multimodal llms. Advances in Neural Information Processing Systems , 37:87310–87356, 2024. Wang, S., Yu, Z., Jiang, X., Lan, S., Shi, M., Chang, N., Kautz, J., Li, Y., and Alvarez, J. M. Omnidrive: A holis-tic vision-language dataset for autonomous driving with counterfactual reasoning. In Proceedings of the Computer Vision and Pattern Recognition Conference , pp. 22442– 22452, 2025. Wei, X., Wuwu, Q., Zhao, Z., Wu, Z., Huang, N., Lu, M., Ma, N., and Zhang, S. Emd: Explicit motion modeling for high-quality street gaussian splatting. In Proceedings of the IEEE/CVF international conference on computer vision , pp. 28462–28472, 2025. Wei, X., Ye, Z., Gu, Y., Zhu, Z., Guo, Y., Shen, Y., Zhao, S., Lu, M., Sun, H., Wang, B., et al. Parkgaussian: Surround-view 3d gaussian splatting for autonomous parking. arXiv preprint arXiv:2601.01386 , 2026. Weng, X., Ivanovic, B., Wang, Y., Wang, Y., and Pavone, M. Para-drive: Parallelized architecture for real-time autonomous driving. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pp. 15449–15458, 2024. Yu, R., Zhang, X., Zhao, R., Yan, H., and Wang, M. Dis-tilldrive: End-to-end multi-mode autonomous driving dis-tillation by isomorphic hetero-source planning model. In 
+
+Proceedings of the IEEE/CVF International Conference on Computer Vision , pp. 26188–26197, 2025. Zeng, S., Chang, X., Xie, M., Liu, X., Bai, Y., Pan, Z., Xu, M., Wei, X., and Guo, N. Futuresightdrive: Thinking visually with spatio-temporal cot for autonomous driving. 
+
+arXiv preprint arXiv:2505.17685 , 2025. Zhang, J., Xia, W., Zhou, Z., Gong, Y., and Mei, J. Lap: Fast latent diffusion planner with fine-grained fea-ture distillation for autonomous driving. arXiv preprint arXiv:2512.00470 , 2025a. Zhang, Q., Cheng, A., Lu, M., Zhang, R., Zhuo, Z., Cao, J., Guo, S., She, Q., and Zhang, S. Beyond text-visual atten-tion: Exploiting visual cues for effective token pruning in vlms. In Proceedings of the IEEE/CVF International Con-ference on Computer Vision , pp. 20857–20867, 2025b. Zheng, W., Chen, W., Huang, Y., Zhang, B., Duan, Y., and Lu, J. Occworld: Learning a 3d occupancy world model for autonomous driving. In European conference on computer vision , pp. 55–72. Springer, 2024. Zhou, X., Han, X., Yang, F., Ma, Y., and Knoll, A. C. Opendrivevla: Towards end-to-end autonomous driving with large vision language action model. arXiv preprint arXiv:2503.23463 , 2025. Zhou, Y., Huang, L., Bu, Q., Zeng, J., Li, T., Qiu, H., Zhu, H., Guo, M., Qiao, Y., and Li, H. Embodied understand-ing of driving scenarios. In European Conference on Computer Vision , pp. 129–148. Springer, 2024. Zhu, J., Wang, W., Chen, Z., Liu, Z., Ye, S., Gu, L., Tian, H., Duan, Y., Su, W., Shao, J., et al. Internvl3: Exploring advanced training and test-time recipes for open-source multimodal models. arXiv preprint arXiv:2504.10479 ,2025. Zou, J., Chen, S., Liao, B., Zheng, Z., Song, Y., Zhang, L., Zhang, Q., Liu, W., and Wang, X. Diffusiondrivev2: Rein-forcement learning-constrained truncated diffusion mod-eling in end-to-end autonomous driving. arXiv preprint arXiv:2512.07745 , 2025. 11 EvoDriveVLA: Evolving Autonomous Driving VLA Models via Collaborative Perception-Planning Distillation 
+
+## A. Dataset Examples Front  
+
+> Back Left
+> Front Left Front Right
+> Back Right Back
+
+Student-Prompt:  You're  an  autonomous  vehicle's  brain…Here  are  current  six 
+
+images  from  the  car:  'CAM_FRONT':  <image>  …Here’s  some  information  you'll 
+
+need:\nHistorical  Trajectory  (last  2 seconds):  [(-2.0s):(0.11,-14.51)…(0.00, 
+
+0.00)].  Historical  ego  (last  2 seconds),  Format:  (Velocity,  Acceleration_x, 
+
+Acceleration_y,  steer):  [(-2.0s):(6.73  m/s,  0.15  m/s^2,  0.02  m/s^2,  -0.13)… 
+
+please  output  the  plan  waypoints  (0.5s  intervals)  for  the  next  3 seconds. 
+
+Teacher-Prompt:  You're  an  autonomous  vehicle's  brain…Here  are  current  front 
+
+cam  image  from  the  car:  'CURRENT  CAM_FRONT':  <image>…Here’s  some 
+
+information  you'll  need:\nHistorical  Trajectory  (last  2 seconds):  [(-2.0s): 
+
+(0.11,-14.51)…Historical  ego  (last  2 seconds),  Format:  (Velocity,  Acceleration_x, 
+
+Acceleration_y,  steer):  [(-2.0s):(6.73  m/s,  0.15  m/s^2,  0.02  m/s^2,  -0.13)… 
+
+Future  ego  (next  3 seconds),  Format:  (Velocity,  Acceleration_x,  Acceleration_y, 
+
+steer):  [(0.5s):(7.40  m/s,  -0.60  m/s^2,  -0.11  m/s^2,  -0.04)…Based  on  the 
+
+provided  particulars,  please  output  the  plan  waypoints  (0.5s  intervals)  for  the  next  3
+
+seconds.  
+
+> Future 0 s Future 3 s Future 2 s Future 1 s
+
+Student-Output:  [(0.05,3.76),  (0.11,7.53),  (0.22,11.20),  (0.30,15.20), 
+
+(0.73,19.99),  (1.19,22.61)]  These  are  the  future  waypoints. 
+
+Teacher-Output: [(0.04,3.76),  (0.12,7.51),  (0.26,11.31),  (0.43,15.10), 
+
+(0.72,19.99),  (1.09,22.66)]  These  are  the  future  waypoints. 
+
+Re fi ne-Teacher-Prompt:  You're  an  autonomous  vehicle's  brain…Here  are  current 
+
+front  cam  image  from  the  car:  'CURRENT  CAM_FRONT':  <image>…Here’s  some 
+
+information  you'll  need…Based  on  the  provided  particulars,  please  output  the  plan 
+
+waypoints  (0.5s  intervals)  for  the  next  3 seconds.  I can  provide  the  trajectory 
+
+predictions  from  the  student  model  here,  and  you  can  also  refine  them  based 
+
+on  this:  [(0.04,3.76),  (0.12,7.51),  (0.26,11.31),  (0.43,15.10), 
+
+(0.72,19.99),  (1.09,22.66)]. 
+
+Re fi ne-Teacher-Output:  [(0.05,3.76),  (0.13,7.53),  (0.23,11.33), 
+
+(0.44,15.20),  (0.72,18.99),  (1.08,22.65)]  These  are  the  future  waypoints. 
+
+12 EvoDriveVLA: Evolving Autonomous Driving VLA Models via Collaborative Perception-Planning Distillation Student-Prompt:  You're  an  autonomous  vehicle's  brain…Here  are  current  six 
+
+images  from  the  car:  'CAM_FRONT':  <image>  …Here’s  some  information  you'll 
+
+need:\nHistorical  Trajectory  (last  2 seconds):  [(-2.0s): (-0.02,-4.27) …(0.00, 
+
+0.00)].  Historical  ego  (last  2 seconds),  Format:  (Velocity,  Acceleration_x, 
+
+Acceleration_y,  steer):  [(-2.0s):(2.38  m/s,  -0.24  m/s^2,  0.10  m/s^2, 
+
+-0.21) …please  output  the  plan  waypoints  (0.5s  intervals)  for  the  next  3 seconds. 
+
+Teacher-Prompt:  You're  an  autonomous  vehicle's  brain…Here  are  current  front 
+
+cam  image  from  the  car:  'CURRENT  CAM_FRONT':  <image>…Here’s  some 
+
+information  you'll  need:\nHistorical  Trajectory  (last  2 seconds):  [(-2.0s): 
+
+(-0.02,-4.27) …Historical  ego  (last  2 seconds),  Format:  (Velocity,  Acceleration_x, 
+
+Acceleration_y,  steer):  [(-2.0s):(2.38  m/s,  -0.24  m/s^2,  0.10  m/s^2,  -0.21)… 
+
+Future  ego  (next  3 seconds),  Format:  (Velocity,  Acceleration_x,  Acceleration_y, 
+
+steer):  [(0.5s):(1.83  m/s,  -0.01  m/s^2,  0.09  m/s^2,  -0.14) …Based  on  the 
+
+provided  particulars,  please  output  the  plan  waypoints  (0.5s  intervals)  for  the  next  3
+
+seconds. 
+
+Student-Output:  [(0.01,0.92),  (0.02,1.84),  (0.05,2.73),  (0.07,3.67), 
+
+(0.00,4.50),  (0.13,5.70)]  These  are  the  future  waypoints. 
+
+Teacher-Output: [(0.01,0.93),  (0.02,1.84),  (0.04,2.74),  (0.07,3.79), 
+
+(0.00,4.72),  (0.13,5.84)]  These  are  the  future  waypoints. 
+
+Re fi ne-Teacher-Prompt:  You're  an  autonomous  vehicle's  brain…Here  are  current 
+
+front  cam  image  from  the  car:  'CURRENT  CAM_FRONT':  <image>…Here’s  some 
+
+information  you'll  need…Based  on  the  provided  particulars,  please  output  the  plan 
+
+waypoints  (0.5s  intervals)  for  the  next  3 seconds.  I can  provide  the  trajectory 
+
+predictions  from  the  student  model  here,  and  you  can  also  refine  them  based 
+
+on  this:  [(0.01,0.93),  (0.02,1.84),  (0.04,2.74),  (0.07,3.79),  (0.00,4.72), 
+
+(0.13,5.84)]. 
+
+Re fi ne-Teacher-Output:  [(0.01,0.93),  (0.02,1.84),  (0.05,2.76), 
+
+(0.07,3.68),  (0.10,4.72),  (0.13,5.85)]  These  are  the  future  waypoints.   
+
+> Front
+> Back Left
+> Front Left Front Right
+> Back Right Back
+> Future 0 s Future 3 s Future 2 s Future 1 s
+
+13 EvoDriveVLA: Evolving Autonomous Driving VLA Models via Collaborative Perception-Planning Distillation Student-Prompt:  You're  an  autonomous  vehicle's  brain…Here  are  current  six 
+
+images  from  the  car:  'CAM_FRONT':  <image>  …Here’s  some  information  you'll 
+
+need:\nHistorical  Trajectory  (last  2 seconds):  [(-2.0s):(-0.15,-16.49)…(0.00, 
+
+0.00)].  Historical  ego  (last  2 seconds),  Format:  (Velocity,  Acceleration_x, 
+
+Acceleration_y,  steer):  [(-2.0s):(8.49  m/s,  -0.45  m/s^2,  0.01  m/s^2,  -0.05)… 
+
+please  output  the  plan  waypoints  (0.5s  intervals)  for  the  next  3 seconds. 
+
+Teacher-Prompt:  You're  an  autonomous  vehicle's  brain…Here  are  current  front 
+
+cam  image  from  the  car:  'CURRENT  CAM_FRONT':  <image>…Here’s  some 
+
+information  you'll  need:\nHistorical  Trajectory  (last  2 seconds):  [(-2.0s): 
+
+(-0.15,-16.49)…Historical  ego  (last  2 seconds),  Format:  (Velocity,  Acceleration_x, 
+
+Acceleration_y,  steer):  [(-2.0s):(8.49  m/s,  -0.45  m/s^2,  0.01  m/s^2,  -0.05)… 
+
+Future  ego  (next  3 seconds),  Format:  (Velocity,  Acceleration_x,  Acceleration_y, 
+
+steer):  [(0.5s):(7.69  m/s,  0.09  m/s^2,  -0.09  m/s^2,  0.03)…Based  on  the 
+
+provided  particulars,  please  output  the  plan  waypoints  (0.5s  intervals)  for  the  next  3
+
+seconds. 
+
+Student-Output:  [(0.03,3.99),  (0.08,7.72),  (0.19,11.60),  (0.03,15.64), 
+
+(-0.02,19.60),  (-0.10,23.00)]  These  are  the  future  waypoints. 
+
+Teacher-Output: [(0.04,3.89),  (0.06,7.73),  (0.09,11.70),  (0.05,15.79), 
+
+(-0.01,19.76),  (-0.00,23.40)]  These  are  the  future  waypoints. 
+
+Re fi ne-Teacher-Prompt:  You're  an  autonomous  vehicle's  brain…Here  are  current 
+
+front  cam  image  from  the  car:  'CURRENT  CAM_FRONT':  <image>…Here’s  some 
+
+information  you'll  need…Based  on  the  provided  particulars,  please  output  the  plan 
+
+waypoints  (0.5s  intervals)  for  the  next  3 seconds.  I can  provide  the  trajectory 
+
+predictions  from  the  student  model  here,  and  you  can  also  refine  them  based 
+
+on  this:  [(0.04,3.89),  (0.06,7.73),  (0.09,11.70),  (0.05,15.79), 
+
+(-0.01,19.76),  (-0.00,23.40)]. 
+
+Re fi ne-Teacher-Output:  [(0.04,3.86),  (0.07,7.77),  (0.06,11.73), 
+
+(0.03,15.69),  (-0.02,19.30),  (-0.10,23.00)]  These  are  the  future  waypoints.   
+
+> Front
+> Back Left
+> Front Left Front Right
+> Back Right Back
+> Future 0 s Future 3 s Future 2 s Future 1 s
+
+14 EvoDriveVLA: Evolving Autonomous Driving VLA Models via Collaborative Perception-Planning Distillation 
+
+## B. Additional Qualitative Results 
+
+15 EvoDriveVLA: Evolving Autonomous Driving VLA Models via Collaborative Perception-Planning Distillation 
+
+16

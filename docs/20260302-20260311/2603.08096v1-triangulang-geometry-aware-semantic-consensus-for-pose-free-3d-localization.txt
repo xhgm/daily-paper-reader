@@ -1,0 +1,730 @@
+Title: TrianguLang: Geometry-Aware Semantic Consensus for Pose-Free 3D Localization
+
+URL Source: https://arxiv.org/pdf/2603.08096v1
+
+Published Time: Tue, 10 Mar 2026 02:03:06 GMT
+
+Number of Pages: 31
+
+Markdown Content:
+# TrianguLang: Geometry-Aware Semantic Consensus for Pose-Free 3D Localization 
+
+Bryce Grant 1, Aryeh Rothenberg 1, Atri Banerjee 1, and Peng Wang 1
+
+Case Western Reserve University, Cleveland, OH, USA 
+
+{bag100, pxw206}@case.edu 
+
+Abstract. Localizing objects and parts from natural language in 3D space is essential for robotics, AR, and embodied AI, yet existing meth-ods face a trade-off between the accuracy and geometric consistency of per-scene optimization and the efficiency of feed-forward inference. We present TrianguLang, a feed-forward framework for 3D localization that re-quires no camera calibration at inference. Unlike prior methods that treat views independently, we introduce Geometry-Aware Semantic Attention (GASA), which utilizes predicted geometry to gate cross-view feature correspondence, suppressing semantically plausible but geometrically inconsistent matches without requiring ground-truth poses. Validated on five benchmarks including ScanNet++ and uCO3D, TrianguLang achieves state-of-the-art feed-forward text-guided segmentation and lo-calization, reducing user effort from O(N ) clicks to a single text query. The model processes each frame at 1008x1008 resolution in ∼57ms ( ∼18 FPS) without optimization, enabling practical deployment for interactive robotics and AR applications. Code and checkpoints are available at 
+
+https://cwru-aism.github.io/triangulang/ .
+
+# 1 Introduction 
+
+Promptable segmentation has developed recently, enabling complex scene under-standing through simple visual prompts like text and bounding boxes. SAM [17] established the foundation by demonstrating promptable segmentation across diverse applications. Subsequent versions introduced video segmentation [34] and text-based query-ing [2], opening the door for more dynamic localization. However, despite impres-sive performance, these models lack 3D awareness, making them prone to object flickering and occlusions. Incorporating geometric awareness into promptable segmentation presents fundamental challenges. Existing geometric representations (e.g. point clouds, voxels, 3DGS [15], NeRFs [25]), enable lifting 2D information into 3D, but require lengthy per-scene optimization and prioritize fidelity over semantic understanding. Additionally, current promptable segmentation models cannot estimate object position in 3D space, while pose estimation methods [18, 43], require preexisting masks, bounding boxes, or cropped images as input. 
+
+> arXiv:2603.08096v1 [cs.CV] 9 Mar 2026
+
+Neural rendering has transformed 3D scene reconstruction. NeRF [25] in-troduced a novel view synthesis technique requiring only sparse input images with known camera poses. 3D Gaussian Splatting [15] followed, replacing dense volume representations with lighter anisotropic Gaussians and achieving real-time rendering at a fraction of the compute. While impressive, 3DGS retained reliance on calibrated camera poses and did not address downstream tasks such as object detection and semantic scene understanding. Thus, as reliable and contextually-blank backbones for 3D localization and reconstruction, NeRF and 3DGS presented promising foundations for advancing 3D object awareness, segmentation, and scene understanding. Fusion models have emerged as successful extensions, distilling reconstruction techniques with features from foundation models like CLIP [33] and SAM [17]. One approach utilizes natural language grounding to embed high-dimensional language features into 3D space, enabling open-vocabulary querying of reconstructed scenes [16, 21, 29, 49]. Identity-based approaches assign semantic attributes to individual scene primitives (e.g., Gaussians), allowing promptable 3D instance segmentation [3, 10, 45]. Spatial reasoning approaches like SpatialRGPT [7] and 3D-LLM [11] inject geometric information into large language models for complex spatial queries. Visual geometric models (VGMs) [22, 39 –41] take a step beyond traditional NeRFs and 3DGS, demonstrating that scene reconstructions can be produced from unposed RGB images in an end-to-end process. Nevertheless, these models too lack intrinsic scene awareness, presenting an opportunity for a new framework capable of handling both semantic understanding and 3D localization without per-scene optimization. Bridging these two fields, we propose TrianguLang , a language-guided multi-view segmentation and 3D localization framework. We blend semantic knowledge from SAM3 [2] with geometric priors from DA3 through our novel 
+
+Geometry-Aware Semantic Attention (GASA) decoder, which uses world-space positional encoding and geometric attention biasing to achieve cross-view consistency without explicit correspondence supervision. Our contributions include: 1. GASA (Geometry-Aware Semantic Attention) : A novel attention mech-anism that combines semantic similarity with geometric constraints from monocular depth, enabling pose-free cross-view consistency without explicit correspondence supervision. 2. Pose-Free 3D Localization : Camera-relative object localization via depth unprojection, providing metric 3D coordinates (e.g., “1.2m ahead, 0.3m left”) without SLAM or camera pose estimation. 3. LLM-Free Spatial Language : Support for spatial qualifiers and relational queries via direct geometric computation without requiring LLM inference, enabling real-time spatial grounding. 2 Related Works 
+
+2.1 Optimization-Based 3D Grounding 
+
+Traditional methods for grounding language in 3D, such as ScanRefer [6] and OpenScene [29] operate on pre-scanned 3D point cloud and posed images as input. While effective, they are limited by the requirement of a pre-existing, high-quality 3D map. More recent neural rendering approaches achieve dense 3D grounding by distilling semantic features into implicit representations. Neural rendering methods distill semantic features into implicit scene repre-sentations. LERF [16] embeds multi-scale CLIP features into NeRF via volume rendering, enabling open-vocabulary 3D queries. LangSplat [31] extends this to 3D Gaussian Splatting by using SAM to segment training images, extracting hierarchical CLIP features, and attaching compressed representations to each Gaussian. FMGS [49] uses multi-resolution hash encoding to represent CLIP and DINO features more efficiently. LEGS [48] and SemanticSplat [20] similarly augment Gaussians with semantic attributes distilled from foundation models. While SemanticSplat employs feed-forward feature prediction, it still requires a pre-computed 3DGS reconstruction from calibrated images. These methods share fundamental limitations: they require calibrated camera poses and per-scene reconstruction or optimization (10 to 45 minutes). TrianguLang operates in a feed-forward manner on uncalibrated images, processing new scenes without any optimization. Any6D [19] estimates the 6D pose of novel objects in a feed-forward manner but operates at object-level granularity and lacks language supervision. Recent work such as Segment Any 3D Gaussians [3], and Click-Gaussian [8] extend 3D segmentation to Gaussian Splatting but require clicks or pre-computed masks rather than end-to-end language grounding. 
+
+2.2 Open-Vocabulary 3D Segmentation 
+
+State-of-the-art open-vocabulary methods like OpenMask3D [38] and Open3DIS [28] adopt a “lift-and-project” strategy: they segment 2D images and aggregate fea-tures into a pre-built 3D point cloud. OmniSeg3D [47] uses hierarchical contrastive learning for omniversal segmentation, but still relies on dense 3D reconstruction. These methods cannot function without a pre-existing 3D map of the environ-ment. ReferSplat [10] introduces Referring 3D Gaussian Splatting Segmentation (R3DGS), which segments objects based on natural language descriptions con-taining spatial relations and attributes. ReferSplat demonstrates that 3DGS can handle complex referring expressions with spatial language. However, it still requires per-scene optimization ( ∼58 minutes training) and calibrated poses for reconstruction. TrianguLang achieves similar spatial language capability in a feed-forward, pose-free setting via explicit geometric computation on depth-derived 3D positions without requiring reconstruction. 2.3 Multi-View Segmentation 
+
+SAM2 and SAM3 [2, 34] propagate masks through video but lack 3D geometric guarantees, drifting when views change significantly. MV-SAM [13] leverages pointmaps for multi-view segmentation but relies on click prompts rather than language. MV-SAM treats views as independent samples, admitting no explicit enforcement of geometric consistency. GTA [27] injects camera geometry into attention via epipolar constraints but requires known camera poses. Multi-View Foundation Models [36] adapt 2D backbones into multi-view consistent variants via cross-view attention and Plücker pose embeddings. However, like GTA, they require known camera poses and focus on feature consistency rather than language-prompted localization, outputting per-pixel embeddings rather than 3D coordinates. Emerging approaches like VGGT [39] explore visual-geometric grounding in Transformers but focus on generation rather than metric localization. We adapt this insight to the map-free regime by driving attention with estimated metric depth, enabling geometry-aware consistency without requiring a pre-built dense map. 
+
+2.4 Spatial Reasoning in Vision-Language 
+
+Interpreting spatial relations (“nearest,” “left of,” “behind”) in natural language is challenging. Recent approaches delegate this to large models: SpatialVLM [5] fine-tunes a 7B-parameter VLM on 2M spatial QA pairs; 3D-LLM [11] injects 3D point cloud features into LLaMA; LEO [12] uses an embodied agent with chain-of-thought prompting; SpatialRGPT [7] conditions a VLM on depth; LLM-Grounder [44] uses an LLM agent to iteratively refine 3D bounding boxes. SAM3’s Agent mode [2] combines with an MLLM (Qwen2.5-VL) for complex spatial queries. These approaches achieve impressive reasoning but incur 1 to 10+ seconds latency per query. Concurrently, mechanistic interpretability work [14] reveals that VLMs encode spatial locations by linearly binding “Spatial IDs” to object token activations, but finds that depth and height share similar spatial representations, suggesting fundamental limitations in 3D reasoning TrianguLang takes a complementary approach: rather than relying on learned spatial representations that suffer from this depth collapse, we parse a constrained vocabulary of spatial qualifiers (nearest, leftmost, behind, etc.) with regex and resolve them via direct geometric computation on depth-derived 3D centroids. This enables real-time spatial grounding ( ∼60ms) with true 3D awareness without relying on LLMs. 
+
+# 3 Method 
+
+3.1 Problem Formulation 
+
+Given N RGB images {Ii}Ni=1 of a scene and a text query T (e.g., “the red mug”), our goal is to predict: 1. Per-view binary masks {Mi ∈ { 0, 1}H×W }Ni=1 
+
+2. A world-frame 3D centroid c ∈ R3 localizing the queried object We do not require ground-truth camera intrinsics or extrinsics. Prior multi-view methods assume calibrated cameras [13], while TrianguLang uses predicted 
+
+geometry from DA3-NESTED [22], which jointly estimates metric depth, intrin-sics, and extrinsics from the input images alone. This enables deployment on uncalibrated camera systems and multi-camera setups without requiring SLAM or structure-from-motion (SfM) preprocessing. Unlike prior work that requires per-view text prompts or click supervision, TrianguLang operates in a single-prompt setting: the language query is provided once and propagated across all views through geometric reasoning, reducing user effort from O(N ) clicks to O(1) text input. While recent approaches to spatial language understanding (e.g., SpatialVLM [5], 3D-LLM [11], LEO [12]) require large language models or multi-step agent pipelines to interpret queries like ’nearest chair’ or ‘mug to the left of the keyboard,’ TrianguLang resolves spatial relations directly via depth-derived 3D geometry, eliminating LLM inference latency and enabling real-time spatial grounding. 
+
+3.2 Architecture Overview  
+
+> Fig. 1: Overview of the TrianguLang architecture
+
+Figure 1 illustrates the TrianguLang architecture. TrianguLang comprises three components (Figure 1): 1. SAM3 backbone (frozen, 848M): Text-conditioned semantic features 2. DA3-NESTED depth model (frozen, 1.4B): State-of-the-art metric depth and pose estimation [22]. While other visual geometry models (VGMs) such as DUST3R [40] and π3 [41] provide pointmaps and relative pose, DA3 additionally outputs metric depth calibrated in meters, which is essential for accurate 3D localization and the distance-based GASA kernel. 3. GASA decoder (trained, 13.7M): Geometry-aware cross-view fusion 
+
+3.3 World-Space Positional Encoding 
+
+Standard 2D positional encodings fail to capture cross-view relationships: the same 3D point projects to different pixel coordinates across views. We address this with world-space positional encoding that assigns identical embeddings to the same 3D location regardless of viewpoint. For each pixel (u, v ) in view i, we compute its 3D coordinate using DA3-estimated depth Di and camera parameters: 
+
+Pi(u, v ) = Ti ·
+
+Di(u, v ) · K−1
+
+> i
+
+
+
+uv
+
+1
+
+ (1) where Ki ∈ R3×3 denotes camera intrinsics and Ti ∈ SE (3) denotes the cam-era extrinsic transformation. DA3-NESTED-GIANT-LARGE jointly estimates both Ki and Ti from image features via a learned camera decoder (predicting field-of-view and relative pose), placing all views in a shared world frame without ground-truth calibration . This is used at both training and inference time. Fol-lowing NeRF [25], we encode 3D coordinates with sinusoidal positional encoding projected via MLP to D = 256 .
+
+3.4 Geometry-Aware Semantic Attention (GASA) 
+
+Standard cross-attention matches features based purely on semantic similarity, leading to false correspondences between visually similar but geometrically distant regions (e.g., two identical mugs). GASA introduces an explicit geometric veto 
+
+mechanism. 
+
+Attention with Geometric Bias. GASA augments self-attention among encoder feature tokens with a geometric bias derived from their 3D positions (Eq. Eq. (1)). Each encoder token has a known 3D position from depth unprojec-tion; for tokens at positions PQ and PK :            
+
+> Attn (Q,K,V) = softmax
+> QK ⊤
+> √d+β·ϕ(∥PQ−PK∥2)
+> 
+> V(2)
+
+where β is a learnable scalar and ϕ is a learned distance kernel. The distance 
+
+∥PQ − PK ∥2 is computed in meters from DA3-estimated pointmaps. The kernel outputs strongly negative values for large distances. Learnable mask queries subsequently cross-attend to these GASA-refined encoder features. Distance kernel ϕ. We parameterize ϕ as a 2-layer MLP with hidden dimension 32, initialized to approximate − log (1 + d). This learned kernel can adapt its distance sensitivity during training, unlike fixed-form alternatives such as RBF kernels 
+
+ϕrbf (d) = −d2/2σ2 or linear decay ϕlin (d) = −d. We ablate these choices in Table 4; the learned kernel consistently outperforms fixed alternatives, suggesting that the optimal distance-to-bias mapping is task-dependent and benefits from end-to-end learning. 
+
+Decoder Architecture The GASA decoder consists of 6 transformer layers, each containing: (1) self-attention among queries, (2) text cross-attention (per-layer, following SAM3), (3) GASA cross-attention with geometric bias, and (4) feed-forward network. See Appendix Sec. A for details.  
+
+> Fig. 2: Overview of the GASA decoder.
+
+3.5 3D Localization 
+
+Beyond 2D segmentation, TrianguLang directly predicts 3D object centroids via mask-weighted depth unprojection. For each view i:
+
+ci =
+
+P 
+
+> u,v
+
+ˆMi(u, v ) · Pi(u, v )
+
+P 
+
+> u,v
+
+ˆMi(u, v ) + ϵ (3) where ˆMi ∈ [0 , 1] H×W is the predicted mask probability (after sigmoid) for view 
+
+i and Pi are DA3-estimated 3D coordinates (Eq. Eq. (1)). The final centroid is selected from the view with the highest mask confidence score. The localization pipeline operates entirely on DA3-NESTED estimates, producing 3D coordinates in the estimated world frame. 
+
+3.6 Training Objective 
+
+The complete loss combines segmentation, ranking, and localization terms: 
+
+L = Lseg + Lrank + Lloc  (4) 
+
+– Lseg : Focal + Dice loss for mask prediction 
+
+– Lrank : Align loss [1] for confidence-calibrated mask scoring plus contrastive ranking loss for correct mask ordering 
+
+– Lloc : Smooth L1 centroid regression and binary cross-entropy presence loss for object existence prediction See Appendix Sec. B for detailed loss formulations and hyperparameters. 
+
+3.7 Spatial Language Understanding 
+
+TrianguLang supports spatial qualifiers (“nearest chair”) and relational queries (“mug left of keyboard”) via geometric computation on depth-derived 3D positions, 
+
+without LLM inference . The pipeline parses spatial keywords, generates mask candidates via SAM3, computes 3D centroids via depth unprojection, and selects the candidate satisfying the spatial constraint (e.g., arg min i di for “nearest”). During training, we augment labels with spatial qualifiers ( p= 0.3) for multi-instance scenes. This enables ∼100ms spatial grounding vs. 1 to 10+ seconds for LLM-based methods [5, 11, 12]. See Appendix Sec. C for details. 
+
+# 4 Experiments 
+
+We evaluate TrianguLang on multi-view semantic segmentation across five bench-marks, comparing against click-based and optimization-based methods. 
+
+4.1 Experimental Setup 
+
+Datasets. We evaluate on five multi-view benchmarks: 
+
+– ScanNet++ [46]: Indoor scenes with dense semantic annotations. We train on the nvs_sem_train split (230 scenes) and evaluate on a separate held-out 
+
+nvs_sem_val split (50 scenes). 
+
+– uCO3D [24]: Object-centric 360 ◦ captures across 1,000 categories. 
+
+– LERF-OVS [16]: 4 tabletop scenes with per-frame language-grounded anno-tations for open-vocabulary segmentation and localization. 
+
+– NVOS [35]: 6 multi-view object selection scenes. 
+
+– SPIn-NeRF [26]: 10 real-world multi-view scenes. Fig. 3: Performance on uCO3D and ScanNet++ datasets. Left-to-right: RGB, depth map, Ground Truth, TrianguLang masks 
+
+Protocol. Following MV-SAM [13], we evaluate on 100 frames per scene with 5 randomly sampled objects (excluding structural classes: wall, floor, ceiling). We report mIoU (mean Intersection-over-Union) and mAcc (mean per-class accuracy), averaged across 5 random seeds for object sampling. 
+
+Baselines. We compare against click-based methods: MV-SAM [13] (12 grid-sampled point prompts per object, following their published protocol), SAM2-Video [34], and SAM3 [2]; and per-scene optimization methods on NVOS/SPIn-NeRF: SA3D [4], SAGA [3], OmniSeg3D [47] (using ground-truth 3D reconstruc-tions and calibrated poses). Note that per-scene optimization methods (LERF [16], LangSplat [31]) achieve strong accuracy but require calibrated camera poses and 10 to 45 minutes of per-scene training, placing them in a different efficiency regime. 
+
+Training. Full-scale models train on 230 ScanNet++ scenes (8 views, 100 epochs) or 8,000 uCO3D scenes on 8 × A100 80GB GPUs with DDP. We use AdamW (lr 
+
+= 10 −4, cosine schedule, 2-epoch warmup), batch size 8, AMP with FP16, and confidence-based mask selection via align loss [1] at inference. 
+
+4.2 Main Results 
+
+Table 1 presents in-domain and cross-evaluation results on ScanNet++ and uCO3D. Despite using a single text query instead of 12 click prompts, TrianguLang outperforms all feed-forward baselines in both in-domain and cross-domain settings. 
+
+In-domain performance. On ScanNet++, TrianguLang achieves 62.4% mIoU with text-only prompts, surpassing MV-SAM’s 51.0% with 12 clicks by 11.4 Table 1: In-domain, cross-dataset, and large-scale evaluation results. MV-SAM numbers from [13]. TrianguLang uses text-only prompts; MV-SAM uses 12 click prompts per object. SA-1B denotes MV-SAM trained on single-view SA-1B data (millions of images). Model Setting Train → Eval mIoU ( ↑) mAcc ( ↑)MV-SAM In-domain ScanNet++ → ScanNet++ 0.510 0.694 In-domain uCo3D → uCo3D 0.910 0.965 Cross-domain uCo3D → ScanNet++ 0.194 0.251 Cross-domain ScanNet++ → uCo3D 0.322 0.517 Large-scale SA-1B → ScanNet++ 0.489 0.635 Large-scale SA-1B → uCo3D 0.877 0.950                   
+
+> TrianguLang (Ours)
+> In-domain ScanNet++ →ScanNet++ 0.624 0.774
+> In-domain uCo3D →uCo3D 0.946 0.983
+> Cross-domain uCo3D →ScanNet++ 0.279 0.685
+> Cross-domain ScanNet++ →uCo3D 0.757 0.796
+
+points (Table 1). On uCO3D, the gap is 3.6 points (94.6% vs. 91.0%). Notably, TrianguLang trained on only 230 ScanNet++ scenes exceeds even MV-SAM trained on the large-scale SA-1B dataset (millions of images) on ScanNet++ evaluation (62.4% vs. 48.9%), demonstrating that geometric cross-view reasoning compensates for orders-of-magnitude less training data. On uCO3D, MV-SAM’s SA-1B variant (87.7%) benefits from its massive single-view training corpus, but TrianguLang trained in-domain on uCO3D still surpasses it (94.6% vs. 87.7%). 
+
+Disentangling backbone from GASA. SAM3 alone (no cross-view rea-soning) achieves only 48.6% mIoU, lower than MV-SAM’s 48.9% (Table 12 in Appendix). TrianguLang’s improvement over SAM3-alone confirms that GASA and world-space PE (not the backbone) drive the gains, as quantified in Table 4. 
+
+Oracle vs. predicted IoU. For transparency, we report oracle mIoU (selecting the GT-best mask among candidates) alongside predicted mIoU. On ScanNet++ (49 val scenes, 100 frames), SAM3 exhibits a 30-point oracle-predicted gap (oracle: 79.9% vs. predicted: 49.8%), because it generates hundreds of mask candidates per scene and struggles to reliably identify the best one. TrianguLang’s gap is only 
+
+1 point (oracle: 63.4% vs. predicted: 62.4%), demonstrating that our focused 10-query design virtually eliminates mask selection as a bottleneck. Although SAM3’s oracle mIoU (79.9%) substantially exceeds TrianguLang’s (63.4%), its inability to rank candidates correctly results in actual performance 12.6 points 
+
+below TrianguLang. 
+
+Cross-domain generalization. Cross-dataset transfer reveals the most significant advantage. TrianguLang trained on ScanNet++ achieves 75.7% mIoU on uCO3D, more than doubling MV-SAM’s 32.2% (+43.5 points). In the reverse direction (uCO3D →ScanNet++), TrianguLang achieves 27.9% vs. 19.4% (+8.5 points). Table 2: Comparison with per-scene language grounding methods on the LERF-OVS benchmark. Per-scene methods require calibrated poses and scene reconstruction. TrianguLang operates feed-forward using ScanNet++-trained weights without any training on LERF scenes.                    
+
+> Method mIoU Loc. Acc. Per-scene Time
+> LERF [16] 37.4 73.6 ✓∼45 min LangSplat [31] 51.4 84.3 ✓∼10 min LangSplat-V2 [21] 59.9 84.1 ✓∼10 min
+> TrianguLang †58.1 83.5 ✗∼58ms
+> †Zero-shot transfer from ScanNet++ (no LERF training). Best in bold .
+
+The asymmetric transfer suggests that diverse indoor viewpoints and occlusion patterns provide more generalizable geometric priors than single-object captures. 
+
+4.3 Multi-View Benchmarks 
+
+On NVOS and SPIn-NeRF, TrianguLang achieves 93.5% and 91.4% mIoU re-spectively, surpassing MV-SAM (92.1% / 92.5%) among feed-forward methods while using text instead of clicks. TrianguLang approaches per-scene optimiza-tion methods (SAGA: 92.6% / 93.7%, SA3D-GS: 92.7% / 93.4%) without any per-scene computation; full per-scene results appear in Appendix I. Tables 2 and 3 compare TrianguLang against per-scene optimization methods that embed language features into 3D scene representations on the LERF-OVS benchmark. These methods require calibrated camera poses, 3D reconstruction, and minutes of per-scene training. TrianguLang operates feed-forward without any per-scene computation, representing a fundamentally different efficiency/accuracy tradeoff. Without any training on LERF data, TrianguLang achieves 58.1% mIoU and 83.5% localization accuracy on LERF-OVS, closely matching the concurrent LangSplat-V2 (59.9% mIoU, 84.1% Loc. Acc.) while running three orders of magnitude faster ( ∼58ms vs. 10 to 45 min), factoring in LangSplat-V2’s per-scene optimization. 
+
+4.4 Ablation Studies 
+
+We ablate key components using 230 training scenes with 8 views per scene and sequential sampling, evaluating with matched sampling on 50 held-out scenes (100 frames). Table 4 reports mIoU with changes measured against the full baseline. 
+
+Component contributions. Removing the GASA kernel ( −5.3%) eliminates the geometric distance bias that suppresses spurious cross-token attention. Without world-space PE ( −5.4%), the decoder cannot reason about 3D positions. Removing both components ( −8.4%) confirms they are individually critical yet partially complementary: the combined drop is less than the sum of individual drops (10 .7% ), suggesting shared geometric information. Fig. 4: Qualitative comparison on LERF-OVS scenes using uniform clip thresholds. Row 1: “toaster” query: LERF and LangSplatV2 produce diffuse activations across the scene while TrianguLang tightly focuses its relevancy map on the target object. Row 3: “stripes” query: TrianguLang achieves precise localization despite not training on this dataset, and runs 3 orders of magnitude faster ( ∼58ms vs. 10 to 45 min). 
+
+4.5 Efficiency 
+
+TrianguLang processes each frame at 1008 ×1008 resolution in ∼58ms on a single A100 GPU, achieving ∼17 FPS. With cached depth, preprocessing adds ∼32ms per frame ( ∼90ms total, ∼11 FPS). The GASA decoder adds only 13.7M trainable parameters (0.54% of the 2.54B total), with SAM3 (848M) and DA3-NESTED (1.4B) remaining frozen. For comparison, per-scene optimization methods (SA3D, SAGA, OmniSeg3D) require 30 to 60 minutes of training per new scene; MV-SAM requires 5.1s preprocessing plus 1.1s inference with click prompts. TrianguLang eliminates both per-scene optimization and manual click annotation. 
+
+4.6 Limitations Depth as bottleneck: DA3’s depth estimates fail on reflective surfaces (mirrors, glass), causing GASA to incorrectly suppress valid correspondences. Limited views: Objects visible in <3 views degrade to per-view quality. Inherited Table 3: Per-scene comparison on LERF-OVS benchmark. TrianguLang uses ScanNet++-trained weights without any LERF training (zero-shot transfer). Per-scene methods require 10 to 45 minutes of optimization per scene.                                                                                   
+
+> Method Localization Accuracy (%) Semantic Segmentation (mIoU %)
+> Ramen Teatime Kitchen Figurines Overall Ramen Teatime Kitchen Figurines Overall Gaussian Grouping [45] 32.4 69.5 50.0 44.6 49.1 26.4 54.0 31.3 34.6 36.6 LEGaussians [37] 69.0 79.7 63.6 57.1 67.4 20.2 32.3 22.3 23.4 24.6 LERF [16] 62.0 84.8 72.7 75.0 73.6 28.2 45.0 37.9 38.6 37.4 GOI [32] 56.3 67.8 68.2 44.6 59.2 33.7 55.8 54.5 23.9 42.0 GAGS [30] 69.0 88.1 90.9 78.6 81.7 46.8 60.3 55.8 53.6 54.1 LangSplat [31] 73.2 88.1 95.5 80.4 84.3 51.2 65.1 44.5 44.7 51.4 LangSplat-V2 [21] 74.7 93.2 86.4 82.1 84.1 51.8 72.2 59.1 56.4 59.9 TrianguLang †75.0 88.3 83.9 96.6 83.5 63.7 53.6 58.6 56.6 58.1
+> †
+
+Zero-shot transfer from ScanNet++ (no LERF training). Best in bold , second-best underlined. 
+
+Table 4: Component ablation on ScanNet++ (230 scenes, 8 views, 504 resolution). ∆
+
+measured against ablation baseline (54.7% mIoU). The full model in Table 1 achieves 62.4% at 1008 resolution with 230 scenes. 
+
+Configuration mIoU ∆
+
+Baseline (GASA + World PE) 54.7 −− GASA kernel (standard attn) 49.4 −5.3 
+
+− World-space PE 49.3 −5.4 
+
+− Both (no GASA, no PE) 46.3 −8.4 RBF kernel (vs. learned MLP) 44.0 −10.7 
+
+limitations: The model inherits SAM3’s text-image alignment limitations for rare categories and DA3’s metric accuracy ( ∼5cm error) bounds 3D localization precision. Pose estimation on turntable sequences: DA3-NESTED’s pose estimation becomes ill-conditioned on turntable-style captures (e.g., uCO3D) where near-circular camera paths with small baselines cause scale/translation estimation to degenerate; we therefore report only mIoU for uCO3D without Procrustes-aligned 3D localization metrics (ScanNet++ Procrustes alignment remains valid at ∼3.9cm median error). Training data scale: TrianguLang was trained on only 230 ScanNet++ scenes, yet outperforms models trained on SA-1B (millions of images); scaling to larger and more diverse training sets would likely amplify the advantage (see Section 5). 
+
+# 5 Conclusion 
+
+We present TrianguLang, a feed-forward framework for language-guided multi-view segmentation and 3D localization that requires no camera calibration or per-scene optimization at inference. Geometry-Aware Semantic Attention (GASA) injects depth-derived geometric bias into cross-view attention, suppressing se-mantically plausible but geometrically inconsistent correspondences. Our experiments demonstrate three key findings. First, text-only prompts can surpass click-based methods when combined with geometric cross-view reasoning. Second, the geometric priors learned through GASA transfer strongly across domains: cross-dataset performance more than doubles the best click-based base-line on out-of-domain benchmarks (75.7% vs. 32.2% on ScanNet++ →uCO3D). Third, TrianguLang matches per-scene optimization methods on NVOS and SPIn-NeRF without requiring camera poses, 3D reconstruction, or minutes of per-scene training. Future work includes several directions. Scaling training data: TrianguLang trained on only 230 indoor scenes already surpasses MV-SAM trained on the SA-1B dataset (millions of images) on ScanNet++ evaluation (62.4% vs. 48.9%), suggesting substantial headroom from scaling to larger and more diverse training corpora; the trend of geometric priors providing disproportionate gains at smaller data scales would likely amplify with additional data. Outdoor and open-world deployment: Extending to outdoor environments [23] would enable applications such as language-guided geological survey (e.g., segmenting rock formations by type) and text-only spatial reasoning in unstructured scenes without any visual prompts. Additional future directions include ablating alternative VGMs as drop-in depth/pose replacements, temporal consistency for streaming video, combining learned Spatial IDs [14] with metric depth for improved disambiguation, and deploying TrianguLang on a UR10e robot arm for language-guided manipulation tasks. 
+
+# References 
+
+1. Cai, Z., Liu, S., Wang, G., Ge, Z., Zhang, X., Huang, D.: Align-detr: Enhancing end-to-end object detection with aligned loss (2024), https://arxiv.org/abs/ 2304.07527 
+
+2. Carion, N., Gustafson, L., Hu, Y.T., Debnath, S., Hu, R., Suris, D., Ryali, C., Alwala, K.V., Khedr, H., Huang, A., Lei, J., Ma, T., Guo, B., Kalla, A., Marks, M., Greer, J., Wang, M., Sun, P., Rädle, R., Afouras, T., Mavroudi, E., Xu, K., Wu, T.H., Zhou, Y., Momeni, L., Hazra, R., Ding, S., Vaze, S., Porcher, F., Li, F., Li, S., Kamath, A., Cheng, H.K., Dollár, P., Ravi, N., Saenko, K., Zhang, P., Feichtenhofer, C.: Sam 3: Segment anything with concepts (2025), https://arxiv.org/abs/2511.16719 
+
+3. Cen, J., Fang, J., Yang, C., Xie, L., Zhang, X., Shen, W., Tian, Q.: Segment any 3d gaussians (2025), https://arxiv.org/abs/2312.00860 
+
+4. Cen, J., Fang, J., Zhou, Z., Yang, C., Xie, L., Zhang, X., Shen, W., Tian, Q.: Segment anything in 3d with radiance fields (2024), https://arxiv.org/abs/2304.12308 
+
+5. Chen, B., Xu, Z., Kirmani, S., Ichter, B., Driess, D., Florence, P., Sadigh, D., Guibas, L., Xia, F.: Spatialvlm: Endowing vision-language models with spatial reasoning capabilities (2024), https://arxiv.org/abs/2401.12168 
+
+6. Chen, D.Z., Chang, A.X., Nießner, M.: Scanrefer: 3d object localization in rgb-d scans using natural language (2020), https://arxiv.org/abs/1912.08830 
+
+7. Cheng, A.C., Yin, H., Fu, Y., Guo, Q., Yang, R., Kautz, J., Wang, X., Liu, S.: Spatialrgpt: Grounded spatial reasoning in vision language models (2024), 
+
+https://arxiv.org/abs/2406.01584 
+
+8. Choi, S., Song, H., Kim, J., Kim, T., Do, H.: Click-gaussian: Interactive segmentation to any 3d gaussians (2024), https://arxiv.org/abs/2407.11793 9. Ding, S., Qian, R., Dong, X., Zhang, P., Zang, Y., Cao, Y., Gao, Y., Lin, D., Wang, J.: Sam2long: Enhancing sam 2 for long video segmentation with a training-free memory tree (2024), https://arxiv.org/abs/2410.16268 
+
+10. He, S., Jie, G., Wang, C., Zhou, Y., Hu, S., Li, G., Ding, H.: Refersplat: Referring segmentation in 3d gaussian splatting (2025), https://arxiv.org/abs/2508.08252 
+
+11. Hong, Y., Zhen, H., Chen, P., Zheng, S., Du, Y., Chen, Z., Gan, C.: 3d-llm: Injecting the 3d world into large language models (2023), https://arxiv.org/abs/2307. 12981 
+
+12. Huang, J., Yong, S., Ma, X., Linghu, X., Li, P., Wang, Y., Li, Q., Zhu, S.C., Jia, B., Huang, S.: An embodied generalist agent in 3d world (2024), https: //arxiv.org/abs/2311.12871 
+
+13. Jeong, Y., Sun, C., Wang, Y.C.F., Cho, M., Choe, J.: Mv-sam: Multi-view prompt-able segmentation using pointmap guidance (2026), https://arxiv.org/abs/2601. 17866 
+
+14. Kang, R., Chen, H., Gkioxari, G., Perona, P.: Linear mechanisms for spatiotemporal reasoning in vision language models (2026), https://arxiv.org/abs/2601.12626 
+
+15. Kerbl, B., Kopanas, G., Leimkühler, T., Drettakis, G.: 3d gaussian splatting for real-time radiance field rendering (2023), https://arxiv.org/abs/2308.04079 
+
+16. Kerr, J., Kim, C.M., Goldberg, K., Kanazawa, A., Tancik, M.: Lerf: Language embedded radiance fields (2023), https://arxiv.org/abs/2303.09553 
+
+17. Kirillov, A., Mintun, E., Ravi, N., Mao, H., Rolland, C., Gustafson, L., Xiao, T., Whitehead, S., Berg, A.C., Lo, W.Y., Dollár, P., Girshick, R.: Segment anything (2023), https://arxiv.org/abs/2304.02643 
+
+18. Kuang, L., Velikova, Y., Saleh, M., Zaech, J.N., Paudel, D.P., Busam, B.: Concept-pose: Training-free zero-shot object pose estimation using concept vectors (2025), 
+
+https://arxiv.org/abs/2512.09056 
+
+19. Lee, T., Wen, B., Kang, M., Kang, G., Kweon, I.S., Yoon, K.J.: Any6d: Model-free 6d pose estimation of novel objects (2025), https://arxiv.org/abs/2503.18673 
+
+20. Li, Q., Sun, J., An, L., Su, Z., Zhang, H., Liu, Y.: Semanticsplat: Feed-forward 3d scene understanding with language-aware gaussian fields (2025), https://arxiv. org/abs/2506.09565 
+
+21. Li, W., Zhao, Y., Qin, M., Liu, Y., Cai, Y., Gan, C., Pfister, H.: Langsplatv2: High-dimensional 3d language gaussian splatting with 450+ fps (2025), https: //arxiv.org/abs/2507.07136 
+
+22. Lin, H., Chen, S., Liew, J., Chen, D.Y., Li, Z., Shi, G., Feng, J., Kang, B.: Depth anything 3: Recovering the visual space from any views (2025), https://arxiv. org/abs/2511.10647 
+
+23. Ling, L., Sheng, Y., Tu, Z., Zhao, W., Xin, C., Wan, K., Yu, L., Guo, Q., Yu, Z., Lu, Y., Li, X., Sun, X., Ashok, R., Mukherjee, A., Kang, H., Kong, X., Hua, G., Zhang, T., Benes, B., Bera, A.: Dl3dv-10k: A large-scale scene dataset for deep learning-based 3d vision (2023), https://arxiv.org/abs/2312.16256 
+
+24. Liu, X., Tayal, P., Wang, J., Zarzar, J., Monnier, T., Tertikas, K., Duan, J., Toisoul, A., Zhang, J.Y., Neverova, N., Vedaldi, A., Shapovalov, R., Novotny, D.: Uncommon objects in 3d (2025), https://arxiv.org/abs/2501.07574 
+
+25. Mildenhall, B., Srinivasan, P.P., Tancik, M., Barron, J.T., Ramamoorthi, R., Ng, R.: Nerf: Representing scenes as neural radiance fields for view synthesis (2020), 
+
+https://arxiv.org/abs/2003.08934 
+
+26. Mirzaei, A., Aumentado-Armstrong, T., Derpanis, K.G., Kelly, J., Brubaker, M.A., Gilitschenski, I., Levinshtein, A.: Spin-nerf: Multiview segmentation and perceptual inpainting with neural radiance fields (2023), https://arxiv.org/abs/2211.12254 27. Miyato, T., Jaeger, B., Welling, M., Geiger, A.: Gta: A geometry-aware attention mechanism for multi-view transformers (2024), https://arxiv.org/abs/2310. 10375 
+
+28. Nguyen, P.D.A., Ngo, T.D., Kalogerakis, E., Gan, C., Tran, A., Pham, C., Nguyen, K.: Open3dis: Open-vocabulary 3d instance segmentation with 2d mask guidance (2024), https://arxiv.org/abs/2312.10671 
+
+29. Peng, S., Genova, K., Jiang, C.M., Tagliasacchi, A., Pollefeys, M., Funkhouser, T.: Openscene: 3d scene understanding with open vocabularies (2023), https: //arxiv.org/abs/2211.15654 
+
+30. Peng, Y., Wang, C., Wang, X., Lu, Y., Wang, J., Fu, Y.: Gags: Granularity-aware feature distillation for language gaussian splatting (2024) 31. Qin, M., Li, W., Zhou, J., Wang, H., Pfister, H.: Langsplat: 3d language gaussian splatting (2024), https://arxiv.org/abs/2312.16084 
+
+32. Qu, Y., Dai, S., Li, X., Lin, J., Cao, L., Zhang, S., Ji, R.: Goi: Find 3d gaussians of interest with an optimizable open-vocabulary semantic-space hyperplane. In: Proceedings of the 32nd ACM International Conference on Multimedia (2024) 33. Radford, A., Kim, J.W., Hallacy, C., Ramesh, A., Goh, G., Agarwal, S., Sastry, G., Askell, A., Mishkin, P., Clark, J., Krueger, G., Sutskever, I.: Learning transferable visual models from natural language supervision (2021), https://arxiv.org/abs/ 2103.00020 
+
+34. Ravi, N., Gabeur, V., Hu, Y.T., Hu, R., Ryali, C., Ma, T., Khedr, H., Rädle, R., Rolland, C., Gustafson, L., Mintun, E., Pan, J., Alwala, K.V., Carion, N., Wu, C.Y., Girshick, R., Dollár, P., Feichtenhofer, C.: Sam 2: Segment anything in images and videos (2024), https://arxiv.org/abs/2408.00714 
+
+35. Ren, Z., Agarwala, A., Russell, B., Schwing, A.G., Wang, O.: Neural volumetric object selection (2022), https://arxiv.org/abs/2205.14929 
+
+36. Segre, L., Hirschorn, O., Avidan, S.: Multi-view foundation models (2025), https: //arxiv.org/abs/2512.15708 
+
+37. Shi, J.C., Wang, M., Duan, H.B., Guan, S.H.: Language embedded 3d gaussians for open-vocabulary scene understanding (2023), https://arxiv.org/abs/2311.18482 
+
+38. Takmaz, A., Fedele, E., Sumner, R.W., Pollefeys, M., Tombari, F., Engelmann, F.: Openmask3d: Open-vocabulary 3d instance segmentation (2023), https://arxiv. org/abs/2306.13631 
+
+39. Wang, J., Chen, M., Karaev, N., Vedaldi, A., Rupprecht, C., Novotny, D.: Vggt: Visual geometry grounded transformer (2025), https://arxiv.org/abs/2503. 11651 
+
+40. Wang, S., Leroy, V., Cabon, Y., Chidlovskii, B., Revaud, J.: Dust3r: Geometric 3d vision made easy (2024), https://arxiv.org/abs/2312.14132 
+
+41. Wang, Y., Zhou, J., Zhu, H., Chang, W., Zhou, Y., Li, Z., Chen, J., Pang, J., Shen, C., He, T.: π3: Permutation-equivariant visual geometry learning (2025), 
+
+https://arxiv.org/abs/2507.13347 
+
+42. Wang, Y., Fang, T., Quan, L.: Sa3d-gs: Segment any 3d gaussian splatting (2024), 
+
+https://arxiv.org/abs/2403.16384 
+
+43. Wen, B., Yang, W., Kautz, J., Birchfield, S.: Foundationpose: Unified 6d pose estimation and tracking of novel objects (2024), https://arxiv.org/abs/2312. 08344 
+
+44. Yang, J., Chen, X., Qian, S., Madaan, N., Iyengar, M., Fouhey, D.F., Chai, J.: Llm-grounder: Open-vocabulary 3d visual grounding with large language model as an agent (2023), https://arxiv.org/abs/2309.12311 
+
+45. Ye, M., Danelljan, M., Yu, F., Ke, L.: Gaussian grouping: Segment and edit anything in 3d scenes (2024), https://arxiv.org/abs/2312.00732 46. Yeshwanth, C., Liu, Y.C., Nießner, M., Dai, A.: Scannet++: A high-fidelity dataset of 3d indoor scenes (2023), https://arxiv.org/abs/2308.11417 
+
+47. Ying, H., Yin, Y., Zhang, J., Wang, F., Yu, T., Huang, R., Fang, L.: Omniseg3d: Omniversal 3d segmentation via hierarchical contrastive learning (2023), https: //arxiv.org/abs/2311.11666 
+
+48. Yu, J., Hari, K., Srinivas, K., El-Refai, K., Rashid, A., Kim, C.M., Kerr, J., Cheng, R., Irshad, M.Z., Balakrishna, A., Kollar, T., Goldberg, K.: Language-embedded gaussian splats (legs): Incrementally building room-scale representations with a mobile robot (2024), https://arxiv.org/abs/2409.18108 
+
+49. Zuo, X., Samangouei, P., Zhou, Y., Di, Y., Li, M.: Fmgs: Foundation model embedded 3d gaussian splatting for holistic 3d scene understanding (2024), https: //arxiv.org/abs/2401.01970 
+
+# A Appendix 
+
+A.1 GASA Decoder Layer 
+
+Each of the 6 GASA decoder layers processes queries through four sequential operations: 1. Self-Attention : 3 learnable queries attend to each other via standard multi-head attention (8 heads, dimension 32 per head) 2. Text Cross-Attention : Queries attend to text embeddings from SAM3’s text encoder. Applied at every layer following SAM3’s design 3. GASA Cross-Attention : Queries attend to encoder memory with geometric bias (Eq. Eq. (2)) 4. Feed-Forward Network : Two-layer MLP with GELU activation ( 256 →
+
+2048 → 256 )
+
+A.2 Distance Kernel 
+
+The geometric kernel ϕ in GASA is a small MLP: 
+
+ϕ(d) = w⊤ 
+
+> 2
+
+· ReLU (w1d + b1) + b2 (5) with w1, w2 ∈ R32 . The input distance d is in meters (from DA3 metric depth), providing a natural scale for indoor scenes. We initialize b2 = −1 to encourage suppression of distant matches. The kernel learns to output strongly negative values for large distances; the output is clamped to [−10 , 0] for numerical stability. 
+
+A.3 World-Space Positional Encoding 
+
+Following [25], we encode 3D coordinates with multi-frequency sinusoids: 
+
+γ(p) = p ⊕
+
+> L−1
+
+M
+
+> i=0
+
+ sin(2 iπp), cos(2 iπp) (6) with L = 10 frequency bands (63-dimensional). A two-layer MLP projects to model dimension D = 256 .A.4 DA3 Metric Depth Scaling 
+
+DA3METRIC-LARGE outputs depth calibrated for focal length 300px. To obtain metric depth: 
+
+Dmetric = Draw · fDA3 
+
+300  (7) where fDA3 = forig · (HDA3 /H orig ) accounts for resolution scaling. 
+
+# B Loss Function Details 
+
+B.1 Segmentation Loss 
+
+Focal Loss. Addresses class imbalance (objects typically occupy < 5% of pixels): 
+
+Lfocal = −αt(1 − pt)γ log( pt) (8) with α = 0 .75 (foreground weight) and γ = 2 .0 (focusing parameter). 
+
+Dice Loss. Optimizes mask overlap directly: 
+
+Ldice = 1 − 2 P 
+
+> u
+
+ˆM (u) · M (u) + ϵ
+
+P 
+
+> u
+
+ˆM (u) + P 
+
+> u
+
+M (u) + ϵ (9) 
+
+B.2 Align Loss 
+
+Following AlignDETR and SAM3, the IoU-aware focal loss modulates confidence by mask quality: 
+
+Lalign = −tc · (1 − p)γ · log( p) − (1 − tc) · pγ · log(1 − p) (10) with soft target tc = e−r/τ · (pα · u1−α), where u is actual IoU, r is rank, α = 0 .5,
+
+τ = 2 .0.
+
+B.3 Default Loss Weights 
+
+λfocal λdice λalign λcontrastive λcentroid λpresence λsheaf 
+
+2.0 0.5 1.0 0.3 0.5 0.5 0.1 
+
+# C Spatial Language Understanding 
+
+TrianguLang supports spatial language queries that disambiguate among multiple instances of the same object class (e.g., “nearest chair”, “leftmost monitor”). This is achieved through three complementary mechanisms: (1) learnable spatial token embeddings that condition queries during decoding, (2) GT-aware spatial augmentation during training that ensures correct qualifier assignment, and (3) object-aware spatial selection at inference that uses depth to filter predictions post-hoc. C.1 Supported Qualifiers 
+
+Spatial qualifiers are parsed from text prompts via prefix matching (sorted by length to handle multi-word qualifiers like “second nearest” before “nearest”). Each qualifier maps to a learnable embedding index. The full vocabulary comprises 48 recognized phrases across 7 base categories, with ordinal and size-based extensions: 
+
+Table 5: Spatial qualifier vocabulary (48 recognized phrases across 7 base categories). Index 0 is reserved for queries without spatial qualifiers. Ordinal and size-based exten-sions share learnable embedding indices with their related base qualifiers. 
+
+Category Qualifier Synonyms Selection Criterion 
+
+Base qualifiers (7 learnable embeddings) 
+
+Depth nearest closest, close arg min i di
+
+farthest far, distant arg max i di
+
+Horizontal leftmost left arg min i xi
+
+rightmost right arg max i xi
+
+Vertical topmost top, upper arg min i yi
+
+bottommost bottom, lower arg max i yi
+
+Center center central, middle arg min i ∥ci − ¯c∥
+
+Ordinal extensions (share embeddings with base) 
+
+Depth second nearest second closest 2nd-ranked by di
+
+second farthest 2nd-ranked by di (desc.) Horizontal second leftmost second from left 2nd-ranked by xi
+
+second rightmost second from right 2nd-ranked by xi (desc.) Vertical second topmost second from top 2nd-ranked by yi
+
+second bottommost second from bottom 2nd-ranked by yi (desc.) Depth mid-depth middle depth median by di
+
+Size-based extensions (use mask pixel count) 
+
+Size largest biggest, big arg max i |Mi|
+
+smallest small, tiny arg min i |Mi|
+
+C.2 Spatial Token Embeddings 
+
+Spatial qualifiers are represented as learnable embeddings Espatial ∈ R8×D (ini-tialized with N (0 , 0.02) ). Given a parsed qualifier index k ∈ { 0, . . . , 7}, the spatial embedding is added to all object queries: 
+
+qi ← qi + Espatial [k], ∀i ∈ { 1, . . . , Q } (11) This broadcast addition biases all queries toward objects matching the spatial criterion, while text scoring and GASA attention still determine the final mask selection. C.3 GT-Aware Spatial Augmentation 
+
+A key challenge is training spatial tokens with correct qualifier labels. Ran-dom augmentation (assigning arbitrary qualifiers) provides no learning signal since the qualifier may not match the target instance. We introduce GT-aware augmentation that verifies spatial qualifiers against ground-truth masks. 
+
+Process. For each training sample with target object mask Mtarget and depth map D:1. Compute spatial context: For each visible instance of the target class, compute the 2D centroid (cx, c y ) (normalized to [0 , 1] ) and depth d at the centroid from the DA3 depth map. 2. Determine true qualifiers: Compare the target instance against all same-class instances. A qualifier is valid only if it is true : e.g., “nearest” requires 
+
+dtarget ≤ min( dothers ) + ϵ.3. Augment with probability p: With probability p = 0 .3, randomly select one valid qualifier and prepend it to the text prompt (e.g., “chair” → “nearest chair”). This ensures the model only trains on correct spatial associations, preventing confusion from false labels. 
+
+Multi-instance filtering. When spatial_multi_instance_only is enabled, aug-mentation is skipped for single-instance objects (where spatial qualifiers are trivially satisfied and provide no disambiguation signal). 
+
+C.4 Object-Aware Spatial Selection 
+
+At inference, we apply post-hoc spatial filtering using depth. Given Q predicted masks and a spatial qualifier, we compute the 2D centroid and depth at the centroid for each mask, then select the mask satisfying the spatial criterion (e.g., minimum depth for “nearest”). This is zero-cost: it requires no additional training and works with any pre-trained model, leveraging depth already computed for GASA. 
+
+C.5 Relational Queries 
+
+We parse queries of the form “ target relation reference ” (e.g., “mug to the right of the keyboard”) using 8 regex patterns that handle common phrasing variations (e.g., “to the right of,” “on the right of,” and “right of” all match right_of ). Supported relations: 
+
+– Positional: left_of , right_of , above , below (and synonyms: over, under, beneath) 
+
+– Depth-based: in_front_of , behind 
+
+– Proximity: near (and synonyms: next to, beside, by), on_top_of (and synonym: on) During training, the GT-aware augmentor generates relational queries by iden-tifying nearby objects of different classes and checking whether spatial relations hold (e.g., “chair to the right of the table” when cchair  
+
+> x
+
+> c table  
+
+> x
+
+). This extends spatial reasoning to single-instance objects that lack same-class comparisons. C.6 Spatial Ablation Results 
+
+Table 6 ablates spatial components on ScanNet++.      
+
+> Table 6: Spatial feature ablation on ScanNet++. Object-aware selection achieves the best segmentation quality.
+> Configuration mIoU
+> No spatial features 40.07 Spatial-as-points 43.54 Object-aware selection 47.01
+
+Object-aware spatial selection achieves the best eval mIoU (47.01%), a +6.94 point improvement over no spatial features. Encoding spatial qualifiers as point embeddings (spatial-as-points) provides a +3.47 point gain, while the full object-aware pipeline with GT-aware augmentation and depth-based post-hoc selection yields the largest improvement. 
+
+# D Training Details 
+
+D.1 Hyperparameters 
+
+Table 7 summarizes the hyperparameters used for training TrianguLang. 
+
+D.2 DA3 Depth Model 
+
+We use DA3-NESTED-GIANT-LARGE (1.4B parameters) [22] as our visual geometry model (VGM). It processes image chunks jointly, providing metric depth, camera intrinsics, and inter-view camera poses from images alone. This model is used at both training and inference time, placing all views in a shared world frame without requiring ground-truth calibration. 
+
+D.3 Parameter Counts D.4 Complete Loss Function 
+
+The full training objective combines segmentation, ranking, localization, and consistency terms: 
+
+L = Lseg + Lrank + Lloc + Lsheaf  (12) where each component is defined as: 
+
+Segmentation Loss. 
+
+Lseg = λf Lfocal + λdLdice  (13) with λf = 2 .0 and λd = 0 .5. Focal loss addresses class imbalance with α = 0 .75 
+
+(foreground weight) and γ = 2 .0 (focusing parameter). Table 7: Training hyperparameters for TrianguLang. 
+
+Hyperparameter Value 
+
+Data 
+
+Scenes 230 Views per sample 8Image resolution 1008 DA3 resolution 1008 
+
+Optimization 
+
+Optimizer AdamW Learning rate 1 × 10 −4
+
+Weight decay 0.01 LR scheduler Cosine annealing Warmup epochs 2Batch size (per GPU) 8Effective batch size 64 GPUs 8× A100 80GB Epochs 100 
+
+Architecture 
+
+Model dimension D 256 Attention heads 8Decoder layers 6Number of queries 10 FFN dimension 2048 GASA β init 1.0 GASA kernel dim 32 Centroid head True 
+
+Ranking Loss (Align + Contrastive). 
+
+Lrank = λaLalign + λcLcontrastive  (14) with λa = 1 .0 and λc = 0 .3. The align loss follows SAM3/AlignDETR [1]: 
+
+Lalign = −tc · (1 − p)γ · log( p) − (1 − tc) · pγ · log(1 − p) (15) where the soft target tc = e−r/τ · (pα · u1−α) incorporates rank r, prediction confidence p, and actual IoU u, with α = 0 .5 and τ = 2 .0.The contrastive loss encourages correct mask ranking: 
+
+Lcontrastive = X
+
+> i,j :ui>u j
+
+max(0 , m − (si − sj ))  (16) where si, s j are predicted confidence scores for masks i, j respectively, ui, u j are their actual IoU values with the ground truth, and m = 0 .5 is the margin. Table 8: Model parameter breakdown. 
+
+Component Parameters Trainable 
+
+SAM3 Backbone 848M Frozen DA3 Depth (NESTED-GIANT-LARGE) 1.4B Frozen GASA Decoder 13.4M ✓
+
+Query embeddings 26K ✓
+
+Self-attention layers 1.2M ✓
+
+Text cross-attention 1.2M ✓
+
+GASA cross-attention 3.8M ✓
+
+FFN layers 1.1M ✓
+
+Mask prediction head 5.4M ✓
+
+Centroid head 66K ✓
+
+Query projection + World-space PE 330K ✓
+
+Total 2.54B 13.7M (0.54%) 
+
+Localization Loss. 
+
+Lloc = λ3d Lcentroid + λpLpresence  (17) with λ3d = 0 .5 and λp = 0 .5. Centroid loss uses smooth L1: 
+
+Lcentroid = SmoothL1 (ˆ c, cGT ) (18) Presence loss is binary cross-entropy for object existence prediction: 
+
+Lpresence = − [y log(ˆ p) + (1 − y) log(1 − ˆp)]  (19) where y ∈ { 0, 1} indicates whether the queried object is visible in the scene and ˆp
+
+is the model’s predicted existence probability, derived from the highest-confidence mask score. 
+
+Sheaf Consistency Loss. The sheaf loss enforces cross-view agreement with weight 
+
+λs = 0 .1:
+
+Lsheaf = 1
+
+|C| 
+
+X
+
+> (i,j )
+
+X 
+
+> (ui,uj)∈C ij
+
+
+
+σ( ˆMi(ui)) − σ( ˆMj (uj )) 
+
+2
+
+(20) where Cij are corresponding pixels with 3D distance < 5cm. 
+
+Default Loss Weights. 
+
+λf λd λa λc λ3d λs
+
+2.0 0.5 1.0 0.3 0.5 0.1 
+
+# E Ablations and Negative Results 
+
+We document approaches that did not improve performance, to aid future research. E.1 Semantic Union vs Instance GT 
+
+For text-only training, we compared two ground truth strategies: 
+
+– Semantic Union : Merge all instances of queried class (e.g., all “chairs”) 
+
+– Instance GT : Random single instance per class Counter-intuitively, instance GT generalized better despite the apparent mismatch with text semantics. We hypothesize this prevents the model from learning to “over-segment” and produces tighter masks. 
+
+E.2 Number of Queries: 10 vs. 50 vs. 100 
+
+We ablated query count on 20-scene evaluation. The default 10 queries achieved 38.5% mIoU; increasing to 50 queries yielded a slight drop to 37.5% mIoU; and 100 queries caused complete collapse (0.0% mIoU). While higher query counts improve oracle metrics (selecting the GT-best mask among candidates), the align loss-based confidence scoring becomes progressively unreliable as the candidate pool grows. This progressive degradation is consistent with SAM3’s behavior: SAM3 generates hundreds of candidates and achieves an impressive 79.9% oracle mIoU on ScanNet++, yet its predicted mIoU is only 49.8%, a 30-point gap caused by the difficulty of identifying the best mask among many plausible candidates. TrianguLang’s focused 10-query design strikes the optimal balance between coverage and selectability, achieving only a 1-point oracle-predicted gap (63.4% vs. 62.4%). 
+
+E.3 Cross-View Attention 
+
+True cross-view attention (concatenating memories from all views) increased training cost 4 × without significant accuracy gains on our benchmarks. This was analyzed in depth in [13]. The per-view processing with world-space PE achieved similar cross-view consistency more efficiently. 
+
+E.4 Oracle vs. Predicted IoU Analysis 
+
+Table 9 compares oracle and predicted mIoU for TrianguLang and SAM3 on ScanNet++. Oracle mIoU selects the mask with highest GT IoU among all candidates, upper-bounding the model’s segmentation quality and isolating mask selection as the performance bottleneck. We report these numbers for transparency: while SAM3’s architecture can produce high-quality masks (79.9% oracle), its practical utility is limited by the inability to identify the correct mask among its many proposals. TrianguLang’s 10-query design produces a gap of only 1.0 point, indicating that the align loss + contrastive ranking effectively calibrates mask confidence among a small candidate pool. SAM3’s 30.1-point gap reveals that its hundreds of mask proposals, while individually high-quality, overwhelm the selection mechanism, a fundamental limitation of generate-then-select architectures at high candidate counts. Table 9: Oracle vs. predicted mIoU on ScanNet++ (49 val scenes, 100 frames/scene). Oracle selects the GT-best mask among candidates. The gap quantifies the mask selection bottleneck.          
+
+> Method Queries Predicted Oracle Gap
+> SAM3 [2] ∼200 49.8 79.9 30.1
+> TrianguLang 10 62.4 63.4 1.0
+
+# F Dataset Details 
+
+F.1 ScanNet++ 
+
+We use 230 scenes with semantic annotations from the nvs_sem_train split. Each scene contains ∼500 images each at 1752 ×1168 resolution (resized_undistorted). We sample 4-8 views per training iteration with diverse viewpoint coverage at 1008 ×1008 resolution. 
+
+Label Normalization. ScanNet++ contains label inconsistencies (typos, pluraliza-tion). We normalize labels via a fixed dictionary mapping. 
+
+Rasterization artifacts. The 2D instance masks are obtained by rasterizing the 3D mesh annotation onto each frame using camera poses. This process can produce phantom masks where occluded objects “bleed through” walls (e.g., jeans visible through a wall from an adjacent room). We do not filter these artifacts, as they are rare ( <1% of masks) and affect baselines equally. 
+
+F.2 uCO3D 
+
+uCO3D provides 360 ◦ object-centric captures across 1,000 LVIS categories. Each sequence contains ∼150 frames at 1080p resolution with instance segmentation masks. We use this for both in-domain training and out-of-domain generalization testing. 
+
+Data cleaning. We identified and excluded several annotation issues in uCO3D: 
+
+– Mislabeled sequences: Some sequences contain objects that do not match their category label (e.g., a sequence labeled bow_weapon actually shows a helmet; a power_shovel sequence contains a tea kettle). We manually identified and excluded 12 such sequences. 
+
+– Bad mask categories: Categories with systematically poor mask quality (e.g., hollow objects with incorrectly filled centers) were excluded entirely (3 categories: coil , table-tennis_table , pickle ). 
+
+– Prompt normalization: LVIS category names (e.g., arctic_type_of_shoe ,
+
+cab_taxi ) were mapped to common English terms (“shoe,” “taxi”) via a 373-entry normalization dictionary to improve text encoder alignment. F.3 NVOS and SPIn-NeRF 
+
+NVOS contains 6 scenes with multi-view selection annotations. SPIn-NeRF provides 10 real-world scenes. Both test multi-view segmentation without training. 
+
+# G Inference Without Ground Truth 
+
+A key design goal is no ground-truth camera parameters at any stage ,neither training nor inference. The model outputs 3D centroids in DA3-NESTED’s estimated world frame, which is sufficient for robotics and AR applications without requiring external calibration or ground-truth alignment. 
+
+# H Computational Cost      
+
+> Table 10: Training and inference computational cost.
+> Config GPUs Time/epoch Memory Inference
+> Full (230s, 8v) 8 ×A100 ∼10 min 45 GB ∼107ms
+
+Inference Speed. On a single A100, TrianguLang processes each frame at 1008 ×1008 resolution in ∼58ms ( ∼17 FPS). With preprocessing (cached DA3-NESTED depth loading and image normalization), end-to-end latency is ∼90ms ( ∼11 FPS). Inference includes SAM3 encoding, GASA decoding, and mask prediction. 
+
+# I Extended Benchmark Results 
+
+Table 11 provides detailed comparisons on NVOS and SPIn-NeRF, including per-scene optimization methods that require calibrated camera poses and 30 to 60 minutes of training per scene. 
+
+I.1 Extended Baseline Comparison 
+
+Table 12 provides detailed comparison with recent video segmentation baselines, including SAM2-Long [9] and SAM3 [2]. The “Prompt Projection” baseline unprojects user prompts into 3D and re-projects into each view to run SAM2 independently; this naive approach suffers from occlusion issues in complex indoor scenes. Table 11: Comparison on NVOS and SPIn-NeRF benchmarks (mIoU). Per-scene optimization methods require calibrated poses and 30 to 60 minutes of training per scene. TrianguLang and MV-SAM are feed-forward methods requiring no per-scene computation.                   
+
+> Type Method NVOS SPIn-NeRF
+> Feed-forward SAM2-Video 88.7 86.6 MV-SAM 92.1 92.5
+> TrianguLang 93.5 91.4 Per-scene optimization SPIn-NeRF −90.7 SA3D 91.1 92.4 SAGA 92.6 93.7 SA3D-GS 92.7 93.4 OmniSeg3D 92.8 94.5
+
+I.2 Qualitative Results on NVOS and SPIn-NeRF 
+
+We present qualitative results on representative NVOS and SPIn-NeRF scenes in Figures Fig. 5 and Fig. 6. TrianguLang produces clean, accurate segmentation masks using only text prompts, successfully handling challenging cases including thin structures (fern leaves), reflective surfaces (fortress windows), and complex skeletal geometry (trex). On the LERF-OVS benchmark (Figure 4), TrianguLang achieves 58.1% mIoU and 83.5% localization accuracy without any scene-specific training, closely matching LangSplat-V2 (59.9% mIoU) while running three orders of magnitude faster. This demonstrates that strong foundation model features combined with geometric cross-view reasoning can compete with methods that explicitly optimize language-3D associations per scene. 
+
+I.3 Per-Scene Results for NVOS and SPIn-NeRF 
+
+Since we excluded the orchid scene from NVOS and the pinecone scene from SPIn-NeRF, we provide per-scene results for SAM2, MV-SAM, and prior baselines [3, 4, 26, 42, 47] to facilitate future research. Per-scene mIoU and mAcc are reported in Table 13 for NVOS and in Table 14 for SPIn-NeRF. 
+
+I.4 LERF-OVS Benchmark Results 
+
+Per-scene LERF-OVS results are reported in Table 3 (main text). TrianguLang was not trained on any LERF data; these results represent zero-shot transfer from our ScanNet++-trained model. TrianguLang achieves 58.1% overall mIoU, closely matching LangSplat-V2 (59.9%) while requiring no per-scene optimization. Our method achieves the highest mIoU on Ramen (63.7%) and Figurines (56.6%), and the highest localization accuracy on Figurines (96.6%), demonstrating strong generalization to cluttered tabletop scenes despite training only on room-scale indoor environments. Table 12: Comparison of mIoU and mAcc on ScanNet++ and uCo3D. All baselines use their respective SA-1B-trained weights. Prompt Projection † unprojects prompts into 3D and re-projects per view to run SAM2 independently. SAM3 alone (no cross-view reasoning) underperforms MV-SAM, confirming that TrianguLang’s gains come from GASA, not the backbone. Method ScanNet++ uCo3D mIoU ( ↑) mAcc ( ↑) mIoU ( ↑) mAcc ( ↑)Prompt Projection † 29.2 59.2 78.2 83.3 SAM2-Video [34] 46.1 61.4 81.9 91.3 SAM2-Long [9] 41.5 61.4 72.9 86.4 SAM3 [2] 48.6 63.4 82.4 91.4 MV-SAM 48.9 63.5 87.7 95.0 
+
+# TrianguLang (Ours) 62.4 77.4 94.6 98.3 
+
+Table 13: Per-scene quantitative results on NVOS. The first row of each method corresponds to metric mIoU and the second row to metric mAcc. TrianguLang achieves state-of-the-art average mIoU (93.46%) among feed-forward methods, approaching per-scene optimization methods while using only text prompts and no per-scene training. Method fern flower fortress horns_center horns_left leaves trex Avg. SA3D [4] 82.90 94.60 98.30 96.20 90.20 93.20 81.99 91.06 94.39 98.74 99.68 99.33 99.36 99.57 97.41 98.35 SA3D-GS [42] 85.50 96.79 98.07 98.18 94.33 93.67 82.13 92.67 95.30 99.21 99.64 99.52 99.55 99.60 97.47 98.51 SAGA [3] 83.53 96.62 98.16 98.06 93.59 93.51 80.81 92.57 94.60 99.17 99.65 99.50 99.51 99.59 97.26 98.55 OmniSeg3D [47] 82.70 95.30 98.50 97.70 95.60 92.70 87.40 92.84 94.30 98.90 99.70 99.60 99.70 99.50 98.30 98.57 
+
+SAM2 [34] 82.83 95.20 97.03 95.71 94.66 93.37 62.24 88.72 93.94 97.75 98.52 97.93 95.80 96.84 81.66 94.63 MV-SAM 82.90 95.50 97.50 97.60 94.50 94.30 82.50 92.11 94.90 98.30 98.70 97.50 98.40 98.50 95.90 97.46 
+
+TrianguLang (Ours) 84.40 98.12 97.40 97.60 95.80 94.90 86.00 93.46 96.80 98.40 97.40 98.00 98.60 95.20 93.30 96.81 
+
+Prompt normalization. Table 14: Per-scene quantitative results on SPIn-NeRF. The first row of each method corresponds to metric mIoU and the second row to metric mAcc. TrianguLang achieves competitive results (91.35% mIoU) using only text prompts without any per-scene optimization, approaching per-scene methods like SA3D (92.36%) while being orders of magnitude faster. Method room orchids horns fern fortress leaves fork truck lego Avg. SPIn-NeRF [26] 95.6 92.7 92.8 94.3 97.7 94.9 87.9 85.2 74.9 90.67 99.4 98.8 98.7 99.2 99.7 99.7 99.5 95.1 99.2 98.81 SA3D [4] 88.22 83.55 94.49 97.05 98.33 97.18 89.41 90.82 92.15 92.36 98.33 96.86 99.02 99.59 99.75 99.85 99.55 96.66 99.75 98.82 SA3D-GS [42] 93.73 84.68 95.26 96.67 98.06 97.20 87.91 94.80 91.89 93.36 99.18 97.18 99.17 99.54 99.71 99.85 99.49 98.20 99.75 99.12 SAGA [3] 96.91 90.55 92.96 96.49 96.16 95.52 85.84 95.71 93.17 93.70 99.59 98.29 98.71 99.51 99.41 99.75 99.42 98.53 99.79 99.22 OmniSeg3D [47] 97.9 92.3 91.5 97.5 97.9 96.0 90.4 96.1 90.8 94.49 99.7 98.7 98.5 99.7 99.7 99.8 99.6 98.7 99.7 99.34                                               
+
+> SAM2-Video [34] 91.90 86.90 84.44 97.33 69.49 96.76 83.88 83.49 85.25 86.60 96.00 94.32 92.39 98.88 84.76 98.53 92.67 91.86 93.01 93.60 MV-SAM [13] 91.50 83.50 89.60 97.40 98.10 95.80 90.00 96.40 89.90 92.47 95.90 95.70 95.20 99.00 99.10 98.10 96.00 98.60 96.90 97.17
+> TrianguLang (Ours) 90.7 84.6 93.45 98.2 96.7 97.0 93.0 83.2 85.3 91.35 97.2 96.1 97.4 97.9 97.9 97.2 97.2 83.3 96.1 95.59
+
+I.5 Qualitative Results 
+
+Figure 5 demonstrates spatial disambiguation on the NVOS T-Rex scene. When queried with just “dino,” the model segments the dominant triceratops skull. However, when the query becomes “leftmost dino,” spatial reasoning activates: the model identifies all candidate masks for “dino,” computes their 3D centroids via depth unprojection, and selects the one with the minimum horizontal coordinate. This correctly isolates the left skull despite both specimens being semantically similar, an ambiguity that object names alone cannot resolve. Figure 6 illustrates a notable capability on the SPIn-NeRF room scene: when queried for “table,” TrianguLang produces a clean segmentation of the table surface without including the conference equipment (microphones) that are present in the ground truth annotation. This demonstrates that our model learns semantic object boundaries rather than memorizing annotation artifacts. 
+
+I.6 3D Mesh Reconstruction 
+
+Figure 7 shows TSDF mesh reconstructions extracted from TrianguLang’s seg-mented depth maps. Given a text query, the model produces per-view masks and metric depth estimates that can be fused into a coherent 3D mesh via TSDF Fig. 5: Spatial disambiguation on the NVOS T-Rex scene. Top: The query “dino” (97.6% IoU) segments the dominant triceratops skull in the scene. Bottom: The query “leftmost dino” (95.8% IoU) leverages spatial reasoning to disambiguate between the two skulls, correctly selecting only the left specimen. The depth map (second column) provides the geometric context that enables this: TrianguLang computes 3D centroids for each candidate mask and selects the one satisfying the spatial constraint ( arg min i xi
+
+for “leftmost”), resolving ambiguity that would be impossible with object names alone. 
+
+integration. These reconstructions demonstrate that TrianguLang’s segmentations are geometrically consistent across views, enabling downstream 3D applications without per-scene optimization. Fig. 6: Segmentation results on the SPIn-NeRF room scene (90.7% mean IoU). Each row shows a different viewpoint: RGB input, DA3 depth estimate, ground truth mask, predicted mask, and overlay. When queried for “table,” TrianguLang produces a clean segmentation of the table surface without including the conference equipment (mi-crophones) present in the ground truth annotation, demonstrating learned semantic boundaries rather than memorized annotation artifacts. 
+
+Fig. 7: TSDF mesh reconstructions from TrianguLang segmentations on ScanNet++ scenes. Left: “sofa chair,” Center: “coffee table,” Right: “TV.” Each mesh is extracted by fusing masked metric depth maps across 8 views using TSDF integration. The clean geometry demonstrates that TrianguLang produces view-consistent segmentations suitable for 3D reconstruction.

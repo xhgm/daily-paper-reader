@@ -1,0 +1,374 @@
+Title: DogWeave: High-Fidelity 3D Canine Reconstruction from a Single Image via Normal Fusion and Conditional Inpainting
+
+URL Source: https://arxiv.org/pdf/2603.07441v1
+
+Published Time: Tue, 10 Mar 2026 01:08:15 GMT
+
+Number of Pages: 18
+
+Markdown Content:
+# DogWeave: High-Fidelity 3D Canine Reconstruction from a Single Image via Normal Fusion and Conditional Inpainting 
+
+Shufan Sun †*, Chenchen Wang *, and Zongfu Yu 
+
+University of Wisconsin–Madison, Madison, WI 53706, USA 
+
+ssun329@wisc.edu, cwang922@wisc.edu, zyu54@wisc.edu  
+
+> *
+
+Equal contribution † Corresponding author Input Image  Input Image  Input Image Textured 3D Model  Textured 3D Model  Textured 3D Model 
+
+Fig. 1: DogWeave reconstructs photorealistic 3D dog models from single images, achieving state-of-the-art texture fidelity and geometry-texture coherence. 
+
+Abstract. Monocular 3D animal reconstruction is challenging due to complex articulation, self-occlusion, and fine-scale details such as fur. Existing methods often produce distorted geometry and inconsistent tex-tures due to the lack of articulated 3D supervision and limited avail-ability of back-view images in 2D datasets, which makes reconstructing unobserved regions particularly difficult. To address these limitations, we propose DogWeave , a model-based framework for reconstructing high-fidelity 3D canine models from a single RGB image. DogWeave im-proves geometry by refining a coarsely-initiated parametric mesh into a detailed SDF representation through multi-view normal field optimiza-tion using diffusion-enhanced normals. It then generates view-consistent textures through conditional partial inpainting guided by structure and style cues, enabling realistic reconstruction of unobserved regions. Using only about 7,000 dog images processed via our 2D pipeline for train-ing, DogWeave produces complete, realistic 3D models and outperforms state-of-the-art single image to 3d reconstruction methods in both shape accuracy and texture realism for canines.       
+
+> arXiv:2603.07441v1 [cs.CV] 8 Mar 2026 2S. Sun et al.
+> Keywords: Digitized Quadruped Models ·Single Image to 3D Recon-struction ·Diffusion-Guided Texture Synthesis
+
+## 1 Introduction 
+
+High-quality 3D animal models have broad applications in animation and game production. Realism requires not only accurate geometry but also vivid tex-tures that capture fine-grained details such as fur patterns, wrinkles, and surface variations. Even small differences in fur density, color distribution, or shading can drastically affect perceived identity. Traditional pipelines rely on UV paint-ing [2,11,32], physically based fur simulations [16,41,42,54,55], or large-scale 3D scanning systems [14, 31, 33, 56], requiring specialized hardware and multi-view captures and making high-fidelity reconstruction costly and difficult to scale. Automating 3D quadruped reconstruction from a single image aims to re-duce the need for complex data-capture setups. Existing methods face a fun-damental data–geometry–texture trilemma. Few-Shot Fast Inference meth-ods [24, 26, 44–48, 52, 53], which rely on large-scale 3D datasets or controlled multi-view captures [4, 5, 8, 19, 43] to directly infer 3D representations, offer ef-ficiency and flexibility. However, they lack strong anatomical priors and must predict textures for unobserved regions based solely on training statistics. Due to limited dataset specificity and domain coverage, these methods often pro-duce over-smoothed textures, drifted color distributions, and incorrect topology. Given that most publicly available animal datasets [6, 21, 23, 49, 62] contain only single-view images—typically frontal or lateral and organized by breed— Model-Based approaches [3, 25, 38, 39, 63] were introduced to leverage abundant 2D supervision. While this reduces dependence on 3D or multi-view data, single-view supervision introduces inherent shape ambiguities, often resulting in low-fidelity geometry and misaligned textures. Consequently, current reconstruction methods struggle with two critical limitations: geometric fidelity and texture similarity . Reconstructed models frequently fail to maintain photorealistic and consistent identity across novel viewpoints, particularly in unobserved regions where both geometric and appearance ambiguities are the highest. We present DogWeave , a model-based optimization framework for photore-alistic, identity-consistent 3D dog reconstruction from a single image. Our key insight is that canine appearances cluster by breed and fur patterns, making style-controlled texturing a natural source of identity guidance. DogWeave first refines a parametric mesh using perceptual losses, converts it to a signed dis-tance field (SDF) for stable geometric manipulation, and then applies diffusion-enhanced multi-view normal fusion to recover fine-scale surface details. A se-quential geometry- and style-conditioned inpainting scheme progressively tex-tures each viewpoint, enforcing view-consistent, high-frequency textures through volumetric geometry–texture coupling. Trained using only 2D images without ground-truth 3D data, DogWeave outperforms all baselines, achieving superior photorealism and identity consistency in novel-view synthesis for canines. DogWeave 3
+
+Contributions .
+
+– We introduce a model-based single-image-to-3D reconstruction framework for high-fidelity textured canine models, trained solely with single-view images and without ground-truth 3D supervision. 
+
+– We propose a sequential geometry- and style-conditioned inpainting scheme that textures each view while preserving identity-specific appearance. 
+
+– We perform a comprehensive evaluation showing superior geometry–texture coherence and photorealism over existing methods. 
+
+## 2 Related Works 
+
+2.1 Single-Image to 3D Reconstruction for Animals Parametric models [38, 63] provide statistical priors for animal shape and ar-ticulation. SMAL [63] models shape variability via learned components and skele-tal rigging, while BITE [38] introduces D-SMAL, a dog-specific variant trained on 3D scans of multiple breeds. These models, however, produce low-fidelity ge-ometry with limited fine-scale details such as imprecise facial boundaries, causing geometry–texture misalignment in downsteam reconstruction tasks. 
+
+Model-based [3, 25, 39] methods refine parametric models through opti-mization or learned deformation. Animal Avatars [39] fits an enhanced SMAL model with dense surface embeddings and implicit texture to monocular videos. Despite improved alignment, per-frame fitting can produce misaligned features and color discontinuities. DogRecon [3] reconstructs 3D animatable dogs from a single image by combining D-SMAL-derived canine priors with canine-centric novel view synthesis and Gaussian splatting, but independent view synthesis and implicit optimization can introduce inconsistent texture and residual geo-metric noise across views. 3D-Fauna [25] learns a pan-category deformable 3D animal model for over 100 quadruped species using 2D internet images, achieving broad generalization but emphasizes coarse articulated shape and category-level modeling rather than object-specific fine geometry or detailed texturing. 
+
+Few-Shot Fast Inference [24, 26, 44–48, 52, 53] methods regress 3D repre-sentations from a single image using feed-forward networks trained on large syn-thetic corpora [4,5,8,19,43]. TripoSR [48] and CRM [52] achieve real-time recon-struction through triplane regression, but lack anatomical priors and tend to pro-duce over-smoothed geometry with washed-out textures for quadrupeds. TREL-LIS [53] encodes geometry and appearance through sparse structured 3D latents trained on large-scale 3D datasets, yet without explicit identity grounding it struggles to recover distinctive fur patterns and markings. Similarly, SAM3D [44] leverages large-scale segmentation priors for object-centric reconstruction, but its geometry and texture predictions remain conditioned on generic visual features and often miss fine-scale appearance details. Hunyuan3D [45–47] scales diffusion-based multi-view generation for 3D asset synthesis, but like other category-agnostic models, it lacks strong identity grounding and struggles to preserve consistent fine-scale details from a single input image. 4 S. Sun et al. 
+
+Moving beyond direct regression, Wonder3D [26] improves surface detail via cross-domain diffusion over multi-view normals and color; however, it relies on diffusion-based multi-view synthesis, which may introduce inconsistent geome-try or textures in unobserved regions, resulting in identity drift for articulated quadrupeds. CraftsMan3D [24] prioritizes geometric fidelity through cross-view attention, yet limited canine-specific supervision and quadruped depth ambigu-ities often produces shapes influenced by dataset priors rather than preserving instance-specific identity. 
+
+2.2 Conditioning Diffusion Models for Structural Control 
+
+Latent diffusion models [37] achieve high-resolution image synthesis through iter-ative denoising in compressed latent spaces and have been extended beyond gen-eration. ControlNet [60] enables structural conditioning with trainable encoders for inputs like depth or normals, while IP-Adapter [58] injects appearance refer-ences via decoupled cross-attention for identity-preserving style transfer. Diffu-sion priors have also been adapted for geometry: Marigold [17, 18] fine-tunes a generative diffusion model to predict monocular depth and normals, recovering fine-scale details, though it can underestimate depth in occluded quadruped re-gions. HumanNorm [12] further leverages predicted normal and depth maps as structural guidance for text-to-3D human generation. 
+
+2.3 Volumetric Representations and Texturing for 3D Avatars 
+
+Signed distance fields (SDFs) [27, 35, 50, 57] represent surfaces as zero level-sets, enabling exact normal computation and watertight geometry. HumanRef [59] demonstrates that SDF grids can be refined by rendering multi-view projections, enhancing them via conditional diffusion, and backpropagating corrections onto the grid. However, the scarcity of multi-view 3D canine scans precludes reliable normal estimation, undermining the geometric constraints that stabilize SDS-guided texture synthesis [12, 59] in unobserved regions. To address texturing in occluded regions, progressive inpainting approaches [1, 36] sequentially backproject 2D diffusion-generated textures onto meshes view-by-view, preserving geometry–texture coherence through iterative refinement. 
+
+Human SGD [1] relies on strong shape priors and large-scale multi-view supervi-sion unavailable for canines, limiting identity consistency in unobserved regions. 
+
+Easitex [36] employs edge-aware partial inpainting to improve boundary sharp-ness, but its dependence on well-defined mesh edges makes it ill-suited for dogs, whose smooth fur surfaces provide no reliable structural boundaries. DogWeave 
+
+addresses these limitations by coupling SDF-based geometry with sequential identity-conditioned inpainting, enforcing appearance consistency in unobserved regions without requiring 3D supervision or sharp geometric boundaries. DogWeave 5C1     
+
+> C0
+> ControlNet Normal
+> Enhancer
+> Render
+> Backpropagate
+> Canine Prior
+> C0 C1
+> Cj Render
+> SDF
+> Partial
+> Inpainting
+> Control Net
+> IP Adapter
+> Backpropagate Single RGB Image Input SDF
+> CN Cj
+> Initialization Geometry Fusion Texture Inpainting
+> 2D Estimator
+> Mesh
+> Lperceptual Ldepth
+> Structural & Style Control Full Texture Breed Info
+
+Fig. 2: DogWeave reconstructs high-fidelity 3D dog models from a single RGB image using a three-stage pipeline. Stage 1: Coarse Shape Initialization generates a base mesh with BITE [38] and refines overall proportions. Stage 2: Surface Detail Enhancement 
+
+converts the mesh to a volumetric SDF and incorporates diffusion-enhanced multi-view normals for fine geometric details. Stage 3: Sequential Texturing produces photorealis-tic, identity-consistent appearance through style- and breed-conditioned inpainting. 
+
+## 3 Methods 
+
+Figure 2 shows our three-stage pipeline for reconstructing high-fidelity 3D dog models from single images, with details described below. 
+
+3.1 Coarse Geometry Initialization 
+
+After initializing the base geometry using BITE [38], we extend its optimization with monocular depth and normal supervision from Marigold [17, 18] (Figure 3, lighter arrows), improving shape fitting beyond silhouette alignment. Neverthe-less, BITE’s fixed topology limits its ability to recover fine-scale surface details such as wrinkles that remain consistent under varying illumination. 
+
+Progressive refinement. We refine the mesh in two stages by minimizing: 
+
+Ltotal = λdLdepth + λnLnormal + λsLsilh + λr Lsmooth  (1) 
+
+Stage 1 emphasizes depth alignment to establish aligned body proportions. 
+
+Stage 2 shifts to perceptual normal matching to recover surface features. Our perceptual normal loss [34] uses VGG-16 features [15] at three layers: 
+
+Lnormal = X
+
+ℓ
+
+∥fℓ( ˆN ) − fℓ(N )∥22 + 2 X
+
+ℓ
+
+∥Gℓ( ˆN ) − Gℓ(N )∥2
+
+F (2) where ˆN /N are rendered/target normals; fℓ(·) extracts features from the ℓ-th VGG-16 layer, and Gℓ(·) = 1
+
+chw F F T is the normalized Gram matrix [10], which captures cross-channel feature correlations to enforce consistent local surface 
+
+style independent of spatial pixel alignment. The content term enforces geo-metric fidelity while the style term regularizes local surface patterns, preserving perceptually meaningful curvature without requiring per-pixel correspondence. Our scale-invariant depth loss [7] handles monocular ambiguity: 
+
+Ldepth = 1
+
+nnX
+
+i=1 
+
+d2
+
+i − 0.5 1
+
+nnX
+
+i=1 
+
+di
+
+!2
+
+, di = log ˆDi − log Di (3) 6 S. Sun et al. 
+
+where ˆDi/D i are rendered/target depths. The variance-based formulation opti-mizes relative depth structure while accommodating scale shifts and biases in monocular predictions. Standard regularization ( Lsilh , Lsmooth ) follows BITE [38]. Conditioning Cues Input 
+
+1. Normal Optimization  2. Texture Inpainting  3. Breed-Supervised Training  4. Failure Cases         
+
+> Input Input Output Input Output
+> SDF
+> Optim
+> UNet
+> n2n
+> Multiview
+> n2t Final Render Normal Silhouette Style Ref
+> BITE
+> Initialization Monocular
+> Refinement SDF Initialization n2n Enhanced Normals Input Image MV Normal Optimization CraftsMan3D
+
+1. Normal Optimization 
+
+Fig. 3: Normal optimization. We progressively refine geometry from the BITE base mesh (light arrows) and through SDF optimization with multi-view normal fusion (dark arrows) to recover fine-scale surface details. The right column compares to Crafts-Man3D [24], which exhibits domain drift when species constraints are not applied. 
+
+3.2 SDF-Based Geometric Refinement 
+
+To recover fine surface details while preserving domain-specific cues (e.g., fa-cial features) and mitigating depth ambiguities from Marigold’s monocular nor-mals [18], we fine-tune a ControlNet [60]-based diffusion model on Stable Dif-fusion 1.5 [37] using our paired dataset (Section 4.1), rather than using the training-free generic enhancer in CraftsMan3D [24] (Figure 3). Since Marigold’s estimates are unaligned in 3D, they are unreliable for multiview cross-attention training. We therefore adopt a view-weighted fusion strategy that prioritizes field-specific fidelity over strict multiview consistency. We convert the coarse mesh into a 256 3 volumetric SDF [27,51] and initialize a 256 3 normal field from uniformly sampled azimuth views. For each view i,we (1) render camera-space normals nci via sphere tracing, (2) enhance them with our diffusion model, (3) transform to world space nwi = RTi nci , and (4) accumulate into the normal field, resolving overlaps via weighted averaging: 
+
+Ntarget (x) = 
+
+P  
+
+> i∈V(x)
+
+wi(x)nwi (x)
+
+P  
+
+> i∈V(x)
+
+wi(x)nwi (x)
+
+(4) Here, V (x) is the set of views whose rays intersect voxel x, and wi(x) counts the rays hitting that voxel as a confidence weight. L2-normalization ensures DogWeave 7
+
+the fused normal is a unit vector. This weighted fusion integrates multi-view information while reducing noise and preserving fine-scale details. 
+
+SDF Optimization. We optimize SDF values to match the fused target normals via a volumetric consistency loss. For each voxel x ∈ S , where S = {x |P 
+
+> i
+
+wi(x) > 0} denotes voxels with at least one valid projection, we minimize the cosine distance between the SDF gradient and the fused target: 
+
+Lnormal = Ex∈S [1 − n(x) · Ntarget (x)]  (5) Here, n(x) = ∇ϕ(x)/∥∇ ϕ(x)∥ is the SDF gradient normal at voxel x. To resolve depth ambiguities from 2D normal maps and preserve global shape, we add a per-view mask loss using binary cross-entropy between sphere-traced oc-cupancy masks ˆMi and target masks Mi, along with an eikonal penalty 
+
+Leikonal = Ex
+
+h
+
+(∥∇ ϕ(x)∥ − 1) 2i
+
+, (6) which enforces the defining property of a signed distance field and prevents gradient drift in voxels outside S. The full objective is: 
+
+L = λnLnormal + λmLmask + λeLeikonal . (7) 
+
+3.3 Geometry-Aware Texture Synthesis 
+
+We synthesize photorealistic, multi-view consistent textures by progressively completing a volumetric color field through geometry-conditioned inpainting (Figure 2, right; Figure 4, upper left). 
+
+Color field initialization. We initialize a 256 3 color grid on the SDF, where each voxel stores RGB color c ∈ [0 , 1] 3 and a confidence weight w ∈ R+. Surface normals rendered from the optimized SDF provide geometric conditioning. 
+
+Normal-conditioned inpainting. We train a conditional inpainting model on Stable Diffusion 1.5 [37] with IP-Adapter [58]. The model takes five inputs: (1) rendered normals, (2) current partial texture, (3) mask of incomplete regions, (4) input image as style reference, and (5) breed information. Training data is described in Section 4.1. 
+
+Sequential projection. Views from a circular camera array are processed in spiral order to maximize angular coverage. For each view, we (1) render the current texture to identify incomplete regions, (2) generate completed textures via diffusion inpainting, and (3) project colors onto the volumetric grid. 
+
+Volumetric projection with confidence weighting. Instead of project-ing isolated points, each ray-surface intersection colors a small cylindrical neigh-borhood of radius r = 1 voxel. For an intersection at point p, we sample neigh-boring voxel positions x with depth offset δd ∈ [−r, r ] along the ray and radial distance δr ∈ [0 , r ] perpendicular to it. Each voxel receives a spatial blending weight: 
+
+wblend (δd, δ r ) = 
+
+
+
+1 − |δd|
+
+r + 1 
+
+  
+
+1 − δr
+
+r + 1 
+
+
+
+, (8) 8 S. Sun et al. 
+
+which decays linearly from 1 at the intersection to 0 at radius r. A view-dependent confidence weight for view i is: 
+
+wconf (x, i ) = |n(x) · vi| · βi
+
+1 + ∥x − ci∥ , (9) where n(x) is the surface normal, vi and ci are the view direction and cam-era position, and βi prioritizes diffusion-enhanced views. The final voxel weight is w(x) = wblend · wconf . We project only to uncolored voxels with low confi-dence to preserve texture continuity, and remaining gaps are filled via iterative neighborhood averaging. Model Normal Silhouette Style Ref    
+
+> w/ & w/o Breed-Conditioning
+> Breed Conditioning on Unseen Breeds Input
+> Output Breed Info “A Bluetick dog”
+> Before Inpainting n2t Output After Inpainting Guidance Cues
+
+## Failure Cases 
+
+Fig. 4: Breed Information Visualizations. Upper left: breed information guides the texturing pipeline. Lower left: improved facial feature precision when breed info for this Toy Terrier is included. Right: robust generalization to unseen breeds. 
+
+## 4 Experiments 
+
+We evaluate DogWeave on single-image 3D dog reconstruction, comparing against state-of-the-art methods in geometric accuracy, texture quality, and multi-view consistency. Results show superior recovery of fine surface details while main-taining photorealistic appearance across viewpoints. 
+
+4.1 Self-Supervised Training Data Construction 
+
+Without 3D scans or multi-view data, we construct paired training data self-supervised from single-view images. 
+
+Dataset. We use ∼7K images from the Tsinghua Dog Dataset [62], covering diverse breeds, poses, and lighting. 
+
+Normal pairs. For each image, we optimize a BITE mesh with Marigold depth and normal supervision (Section 3.1) and render normals from the opti-mized mesh. Paired with Marigold-predicted normals [18] aligned via silhouette correspondence, this yields (Ncoarse , Nfine ) pairs. 
+
+Normal-texture pairs. Marigold-predicted normals are paired with object RGB images segmented via silhouettes to form (Nfine , T) training pairs. DogWeave 9
+
+4.2 Implementation Details Diffusion model training. We use the Stable Diffusion 1.5 [37] with Con-trolNet [60] and train only the ControlNet branches while keeping the Stable Diffusion backbone frozen for both tasks. For normal enhancement, we train the model for 50 epochs using batch size 8, learning rate 10 −4, AdamW [28] opti-mization, and cosine annealing. The training data consist of the normal pairs 
+
+(Ncoarse , Nfine ) described in Section 4.1. For partial texture inpainting, we adopt the inpainting version of Stable Diffusion 1.5, conditioned on geometry via Con-troNet and on appearance via IP-Adapter (16 tokens, scale 1.0). This model is trained for 80 epochs using the normal–texture pairs (Nfine , T) described in Section 4.1. During training, we additionally apply erosion-based random masks to the textured RGB patches to simulate view-dependent missing regions. All other hyperparameters follow the normal-enhancement setup. Training all mod-els requires approximately 12 hours on a single NVIDIA A100 GPU. 
+
+Coarse mesh optimization. We refine BITE geometry in two 100-iteration stages using Adam [22]. Stage 1 emphasizes depth ( λd = 1 .0, λn = 0 .5, LR 
+
+= 10 −3), while Stage 2 emphasizes normals ( λd = 0 .0, λn = 1 .0, LR = 10 −4). 
+
+SDF refinement. We optimize a 256 3 SDF grid for 50 iterations using Adam (LR = 2 ×10 −4). Multi-view normals are accumulated from 8 evenly spaced views at 45 ° intervals and projected into a 256 3 normal field via ray marching (256 samples per ray). Unfilled surface voxels are filled via 6-connected neighborhood averaging for 5 iterations. The normal consistency loss weight is 0.3. 
+
+Texture synthesis. For K = 8 spiral views, we (1) render partial textures (512 ray samples), (2) inpaint incomplete regions (50 DDIM steps, guidance 7.5), and (3) project via volumetric tubes ( r = 1 voxel, confidence threshold 0.03). 
+
+Inference. Given a single RGB image, coarse mesh refinement takes ∼1 min, SDF generation and optimization ∼4 min (50 iterations), and texture completion 
+
+∼3 min (8 views), totaling ∼8 min on a single A100 GPU. 
+
+Baselines. We compare against Wonder3D [26], TRELLIS [53], CRM [52], TripoSR [48], Fauna [25], SAM3D [44], and Hunyuan3D [45–47] using official implementations with recommended settings. 
+
+4.3 Evaluation Metrics 
+
+We evaluate on 50 randomly selected images from the Stanford Dog Dataset [20] (cross-dataset from ThuDogs [62]), covering 45 breeds with diverse sizes, fur types, poses (42% standing, 28% sitting, 18% lying, 12% action), and viewpoints (48% frontal, 32% side, 20% 3/4), excluding multi-object or heavily occluded cases. The full evaluation set will be publicly released on GitHub. High-quality 3D dog scans are scarce, making geometry-level evaluation im-practical at scale. We instead adopt perceptually aligned 2D metrics on multi-view renderings against the input RGB: FID [40] measures distributional real-ism; CLIP Score [13] evaluates semantic breed identity; LPIPS [61] captures texture fidelity and fine details; and DreamSim [9] measures mid-level percep-tual similarity aligned with human judgment. Lower FID, LPIPS, and Dream-10 S. Sun et al. Input Image Our Work CRM TRELLIS Wonder3D  TripoSR  Fauna SAM3D Hunyuan3D 
+
+Fig. 5: Qualitative comparison across breeds and poses. Fauna [25] produces coarse textures. CRM [52] and TripoSR [48] show color drift and topology errors. Won-der3D [26] exhibits geometry bias. Trellis [53] and SAM3D [44] show similar artifacts. 
+
+Hunyuan3D [45–47] generates good geometry but blurred textures in occluded regions. DogWeave 11                                         
+
+> Table 1: Evaluation of 3D Dog Reconstruction: Perceptual Similarity and Realism Metrics
+> Method / Metric FID ↓[40] CLIP ↑[13] LPIPS ↓[61] DreamSim ↓[9]
+> Our Work 176.4 0.9081 0.2495 0.1751 Hunyuan3D 194.3 0.8874 0.2813 0.1843 SAM3D 219.3 0.8491 0.3017 0.2394 trellis 235.7 0.8628 0.3223 0.2788 Wonder3D 297.5 0.8199 0.3180 0.2620 CRM 322.5 0.7270 0.2985 0.3811 TripoSR 384.6 0.6835 0.3202 0.4242 Fauna 393.5 0.6052 0.3963 0.4656
+
+Sim indicate better quality, while higher CLIP Score indicates stronger identity preservation. Values are averaged across views and subjects. 
+
+Multi-view consistency. We additionally assess texture seamlessness and geometric plausibility through visual inspection of rendered sequences (Figure 5). 
+
+4.4 Quantitative Results 
+
+Table 1 compares methods on perceptual quality metrics. DogWeave outperforms all baselines across all perceptual metrics. It achieves the lowest FID (176.4), improving over the next-best method (Hunyuan3D, 194.3) by approximately 9%, indicating stronger visual realism. Our method also attains the highest CLIP score (0.9081), suggesting better preservation of breed-specific semantic features. In addition, DogWeave yields the lowest LPIPS (0.2495) and DreamSim (0.1751), indicating improved perceptual similarity to the input images while maintaining consistent appearance across novel viewpoints. 
+
+4.5 Qualitative Results 
+
+Figure 5 presents comparisons across breeds and poses. DogWeave consistently preserves coloring, fine details, and anatomical correctness across viewpoints. Compared to baselines, it maintains identity-specific fur patterns and handles challenging articulated poses, while other methods exhibit coarse textures, color drift, topology errors, or geometry bias. 
+
+4.6 Ablation Studies 
+
+Figure 6 and Table 2 evaluate the impact of key components using LPIPS [61] and DreamSim [9], which measure texture fidelity and perceptual similarity to the input. 
+
+Perceptual normal loss. Removing perceptual losses slightly degrades tex-ture fidelity (LPIPS: 0.2495 → 0.2641) and perceptual similarity (DreamSim: 12 S. Sun et al. 
+
+Table 2: Quantitative ablation of 3D Dog Reconstruction 
+
+Method / Metric LPIPS ↓ DreamSim ↓
+
+Our Work 0.2495 0.1751 w/o perceptual losses 0.2641 0.1821 w/o normal enhancer 0.2661 0.1955 w/o IP-Adapter 0.2713 0.2546 w/o Breed Info 0.2570 0.1949 w/o  
+
+> Partial Inpainting
+> Reference Image
+> w/o Lperceptual
+> w/o
+> normal2normal
+> w/o
+> IP-Adapter Original
+> View 1  View 2  View 3
+> w/o
+> Breed Info
+
+Fig. 6: Ablation study on key components. Col. 1 (full pipeline) produces appear-ance consistent with the reference across all viewpoints. Removing perceptual loss or normal enhancement (Cols. 2–3) introduces subtle geometric and texture degradation. Removing IP-Adapter (Col. 4) causes visible color shift and loss of breed-specific pat-terns. Removing partial inpainting (Col. 5) produces multi-view inconsistencies. Breed conditioning (Col. 6) sharpens facial feature synthesis. 
+
+0.1751 → 0.1821), confirming that perceptually-aligned coarse geometry bene-fits subsequent SDF refinement and texturing. 
+
+Normal enhancement. Omitting the diffusion-based normal enhancer con-sistently lowers both metrics (LPIPS: 0.2495 → 0.2661, DreamSim: 0.1751 → 0.1955), showing that high-frequency surface details are essential for realistic appearance across views. 
+
+IP-Adapter style control. Removing IP-Adapter causes the largest drop (LPIPS: 0.2495 → 0.2713, DreamSim: 0.1751 → 0.2546), highlighting its crucial role in maintaining identity-consistent textures, especially in occluded regions. 
+
+Breed conditioning. Excluding breed information moderately reduces per-ceptual similarity (DreamSim: 0.1751 → 0.1949) with a smaller effect on LPIPS (0.2495 → 0.2570), suggesting breed priors mainly guide high-level identity rather than local texture details. Overall, all components contribute meaningfully, with IP-Adapter providing the largest gain, consistent with identity preservation as the primary objective of single-image canine reconstruction. DogWeave 13 
+
+4.7 Limitations and Future Work Input Image d 3D Model  Textured 3D Model Normal Silhouette Style Ref    
+
+> w/ & w/o Breed-Conditioning
+> Breed Conditioning on Unseen Breeds Input
+> Output Breed Info “A Bluetick”
+> Before Inpainting n2t Output After Inpainting Guidance Cues
+
+Failure Cases  
+
+> Challenging Illumination Extreme Poses & Self-Occlusions
+
+Fig. 7: Failure Cases 
+
+Inference time. Our optimization-based pipeline requires 6 minutes per reconstruction, much slower than feed-forward methods. Future work could ex-plore hybrid approaches combining fast prediction with targeted refinement, or distillation to transfer the multi-stage pipeline into efficient feed-forward net-works while retaining style-controlled texture consistency. 
+
+Domain specificity. DogWeave relies on BITE for parametric dog initial-ization. Extending to other quadrupeds (cats, horses, wildlife) would require corresponding parametric priors, e.g., AniMer [29, 30]. Nonetheless, our demon-strated benefits of breed conditioning, style control, and monocular perceptual geometry guidance suggest these techniques could generalize effectively under similar dataset conditions. 
+
+Baked lighting and shadows. Style control transfers the full appearance of the input image—including lighting and shading—onto the 3D surface (Figure 7, left), producing photorealistic textures but baking illumination into the albedo. While albedo-only supervision could help, IP-Adapter often interprets it as a cartoonish style. Future work may leverage relighting-aware diffusion models to disentangle shading from material appearance without sacrificing realism. 
+
+Extreme poses and self-occlusion. Highly occluded poses (e.g., tightly curled bodies) occasionally result in incomplete or inconsistent textures (Fig-ure 7, right). In these cases, geometry-conditioned inpainting struggles because both geometric and appearance cues are ambiguous, limiting the diffusion model’s ability to hallucinate plausible textures. Despite these limitations, DogWeave shows that combining explicit geome-try with style-controlled diffusion enables photorealistic reconstruction of shape-ambiguous quadrupeds from single images, capturing diverse appearances and poses, with strong potential to generalize to other animal species given suitable parametric priors and training data. 
+
+## 5 Conclusion 
+
+We introduced DogWeave, a method for high-fidelity single-image 3D dog recon-struction that achieves photorealistic appearance while maintaining individual 14 S. Sun et al. 
+
+identity across viewpoints. Our pipeline integrates template-based initialization, diffusion-enhanced normal refinement, and style-controlled sequential texturing. We demonstrate that enforcing strong texture-geometry correspondence through normal-conditioned diffusion, combined with IP-Adapter style control, signifi-cantly improves perceived realism and enables detailed reconstruction of articu-lated animals with diverse appearances. Extensive evaluation shows DogWeave outperforms existing methods in both identity preservation and photorealism, achieving state-of-the-art results without requiring 3D supervision. Beyond dogs, our framework of combining parametric priors with diffusion-based refinement provides a path toward general single-image reconstruction of deformable, shape-ambiguous objects where appearance and geometry are tightly coupled. 
+
+## References 
+
+1. AlBahar, B., et al.: Single-image 3d human digitization with shape-guided diffu-sion. In: Proceedings of the ACM Conference on Computer and Communications Security (CCS) (2023), https://arxiv.org/abs/2311.09221 42. Algasov, A., Nepovinnykh, E., Zolotarev, F., Eerola, T., Kälviäinen, H., Zemčík, P., Stewart, C.V.: Unsupervised pelage pattern unwrapping for animal re-identification. arXiv preprint arXiv:2506.15369 (2025), https://arxiv.org/ abs/2506.15369 , preprint; Animal re-identification via geometry-aware pelage pat-tern unwrapping 2 3. Cho, G., Kang, C., Soon, D., Joo, K.: Dogrecon: Canine prior-guided animatable 3d gaussian dog reconstruction from a single image. International Journal of Computer Vision 133 (6), 6332–6350 (2025). https://doi.org/10.1007/s11263-025-02485-5, https://link.springer.com/article/10.1007/s11263-025-02485-5 2, 3 4. Deitke, M., Liu, R., Wallingford, M., Ngo, H., Michel, O., Kusupati, A., Fan, A., Laforte, C., Voleti, V., Gadre, S.Y., VanderBilt, E., Kembhavi, A., Vondrick, C., Gkioxari, G., Ehsani, K., Schmidt, L., Farhadi, A.: Objaverse-xl: A universe of 10m+ 3d objects. arXiv preprint arXiv:2307.05663 (2023) 2, 3 5. Deitke, M., Schwenk, D., Salvador, J., Weihs, L., Michel, O., VanderBilt, E., Schmidt, L., Ehsani, K., Kembhavi, A., Farhadi, A.: Objaverse: A universe of annotated 3d objects. arXiv preprint arXiv:2212.08051 (2022) 2, 3 6. Deng, J., Dong, W., Socher, R., Li, L.J., Li, K., Fei-Fei, L.: Imagenet: A large-scale hierarchical image database. In: 2009 IEEE conference on computer vision and pattern recognition. pp. 248–255. Ieee (2009) 2 7. Eigen, D., Puhrsch, C., Fergus, R.: Depth map prediction from a single image using a multi-scale deep network. In: Advances in Neural Information Processing Systems (NeurIPS). pp. 2366–2374 (2014) 5 8. Fu, H., Jia, R., Gao, L., Gong, M., Zhao, B., Maybank, S., Tao, D.: 3d-future: 3d furniture shape with texture. International Journal of Computer Vision pp. 1–25 (2021) 2, 3 9. Fu, S., Tamir, N., Sundaram, S., Chai, L., Zhang, R., Dekel, T., Isola, P.: Dreamsim: Learning new dimensions of human visual similarity using synthetic data (2023) 9, 11 10. Gatys, L.A., Ecker, A.S., Bethge, M.: Image style transfer using convolutional neural networks. In: CVPR. pp. 2414–2423 (2016). https://doi.org/10.1109/ CVPR.2016.265 5DogWeave 15 11. Hanrahan, P., Haeberli, P.: Direct wysiwyg painting and texturing on 3d shapes. In: Proceedings of the 17th Annual Conference on Computer Graphics and Interactive Techniques (SIGGRAPH ’90). pp. 215–223. SIGGRAPH ’90, ACM (1990). https: //doi.org/10.1145/97879.97911 212. Huang, X., Shao, R., Zhang, Q., Zhang, H., Feng, Y., Liu, Y., Wang, Q.: Human-norm: Learning normal diffusion model for high-quality and realistic 3d human generation. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR). pp. 1855–1865 (2024), https://arxiv.org/ abs/2310.01406 413. Ilharco, G., Wortsman, M., Wightman, R., Gordon, C., Carlini, N., Taori, R., Dave, A., Shankar, V., Namkoong, H., Miller, J., Hajishirzi, H., Farhadi, A., Schmidt, L.: Openclip (Jul 2021). https://doi.org/10.5281/zenodo.5143773 , https://doi. org/10.5281/zenodo.5143773 , if you use this software, please cite it as below. 9, 11 14. Irschick, D.J., Christiansen, F., Hammerschlag, N., Martin, J., Madsen, P.T., Wyneken, J., Brooks, A., Gleiss, A., Fossette, S., Siler, C., Gamble, T., Fish, F., Siebert, U., Patel, J., Xu, Z., Kalogerakis, E., Medina, J., Mukherji, A., Mandica, M., Zotos, S., Detwiler, J., Perot, B., Lauder, G.: 3d visualization pro-cesses for recreating and studying organismal form. iScience 25 (9), 104867 (2022). 
+
+https://doi.org/10.1016/j.isci.2022.104867 215. Johnson, J., Alahi, A., Fei-Fei, L.: Perceptual losses for real-time style transfer and super-resolution. In: European Conference on Computer Vision (ECCV). pp. 694–711. Springer (2016) 5 16. Kajiya, J.T., Kay, T.L.: Rendering fur with three dimensional textures. In: ACM SIGGRAPH Computer Graphics. vol. 23, pp. 271–280. ACM (1989). https:// doi.org/10.1145/74334.74361 217. Ke, B., Obukhov, A., Huang, S., Metzger, N., Daudt, R.C., Schindler, K.: Re-purposing diffusion-based image generators for monocular depth estimation. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recog-nition (CVPR) (2024) 4, 5 18. Ke, B., Qu, K., Wang, T., Metzger, N., Huang, S., Li, B., Obukhov, A., Schindler, K.: Marigold: Affordable adaptation of diffusion-based image generators for image analysis (2025) 4, 5, 6, 8 19. Khanna*, M., Mao*, Y., et al.: Habitat Synthetic Scenes Dataset (HSSD-200): An Analysis of 3D Scene Scale and Realism Tradeoffs for ObjectGoal Navigation. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) (2024) 2, 3 20. Khosla, A., Jayadevaprakash, N., Yao, B., Fei-Fei, L.: Novel dataset for fine-grained image categorization. In: First Workshop on Fine-Grained Visual Categorization, IEEE Conference on Computer Vision and Pattern Recognition (CVPR). Colorado Springs, CO (June 2011) 9 21. Khosla, A., Jayadevaprakash, N., Yao, B., Fei-Fei, L.: Novel dataset for fine-grained image categorization. In: First Workshop on Fine-Grained Visual Categorization, IEEE Conference on Computer Vision and Pattern Recognition. Colorado Springs, CO (June 2011) 2 22. Kingma, D.P., Ba, J.: Adam: A method for stochastic optimization. CoRR 
+
+abs/1412.6980 (2014) 9 23. Lei, J., Wang, Y., Pavlakos, G., Liu, L., Daniilidis, K.: Gart: Gaussian articulated template models. In: Proceedings of the IEEE/CVF Conference on Computer Vi-sion and Pattern Recognition (CVPR). pp. 19876–19887 (June 2024) 2 16 S. Sun et al. 24. Li, W., Liu, J., Yan, H., Chen, R., Liang, Y., Chen, X., Tan, P., Long, X.: Crafts-man3d: High-fidelity mesh generation with 3d native generation and interactive geometry refiner. arXiv preprint arXiv:2405.14979 (2024) 2, 3, 4, 6 25. Li, Z., Litvak, D., Li, R., Zhang, Y., Jakab, T., Rupprecht, C., Wu, S., Vedaldi, A., Wu, J.: Learning the 3d fauna of the web. In: CVPR (2024) 2, 3, 9, 10 26. Long, X., Guo, Y.C., Lin, C., Liu, Y., Dou, Z., Liu, L., Ma, Y., Zhang, S.H., Habermann, M., Theobalt, C., et al.: Wonder3d: Single image to 3d using cross-domain diffusion. arXiv preprint arXiv:2310.15008 (2023) 2, 3, 4, 9, 10 27. Lorensen, W.E., Cline, H.E.: Marching cubes: A high resolution 3d surface con-struction algorithm. ACM SIGGRAPH Computer Graphics 21 (4), 163–169 (1987) 4, 6 28. Loshchilov, I., Hutter, F.: Decoupled weight decay regularization. arXiv preprint arXiv:1711.05101 (2017) 9 29. Lyu, J., An, L., Lin, L., Cheng, P., Liu, Y., Tang, X.: Animer+: Unified pose and shape estimation across mammalia and aves via family-aware transformer (2025), 
+
+https://arxiv.org/abs/2508.00298 13 30. Lyu, J., Zhu, T., Gu, Y., Lin, L., Cheng, P., Liu, Y., Tang, X., An, L.: Animer: Animal pose and shape estimation using family aware transformer. In: Proceedings of the Computer Vision and Pattern Recognition Conference (CVPR). pp. 17486– 17496 (2025) 13 31. Medina, J., Irschick, D., Epperly, K., Cuban, D., Elting, R., Mansfield, L., Lee, N., Fernandes, A.M., Garzón-Agudelo, F., Rico-Guevara, A.: Picocam: High-resolution 3d imaging of live animals and preserved specimens. Methods in Ecology and Evo-lution 15 (11), 1980–1989 (2024). https://doi.org/10.1111/2041-210x.14409 ,published online August 2024 2 32. Miller, A.E., Hogan, B.G., Stoddard, M.C.: Color in motion: Generating 3-dimensional multispectral models to study dynamic visual signals in animals. Frontiers in Ecology and Evolution 10 , 983369 (2022). https://doi.org/10.3389/ fevo.2022.983369 , published 30 September 2022 2 33. Omotara, G., Tousi, S.M.A., Decker, J., Brake, D., DeSouza, G.N.: High-throughput and accurate 3d scanning of cattle using time-of-flight sensors and deep learning. Sensors 24 (16), 5275 (2024). https://doi.org/10.3390/s24165275 ,published 14 August 2024 2 34. Otto, C., Chandran, P., Zoss, G., Gross, M., Gotardo, P., Bradley, D.: A perceptual shape loss for monocular 3d face reconstruction. Computer Graphics Forum 42 (7), 14945 (2023). https://doi.org/10.1111/cgf.14945 535. Park, J.J., Florence, P., Straub, J., Newcombe, R., Lovegrove, S.: Deepsdf: Learn-ing continuous signed distance functions for shape representation. In: The IEEE Conference on Computer Vision and Pattern Recognition (CVPR) (June 2019) 4 36. Perla, S.R.K., Wang, Y., Mahdavi-Amiri, A., Zhang, H.: Easi-tex: Edge-aware mesh texturing from single image. ACM Transactions on Graphics (Proceed-ings of SIGGRAPH) 43 (4) (2024). https://doi.org/10.1145/3658222 , https: //github.com/sairajk/easi-tex 437. Rombach, R., Blattmann, A., Lorenz, D., Esser, P., Ommer, B.: High-resolution image synthesis with latent diffusion models. In: CVPR. pp. 10684–10695 (2022) 4, 6, 7, 9 38. Rüegg, N., Tripathi, S., Schindler, K., Black, M.J., Zuffi, S.: BITE: Beyond priors for improved three-D dog pose estimation. In: IEEE/CVF Conf. on Computer Vision and Pattern Recognition (CVPR). pp. 8867–8876 (Jun 2023) 2, 3, 5, 6 DogWeave 17 39. Sabathier, R., Mitra, N.J., Novotny, D.: Animal avatars: Reconstructing animat-able 3d animals from casual videos. In: Proceedings of the 18th European Confer-ence on Computer Vision (ECCV). pp. 270–287. Springer (2024). https://doi. org/10.1007/978-3-031-72986-7_16 , https://arxiv.org/abs/2403.17103 2, 3 40. Seitzer, M.: pytorch-fid: FID Score for PyTorch. https://github.com/mseitzer/ pytorch-fid (August 2020), version 0.3.0 9, 11 41. Sklyarova, V., Kabadayi, B., Yiannakidis, A., Becherini, G., Black, M.J., Thies, J.: Neuralfur: Animal fur reconstruction from multi-view images. arXiv preprint arXiv:2601.12481 (2026) 2 42. Sklyarova, V., Kabadayi, B., Yiannakidis, A., Becherini, G., Black, M.J., Thies, J.: Neuralfur: Neuralfur: Animal fur reconstruction from multi-view images. ArXiv (January 2026) 2 43. Stojanov, S., Thai, A., Rehg, J.M.: Using shape to categorize: Low-shot learn-ing with an explicit shape bias. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 1798–1808 (2021) 2, 3 44. Team, S.D., Chen, X., Chu, F.J., Gleize, P., Liang, K.J., Sax, A., Tang, H., Wang, W., Guo, M., Hardin, T., Li, X., Lin, A., Liu, J., Ma, Z., Sagar, A., Song, B., Wang, X., Yang, J., Zhang, B., Dollár, P., Gkioxari, G., Feiszli, M., Malik, J.: Sam 3d: 3dfy anything in images (2025), https://arxiv.org/abs/2511.16624 2, 3, 9, 10 45. Team, T.H.: Hunyuan3d 1.0: A unified framework for text-to-3d and image-to-3d generation (2024) 2, 3, 9, 10 46. Team, T.H.: Hunyuan3d 2.0: Scaling diffusion models for high resolution textured 3d assets generation (2025) 2, 3, 9, 10 47. Team, T.H.: Hunyuan3d 2.5: Towards high-fidelity 3d assets generation with ulti-mate details (2025), https://arxiv.org/abs/2506.16504 2, 3, 9, 10 48. Tochilkin, D., Pankratz, D., Liu, Z., Huang, Z., , Letts, A., Li, Y., Liang, D., Laforte, C., Jampani, V., Cao, Y.P.: Triposr: Fast 3d object reconstruction from a single image. arXiv preprint arXiv:2403.02151 (2024) 2, 3, 9, 10 49. Čermák, V., Picek, L., Adam, L., Papafitsoros, K.: WildlifeDatasets: An Open-Source Toolkit for Animal Re-Identification. In: Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision (WACV). pp. 5953–5963 (January 2024) 2 50. Wang, P.S., Liu, Y., Tong, X.: Dual octree graph networks for learning adaptive volumetric shape representations. ACM Transactions on Graphics (SIGGRAPH) 
+
+41 (4) (2022) 4 51. Wang, P.S., Liu, Y., Tong, X.: Dual octree graph networks for learning adaptive volumetric shape representations. arXiv preprint arXiv:2205.02825 (2022), https: //wang-ps.github.io/dualocnn 652. Wang, Z., Wang, Y., Chen, Y., Xiang, C., Chen, S., Yu, D., Li, C., Su, H., Zhu, J.: Crm: Single image to 3d textured mesh with convolutional reconstruction model. arXiv preprint arXiv:2403.05034 (2024) 2, 3, 9, 10 53. Xiang, J., Lv, Z., Xu, S., Deng, Y., Wang, R., Zhang, B., Chen, D., Tong, X., Yang, J.: Structured 3d latents for scalable and versatile 3d generation. arXiv preprint arXiv:2412.01506 (2024) 2, 3, 9, 10 54. Xu, X., Tang, C., Zhang, X., Liu, Z.: Enhanced realism in animal fur simulation for digital conservation: A physically-based rendering and augmented reality approach. Applied Sciences 15 (14), 8049 (2025). https://doi.org/10.3390/app15148049 255. Yan, L.Q., Tseng, C.W., Jensen, H.W., Ramamoorthi, R.: Physically-accurate fur reflectance: Modeling, measurement and rendering. ACM Transactions on Graphics 
+
+34 (6), 185:1–185:13 (2015). https://doi.org/10.1145/2816795.2818080 218 S. Sun et al. 56. Yang, H., Su, Y., Li, B., Guo, Q.: Synchronizing 3d lidar-based reconstruction of animals and environment for in situ ecosystem characterization. Information Ge-ography 1(2), 100019 (2025). https://doi.org/10.1016/j.infgeo.2025.100019 ,short communication introducing a synchronized LiDAR-based 3D ecosystem re-construction framework 2 57. Yariv, L., Gu, J., Kasten, Y., Lipman, Y.: Volume rendering of neural implicit surfaces. In: Thirty-Fifth Conference on Neural Information Processing Systems (2021) 4 58. Ye, H., Zhang, J., Liu, S., Han, X., Yang, W.: IP-Adapter: Text compati-ble image prompt adapter for text-to-image diffusion models. arXiv preprint arXiv:2308.06721 (2023) 4, 7 59. Zhang, J., Li, X., Zhang, Q., Cao, Y., Shan, Y., Liao, J.: Humanref: Single im-age to 3d human generation via reference-guided diffusion. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR). pp. 12143–12153 (2024) 4 60. Zhang, L., Rao, A., Agrawala, M.: Adding conditional control to text-to-image diffusion models. In: ICCV. pp. 3836–3847 (2023) 4, 6, 9 61. Zhang, R., Isola, P., Efros, A.A., Shechtman, E., Wang, O.: The unreasonable effectiveness of deep features as a perceptual metric. In: CVPR (2018) 9, 11 62. Zou, D.N., Zhang, S.H., Mu, T.J., Zhang, M.: A new dataset of dog breed im-ages and a benchmark for fine-grained classification. Computational Visual Media (2020), https://doi.org/10.1007/s41095-020-0184-6 2, 8, 9 63. Zuffi, S., Kanazawa, A., Jacobs, D.W., Black, M.J.: 3d menagerie: Modeling the 3d shape and pose of animals. In: CVPR. pp. 6365–6373 (2017) 2, 3

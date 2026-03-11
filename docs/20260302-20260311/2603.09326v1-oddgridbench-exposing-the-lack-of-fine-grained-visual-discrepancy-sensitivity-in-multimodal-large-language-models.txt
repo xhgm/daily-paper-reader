@@ -1,0 +1,1019 @@
+Title: OddGridBench: Exposing the Lack of Fine-Grained Visual Discrepancy Sensitivity in Multimodal Large Language Models
+
+URL Source: https://arxiv.org/pdf/2603.09326v1
+
+Published Time: Wed, 11 Mar 2026 00:47:57 GMT
+
+Number of Pages: 21
+
+Markdown Content:
+# OddGridBench: Exposing the Lack of Fine-Grained Visual Discrepancy Sensitivity in Multimodal Large Language Models 
+
+## Tengjin Weng 1,2 , Wenhao Jiang 2,* , Jingyi Wang 4, Ming Li 2, Lin Ma 5, Zhong Ming 1,2,3,* 1College of Computer Science and Software Engineering, Shenzhen University 
+
+> 2
+
+## Guangdong Laboratory of Artificial Intelligence and Digital Economy (SZ) 
+
+> 3
+
+## Shenzhen Technology University 
+
+> 4
+
+## Tsinghua Shenzhen International Graduate School 
+
+> 5
+
+## Meituan 
+
+## Abstract 
+
+Multimodal large language models (MLLMs) have achieved remarkable performance across a wide range of vision language tasks. However, their ability in low-level vi-sual perception, particularly in detecting fine-grained vi-sual discrepancies, remains underexplored and lacks sys-tematic analysis. In this work, we introduce OddGrid-Bench, a controllable benchmark for evaluating the visual discrepancy sensitivity of MLLMs. OddGridBench com-prises over 1,400 grid-based images, where a single ele-ment differs from all others by one or multiple visual at-tributes such as color, size, rotation, or position. Exper-iments reveal that all evaluated MLLMs, including open-source families such as Qwen3-VL and InternVL3.5, and proprietary systems like Gemini-2.5-Pro and GPT-5, per-form far below human levels in visual discrepancy detec-tion. We further propose OddGrid-GRPO, a reinforcement learning framework that integrates curriculum learning and distance-aware reward. By progressively controlling the difficulty of training samples and incorporating spa-tial proximity constraints into the reward design, OddGrid-GRPO significantly enhances the model’s fine-grained vi-sual discrimination ability. We hope OddGridBench and OddGrid-GRPO will lay the groundwork for advancing per-ceptual grounding and visual discrepancy sensitivity in mul-timodal intelligence. Code and dataset are available at https://wwwtttjjj.github.io/OddGridBench/. 
+
+## 1. Introduction 
+
+Human vision exhibits remarkable sensitivity to subtle vi-sual discrepancies. This phenomenon is described within the frameworks of just noticeable difference and the pop-out effect [40, 42], suggesting that the visual system can 
+
+> *Corresponding author. Color
+> Discrepancy
+> Rotation
+> Discrepancy
+> Size
+> Discrepancy
+> Increasing Visual Discrepancy
+> Small visual differences are
+> hard to notice .
+> Large visual differences are
+> easily detected .
+> Human
+> perception
+
+Figure 1. Illustration of human perceptual visual discrepancy sen-sitivity, showing the transition from imperceptible to perceptible visual differences in color, rotation, and size. 
+
+rapidly identify any element that disrupts the uniformity of a visual field. As shown in Figure 1, gradual changes in low-level visual attributes such as color, orientation, and size can trigger a perceptual transition from indistinguishable to salient stimuli. These observations highlight the human vi-sual system’s inherent ability to perceive fine-grained vari-ations even in cluttered or homogeneous scenes. Multimodal Large Language Models (MLLMs) have achieved remarkable progress in high-level reasoning and multimodal understanding [3, 15, 28, 31]. Existing bench-marks for MLLMs mainly focus on high-level visual under-standing in natural scenes, such as image captioning, refer-ring expression comprehension, and visual commonsense reasoning [12, 43, 45]. Beyond general perception, other benchmarks emphasize symbolic reasoning and semantic interpretation, including mathematical problem solving, di-                             
+
+> arXiv:2603.09326v1 [cs.CV] 10 Mar 2026 GPT-5 Gemini-2.5-pro Qwen3-VL-32B Human InternVL-3.5-38B
+> GT: (Row 6, Col 1) (Row 5, Col 1) (Row 4, Col 2)
+> (Row 6, Col 3) (Row 5, Col 4) (Row 6, Col 1)
+> Discrepancy Type ：
+> [Rotation]
+> Δθ:+14 °
+> Category:
+> Symbolic (Number 6)
+> GT: (Row 5, Col 1) (Row 4, Col 5) (Row 5, Col 2)
+> (Row 5, Col 5) (Row 5, Col 1)
+> Discrepancy Types ：
+> [Size, Rotation,
+> Position]
+> Δs :-14 %
+> Δθ:+22 °
+> [Δx ,Δy ]: [+6, +6]
+> Category ：
+> Natural (Squid)
+> (Row 5, Col 5)
+> Discrepancy
+> Types ：
+> [Size, Position]
+> Δs :-8%
+> [Δx ,Δy ]: [+7, +7]
+> Category ：
+> Natural (Giraffe)
+> GT: (Row 1, Col 6) (Row 7, Col 5) (Row 4, Col 2)
+> (Row 1, Col 6) (Row 5, Col 7) (Row 1, Col 6)
+> Discrepancy Type ：
+> [Size]
+> Δs :-9%
+> Category ：
+> Symbolic (Alert)
+> GT: (Row 3, Col 7) (Row 4, Col 5) (Row 4, Col 3)
+> (Row 4, Col 7) (Row 6, Col 2) (Row 3, Col 7)
+> GT: (Row 3, Col 3) (Row 3, Col 3) (Row 3, Col 3)
+> (Row 3, Col 3) (Row 5, Col 1) (Row 3, Col 3)
+> Discrepancy Types ：
+> [Color , Size,
+> Rotation, Position]
+> ΔE : 9
+> Δs :+10%
+> Δθ: -17 °
+> [Δx ,Δy ]: [+5, +6]
+> Category ：
+> Artificial (Phone)
+> (Row 4, Col 3) (Row 4, Col 3)
+> (Row 5, Col 3) (Row 5, Col 3) (Row 5, Col 3)
+> Discrepancy
+> Type:
+> [Color]
+> ΔE: 14
+> GT: (Row 5, Col 3)
+> Category:
+> Artificial (Mallet)
+
+Figure 2. Overview of OddGridBench. OddGridBench encompasses four primary visual attributes, including color, size, rotation, and position, and supports both single-attribute and multi-attribute discrepancy compositions, providing a systematic framework for evaluating the perceptual discrepancy sensitivity of MLLMs. 
+
+agram understanding, and structured visual question an-swering [17, 22, 26, 32, 41]. However, existing evaluations of MLLMs often overlook an essential aspect of human vi-sion, the ability to detect fine-grained discrepancies in vi-sual scenes. Such perceptual sensitivity is a prerequi-site for robust spatial reasoning, object understanding, grounding, and visual question answering, and weak-ness at this foundational layer undermines the reliability of higher-level MLLMs’ capabilities. 
+
+In this work, we introduce OddGridBench, a control-lable and scalable benchmark based on the Odd-One-Out paradigm [38], designed to evaluate the visual perceptual discrepancy sensitivity of MLLMs systematically. As il-lustrated in Figure 2, each instance presents a grid of vi-sually similar icons, where one element subtly differs from the others in a single or multiple low-level visual attributes such as color ( ∆E), size ( ∆s), rotation ( ∆θ), or position ([∆ x, ∆y]). By isolating perceptual differences from high-level semantics, OddGridBench allows a direct evaluation of MLLMs’ ability to perceive visual discrepancies. We evaluated 19 MLLMs on OddGridBench and found that even state-of-the-art models perform poorly in fine-grained visual discrepancy perception, as shown in Figure 3. We further propose OddGrid-GRPO, a reinforcement learning framework designed to enhance MLLMs’ perceptual sensi-tivity through curriculum learning and spatially guided re-ward. The main contributions are summarized as follows: 1. We present OddGridBench, a scalable, controllable benchmark for evaluating the perceptual discrepancy ca-pabilities of MLLMs. By generating grid-based im-ages in a parameterized space that continuously controls color, scale, rotation, and position, OddGridBench en-ables quantitative and systematic analysis of model sen-sitivity across multiple perceptual dimensions. 2. We conduct comprehensive experiments on a broad set of state-of-the-art open-source and proprietary MLLMs, revealing consistent and previously underexplored fail-ure patterns in fine-grained perceptual discrimination across all model families. 3. We propose OddGrid-GRPO, by combining curriculum learning with a distance-aware reward that provides con-tinuous perceptual feedback, the framework progres-sively enhances discrepancy sensitivity and achieves more fine-grained visual discrimination. 2. Related Works 
+
+2.1. MLLMs and Benchmarks 
+
+Recent advances in MLLMs have demonstrated remarkable capabilities across diverse visual and linguistic tasks, driven by large-scale pre-training on paired image-text data. Both open-source [1, 5, 13, 14, 18, 19, 39, 47] and proprietary systems [6, 34, 35] have achieved impressive performance in domains such as mathematical reasoning [49], chart un-derstanding [33], and medical image interpretation [27]. Such rapid progress has spurred the development of nu-merous benchmarks for evaluating multimodal understand-ing and reasoning [20, 25, 41, 44, 48]. However, existing benchmarks for MLLMs mainly focus on high-level seman-tic reasoning, while overlooking fine-grained low-level vi-sual perception, which serves as the foundation for accurate understanding and reasoning. 
+
+2.2. Fine-Grained Visual Discrepancy Sensitivity 
+
+Fine-grained visual discrepancy sensitivity represents a fun-damental aspect of low-level visual perception, reflecting a model’s ability to distinguish subtle differences among visually similar elements. The natural starting point for investigating perceptual sensitivity is the Odd-One-Out paradigm, which has long been used in cognitive psy-chology and vision science to study perceptual discrimi-nation and attentional mechanisms. In visual recognition and representation learning, Odd-One-Out or anomaly de-tection setups have been employed to evaluate a model’s ability to capture perceptual distinctiveness and local ir-regularities [2, 8, 9]. Bhunia et al. [8] proposed an Odd-One-Out detection framework for visual anomaly recog-nition, while Akbarinia [2] investigated visual sensitivity in neural architectures through psychophysical-style stim-uli. These studies demonstrate that machine perception can, to some extent, replicate human-like discrimination behav-ior when exposed to controlled visual perturbations. How-ever, most existing implementations rely on small-scale datasets or handcrafted stimuli, which limit their general-izability across diverse perceptual dimensions. Moreover, prior Odd-One-Out or anomaly-detection frameworks are tailored to visual encoders or recognition networks trained with dense pixel-level supervision, making them unsuitable for MLLMs whose architectures do not inherently support region-level perception or localization. These limitations highlight the necessity of establishing an evaluation frame-work with dynamic and interpretable feedback to better un-derstand how models perceive visual perturbations. 
+
+2.3. Reinforcement Learning for Visual Alignment 
+
+Reinforcement learning (RL) enhances visual perception and alignment in multimodal models, enabling them to learn from feedback-driven supervision rather than static Color 
+
+> Size
+> Rotation
+> Position
+> 2-Type
+> 3-Type
+> 4-Type
+> Total Acc
+> 20
+> 40
+> 60
+> 80
+> 100
+> Results on OddGridBench
+> Random
+> Molmo-72B
+> InternVL3.5-38B
+> Qwen3-VL-4B
+> Qwen3-VL-32B
+> Gemini-2.5-Pro
+> GPT-5
+> Human
+
+Figure 3. Evaluation results of MLLMs on the OddGridBench. Human performance significantly surpasses all evaluated MLLMs across color, size, rotation, and position dimensions, as well as multi-type combinations. 
+
+labels. It has become a central paradigm for aligning large language and multimodal models with human prefer-ences [11, 51]. Recent progress in RL for model alignment has been driven by the Group Relative Policy Optimiza-tion (GRPO) algorithm, the core optimization paradigm be-hind DeepSeek-V3 [29]. Building on this foundation, re-cent studies [7, 10, 23] have extended GRPO-based training beyond text-only alignment to multimodal domains, where RL enhances image reasoning and perceptual grounding. These developments highlight a promising direction for aligning large multimodal models both semantically and perceptually, achieving finer-grained consistency between visual inputs and model reasoning. However, existing RL-based alignment approaches primarily focus on outcome-level rewards capturing semantic correctness or linguis-tic coherence, while overlooking perceptual alignment be-tween model predictions and human visual judgments. De-veloping effective reinforcement strategies for fine-grained visual discrepancy perception requires a paradigm that op-erates directly at the perceptual level, enabling models to discriminate subtle visual variations independent of seman-tic supervision. 
+
+## 3. OddGrid Benchmark 
+
+3.1. Overview 
+
+OddGridBench is designed to evaluate model sensitivity to fine-grained visual discrepancies under controlled condi-Random  
+
+> Select
+> ...
+> ...
+> Generate image step by step
+> Discrepancy [x, y]: [3, 4]
+> Discrepancy Type: Color
+> ΔE :13
+> Grid Size: 6 x 5
+> Block Size: 69
+> Category: Natural (cow)
+> Base Parameters Key Parameters
+> Odd Position
+> Normal Position
+
+Python Program 
+
+> Random generation of controllable parameters
+
+OddGridBench           
+
+> Discrepancy Type: Color
+> ΔE : 13
+> Correct Answer: Row 2, Col 8
+> Grid Size: 4 x 9
+> Discrepancy Type: Size
+> Δs: +8%
+> Correct Answer: Row 1, Col 7
+> Grid size: 6 x 8
+> Discrepancy Type:: Rotation
+> Δθ:-10 °
+> Correct Answer: Row 1, Col 4
+> Grid size: 5 x 6
+> Discrepancy Type: Position
+> [Δx ,Δy ]: [+7,+6]
+> Correct Answer: Row 4, Col 2
+> Grid size: 5 x 6
+
+SVG files   
+
+> Manually Selected
+> Each category contains 100 icons
+> resulting in a total of 300 SVG files
+> (Test and Validation Datasets )
+> IconFont (Alibaba)
+> biycle
+> cup
+> shoe
+> ...
+> flamingo
+> mountain
+> orange
+> ...
+> word A
+> bluetooth
+> number 8
+> ...
+> Symbolic Natural Artificial
+> Contains a total of 10,000 SVG files.
+> (Training Dataset )
+> Material Design Icons
+
+Figure 4. Overview of the OddGridBench data generation pipeline, which constructs grid-based images from collected icons under pre-cisely controlled perceptual conditions for evaluating visual discrepancy sensitivity. 
+
+tions. As shown in Figure 4, icons are collected from a large-scale vector repository and synthesized into grid im-ages within a rigorously parameterized space, with all gen-eration metadata recorded for full reproducibility and quan-titative analysis. Synthetic icons are used intentionally to provide precise, psychophysics-style control over percep-tual variables that real-world images cannot offer. OddGrid-Bench contains 1,400 test samples spanning seven types: four single attributes (Color, Size, Rotation, Position) and three multi-attribute combinations (2-Type, 3-Type, and 4-Type), with 200 samples per attribute. An additional 400 validation images and 30,000 training images are gener-ated under the same conditions to ensure consistency across splits. 
+
+3.2. Icon Source 
+
+We collect icons from two sources: IconFont [4] and Ma-terial Design Icons [21]. All icons are standardized into scalable vector graphics (SVG) format to ensure resolution independence and visual consistency. For the test and val-idation datasets, we manually select 300 SVG icons from IconFont and categorize them into three semantic groups. • Artificial : Man-made objects such as bicycles, cups, and shoes. • Natural : Natural elements like flamingos, mountains, and oranges. • Symbolic : Abstract or textual symbols such as letters, numbers, and logos. Each group contains 100 distinct icons, resulting in 300 manually curated SVG files in total. For the training dataset, we collect 10,000 SVG icons from Material Design Icons, which provide diverse yet standardized vector representa-tions. 
+
+3.3. Controlled Image Generation 
+
+Each OddGridBench image is generated using a parame-terized Python program for precise control of layout, at-tributes, and perceptual differences. 
+
+Basic image layout parameters. The spatial structure of each image is primarily defined by two parameters: • Grid size: Each image adopts a grid layout consisting of 5 to 9 rows and columns. Varying the grid size con-trols the spatial density of items and the overall perceptual complexity of the scene. • Block size: Each icon is rendered within a square region whose size is randomly sampled between 60 and 80 pix-els. Randomized block sizes are used within a predefined range to introduce moderate variation while keeping the layout visually consistent. 
+
+Visual discrepancy parameters. The perceptual variation between the odd item and the distractors is controlled by four types of parameters, corresponding to distinct percep-tual attributes: • Color discrepancy ( ∆E): The color contrast is defined in the CIE–Lab color space. The base and odd items are assigned Lab values, and their perceptual distance ∆E is sampled from a predefined range ([5, 20]), ensuring con-trolled transitions from imperceptible to clearly percepti-ble differences. • Size discrepancy ( ∆s): The odd item is generated by slightly resizing the base icon, either reducing it to 85%–95% or enlarging it to 105%–115% of its original size. • Rotation discrepancy ( ∆θ): The odd item is gener-ated by rotating the base icon clockwise or counterclock-wise within a controlled angular range, typically between (a) OddGrid -GRPO Framework  
+
+> Split
+> Easy samples (15K)
+> Med samples (10K)
+> Hard samples (5K) Step 3
+> Step 2
+> Step 1
+
+Curriculum-Guided Optimization     
+
+> Training Set (30k)
+> ΔE (Color), Δs (Size) , Δ θ
+> (Angel), [Δx ,Δy ] (Position);
+> Attribute Count; Grid Size
+> Difficulty Scoring
+> Easy (5K)
+> Med (5K)
+> Hard (5K)
+> Easy (5K)
+> Med (10K)
+> Easy (15K)
+> Distance-
+> Aware GRPO
+> Model
+> Model
+> Distance-
+> Aware GRPO
+> Distance-
+> Aware GRPO
+
+Data Partitioning 
+
+(b) Distance-Aware GRPO                     
+
+> Q
+> 𝐀 0
+> 𝐀 1
+> 𝐀 2
+> 𝐀 3
+> [2, 3]
+> [3, 3]
+> [8, 9]
+> [None]
+> 𝐀 𝐀 =1.0,𝐀 𝐀 = 0.64
+> 𝐀 𝐀 =1.0,𝐀 𝐀 = 1.0
+> 𝐀 𝐀 =1.0,𝐀 𝐀 = 0.0
+> 𝐀 𝐀 =0.0,𝐀 𝐀 = 0.0
+> 𝐀 𝐀 =𝐀𦠀𝐀 𝐀 ,𝐀𩐀 −𝐀 2
+> 2𝐀 2−𝐀 ,0
+
+Figure 5. Overview of OddGrid-GRPO framework. OddGrid-GRPO integrates curriculum-guided optimization with spatially guided reward shaping to enhance perceptual grounding and improve fine-grained visual discrimination in MLLMs. 
+
+−25 ◦ and −5◦ or between 5◦ and 25 ◦.• Position discrepancy ([∆ x, ∆y]): The odd item is shifted slightly away from its grid center in both hori-zontal and vertical directions, typically by 5%–12% of the block size. This small displacement produces a subtle but clearly localized positional deviation, simulating mild spatial misalignment. In addition to single-type discrepancies, OddGridBench also includes multi-type combinations, where the odd item simultaneously differs from the base items in multiple per-ceptual dimensions. For example, a 2-Type case may jointly vary color and size, while a 4-Type case integrates differ-ences in color, size, rotation, and position. These mixed conditions increase task complexity by introducing poten-tial interactions among visual attributes. 
+
+## 4. OddGrid-GRPO 
+
+4.1. Motivation and Overview 
+
+Current MLLMs exhibit low sensitivity to fine-grained vi-sual discrepancies and often fail to reason over structured spatial layouts, frequently miscounting or confusing grid in-dices even when the anomalous region is visually clear. To overcome these limitations, we propose OddGrid-GRPO, as illustrated in Fig. 5, which integrates two components: • Curriculum-guided optimization. Training begins with coarse visual differences and gradually shifts toward sub-tle ones, which stabilizes the RL process and enables the model to acquire fine-grained perceptual sensitivity in a more human-like manner. • Distance-aware reward formulation. We design a distance-based reward that provides continuous feedback proportional to the spatial proximity between predicted and ground-truth coordinates, offering richer supervision than the binary signal in standard GRPO and enabling better modeling of spatial dependencies. More details of the curriculum-guided optimization 4.2 and distance-aware reward formulation 4.3 are provided in the following subsections. 
+
+4.2. Curriculum-Guided Optimization 
+
+Each sample is assigned a continuous difficulty score deter-mined by three key factors: grid size, odd item attribute count, and fine-grained perturbation parameters. Larger grid sizes, fewer odd item attribute counts, and smaller per-turbation magnitudes correspond to higher difficulty scores, indicating that such samples are harder to distinguish. 
+
+Data Partitioning. Samples are sorted according to their difficulty scores and divided into three subsets with a ra-tio of Easy (15K), Medium (10K), and Hard (5K), corre-sponding to progressively increasing perceptual difficulty. The Easy subset mainly contains grids with large, salient discrepancies, while the Hard subset includes subtle, near-threshold variations that require fine-grained perceptual sensitivity. Intermediate samples form the Medium subset, bridging the two extremes. 
+
+Progressive Training Schedule. The model is optimized progressively in three stages. In Step 1, training begins with 15K easy samples, allowing the policy to establish coarse spatial alignment. In Step 2, the model is trained on a mixed set of 5K easy and 10K medium samples to improve gener-alization under moderate visual discrepancies. In Step 3, 5K hard samples are introduced along with a subset of easier ones to stabilize optimization and strengthen fine-grained perceptual discrimination. Such progressive learning from easy to hard conditions prevents premature convergence and encourages refined visual sensitivity. 
+
+4.3. Distance-Aware Reward Formulation 
+
+GRPO employs a binary correctness signal, where the model receives a reward of 1 for an exact match and 0 otherwise. While this formulation is suitable for discrete reasoning tasks, it is suboptimal for perceptual localiza-tion, where predictions that are spatially close to the correct cell should not be penalized as harshly as entirely incorrect ones. To provide a smoother and more informative learning signal, we design a distance-aware reward that continuously Table 1. Accuracies (%) of various MLLMs on the OddGridBench dataset. The benchmark evaluates fine-grained visual discrimination across four perceptual dimensions as well as their multi-type combinations. Dark gray and Light gray indicate the best and second-best results among all models, respectively. 
+
+Method Color Size Rotation Position 2-Type 3-Type 4-Type Total Random 2.00 2.00 2.00 2.00 1.50 4.00 3.50 2.43 Open-source MLLMs Phi-3.5-vision 2.00 2.00 2.00 1.50 1.50 1.50 2.00 1.79 SAIL-VL2-2B 13.50 2.50 3.00 2.00 7.50 5.00 9.50 6.14 SAIL-VL2-8B 45.00 2.50 5.00 2.50 21.50 24.00 30.50 18.71 LLaVA-OneVision-1.5-4B 27.50 3.00 7.50 1.00 14.00 17.50 26.00 13.79 LLaVA-OneVision-1.5-8B 39.50 7.50 9.00 4.50 21.00 37.00 47.50 23.71 LLaVA-v1.6-34B 3.50 2.00 2.50 2.50 3.00 3.00 2.50 2.71 InternVL3.5-38B 45.50 2.00 16.00 10.00 29.50 37.00 49.50 27.07 Molmo-72B 25.50 2.00 7.00 1.00 12.00 12.00 17.50 11.00 Qwen2.5-VL-7B 2.00 1.50 0.50 0.00 2.50 2.50 5.00 2.00 Qwen2.5-VL-72B 25.00 1.00 5.00 2.50 10.50 17.50 17.50 11.29 Qwen3-VL-2B 23.00 5.00 12.50 7.00 19.00 22.50 31.00 17.14 Qwen3-VL-4B 73.00 28.00 39.00 27.50 56.00 70.50 73.00 52.43 Qwen3-VL-8B 72.00 20.50 35.50 19.00 55.50 67.00 71.50 48.71 Qwen3-VL-30B (Moe) 62.50 21.00 20.50 25.00 47.00 52.50 62.00 41.50 Qwen3-VL-32B 85.00 39.50 52.50 39.00 76.50 89.50 94.50 68.07 Proprietary MLLMs Gemini-2.0-Flash 53.50 5.00 16.00 5.00 32.50 43.50 47.50 29.00 Gemini-2.5-Flash 70.00 7.00 21.00 5.00 48.50 54.50 72.50 39.79 Gemini-2.5-Pro 82.50 9.50 26.00 6.50 56.50 76.00 88.00 49.29 GPT-5 56.50 9.50 21.00 5.00 29.00 35.50 46.00 28.93 Human 91.33 69.33 82.67 78.00 96.00 97.33 97.67 87.47 
+
+scales with the spatial proximity between the predicted and ground-truth positions. For each prediction, we compute the Euclidean distance between the predicted and ground-truth grid positions as 
+
+d =
+
+q
+
+(rp − rg )2 + ( cp − cg )2,
+
+where (rp, c p) and (rg , c g ) denote the row and column in-dices of the predicted and ground-truth cells, respectively. If the prediction exactly matches the ground truth, a perfect reward of rd = 1 is assigned. Otherwise, the reward decays smoothly with increasing spatial distance according to 
+
+rd = max 
+
+
+
+exp 
+
+
+
+− d2
+
+2σ2
+
+
+
+− β, 0
+
+
+
+,
+
+where σ is a scale-adaptive parameter proportional to the grid diagonal ( σ = λpn2 
+
+> rows
+
++ n2
+
+> cols
+
+), and β is a small bias term that suppresses rewards for distant predictions. In practice, λ is set to 0.25 and β to 0.3, controlling the smoothness of the Gaussian decay and the cutoff threshold for low-confidence samples. We retain a small format reward to ensure structural con-sistency in model outputs, and define the overall optimiza-tion reward as 
+
+roverall = (1 − ω) rd + ω r f,
+
+where ω denotes the format weight and is empirically set to 0.2. OddGrid-GRPO provides a principled way to align reinforcement signals with geometric proximity, effectively enhancing row–column reasoning and spatial alignment. 
+
+## 5. Experiments 
+
+Evaluation Settings We evaluate 19 representative MLLMs from 9 model families, covering both open-source and proprietary systems. The open-source models in-clude Phi-3.5-Vision [1], SAIL-VL2 (2B, 8B) [47], LLaVA-OneVision-1.5 (4B, 8B) [5], LLaVA-v1.6-34B [30], InternVL3.5-38B [39], Molmo-72B [19], and Qwen-VL se-ries including Qwen2.5-VL (7B, 72B) [36] and Qwen3-VL (2B, 4B, 8B, 30B, 32B) [37]. The proprietary mod-els consist of Gemini-2.0-Flash, Gemini-2.5-Flash, Gemini-2.5-Pro [16], and GPT-5 [24]. For human evaluation, we E (increasing )         
+
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100
+> Accuracy (%)
+> Color Discrepancy
+> s (increasing )
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100 Size Discrepancy
+> (increasing )
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100 Rotation Discrepancy
+> d (increasing )
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100 Position Discrepancy
+> InternVL3.5-38B GPT-5 Gemini-2.5-Pro Qwen3-VL-32B-Instruct
+
+Figure 6. Accuracy across varying perceptual discrepancy magnitudes in four visual dimensions. The x-axis represents the incremental difference in each attribute ( ∆d = p(∆ x)2 + (∆ y)2). As the discrepancy increases from imperceptible to clearly perceptible levels, model performance gradually improves. Table 2. Comparison of strict accuracy (Acc), Tolerance Accuracy (TolAcc), and Labeled Grid Accuracy (LabeledAcc). Values in green indicate improvements relative to strict accuracy. 
+
+Method Acc TolAcc LabeledAcc InternVL3.5-38B 27.07 53.29 (↑ +26 .22) 56.40 (↑ +19 .33) 
+
+Qwen3-VL-4B 52.43 74.14 (↑ +21 .71) 70.40 (↑ +17 .97) 
+
+Qwen3-VL-32B 68.07 75.43 (↑ +7 .36) 73.80 (↑ +5 .73) 
+
+Gemini-2.5-Pro 49.29 61.21 (↑ +11 .92) 58.40 (↑ +9 .11) 
+
+randomly sample 350 instances (50 from each perceptual attribution). Each sample is independently annotated by three trained human evaluators who identify the odd ele-ment based solely on visual cues. Final human accuracy is computed as the average correctness across annotators. More details can be found in Appendix B. 
+
+Training Settings. We adopt Qwen3-VL-2B as the base model and train it under the EasyR1 [46] RL framework. The optimizer is AdamW with a learning rate of 1 × 10 −6,weight decay of 1 × 10 −2, gradient clipping at 1.0, and a KL-penalty coefficient of 1 × 10 −2. Each rollout generates three samples, and training is performed for 100 steps on 4×A800 GPUs with a global batch size of 256. All experi-ments use identical configurations for fair comparison. 
+
+5.1. Evaluation Results on OddGridBench 
+
+Table 1 summarizes the quantitative results across all eval-uated models. Models like Phi-3.5-Vision and LLaVA-v1.6-34B perform near random, while SAIL-VL2-8B and LLaVA-OneVision-8B show slight improvements in color and multi-type tasks but still struggle with rotation and po-sition. Qwen3-VL-32B achieves the highest overall accu-racy (68.07%) across all models. Notably, even Qwen3-VL-2B and Qwen3-VL-4B outperform much larger models such as InternVL3.5-38B and Molmo-72B, demonstrating that fine-grained perceptual discrimination depends more on data alignment and perceptual coupling than on param-eter scale alone. For proprietary systems, performance does not show a clear advantage over leading open-source models. Gemini-2.5-Pro achieves the best overall score (49.29%) among proprietary systems, excelling in color and multi-type categories but still lagging behind Qwen3-VL-4B. Gemini-2.0-Flash, Gemini-2.5-Flash, and GPT-5 reach comparable levels to mid-scale open-source models. Ex-isting MLLMs exhibit limited sensitivity to subtle visual discrepancies, particularly under rotation and position per-turbations. By contrast, human participants achieve a total accuracy of 87.47%, maintaining stable performance across all categories and revealing a pronounced gap between hu-man and model-level perception. 
+
+5.2. Further Analysis 
+
+Sensitivity to Perceptual Discrepancy Magnitude. To investigate the effect of attribute discrepancy magnitude on model performance, we analyze MLLMs’ accuracy under incremental variations of a single attribute, as shown in Fig-ure 6. For each perceptual attribute, the full range of dis-crepancy values is divided into five equal intervals, corre-sponding to a progressive increase in perceptual difficulty from nearly imperceptible to clearly distinguishable differ-ences. As the discrepancy level increases, model accuracy gradually improves. Color discrepancy yields the most sig-nificant performance gains, whereas geometric attributes such as Rotation and Position exhibit much slower improve-ment. This trend indicates that current MLLMs rely heavily on coarse visual differences while lacking fine-grained per-ceptual sensitivity. 
+
+Analysis of Localization Accuracy. To further examine the nature of model errors, we introduce two extra metrics for accuracy: (1) Tolerance Accuracy (TolAcc): counts a prediction as correct if it lies within one row and column of Table 3. Quantitative comparison of OddGrid-GRPO with existing reinforcement learning methods (upper block) and its ablated variants (lower block) across all perceptual attribute types on OddGridBench. 
+
+Method Color Size Rotation Position 2-Type 3-Type 4-Type Total Baseline 23.00 5.00 12.50 7.00 19.00 22.50 31.00 17.14 GRPO 88.50 44.00 67.50 41.50 78.50 83.00 93.00 70.86 GSPO 70.00 55.00 81.50 59.00 85.50 85.50 95.00 75.93 OddGrid-GRPO (w/o rd) 87.50 44.50 67.00 45.50 80.50 91.00 91.50 72.50 OddGrid-GRPO (w/o Cur-Guided) 87.50 60.50 69.00 64.00 84.00 88.50 95.50 78.43 OddGrid-GRPO 89.50 64.50 80.50 64.50 90.50 91.50 97.50 82.64 0 20 40 60 80 100 
+
+> Training Step
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> Reward (Overall)
+> Training Reward Curves on OddGridBench
+> GRPO
+> GSPO
+> OddGrid-GRPO
+> Figure 7. Training curves of GRPO, GSPO, and OddGrid-GRPO. OddGrid-GRPO converges faster and achieves higher final re-wards, indicating more stable and efficient optimization.
+
+the ground-truth cell ( |∆row | ≤ 1, |∆col | ≤ 1), capturing coarse spatial sensitivity. (2) Labeled Grid Accuracy (La-beledAcc): re-evaluates model performance when the input grid image explicitly displays row and column indices, al-lowing the model to make predictions based on visible co-ordinate information. As shown in Table 2, all evaluated models achieve clear improvements under the relaxed met-rics. For example, Qwen3-VL-4B increases from 52.43% to 74.14% in TolAcc, suggesting that most of its predictions fall near the correct grid but lack precise localization. Sim-ilar patterns are observed in InternVL3.5-38B and Gem-ini 2.5 Pro, whose large gains from strict to relaxed accuracy indicate that errors mainly occur within close spatial prox-imity to the target cell. These results imply that the current MLLMs have insufficient fine-grained spatial calibration. 
+
+5.3. Effectiveness of OddGrid-GRPO 
+
+As shown in Table 3, OddGrid-GRPO substantially outper-forms both the supervised baseline, standard GRPO, and GSPO [50] across all types of visual discrepancy tasks. The Base model struggles to perceive subtle attribute dif-ferences, achieving only 17.14% overall accuracy. Apply-ing GRPO markedly enhances fine-grained discrimination to 70.86%, verifying the effectiveness of RL optimization. Building upon this, OddGrid-GRPO further raises perfor-mance to 82.64%, achieving an additional gain of +11.78% over GRPO. This improvement is consistent across all cat-egories, with particularly notable gains in Rotation (+13.0) and Position (+23.0). These results indicate that the pro-posed distance-aware reward provides continuous feedback proportional to spatial deviation, enabling the model to cap-ture fine-grained discrepancies more effectively rather than relying solely on binary correctness signals. In addition to the quantitative gains, the training dynam-ics shown in Figure 7 further validate the effectiveness of OddGrid-GRPO. Compared with GRPO, our method con-verges faster and achieves higher final rewards through-out training, demonstrating enhanced optimization stabil-ity and efficiency brought by the distance-aware reward and curriculum-guided schedule. Ablation experiments further confirm the contribution of each module: removing the dis-tance reward (w/o rd) leads to a sharp drop to 72.50%, while disabling curriculum-guided scheduling (w/o Cur-Guided) reduces accuracy to 78.43%. Together, these results show that distance-sensitive rewards and progressive curricula jointly improve perceptual alignment and training stability, leading to enhanced performance. 
+
+## 6. Conclusion 
+
+In this work, we introduce OddGridBench, a controllable benchmark for evaluating the visual discrepancy sensitiv-ity of MLLMs. Our study reveals that fine-grained per-ceptual sensitivity remains a fundamental bottleneck for current MLLMs, hindering their ability to achieve re-liable, grounded visual understanding. We further de-velop OddGrid-GRPO, an RL framework that embeds spa-tial proximity into the training objective and integrates curriculum-guided optimization with distance-aware re-wards to improve training stability and human-aligned vi-sual sensitivity. We believe OddGridBench and OddGrid-GRPO establish a principled framework for perception-grounded learning, offering new insights into the perceptual foundations of multimodal intelligence. References 
+
+[1] Marah Abdin, Jyoti Aneja, Hany Awadalla, Ahmed Awadal-lah, Ammar Ahmad Awan, Nguyen Bach, Amit Bahree, Arash Bakhtiari, Jianmin Bao, Harkirat Behl, et al. Phi-3 technical report: A highly capable language model locally on your phone. arXiv preprint arXiv:2404.14219 , 2024. 3, 6 [2] Arash Akbarinia. Exploring the categorical nature of colour perception: Insights from artificial networks. Neural Net-works , 181:106758, 2025. 3 [3] Jean-Baptiste Alayrac, Jeff Donahue, Pauline Luc, Antoine Miech, Iain Barr, Yana Hasson, Karel Lenc, Arthur Mensch, Katherine Millican, Malcolm Reynolds, et al. Flamingo: a visual language model for few-shot learning. Advances in Neural Information Processing Systems , 35:23716–23736, 2022. 1 [4] Alibaba Group. Iconfont. https://www.iconfont. cn/ . Accessed: 2025-11-01. 4 [5] Xiang An, Yin Xie, Kaicheng Yang, Wenkang Zhang, Xiuwei Zhao, Zheng Cheng, Yirui Wang, Songcen Xu, Changrui Chen, Chunsheng Wu, et al. Llava-onevision-1.5: Fully open framework for democratized multimodal training. 
+
+arXiv preprint arXiv:2509.23661 , 2025. 3, 6 [6] AI Anthropic. Claude 3.5 sonnet model card addendum. 
+
+Claude-3.5 Model Card , 3, 2024. 3 [7] Sule Bai, Mingxing Li, Yong Liu, Jing Tang, Haoji Zhang, Lei Sun, Xiangxiang Chu, and Yansong Tang. Univg-r1: Reasoning guided universal visual grounding with reinforce-ment learning. arXiv preprint arXiv:2505.14231 , 2025. 3 [8] Ankan Bhunia, Changjian Li, and Hakan Bilen. Odd-one-out: Anomaly detection by comparing with neighbors. In 
+
+Proceedings of the Computer Vision and Pattern Recognition Conference , pages 20395–20404, 2025. 3 [9] Frieda Born, Lukas Muttenthaler, Klaus Greff, Thomas Un-terthiner, Andrew K Lampinen, Klaus-Robert M¨ uller, and Michael C Mozer. Evaluating and supervising vision mod-els with multi-level similarity judgments. In CCN 2024: the 7th annual conference on Cognitive Computational Neuro-science , 2024. 3 [10] Meng Cao, Haoze Zhao, Can Zhang, Xiaojun Chang, Ian Reid, and Xiaodan Liang. Ground-r1: Incentivizing grounded visual reasoning via reinforcement learning. arXiv preprint arXiv:2505.20272 , 2025. 3 [11] Shreyas Chaudhari, Pranjal Aggarwal, Vishvak Murahari, Tanmay Rajpurohit, Ashwin Kalyan, Karthik Narasimhan, Ameet Deshpande, and Bruno Castro da Silva. Rlhf deci-phered: A critical analysis of reinforcement learning from human feedback for llms. ACM Computing Surveys , 58(2): 1–37, 2025. 3 [12] Chao Chen, Nobel Dang, Juexiao Zhang, Wenkai Sun, Pengfei Zheng, Xuhang He, Yimeng Ye, Jiasheng Zhang, Taarun Srinivas, and Chen Feng. Co-vision: Co-visibility reasoning on sparse image sets of indoor scenes. arXiv preprint arXiv:2506.16805 , 2025. 1 [13] Xiaokang Chen, Zhiyu Wu, Xingchao Liu, Zizheng Pan, Wen Liu, Zhenda Xie, Xingkai Yu, and Chong Ruan. Janus-pro: Unified multimodal understanding and generation with data and model scaling, 2025. 3 [14] Zhe Chen, Weiyun Wang, Yue Cao, Yangzhou Liu, Zhang-wei Gao, Erfei Cui, Jinguo Zhu, Shenglong Ye, Hao Tian, Zhaoyang Liu, et al. Expanding performance boundaries of open-source multimodal models with model, data, and test-time scaling. arXiv preprint arXiv:2412.05271 , 2024. 3 [15] Zhe Chen, Weiyun Wang, Hao Tian, Shenglong Ye, Zhang-wei Gao, Erfei Cui, Wenwen Tong, Kongzhi Hu, Jiapeng Luo, Zheng Ma, et al. How far are we to gpt-4v? closing the gap to commercial multimodal models with open-source suites. Science China Information Sciences , 67(12):220101, 2024. 1 [16] Gheorghe Comanici, Eric Bieber, Mike Schaekermann, Ice Pasupat, Noveen Sachdeva, Inderjit Dhillon, Marcel Blis-tein, Ori Ram, Dan Zhang, Evan Rosen, et al. Gemini 2.5: Pushing the frontier with advanced reasoning, multimodality, long context, and next generation agentic capabilities. arXiv preprint arXiv:2507.06261 , 2025. 6 [17] Adam Dahlgren Lindstr¨ om and Savitha Sam Abraham. CLEVR-Math: A dataset for compositional language, visual and mathematical reasoning. In 16th International Workshop on Neural-Symbolic Learning and Reasoning, NeSy 2022, Windsor, UK, september 28-30, 2022. CEUR-WS, 2022. 2 [18] Wenliang Dai, Nayeon Lee, Boxin Wang, Zhuolin Yang, Zihan Liu, Jon Barker, Tuomas Rintamaki, Moham-mad Shoeybi, Bryan Catanzaro, and Wei Ping. Nvlm: Open frontier-class multimodal llms. arXiv preprint arXiv:2409.11402 , 2024. 3 [19] Matt Deitke, Christopher Clark, Sangho Lee, Rohun Tri-pathi, Yue Yang, Jae Sung Park, Mohammadreza Salehi, Niklas Muennighoff, Kyle Lo, Luca Soldaini, et al. Molmo and pixmo: Open weights and open data for state-of-the-art vision-language models. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 91–104, 2025. 3, 6 [20] Chaoyou Fu, Yuhan Dai, Yongdong Luo, Lei Li, Shuhuai Ren, Renrui Zhang, Zihan Wang, Chenyu Zhou, Yunhang Shen, Mengdan Zhang, et al. Video-mme: The first-ever comprehensive evaluation benchmark of multi-modal llms in video analysis. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 24108–24118, 2025. 3[21] Google. Material design icons. https://github.com/ google/material-design-icons . Accessed: 2025-11-01. 4 [22] He Hu, Yucheng Zhou, Lianzhong You, Hongbo Xu, Qian-ning Wang, Zheng Lian, Fei Richard Yu, Fei Ma, and Laizhong Cui. Emobench-m: Benchmarking emotional in-telligence for multimodal large language models. arXiv preprint arXiv:2502.04424 , 2025. 2 [23] Xinyu Huang, Yuhao Dong, Weiwei Tian, Bo Li, Rui Feng, and Ziwei Liu. High-resolution visual reasoning via multi-turn grounding-based reinforcement learning. arXiv preprint arXiv:2507.05920 , 2025. 3 [24] Aaron Hurst, Adam Lerer, Adam P Goucher, Adam Perel-man, Aditya Ramesh, Aidan Clark, AJ Ostrow, Akila Weli-hinda, Alan Hayes, Alec Radford, et al. Gpt-4o system card. 
+
+arXiv preprint arXiv:2410.21276 , 2024. 6 [25] Mohan Jiang, Jin Gao, Jiahao Zhan, and Dequan Wang. Mac: A live benchmark for multimodal large language models in scientific understanding. arXiv preprint arXiv:2508.15802 ,2025. 3 [26] Ryo Kamoi, Yusen Zhang, Sarkar Snigdha Sarathi Das, Ran-ran Haoran Zhang, and Rui Zhang. Visonlyqa: Large vision language models still struggle with visual perception of geo-metric information. arXiv preprint arXiv:2412.00947 , 2024. 2[27] Chunyuan Li, Cliff Wong, Sheng Zhang, Naoto Usuyama, Haotian Liu, Jianwei Yang, Tristan Naumann, Hoifung Poon, and Jianfeng Gao. Llava-med: Training a large language-and-vision assistant for biomedicine in one day. Advances in Neural Information Processing Systems , 36, 2024. 3 [28] Junnan Li, Dongxu Li, Silvio Savarese, and Steven Hoi. Blip-2: Bootstrapping language-image pre-training with frozen image encoders and large language models. arXiv preprint arXiv:2301.12597 , 2023. 1 [29] Aixin Liu, Bei Feng, Bing Xue, Bingxuan Wang, Bochao Wu, Chengda Lu, Chenggang Zhao, Chengqi Deng, Chenyu Zhang, Chong Ruan, et al. Deepseek-v3 technical report. 
+
+arXiv preprint arXiv:2412.19437 , 2024. 3 [30] Haotian Liu, Chunyuan Li, Qingyang Wu, and Yong Jae Lee. Visual instruction tuning. arXiv preprint arXiv:2304.08485 ,2023. 6 [31] Haotian Liu, Chunyuan Li, Yuheng Li, and Yong Jae Lee. Improved baselines with visual instruction tuning. In Pro-ceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 26296–26306, 2024. 1 [32] Pan Lu, Hritik Bansal, Tony Xia, Jiacheng Liu, Chunyuan Li, Hannaneh Hajishirzi, Hao Cheng, Kai-Wei Chang, Michel Galley, and Jianfeng Gao. Mathvista: Evaluating mathemat-ical reasoning of foundation models in visual contexts. arXiv preprint arXiv:2310.02255 , 2023. 2 [33] Ahmed Masry, Parsa Kavehzadeh, Xuan Long Do, Enamul Hoque, and Shafiq Joty. UniChart: A universal vision-language pretrained model for chart comprehension and rea-soning. arXiv preprint arXiv:2305.14761 , 2023. 3 [34] OpenAI. GPT-4V(ision) system card, 2023. 3 [35] Sundar Pichai and Demis Hassabis. Our next-generation model: Gemini 1.5. ai, 2024. 3 [36] Qwen Team. Qwen2.5-vl, 2025. 6 [37] Qwen Team. Qwen3 technical report, 2025. 6 [38] Anne M Treisman and Garry Gelade. A feature-integration theory of attention. Cognitive psychology , 12(1):97–136, 1980. 2 [39] Weiyun Wang, Zhangwei Gao, Lixin Gu, Hengjun Pu, Long Cui, Xingguang Wei, Zhaoyang Liu, Linglin Jing, Shenglong Ye, Jie Shao, et al. Internvl3. 5: Advancing open-source multimodal models in versatility, reasoning, and efficiency. 
+
+arXiv preprint arXiv:2508.18265 , 2025. 3, 6 [40] Ernst Heinrich Weber. De Pulsu, resorptione, auditu et tactu: Annotationes anatomicae et physiologicae... CF Koehler, 1834. 1 [41] Tengjin Weng, Jingyi Wang, Wenhao Jiang, and Zhong Ming. Visnumbench: Evaluating number sense of mul-timodal large language models. In Proceedings of the IEEE/CVF International Conference on Computer Vision ,pages 3830–3840, 2025. 2, 3 [42] Jeremy M Wolfe. Guided search 2.0 a revised model of vi-sual search. Psychonomic bulletin & review , 1(2):202–238, 1994. 1 [43] Weiye Xu, Jiahao Wang, Weiyun Wang, Zhe Chen, Wengang Zhou, Aijun Yang, Lewei Lu, Houqiang Li, Xiaohua Wang, Xizhou Zhu, et al. Visulogic: A benchmark for evaluating vi-sual reasoning in multi-modal large language models. arXiv preprint arXiv:2504.15279 , 2025. 1 [44] Jihan Yang, Shusheng Yang, Anjali W Gupta, Rilyn Han, Li Fei-Fei, and Saining Xie. Thinking in space: How mul-timodal large language models see, remember, and recall spaces. arXiv preprint arXiv:2412.14171 , 2024. 3 [45] Rui Yang, Hanyang Chen, Junyu Zhang, Mark Zhao, Cheng Qian, Kangrui Wang, Qineng Wang, Teja Venkat Koripella, Marziyeh Movahedi, Manling Li, et al. Embodiedbench: Comprehensive benchmarking multi-modal large language models for vision-driven embodied agents. arXiv preprint arXiv:2502.09560 , 2025. 1 [46] Zheng Yaowei, Lu Junting, Wang Shenzhi, Feng Zhangchi, Kuang Dongdong, and Xiong Yuwen. Easyr1: An efficient, scalable, multi-modality rl training framework. https:// github.com/hiyouga/EasyR1 , 2025. 7 [47] Weijie Yin, Yongjie Ye, Fangxun Shu, Yue Liao, Zijian Kang, Hongyuan Dong, Haiyang Yu, Dingkang Yang, Jia-cong Wang, Han Wang, et al. Sail-vl2 technical report. arXiv preprint arXiv:2509.14033 , 2025. 3, 6 [48] Kaining Ying, Fanqing Meng, Jin Wang, Zhiqian Li, Han Lin, Yue Yang, Hao Zhang, Wenbo Zhang, Yuqi Lin, Shuo Liu, et al. Mmt-bench: A comprehensive multimodal bench-mark for evaluating large vision-language models towards multitask agi. arXiv preprint arXiv:2404.16006 , 2024. 3 [49] Renrui Zhang, Xinyu Wei, Dongzhi Jiang, Yichi Zhang, Ziyu Guo, Chengzhuo Tong, Jiaming Liu, Aojun Zhou, Bin Wei, Shanghang Zhang, et al. Mavis: Mathematical visual in-struction tuning. CoRR , 2024. 3 [50] Chujie Zheng, Shixuan Liu, Mingze Li, Xiong-Hui Chen, Bowen Yu, Chang Gao, Kai Dang, Yuqiong Liu, Rui Men, An Yang, et al. Group sequence policy optimization. arXiv preprint arXiv:2507.18071 , 2025. 8 [51] Chunting Zhou, Pengfei Liu, Puxin Xu, Srinivasan Iyer, Jiao Sun, Yuning Mao, Xuezhe Ma, Avia Efrat, Ping Yu, Lili Yu, et al. Lima: Less is more for alignment. Advances in Neural Information Processing Systems , 36:55006–55021, 2023. 3 OddGridBench: Exposing the Lack of Fine-Grained Visual Discrepancy Sensitivity in Multimodal Large Language Models 
+
+# Supplementary Material 
+
+## A. Appendix Outline 
+
+In these supplementary materials, we provide: • A detailed description of the evaluation setup and full ex-perimental results for all OddGridBench sub-tasks (Ap-pendix B); • Additional cross-dataset and cross-format generalization experiments are presented in Appendix C. • Additional visualizations and qualitative examples (Ap-pendix D). 
+
+## B. Experiment Details 
+
+B.1. Model Access 
+
+This section summarizes the model access settings and pa-rameter configurations used in our experiments (see Ta-ble 4). All results reported in this paper are based on model outputs obtained prior to November 1, 2025. 
+
+Table 4. List of MLLMs evaluated in this study, with model names shown exactly as they appear on Hugging Face or in official APIs.                    
+
+> Phi-3.5-vision microsoft/Phi-3.5-vision-instruct SAIL-VL2-2B BytedanceDouyinContent/SAIL-VL2-2B SAIL-VL2-8B BytedanceDouyinContent/SAIL-VL2-8B LLaVA-OneVision-1.5-4B lmms-lab/LLaVA-OneVision-1.5-4B-Instruct LLaVA-OneVision-1.5-8B lmms-lab/LLaVA-OneVision-1.5-8B-Instruct LLaVA-v1.6-34B liuhaotian/llava-v1.6-34b InternVL3.5-38B OpenGVLab/InternVL3 5-38B Molmo-72B allenai/Molmo-72B-0924 Qwen2.5-VL-7B Qwen/Qwen2.5-VL-7B-Instruct Qwen2.5-VL-72B Qwen/Qwen2.5-VL-72B-Instruct Qwen3-VL-2B Qwen/Qwen3-VL-2B-Instruct Qwen3-VL-4B Qwen/Qwen3-VL-4B-Instruct Qwen3-VL-8B Qwen/Qwen3-VL-8B-Instruct Qwen3-VL-30B (Moe) Qwen/Qwen3-VL-30B-A3B-Instruct Qwen3-VL-32B Qwen/Qwen3-VL-32B-Instruct Gemini-2.0-Flash gemini-2.0-flash Gemini-2.5-Flash gemini-2.5-flash Gemini-2.5-Pro gemini-2.5-pro GPT-5 gpt-5-low
+
+B.2. Evaluation Details 
+
+Evaluation Prompt. We use a fixed prompt that in-structs the model to identify the odd element in the grid and return its position in a standardized format. We set 
+
+max new tokens =1024 and use default values for all other parameters. 
+
+Evaluation Prompt 
+
+You are solving an odd-one-out visual perception task. 
+
+You are given an image showing a {rows }×{cols }
+
+grid of {shape }s. All {shape }s appear the same, except one that is visually different in {odd desc }.This is a visual perception task that does not require lengthy logical reasoning. 
+
+Instructions 
+
+• Carefully inspect the grid. • Identify the grid position (row and column) of the 
+
+{shape } that is different. • Counting starts from the top-left corner, i.e., Row 1, Column 1. • Provide brief visual observations if needed (no more than 300 words). 
+
+Output Format Requirements 
+
+• Provide concise natural-language observations. • End the response with the final answer in the follow-ing strict LaTeX format: 
+
+\boxed{Row X, Column Y} 
+
+where X and Y are integers (e.g., Row 2, Column 3). • Do not include any text after the final \boxed{} .• If no odd {shape } exists, output: 
+
+\boxed{Row 0, Column 0} 
+
+Human Evaluation Protocol. To estimate human-level performance on OddGridBench, we conduct a human eval-uation on a subset of the dataset by randomly sampling 350 instances (50 from each perceptual attribute category). Three human annotators with backgrounds in computer sci-ence and visual perception participate in the evaluation, all with normal or corrected-to-normal vision. The evaluation is conducted using a custom annotation interface imple-mented in Python. Images are displayed on a 4K-resolution monitor and rendered at a fixed resolution, with zooming or resizing disabled to ensure consistent perceptual conditions. Before the formal evaluation, annotators are provided with several practice examples to familiarize themselves with the task. For each image, participants are asked to identify the single grid element that differs from the others using only visual cues, without any external tools. During the eval-uation, images are presented one at a time, and annotators select the position of the discrepant element, which may dif-fer in color, size, rotation, or position. No feedback about correctness is provided during the evaluation. 
+
+B.3. Training Details 
+
+Training Settings. We adopt Qwen3-VL-2B-Instruct as the base model and train it using the EasyR1 reinforcement learning framework. Training is conducted with a global actor batch size of 256, micro-batch sizes of 1 (for updates) and 2 (for experience logging), and dynamic padding en-abled to improve efficiency. Gradient checkpointing is en-abled, and the vision tower remains fully trainable. For memory management, we use partial FSDP with rank-0 ini-tialization enabled and no CPU offloading. During rollout, we generate n=3 samples per prompt using vLLM with temperature 1.0, top-p=1 .0, and tensor parallel size 2. Val-idation rollouts use a lower temperature (0.6) and narrower sampling (top-p=0 .95 ). The reference model is kept frozen and trained under FSDP-full-shard mode. The reward is computed in batch mode using a task-specific scoring func-tion. Training runs for 100 optimization steps on a single node with 4 A800 GPUs. We evaluate every 10 steps, log up to 3 generated samples per validation round, and save checkpoints every 10 steps with a maximum retention of 4. For the GSPO variant, we additionally enable token-level GSPO loss, sequence-level advantage averaging, a tighter clipping ratio ( 3e-4 to 4e-4 ), and disable KL regulariza-tion, following the GSPO formulation. 
+
+Training Prompt. We employ a minimal instruction prompt during training to prevent models from exploiting unnecessary reasoning cues and to ensure that learning fo-cuses purely on visual discrepancy detection. 
+
+Training Prompt 
+
+Identify the object that differs from the others in the {rows }×{cols } grid. The difference lies in 
+
+{odd desc }. Count positions from the top-left cor-ner as Row 1, Column 1. Return the final answer strictly in the following format: 
+
+\boxed{Row X, Column Y} 
+
+B.4. Additional Ablation Results 
+
+Impact of Grid Size on Visual Discrimination. To in-vestigate how spatial density affects model perception, we compare MLLM accuracy across three grid configurations: small, medium, and large grids. As shown in Figure 8 and Table 5, all models experience a consistent decline in accuracy as the grid size increases. Larger grids intro-duce more distractors and visual clutter, which reduces the relative salience of the odd item and makes fine-grained discrimination substantially harder. Among the evaluated models, Qwen3-VL-4B and Gemini 2.5 Pro maintain mod-erate robustness under mid-scale grids, while GPT-5 and InternVL 3.5-38B show steeper performance degradation. This pattern indicates that current MLLMs have limited ability to maintain spatial attention and object separation when visual scenes become more crowded. 
+
+> Table 5. Performance across different grid sizes.
+
+Model Grid-Small Grid-Mid Grid-Large InternVL3.5-38B 27.74 26.94 25.42 Qwen3-VL-32B 70.49 66.97 64.41 Gemini-2.5-Pro 54.06 47.34 41.24 GPT-5 35.51 26.79 15.82 
+
+Impact of Image Resolution on Visual Discrimination. 
+
+We further conducted an ablation study on different per-cell resolutions. As shown in Table 6, Gemini-2.5-Pro: accu-racy increases from 47.0 at resolution 50 to 57.0 at 100, and then plateaus at 57.0 at 150, while GPT-5 rises from 31.0 to 35.0 to 39.0. Overall, higher resolution yields only modest gains. 
+
+> Table 6. Performance across different image resolutions.
+
+Resolution 
+
+Model 50 100 150 Qwen3-VL-32B 69.00 70.00 73.00 Qwen3-VL-8B 56.00 60.00 59.00 Gemini-2.5-Pro 47.00 57.00 57.00 GPT-5 31.00 35.00 39.00 
+
+Sensitivity to Perceptual Discrepancy Magnitude. Ta-bles 12–15 summarize model performance across increas-ing levels of perceptual discrepancy, illustrating how accu-racy changes as the visual difference becomes more pro-nounced. 
+
+Analysis of Localization Accuracy. Figure 11 illustrates the grid images annotated with row and column indices that are used to evaluate models’ localization performance (La-beledAcc). 
+
+Impact of Image Resolution . In a resolution ablation (50/100/150), Gemini-2.5-Pro improves 47.0 →57.0 and then saturates, while GPT-5 increases 31.0 →35.0 →39.0, indicating only modest gains from higher resolution, as shown in Table 7. 
+
+Why Row–Column Instead of Bounding-Box Ground-ing? Although bounding-box localization appears to be a more fine-grained grounding objective, we intentionally Table 7. Ablation on image resolution. We evaluate the perfor-mance of different models under three input resolutions (50, 100, and 150). Higher resolutions generally provide richer visual de-tails and lead to improved odd-item detection accuracy. 
+
+Resolution 
+
+Model 50 100 150 Gemini-2.5-Pro 47.00 57.00 57.00 GPT-5 31.00 35.00 39.00 
+
+adopt the Row X, Column Y answer format in Odd-GridBench for two reasons. First, the OddGrid setting pro-vides a discretized grid structure in which the notion of “location” is inherently symbolic rather than continuous; requiring pixel-level bounding boxes would not introduce additional reasoning difficulty, but rather introduce annota-tion ambiguity (e.g., bounding box tightness, padding, icon margins) that is irrelevant to the core perceptual challenge. Second, as shown in Table 8, even strong MLLMs that cor-rectly predict the grid position fail almost completely when evaluated with IoU-based box matching, confirming that low-level spatial grounding remains a confounding variable that masks the actual perceptual reasoning ability we aim to measure. For these reasons, we adopt the row–column for-mulation to ensure that OddGridBench faithfully evaluates fine-grained visual discrimination rather than geometric box regression. 
+
+Error Anylisis. We treat cases where the predicted loca-tion is close to the ground truth as a proxy for the linguistic mapping challenge (23.0% for Qwen3-VL-32B; 20.9% for Gemini-2.5-Pro). In contrast, large-deviation failures dom-inate (77.0% and 79.1%), suggesting the main bottleneck is visual inability. 
+
+Bounding Box Prompt 
+
+Several small grids are shown in the image, but you should focus on the global image coordinates. First, briefly describe what you observe in the image and how one object differs from the others. Then, iden-tify the object that differs from all others in the en-tire image. Return its bounding box in the global image coordinate system strictly in the following format: 
+
+\boxed{[x_min, y_min, x_max, y_max]} 
+
+Table 8. Bounding-box localization accuracy of Qwen3-VL mod-els at different IoU thresholds. 
+
+Model IoU@0.3 IoU@0.4 IoU@0.5 
+
+Qwen3-VL-2B 0.074 0.053 0.036 Qwen3-VL-4B 0.089 0.062 0.041 Qwen3-VL-8B 0.102 0.078 0.055 Qwen3-VL-32B 0.133 0.087 0.053 Small Grid Mid Grid Large Grid 
+
+> 0
+> 10
+> 20
+> 30
+> 40
+> 50
+> 60
+> 70
+> 80
+> Accuracy (%)
+> Model Accuracy by Grid Size
+> Qwen3-VL-32B
+> Gemini-2.5-Pro
+> GPT-5
+> InternVL3.5-38B
+
+Figure 8. Comparison of MLLMs’ performance under different grid densities. Grid size is categorized by total cell count ( r × c): Small Grid ( ≤ 44 cells), Medium Grid (45–64 cells), and Large Grid (65–81 cells). 
+
+## C. Additional Cross-Dataset and Cross-Format Experiments 
+
+C.1. Cross-Dataset Generalization 
+
+We conducted extended experiments on four test sets. (1) MVTec-AD and VisA (real-image industrial anomaly de-tection). We use 13 categories from MVTec-AD and 7 from VisA, where defect images (per official ground truth) are treated as odd items and corresponding normal images as distractors. We crop background regions, keep the longest side of each cell ≥ 500 px, and organize samples into 3 × 3
+
+to 5 × 5 grids. (2) MNIST and Similar Chinese Characters (SCC). For MNIST and CC, we first select structurally sim-ilar instances as base cells (e.g., same digit with cosine sim-ilarity ≥ 80% for MNIST; visually similar pairs for SCC), as shown in Figure 9. The remaining data construction pro-cedure follows the same protocol as OddGridBench. Each dataset contains 100 grid samples, resulting in a total of 400 evaluation instances across four datasets. We evaluate the checkpoints on these test sets, as shown in Table 9. Our method consistently outperforms both the baseline and standard GRPO across all datasets, indicating transfer beyond synthetic icons to real-image settings. We will include these extensions and further analysis in the re-vised version. Table 9. Cross-dataset generalization results on four external datasets, including two real-image anomaly detection benchmarks (MVTec-AD and VisA) and two handwritten/character datasets (MNIST and SCC).                     
+
+> Method MVTec-AD VisA MNIST SCC Qwen3-VL-32B 67.00 66.00 39.00 87.00 Qwen3-VL-2B (Baseline) 20.00 9.00 6.00 17.00 GRPO 47.00 39.00 18.00 54.00
+> OddGrid-GRPO (Ours) 49.00 40.00 37.00 60.00
+
+Figure 9. Visualization of the four datasets used in the image se-quence settings. Table 10. Cross-format generalization results under a non-grid set-ting where the model receives 8–15 independent images and pre-dicts the odd-one-out index.                     
+
+> Method MVTec-AD VisA MNIST SCC Qwen3-VL-32B 76.00 72.00 62.00 86.00 Qwen3-VL-2B (Baseline) 29.00 32.00 2.00 28.00 GRPO 42.00 38.00 11.00 51.00
+> OddGrid-GRPO (Ours) 46.00 40.00 16.00 64.00
+
+C.2. Cross-Format Generalization 
+
+We evaluate a non-grid variant (as shown in Figure 10) where the model receives 8–15 separate images and predicts the odd-one-out index, Table 10. OddGrid-GRPO outper-forms both the baseline and standard GRPO, including on real-image anomaly detection datasets (MVTec-AD/VisA), suggesting gains beyond grid-specific memorization. We will add qualitative examples in the revised version. 
+
+Figure 10. Visualization of the four datasets used in the row and column settings. 
+
+Evaluation Prompt (Row and Column type) 
+
+An image containing a grid of objects is provided. Identify the object that differs from the others in the 
+
+rows ×cols grid. Cells are indexed starting from the top-left corner as Row 1, Column 1 .Return your answer strictly in the following format: 
+
+\boxed{Row X, Column Y} 
+
+Image Sequence Identification Prompt 
+
+You are presented with N images, labeled image1 ,
+
+image2 , . . . , imageN . Identify all anomalous im-ages in the set. 
+
+Output Rules: 
+
+1. You may perform observation and comparative reasoning before answering. 2. The final answer must be enclosed in exactly one \boxed {} block. 3. Inside the box, list the labels of all anomalous images (e.g., image1,image3 ). 4. If no anomalous images are found, output 
+
+\boxed {} .
+
+C.3. Evaluation on Real-World Anomaly Detection Benchmarks. 
+
+We argue that discrepancy perception is attribute-agnostic, and current models do not yet fully possess this ability. To better reflect real-world industrial inspection, we redesign the anomaly-count distribution on MVTec-AD and VisA by additionally including all-normal cases and cases with two anomalous items, as shwon in Table 11. We also revise the prompt to require the model to output the locations of all anomalies. Under EM/F1, even Qwen3-VL-32B reaches only 47.08/58.46 on MVTec-AD and 40.00/53.48 on VisA, indicating that robust real-image discrepancy detection re-mains challenging. Table 11. Evaluation on real-world industrial anomaly detection datasets. We report Exact Match (EM) and F1 scores on MVTec-AD and VisA. 
+
+Model MVTec-AD VisA EM F1 EM F1 Qwen3-VL-8B 37.18 48.63 29.71 43.30 Qwen3-VL-32B 47.08 58.46 40.00 53.48 
+
+## D. Example Data and Model Outputs 
+
+Figures 12 to 17 show examples from OddGridBench and the responses of Qwen3-VL-32B and Gemini-2.5-Pro. Fig-ures 18 to 20 show examples from OddGridBench and the responses of Qwen3-VL-2B and the oddGrid-GRPO trained model. Table 12. Accuracy across increasing discrepancy levels on different odd types (Qwen3-VL-32B) Higher ∆ levels correspond to larger visual differences. 
+
+Odd Type ∆ Level 1 ∆ Level 2 ∆ Level 3 ∆ Level 4 ∆ Level 5 
+
+Color 53.66 79.07 92.31 97.96 96.55 Position 31.25 28.57 44.26 53.85 63.64 Rotation 38.10 31.48 67.65 70.59 69.44 Size 7.50 25.00 50.00 52.17 67.86   
+
+> Table 13. Accuracy across increasing discrepancy levels on different odd types (Gemini-2.5-Pro). Higher ∆levels correspond to larger visual differences.
+
+Odd Type ∆ Level 1 ∆ Level 2 ∆ Level 3 ∆ Level 4 ∆ Level 5 
+
+Color 58.54 69.77 86.54 89.80 94.83 Position 6.25 4.29 9.84 3.85 9.09 Rotation 14.29 16.67 32.35 41.18 33.33 Size 2.50 5.00 10.87 13.04 17.86     
+
+> Table 14. Accuracy across increasing discrepancy levels on different odd types (GPT-5). Higher ∆levels correspond to larger visual differences.
+
+Odd Type ∆ Level 1 ∆ Level 2 ∆ Level 3 ∆ Level 4 ∆ Level 5 
+
+Color 39.02 53.49 59.62 57.14 67.24 Position 0.00 2.86 8.20 7.69 9.09 Rotation 4.76 22.22 17.65 26.47 36.11 Size 0.00 12.50 4.35 15.22 17.86   
+
+> Table 15. Accuracy across increasing discrepancy levels on different odd types (InternVL3.5-38B). Higher ∆levels correspond to larger visual differences.
+
+Odd Type ∆ Level 1 ∆ Level 2 ∆ Level 3 ∆ Level 4 ∆ Level 5 
+
+Color 14.63 44.19 51.92 51.02 60.34 Position 9.38 5.71 9.84 19.23 18.18 Rotation 0.00 11.11 14.71 32.35 27.78 Size 0.00 5.00 2.17 0.00 3.57 Example of Image with Number Figure 11. Example of grid images with row and column indices used in OddGridBench. Qwen3-VL-32B: 
+
+Upon careful inspection of the 7 ×6 grid of rulers, all rulers appear identical in design, orientation, and 
+
+size — each is a simple, diagonally oriented ruler icon with tick marks and a small circular hole near 
+
+one end. The rulers are uniformly spaced and aligned in rows and columns.\n\ nHowever , one ruler 
+
+stands out due to a subtle difference in its **orientation **. While all other rulers are tilted in the same 
+
+diagonal direction (from top-left to bottom-right), the ruler in **Row 4, Column 2 ** is rotated slightly 
+
+differently — it appears to be tilted in the opposite diagonal direction (from top-right to bottom-left), 
+
+making it visually distinct.\n\ nThis difference is not in shape or size, but in **angle or rotation **,
+
+which breaks the consistent pattern across the grid. All other rulers maintain the same diagonal slant, 
+
+reinforcing that this one is the odd one out.\n\ nNo other rulers show variation in color, tick marks, or 
+
+position within the grid. The grid is otherwise perfectly uniform.\n\ nThus , the visually different ruler is 
+
+located at:\n\n\\ boxed{Row 4, Column 2} 
+
+Gemini-2.5-Pro: 
+
+The image contains a 7x6 grid of rulers. All rulers are oriented diagonally in the same direction. Upon 
+
+careful inspection of the alignment and spacing of the rulers, a single ruler is found to be out of 
+
+position.\n\ nMost rulers are placed with uniform horizontal and vertical spacing, creating a regular 
+
+pattern. However, the ruler in the fourth row and the fifth column is shifted slightly to the left relative 
+
+to the other rulers in its column and row. This misalignment disrupts the otherwise consistent grid 
+
+structure. All other rulers maintain their correct positions within the grid.\n\n\\ boxed{Row 4, Column 
+
+5} 
+
+Input image Ground Truth: Row 2, Column 3 
+
+Question: Identify the grid position (row and column) of the ruler that is different. 
+
+Figure 12. Example of model outputs for fine-grained perceptual discrimination on OddGridBench, showing predictions from Qwen3-VL-32B and Gemini-2.5 Pro (Example 1/6). Qwen3-VL-32B: 
+
+Upon careful inspection of the 9 ×5 grid of scissors, all scissors appear identical in shape, orientation, 
+
+and color — teal with a classic scissor design — except for one subtle difference in 
+
+**position **.\n\ nEach row contains 5 scissors, and each column contains 9 scissors. The scissors are 
+
+arranged in a regular grid, but upon close examination, the scissors in **Row 3, Column 3 ** is slightly 
+
+misaligned — it appears to be rotated or shifted compared to the others. While the rest of the 
+
+scissors are oriented with the handles pointing downward and blades upward (in a standard \"X\" 
+
+shape), this particular pair seems to have a slight rotation or positional offset, making it stand out 
+
+visually.\n\ nThis difference is not in color or shape, but in **spatial alignment ** — it does not sit 
+
+perfectly in the grid cell, appearing slightly tilted or offset vertically or horizontally relative to its 
+
+neighbors. This misalignment breaks the uniformity of the otherwise perfectly aligned grid.\n\ nAll 
+
+other scissors are perfectly aligned and identical in orientation, confirming that this is the only odd 
+
+one out.\n\n\\ boxed{Row 3, Column 3} 
+
+Gemini-2.5-Pro: 
+
+The image displays a 9x5 grid of green scissors. Upon careful inspection of the alignment of each 
+
+scissors icon, a subtle anomaly can be detected. While the vast majority of the scissors are arranged 
+
+in a regular, evenly spaced grid, one icon is slightly out of place. Specifically, the scissors located in 
+
+the seventh row and the fourth column is shifted slightly downwards relative to the other scissors in 
+
+the same row and the grid as a whole. This breaks the otherwise consistent vertical and horizontal 
+
+alignment of the pattern.\n\n\\ boxed{Row 7, Column 4} 
+
+Input image Ground Truth: Row 1, Column 3 
+
+Question: Identify the grid position (row and column) of the scissors that is different. Figure 13. Example of model outputs for fine-grained perceptual discrimination on OddGridBench, showing predictions from Qwen3-VL-32B and Gemini-2.5 Pro (Example 2/6). Qwen3-VL-32B: 
+
+Upon careful inspection of the 9 ×7 grid of green bath icons, each bath appears identical at first 
+
+glance — all have the same shape, color, and orientation, with a small heart-shaped object placed 
+
+inside the tub, near the left side (from the viewer’s perspective).\n\ nHowever , one bath stands out due 
+
+to a subtle difference in the position of the heart-shaped object. While in all other baths the heart is 
+
+consistently placed near the left end of the tub, in one specific bath, the heart is shifted slightly to the 
+
+right — closer to the center of the tub. This shift is small but noticeable upon close 
+
+examination.\n\ nScanning row by row from top to bottom, and column by column from left to right, 
+
+the anomaly is located in **Row 8, Column 4 **. In this position, the heart is visibly more centered 
+
+compared to the surrounding baths where it remains consistently left-aligned.\n\ nAll other visual 
+
+attributes — including the outline of the bath, the legs, the faucet, and the overall color — remain 
+
+identical across the grid. Therefore, the only distinguishing feature is the misaligned heart in that one 
+
+bath.\n\ nThis is a classic visual perception task where attention to fine detail is required. The 
+
+difference is minimal, but consistent across all other baths, making the outlier detectable through 
+
+careful comparison.\n\n\\ boxed{Row 8, Column 4} 
+
+Gemini-2.5-Pro: 
+
+The image displays a 9x7 grid of identical green bath icons. Upon careful examination of the 
+
+alignment and spacing of the icons, a single anomaly can be identified. One of the baths is not 
+
+correctly positioned vertically within the grid structure. Specifically, the bath located in the seventh 
+
+row and the fourth column is shifted slightly upward compared to all the other icons. This 
+
+misalignment disrupts the consistent vertical spacing observed throughout the rest of the 
+
+grid.\n\n\\boxed {Row 7, Column 4} 
+
+Input image Ground Truth: Row 1, Column 5 
+
+Question: Identify the grid position (row and column) of the bath that is different. 
+
+Figure 14. Example of model outputs for fine-grained perceptual discrimination on OddGridBench, showing predictions from Qwen3-VL-32B and Gemini-2.5 Pro (Example 3/6). Qwen3-VL-32B: 
+
+Observing the 7 ×5 grid of taxis, all appear identical in shape and orientation. However, one taxi stands 
+
+out due to a subtle difference in color. Most taxis are a uniform teal-blue, but one is slightly lighter and 
+
+more cyan in hue, making it visually distinct.\n\ nThis different taxi is located in the top row (Row 1). 
+
+Scanning from left to right in Row 1, the first four taxis are the same teal-blue as the rest of the grid. 
+
+The fifth taxi, in Column 5, is visibly lighter and more cyan. This color variation is consistent across 
+
+the entire image, with no other taxis showing a similar hue. The difference is noticeable upon close 
+
+inspection but not immediately obvious at a glance.\n\ nAll other taxis in the grid match the standard 
+
+teal-blue color. There are no differences in shape, size, or orientation. The anomaly is purely 
+
+chromatic.\n\ nThus , the odd-one-out is located at Row 1, Column 5.\n\n\\ boxed{Row 1, Column 5} 
+
+Gemini-2.5-Pro: 
+
+The image displays a 7 ×5 grid of taxi icons. All the taxis are a solid dark teal color, with one exception. 
+
+The taxi located in the first row and third column is a lighter shade of teal, with a noticeable green tint 
+
+and a subtle color gradient. This difference in color and shading makes it the odd one out in the 
+
+grid.\n\n\\ boxed{Row 1, Column 3} 
+
+Input image Ground Truth: Row 1, Column 3 
+
+Question: Identify the grid position (row and column) of the taxi that is different. Figure 15. Example of model outputs for fine-grained perceptual discrimination on OddGridBench, showing predictions from Qwen3-VL-32B and Gemini-2.5 Pro (Example 4/6). Qwen3-VL-32B: 
+
+Upon careful inspection of the 8 ×5 grid of forklifts, all forklifts appear identical in design, orientation, 
+
+and color—except for one. The forklifts are uniformly arranged, each facing right with a consistent 
+
+shape, including the cabin, forks, and wheels.\n\ nThe anomaly is located in the **last row (Row 8) **.
+
+Scanning from left to right, the first six forklifts in Row 8 appear normal. However, the **third 
+
+forklift ** in this row (Column 3) is visually different: its cabin is tilted or rotated slightly downward, 
+
+and the fork structure appears misaligned or partially obscured, giving it a distorted appearance 
+
+compared to the others. This distortion is subtle but noticeable upon close inspection.\n\ nAll other 
+
+forklifts in the grid maintain consistent orientation and structure. The difference in the third forklift of 
+
+Row 8 is the only deviation in the entire grid.\n\ nThus , the odd-one-out is located at:\n\n \\boxed{Row 
+
+8, Column 3} 
+
+Gemini-2.5-Pro: 
+
+The image contains a grid of 40 forklifts, arranged in 8 rows and 5 columns. Upon close inspection, 
+
+nearly all the forklifts are perfectly aligned both vertically and horizontally, forming a regular pattern. 
+
+However, one forklift deviates from this pattern. The forklift located in the seventh row and the second 
+
+column is shifted slightly to the left of its intended position, breaking the vertical alignment with the 
+
+other forklifts in that column. All other forklifts maintain their correct spacing and 
+
+alignment.\n\n\\ boxed{Row 7, Column 2} 
+
+Input image Ground Truth: Row 8, Column 3 
+
+Question: Identify the grid position (row and column) of the forklift that is different. 
+
+Figure 16. Example of model outputs for fine-grained perceptual discrimination on OddGridBench, showing predictions from Qwen3-VL-32B and Gemini-2.5 Pro (Example 5/6). Qwen3-VL-32B: 
+
+Upon inspecting the 7 ×8 grid of whale silhouettes, all whales are identical in shape, orientation, and 
+
+size. The only variation is in color. Each whale is rendered in a light olive-green shade, except for one 
+
+whale located in the bottom row (Row 7). This particular whale is a darker, brownish-tan color, 
+
+making it visually distinct from the rest.\n\ nThe different whale is positioned in the second-to-last 
+
+column of the bottom row. Specifically, it is in Row 7, Column 7.\n\ nThis deviation is subtle but clear 
+
+upon close inspection. The color difference is consistent and not due to shadowing or lighting, as all 
+
+other whales maintain uniform coloration. There are no differences in rotation, size, or position—only 
+
+the color of this one whale stands out.\n\ nThe grid is otherwise perfectly uniform, with whales 
+
+arranged in a regular 7-row by 8-column pattern, all facing the same direction (tail to the left, head to 
+
+the right).\n\ nThus , the odd-one-out is unambiguously the whale in Row 7, Column 
+
+7.\n\n\\ boxed{Row 7, Column 7} 
+
+Gemini-2.5-Pro: 
+
+The image displays a 7 ×8 grid of whale icons. Upon careful inspection, all the whales are identical in 
+
+their shape, size, and orientation. The single distinguishing feature is the color of one of the whales. 
+
+While the vast majority of the whales are a uniform olive-gold color, one whale, located near the 
+
+bottom-right of the grid, is a distinct brownish-red shade.\n\ nThis differently colored whale is 
+
+positioned in the seventh row from the top and the seventh column from the left.\n\n\\ boxed{Row 7, 
+
+Column 7} 
+
+Input image Ground Truth: Row 7, Column 7 
+
+Question: Identify the grid position (row and column) of the whale that is different. Figure 17. Example of model outputs for fine-grained perceptual discrimination on OddGridBench, showing predictions from Qwen3-VL-32B and Gemini-2.5 Pro (Example 6/6). Qwen3-VL-2B: 
+
+The image displays an 8 ×9 grid of identical clock icons. Each clock is circular with a small triangular 
+
+arrow pointing to the right, indicating a forward motion. The clocks are uniformly spaced and arranged 
+
+in a regular, grid-like pattern. All clocks are the same size and orientation, with no variation in shape, 
+
+color, or position. The only visual difference is the size of the clock icons, which appear to be slightly 
+
+smaller than the others. This difference is consistent across the entire grid, suggesting that the clocks 
+
+are not of the same size. The only clock that is different in size is located in the bottom row, in the 
+
+center column. This is the only clock that is visually distinct from the others.\n\n```\n\\ boxed{Row 8, 
+
+Column 5} 
+
+OddGrid -GRPO Trained: 
+
+Let's analyze the 8 ×9 grid of icons to identify the one that differs from the others.\n\n- The grid is 8 
+
+rows and 9 columns.\n- All icons are the same shape: a small circle with a small arrow pointing to the 
+
+right, and a small circle at the top of the icon.\n- The only difference is in the **size ** and 
+
+**rotation ** of the icon.\n\ nLooking at the image:\n- All icons are the same size and orientation, 
+
+except for one.\n- The icon in **Row 4, Column 9 ** is different.\n\ nLet’s verify:\n- The icon in Row 
+
+4, Column 9 is the only one that is **rotated **.\n- The others are in the same orientation.\n\ nSo , the 
+
+difference is in **rotation **.\n\ nNow , count from the top-left as Row 1, Column 1.\n\n- Row 4, 
+
+Column 9 is the only one that is rotated.\n\ nTherefore , the answer is:\n\n\\ boxed{Row 4, Column 9} 
+
+Input image Ground Truth: Row 4, Column 9 
+
+Question: Identify the grid position (row and column) of the clock that is different. 
+
+Figure 18. Example of model outputs for fine-grained perceptual discrimination on OddGridBench, showing predictions from Qwen3-VL-2B and oddGrid-GRPO trained model (Example 1/3). Qwen3-VL-2B: 
+
+The image displays a 9-row by 7-column grid of toothbrush icons. All toothbrushes are identical in 
+
+shape and orientation, except for one. The other toothbrushes are aligned horizontally and uniformly, 
+
+with their bristles pointing to the right. The toothbrush in question is in the first row, second column. It 
+
+is tilted at an angle, with the bristles pointing to the left, which is inconsistent with the others. This is 
+
+the only toothbrush that is different in orientation. The rest of the toothbrushes are aligned vertically 
+
+and are identical to each other. The difference is in the direction of the bristles. The toothbrush in the 
+
+first row, second column is the only one that is different.\n\n```\n\\ boxed{Row 1, Column 2} 
+
+OddGrid -GRPO Trained: 
+
+Let's analyze the image provided.\n\n- The image is a 9-row by 7-column grid.\n- All the objects are 
+
+toothbrushes, and they are arranged in a regular pattern.\n- The toothbrushes are mostly identical, but 
+
+one is different.\n\ nWe need to find the toothbrush that is different from the others in terms of position 
+
+and rotation.\n\ nLet's examine the grid:\n\n- The grid has 9 rows and 7 columns.\n- The toothbrushes 
+
+are all the same shape, but one is rotated differently.\n\ nLooking at the grid, the only toothbrush that is 
+
+different is in **Row 5, Column 1 **.\n\n- All other toothbrushes are in the same orientation.\n- The 
+
+toothbrush in Row 5, Column 1 is tilted, which is different from the others.\n\ nSo , the object that 
+
+differs is in **Row 5, Column 1 **.\n\n\\ boxed{Row 5, Column 1} 
+
+Input image Ground Truth: Row 5, Column 1 
+
+Question: Identify the grid position (row and column) of the toothbrush that is different. Figure 19. Example of model outputs for fine-grained perceptual discrimination on OddGridBench, showing predictions from Qwen3-VL-2B and oddGrid-GRPO trained model (Example 2/3). Qwen3-VL-2B: 
+
+The image displays a 9-row by 5-column grid of pig silhouettes. All pigs are identical in shape and color, except 
+
+for one. This single pig is a distinct shade of brown compared to the others, which are a darker, uniform brown. 
+
+The pig in question is located in the fourth row, the fifth column of the grid. All other pigs in the image are the 
+
+same color and shape, and they are arranged in a uniform pattern. The only difference is the color of the pig in 
+
+the fourth row, fifth column. The rest of the pigs are identical in form and color. The pig in the fourth row, fifth 
+
+column is the only one that is different.\n\n```\n\\ boxed{Row 4, Column 5} 
+
+OddGrid -GRPO Trained: 
+
+Let's analyze the image provided.\n\ nWe are given a 9-row by 5-column grid of pig icons. The task is to identify 
+
+the pig that is different from the others, based on color.\n\n- The grid contains 9 rows and 5 columns.\n- All pigs 
+
+are the same color except for one.\n- We need to find the one that is different.\n\ nLet's examine the grid row by 
+
+row:\n\n- **Row 1 **: All pigs are a dark brown color.\n- **Row 2 **: All pigs are a dark brown color.\n- **Row 
+
+3**: All pigs are a dark brown color.\n- **Row 4 **: All pigs are a dark brown color.\n- **Row 5 **: All pigs are a 
+
+dark brown color.\n- **Row 6 **: All pigs are a dark brown color.\n- **Row 7 **: All pigs are a dark brown 
+
+color.\n- **Row 8 **: All pigs are a dark brown color.\n- **Row 9 **: All pigs are a dark brown color.\n\ nNow ,
+
+looking at the image, the only pig that is different is in **Row 4, Column 2 **.\n\ nWait , let's re-examine the 
+
+image. The image shows a 9x5 grid of pigs. The only pig that is different is the one in **Row 4, Column 
+
+2**.\n\ nLet's count from the top-left as Row 1, Column 1.\n\n- Row 1: All pigs are the same color.\n- Row 2: All 
+
+pigs are the same color.\n- Row 3: All pigs are the same color.\n- Row 4: The pig in Column 2 is a different 
+
+color.\n\ nThe only pig that is different is the one in **Row 4, Column 2 **.\n\ nSo the answer 
+
+is:\n\n\\ boxed{Row 4, Column 2} 
+
+## Input image Ground Truth: Row 5, Column 2 
+
+Question: Identify the grid position (row and column) of the pig that is different. 
+
+Figure 20. Example of model outputs for fine-grained perceptual discrimination on OddGridBench, showing predictions from Qwen3-VL-2B and oddGrid-GRPO trained model (Example 3/3).

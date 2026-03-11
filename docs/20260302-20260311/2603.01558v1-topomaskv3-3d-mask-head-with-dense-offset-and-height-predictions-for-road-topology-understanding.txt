@@ -1,0 +1,798 @@
+Title: TopoMaskV3: 3D Mask Head with Dense Offset and Height Predictions for Road Topology Understanding
+
+URL Source: https://arxiv.org/pdf/2603.01558v1
+
+Published Time: Tue, 03 Mar 2026 03:07:33 GMT
+
+Number of Pages: 17
+
+Markdown Content:
+# TopoMaskV3: 3D Mask Head with Dense Offset and Height Predictions for Road Topology Understanding 
+
+## Muhammet Esat Kalfaoglu † Halil Ibrahim Ozturk ‡ Ozsel Kilinc § Alptekin Temizel ††Graduate School of Informatics, Middle East Technical University, Ankara, Turkey 
+
+> ‡
+
+## Trutek AI Team, Ankara, Turkey 
+
+## Abstract 
+
+Mask-based paradigms for road topology understanding, such as TopoMaskV2, offer a complementary alternative to query-based methods by generating centerlines via a dense rasterized intermediate representation. However, prior work was limited to 2D predictions and suffered from se-vere discretization artifacts, necessitating fusion with para-metric heads. We introduce TopoMaskV3 , which advances this pipeline into a robust, standalone 3D predictor via two novel dense prediction heads: a dense offset field for sub-grid discretization correction within the existing BEV res-olution, and a dense height map for direct 3D estimation. Beyond the architecture, we are the first to address geo-graphic data leakage in road topology evaluation by intro-ducing (1) geographically distinct splits to prevent mem-orization and ensure fair generalization, and (2) a long-range (±100 m) benchmark. TopoMaskV3 achieves state-of-the-art 28.5 OLS on this geographically disjoint bench-mark, surpassing all prior methods. Our analysis shows that the mask representation is more robust to geographic overfitting than B´ ezier, while LiDAR fusion is most bene-ficial at long range and exhibits larger relative gains on the overlapping original split, suggesting overlap-induced memorization effects. 
+
+## 1. Introduction 
+
+Road topology understanding transcends the mere detection of static road elements like lanes or traffic lights, funda-mentally requiring reasoning about their complex inter-relationships . Pure detection is insufficient for robust autonomous navigation; a model must infer connectivity       
+
+> Project page: https : / / artest08 . github . io / TopoMaskV3.github.io/
+> Corresponding author: Muhammet Esat Kalfaoglu
+> Email: esatkalfaoglu@gmail.com; esat.kalfaoglu@metu.edu.tr
+> Other contacts: atemizel@metu.edu.tr; ibrahim.ozturk@togg.com.tr
+> §This work was conducted at Trutek AI. The author is currently with Amazon.
+
+(such as how lanes merge or divide), determine valid paths through complex road intersections, and correctly associate traffic control elements with the specific lanes they govern. TopoMaskV2 [11] introduced a novel paradigm for road topology by generating centerlines directly from a raster-ized mask. Its core innovation was enriching the mask rep-resentation with a quad-direction label, providing the cru-cial flow information necessary to convert a mask represen-tation into an ordered, directed polyline. While inspiring, the mask-based pipeline had significant limitations: it suf-fered from discretization artifacts during raster-to-vector conversion and, lacked height prediction , restricting it to 2D output. To compensate for these limitations and achieve competitive performance, TopoMaskV2 ultimately relied on fusing its modest mask-based results with a parallel, and more robust parametric (B´ ezier) head. This paper introduces TopoMaskV3, which directly ad-dresses these core limitations and advances the mask-based pipeline into a robust, standalone 3D predictor . The ar-chitecture has two novel components: a dense offset field 
+
+(Section 3.3) to correct discretization errors and achieve sub-grid accuracy, and a dense height map (Section 3.4) to predict the z-coordinate. As a result, this shifts the mask head from a weak module that required fusion-based com-pensation to a highly competitive, standalone 3D perception method. Existing benchmarks for road topology understanding rely on temporal splits, which are suitable for dynamic objects but fundamentally problematic for static elements. Since the underlying map is invariant, data collected at dif-ferent times revisit the same geographic locations, resulting in geographic overlap between training and testing data [24, 42]. Building on the geographically distinct splitting methodology proposed by [24, 42] for HD map tasks, we are the first to adapt this critical evaluation framework to road topology understanding . This adaptation is sub-stantially harder: since the official OpenLane-V2 test set is not publicly available, we replicated the entire ground-truth generation pipeline from raw Argoverse 2 HDMap data, handling the topological complexity of interconnected di-1
+
+> arXiv:2603.01558v1 [cs.CV] 2 Mar 2026
+
+rected graphs. This rigorous effort yields a stable measure of true generalization for road topology models. In addition to geographically fair splits, we also introduce, for the first time, a long-range benchmark that extends the conven-tional ±50 m range to a more challenging ±100 m. This extension provides a more rigorous benchmark to analyze model robustness and generalization, since error propaga-tion and performance trends can change markedly and be-come severely amplified at extended distances. This setting is especially useful for measuring the real benefit of LiDAR fusion, and is also relevant for future SD map and satellite-image studies. Under this combined benchmark setting (non-overlapping splits and the extended ±100 m range), we reassess prior architectural assumptions about output fusion (Mask vs. B´ ezier) and sensor fusion (Camera vs. LiDAR). This is particularly important because LiDAR-based models can overfit under overlap-prone original splits. Our experiments (Section 4.4 and Section 4.5) resolve the ambiguity around the utility of output fusion [11]: the fused output provides a modest advantage on realistic, geographically distinct splits. More critically, we demonstrate that sensor fusion delivers a substantially larger improvement in the more challenging long-range setting [10]. Together, these results provide the key insight that both fusion types are essential mechanisms for achieving robust generalization and better performance, particularly at extended distances. The main contributions of this work are: • A Standalone 3D Mask-Based Predictor: We ex-tend the mask-based paradigm by introducing two novel, dense prediction heads: a dense offset field to accu-rately correct inherent discretization artifacts, and a dense height map to enable robust, end-to-end 3D centerline prediction, transforming the mask head into a highly com-petitive, standalone method. • A Rigorous Generalization Benchmark for Road Topology: Building on geographic splitting concepts from HD map benchmarking [24, 42], we are the first 
+
+to address geographic data leakage in road topology eval-uation. This rigorous evaluation transitions assessment from rewarding geographic memorization to measuring true structural generalization. • The Long-Range Challenge: We introduce, for the first time, a long-range benchmark that significantly extends the evaluation scope from the conventional ±50 m to a challenging ±100 m, providing a crucial measure of model robustness at extended distances required for high-speed driving. • Key Insights on Fusion: We conduct a comprehensive analysis of output fusion (Mask vs. B´ ezier) and sensor fusion (Camera vs. LiDAR) on these new, demanding benchmarks, demonstrating that both fusion types are es-sential for achieving robust generalization and better per-formance, particularly in the long-range setting. 
+
+## 2. Related Work 
+
+2.1. Road Topology Understanding 
+
+The fundamental challenge in road topology understand-ing is to detect static road elements while simultaneously inferring the relational structure and connectivity between them. STSU [2] introduced a method to extract a directed road graph from a single image. TopoNet [16] was a semi-nal work that established a strong benchmark and proposed a Graph Neural Network (GNN) based framework to ex-plicitly model relational knowledge. LaneSegNet [17] ex-panded the task scope, introducing the “lane segment” con-cept to jointly predict not only centerlines but also lane di-viders and drivable areas. A dominant paradigm subsequently emerged using end-to-end transformers to predict vectorized representations, grouped by their output format: • Parametric Representations using B´ ezier curves: This strategy models road elements using compact, mathe-matically defined curves. TopoMLP [35] was founda-tional in demonstrating the effectiveness of the parametric B´ ezier curve representation instead of keypoint prediction [16, 17] for predicting centerlines. • Path-Wise Representations: A key conceptual advance came from LaneGAP [21], which proposed predicting holistic, continuous paths that span intersections, thereby better preserving lane continuity, building upon the point-query-based architecture of MapTR [22]. This path-wise modeling was later improved by MapTRV2 [23]. • Mask-Based Raster-to-Vector: TopoMaskV2 [11] in-troduced a mask-based paradigm, generating directed centerlines from a rasterized mask via a quad-direction label. Crucially, this approach was limited by discretiza-tion artifacts and its 2D-only output, necessitating fusion with B´ ezier heads. • Specialized Reasoning and Feature Enhancements: 
+
+Topo2D [14] focuses on feature enhancement by fusing 2D lane priors to aid 3D learning. Other works im-prove the reasoning process itself: TopoFormer [28] uses geometric-aware attention to enhance relational reason-ing. Addressing the critical ”endpoint deviation” prob-lem, TopoLogic [5] introduced an interpretable pipeline that combines geometric distances and semantic similar-ity. TopoPoint [6] proposes to solve this by explicitly de-tecting the endpoints as independent queries. 
+
+2.2. Multi-modal and Temporal Road Topology Un-derstanding 
+
+• Multi-Modality: A significant trend is the use of Stan-dard Definition (SD) map priors. SMERF [27] to-2Up      
+
+> Down
+> Left
+> Right
+> !<#5
+> 5
+> 5
+> 0
+> 0
+> Up
+> Down
+> Left
+> Right
+> 3
+> 5
+> 2
+> 0Figure 1. Quad-Direction Labels Encoding. Each centerline is assigned one of four directional labels: up, down, left, or right, based on majority voting between consecutive points. Ties are resolved using the angle between the start and end points.
+
+kenizes SD map elements for a transformer decoder, TopoSD [38] enriches BEV features with map tokens, and SMART [41] uses both SD and satellite maps. TopoBDA [10] combines SD map features with LiDAR sensor, demonstrating the benefits of multi-modal fusion. • Temporal Context: This line of work aims to ad-dress temporal stability. TopoStreamer [40] maintains a “topology-aware state” for consistent connectivity across frames, while FASTopoWM [39] employs a fast-slow la-tent world model to provide stable temporal context. 
+
+2.3. Benchmarking for Generalization 
+
+The problem of geographic data leakage in static map benchmarks was recently highlighted by StreamMap-Net [42], which showed that temporal splits cause geo-graphic overlap and reward memorization. Building on this, [24] proposed a formal set of geographically distinct splits to rigorously test generalization. While these foun-dational works focused on HD map element prediction, our study is the first to adapt this crucial splitting methodology to the road topology understanding benchmarks. 
+
+## 3. Methodology 
+
+To incorporate flow information into road topology masks, we adopt the quad-direction label representation [11]. Each centerline instance is assigned a single direction label ( up, down, left, right ) through a voting mechanism across con-secutive points (Fig. 1). These labels serve as semantic cues for flow-aware mask instances and are trained using a cross-entropy loss. The overview of the TopoMaskV3 method is shown in Fig. 2. TopoMaskV3 constructs a unified Bird’s Eye View (BEV) representation from multi-camera RGB inputs. The unified BEV features are processed by a transformer de-coder equipped with sparse queries, each corresponding to a candidate centerline instance. For each query, the model predicts a set of outputs including quad-direction labels, in-stance masks, height maps, and offset fields. These outputs are then post-processed to refine and generate 3D centerline points with associated flow information. 
+
+3.1. Multi-View to BEV Projection 
+
+The pipeline begins by processing the perspective-view im-ages {Ii}Ni=1 , Ii ∈ RHI ×WI ×3 to generate a shared BEV feature map FBEV . First, a shared backbone encoder 
+
+fP V extracts perspective-view features FP V i = fP V (Ii),
+
+FP V i ∈ RHP V ×WP V ×CP V . These features are then ag-gregated and projected into the top-down BEV feature map via a projection module fBEV , yielding FBEV =
+
+fBEV ({FP V i }Ni=1 ), FBEV ∈ RHBEV ×WBEV ×CBEV . The projection function fBEV can be instantiated using Lift-Splat-Shoot [9, 18, 31], transformer-based designs [3, 20, 33, 44], or other efficient BEV encoders [7, 19, 36]. This step consolidates multi-view spatial cues into a compact top-down representation suitable for downstream process-ing. 
+
+3.2. Prediction Heads of TopoMaskV3 
+
+TopoMaskV3 utilizes a sparse query design, where each query corresponds to a distinct centerline instance. As il-lustrated in Figure 3, the decoder has five prediction heads: • Classification Head: Predicts the quad-direction label, which is critical for defining the directional flow, ordering the refined points, and determining the primary axis of polynomial fitting (Section 3.5). • Mask Head: Produces the mask probability map Mprob .This map is binarized to generate the rasterized mask R
+
+for centerline extraction. • Offset Head: Predicts the dense 2D offset field O ∈
+
+RHBEV ×WBEV ×2, which is used to achieve sub-grid ac-curacy by correcting discretization artifacts (Section 3.3). • Height Head: Estimates the dense height map H ∈
+
+RHBEV ×WBEV . This map provides the z-coordinate for 3D prediction, sampled at the final (x, y ) location of each refined centerpoint. • B´ ezier Head: Outputs a set of 3D B´ ezier control points, providing an alternative, parametric representation of the centerline. The architecture provides two distinct paths for generat-ing the final 3D centerline: • Primary mask-based path synthesizes the outputs from the Classification , Mask , Offset , and Height heads. These outputs are processed through the full Curve Reconstruc-tion pipeline (Section 3.5) to yield a final set of points, 
+
+Pmask .• B´ ezier-based path (optional) generates a parametric curve directly by sampling N ordered 3D points, Pbezier ,from the output of the B´ ezier Head .The B´ ezier head is not required for the baseline model (which uses the primary path), but it is essential for two spe-cific extensions: (i) replacing the baseline Masked Atten-tion (MA) with B´ ezier Deformable Attention (BDA) [10] (See Section S.1), or (ii) enabling the output fusion mecha-nism described below. 3!!"#    
+
+> Instance Map Quad Direction Map Offset Map Height Map
+
+Figure 2. TopoMaskV3 Architecture Overview. The method adopts an instance-query-based design. Bird’s Eye View (BEV) features extracted from multi-camera images are processed by a transformer decoder that predicts: binary masks, quad-direction labels, 2D offsets, and height maps. A quad-direction-aware post-processing step then converts these dense outputs into 3D centerline instances .Offset Head   
+
+> Height Head
+> Mask Head Transformer
+> Decoder Classification
+> Head
+> Bezier Head
+
+Figure 3. TopoMaskV3 Decoder Architecture. Each sparse query is decoded by five parallel heads, each predicting a different centerline attribute. 
+
+When the B´ ezier head is activated, an optional output fusion step can be benefited from to leverage the comple-mentary strengths of the mask-based and parametric rep-resentations. Let Pmask = {mi}Ni=1 and Pbezier =
+
+{bi}Ni=1 be the set of N ordered 3D points from the mask-based and the B´ ezier-based path, respectively, where mi =(xmi , y mi , z mi ). and bi = ( xbi , y bi , z bi ). The coordinates of these two corresponding point sets Pmask and Pbezier are averaged element-wise to obtain the fused point fi (Eq. 1). 
+
+fi =
+
+ xmi + xbi
+
+2 , ymi + ybi
+
+2 , zmi + zbi
+
+2
+
+
+
+(1) 
+
+3.3. Proposal Mechanisms for Offset Refinement 
+
+At inference, the decoder predicts a probability map 
+
+Mprob ∈ [0 , 1] HBEV ×WBEV from the BEV feature map 
+
+FBEV . This map is binarized to obtain a rasterized mask 
+
+R via thresholding (Eq. 2). 
+
+R(i, j ) = 1Mprob (i, j ) ≥ τ , τ ∈ (0 , 1) (2) where i and j index the grid rows and columns, respectively. Then, a set of coarse centerpoints is extracted from R based on the quad-direction label: The extraction strategy depends on the assigned direc-tion. For ‘up’/‘down’, row-wise expectation is applied over all columns j (Eq. 3a) to obtain point ˆp(i) = ( i, ˆj(i)) ;for ‘left’/‘right’, column-wise expectation is applied over all rows i (Eq. 3b) to obtain point ˆp(j) = (ˆ i(j), j ).Rasterized Centerline Standard  
+
+> Centerpoint
+> Extraction
+> Multi -Point
+> Proposal
+> Single -Point
+> Proposal
+> (a) (b)
+> (d) (c)
+
+Figure 4. Offset Refinement Scheme. (a) A continuous straight centerline (blue) and its rasterized representation. (b) Center-points obtained using conventional row/column-wise extraction (c) Multi-point proposal predicts an offset vector for each raster pixel to its closest point on the continuous centerline, enabling one-to-many matching (d) Single-point proposal refines the center-points by predicting offsets toward their nearest centerline point, enforcing one-to-one matches, and refining centerline localization. 
+
+ˆj(i) =  
+
+> WBEV −1
+
+P
+
+> j=0
+
+R(i, j ) · j 
+
+> WBEV −1
+
+P
+
+> j=0
+
+R(i, j )
+
+(3a) 
+
+ˆi(j) =  
+
+> HBEV −1
+
+P
+
+> i=0
+
+R(i, j ) · i 
+
+> HBEV −1
+
+P
+
+> i=0
+
+R(i, j )
+
+(3b) This baseline extraction process of continuous center-lines from rasterized masks (Fig. 4a to Fig. 4b) is suscep-tible to discretization artifacts (or gridization error), as the true centerline rarely aligns perfectly with grid cell centers (Fig. 4b) To achieve sub-grid accuracy, we propose to learn a dense offset field O ∈ RHBEV ×WBEV ×2, where each grid cell (i, j ) predicts a 2D offset vector oij = O(i, j, :) .The offset field is trained using a multi-point supervi-sion strategy (Fig. 4c). For every foreground pixel (i, j ) in the ground-truth rasterized mask, the network learns to pre-dict an offset oij that points from the grid center (i, j ) to the closest point on the continuous ground-truth centerline 
+
+C. The target offset ogt ij is defined in Eq. 4. 
+
+ogt ij = Π C (( i, j )) − (i, j ), for all R(i, j ) = 1 (4) where ΠC (x) = arg min c∈C ∥x − c∥2 is the projection 4operator finding the closest point on the continuous curve 
+
+C. This dense, one-to-many matching scheme ensures the network learns to correct discretization error from any point on the mask. At inference, we utilize the predicted offset map O and the predicted rasterized map R (Eq. (2)) in two alternative ways: • Single-Point Proposal: This approach refines the base-line points. First, we extract the coarse centerpoints 
+
+ˆpk = (ik, j k) using the direction-aware expectations (Eqs. (3a)–(3b)). Then, we retrieve the predicted off-set ok = O(ik, j k, :) at each point’s location and apply the refinement: ˜pk = ˆ pk + ok. This one-to-one scheme (Fig. 4d) efficiently corrects only the initially extracted points. • Multi-Point Proposal: This approach applies the train-ing logic directly at inference. All foreground pixels in the predicted mask R are refined using their correspond-ing offsets (Eq. 5). 
+
+˜pij = ( i, j ) + oij , for all R(i, j ) = 1 (5) This one-to-many scheme (Fig. 4c) provides a dense cor-rection across the entire mask region. 
+
+3.4. Height Prediction 
+
+To elevate the 2D centerlines into 3D, the network predicts the dense height map H ∈ RHBEV ×WBEV which assigns a normalized height value h = H(i, j ) to each grid cell. 
+
+Height Map Supervision. The training for the height map follows the same multi-point, closest-point principle used for offset supervision. For every foreground pixel in the ground-truth raster-ized mask, the network is trained to predict the normalized height hnorm (c) of the closest point c on the continuous 3D centerline C. The target height hgt ij is defined as in Eq. 6. 
+
+hgt ij = hnorm (Π C (( i, j ))) , for all R(i, j ) = 1 (6) where ΠC (x) = arg min c∈C ∥x−c∥2 is the same projec-tion operator used for offset supervision (Section 3.3). This ensures that all pixels in the rasterized region learn to pre-dict the correct height of the nearest true centerline point. 
+
+Height Assignment at Inference. At inference, the pre-dicted height map H is used to provide the normalized height value h for the points generated by the two alter-native proposal mechanisms. This value is sampled from the point’s original grid location, in the same way the offset vector is retrieved. 
+
+Single-Point Height Assignment: For the single-point proposal , we use the coarse centerpoint locations ˆpk =(ik, j k) derived from the expectation step (Eqs. (3a)–(3b)). The height for each point k is sampled directly from the map hk = H(ik, j k)
+
+This height value hk is appended to its corresponding 2D offset-refined location (˜ pk,i , ˜pk,j ) (from Section 3.3) to form the final 3D point ˜pk = (˜ pk,i , ˜pk,j , h k).
+
+Multi-Point Height Assignment: For the multi-point proposal , all foreground pixels in the predicted mask region 
+
+R are processed. Each 3D grid point ˜pij is constructed as in Eq. 7. 
+
+˜pij = ( i + oij,x , j + oij,y , h ij ), for all R(i, j ) = 1 (7) where oij = (oij,x , o ij,y ) is the 2D offset vector from 
+
+O(i, j ) and hij = H(i, j ) is the height value. In both cases, this step generates a set of 3D points (either {˜pk} or {˜pij }), which we denote generically as 
+
+{˜pgrid }. This set serves as the input to the Curve Recon-struction pipeline described in Section 3.5. 
+
+3.5. Curve Reconstruction 
+
+The final set of refined 3D grid points {˜pgrid } generated by the offset and height heads must be transformed and reg-ularized into a smooth, ordered, continuous curve in real-world coordinates. This process involves two main stages: 
+
+1. Coordinate Transformation: First, each refined grid point ˜pgrid = ( i, j, h ) is mapped to its real-world 3D co-ordinate ˜pworld = ( x, y, z ) via a pre-defined grid-to-world transformation matrix V−1, yielding a set of unordered 3D points. 
+
+2. Direction-Aware Regularization and Ordering: Start-ing from the noisy real-world points ˜pworld , we produce a smooth, ordered 3D centerline through three steps. Poly-nomial Fitting. Separate polynomial functions are fit to the noisy points. The quad-direction label dictates the in-dependent variable for the 2D path fit (e.g., y = f (x) for ‘up’/‘down’ directions), simultaneously, a 3D height sur-face ( z = g(x, y )) is also fit. Resampling. The resulting 2D path is sampled and then resampled using arc-length interpolation to generate a final set of N equidistant 3D points. Ordering. This final set of N points is then explic-itly sorted (e.g., increasing x for ‘up’) to ensure the correct directional flow. This joint regularization and interpolation pipeline sup-presses the discretization artifacts further and ensures a high-quality, continuous vector output. Implementation de-tails of this pipeline are given in Section S.3. 
+
+3.6. LiDAR Sensor Fusion 
+
+LiDAR data is incorporated using a voxel-space fusion pipeline [10]. First, perspective-view camera features are projected into a voxel grid. Concurrently, the raw LiDAR point cloud is processed by a dedicated LiDAR encoder to produce a separate, dense LiDAR voxel grid. These two voxel representations are then concatenated along the chan-nel dimension before being collapsed into a final, unified 5Table 1. Proposed Dataset Splits for Road Topology Evaluation.             
+
+> Dataset Split Geo. Overlap Shared Cities Evaluation Focus Original Yes Yes In-distribution performance
+> Near No Yes Within-city generalization
+> Far A, B, C No No Robust Geographic Generalization
+
+BEV feature map. A detailed mathematical formulation of this pipeline is provided in Section S.4. 
+
+## 4. Experimental Evaluations 
+
+Dataset: The original OpenLane-V2 dataset [32], which is derived from the Argoverse2 [34] (Subset-A) and NuScenes [1] (Subset-B) datasets, has a significant shortcoming: its standard splits were designed for dynamic object detection and do not prevent geographic overlap between training and validation sets, a flaw highlighted by recent studies [24, 42]. To enable rigorous evaluation, we first developed a custom annotation pipeline using the HDMap data from Ar-goverse2 to replicate the OpenLane-V2 ground truth struc-ture. Critically, and building on the concept of geographi-cally disjoint splits [24], we then introduce five new and distinct splits for Subset-A specifically tailored for road topology understanding: Original , Near , FarA , FarB , and 
+
+FarC . These splits are designed to rigorously test model generalization and overcome the data leakage inherent in the original benchmark. Details of these evaluation proto-cols are provided in Table 1. 
+
+Metric: For centerline detection, two distinct evaluation metrics are employed. The DET l metric, based on the Fr´ echet distance, captures both the spatial proximity and di-rectional alignment between the predicted and ground-truth centerlines. DET l ch metric, based on Chamfer distance, evaluates only the spatial closeness, disregarding point or-dering and directionality. Both metrics are computed using a Mean Average Precision (mAP) formulation over a set of thresholds. The TOP ll metric, an Average Precision (AP)-based score for topology evaluation, suffers from a critical flow in its standard V1.1 implementation: it uses a fixed confi-dence threshold of 0.5 for ranking, which non-standardly truncates the precision-recall curve. A detailed analysis of this thresholding flaw is provided in Section S.5. This flaw can complicate internal comparisons, as demonstrated in [11]. Therefore, the score remapping tech-nique ( P (x) → P (x) + 1 × [P (x) > 0.05] ) is adopted to ensure a stable comparison within our ablation studies 
+
+without modifying the evaluation pipeline. However, for the main SOTA comparison in Table S7, the original, unmodi-fied TOP ll scores are reported to maintain fair comparability with prior literature. A single, comprehensive score for centerline-focused road topology is provided by the OLS l metric (Eq. 8), as 
+
+Table 2. Comparative Evaluation of Centerline and Road Topol-ogy Performance for Offset Refinement Mechanisms.                 
+
+> Configuration DET lDET l ch TOP ll OLS l
+> Baseline (No Prediction) 31.1 31.7 22.5 36.8 Single Proposal 31.2 37.6 22.9 38.9 Multiple Proposals 33.1 37.9 25.0 40.3
+
+in [10]. OLS l = 13
+
+
+
+DET l + DET l ch + f (TOP ll )
+
+
+
+(8) This metric is adapted from the original OpenLaneV2 Score (OLS) [16] by omitting traffic element-related components (DET t and TOP lt ) and incorporating the Chamfer distance component (DET l ch ). This adaptation is necessary for two key reasons: it provides a more focused assessment of cen-terline geometry and topology, and the ground-truth annota-tions for traffic elements are not available for some samples in the new geographically distinct splits. 
+
+Implementation Details: For the mask-based pipeline, the probability threshold τ (Eq. 2) is 0.95 . For curve recon-struction (Section 3.5), a 4th-order polynomial with arc-length interpolation is used. These hyperparameters are jus-tified by ablations in Sections S.11 and S.12. Full details on the model architecture, optimization, and preprocessing are available in Section S.7, and the complete loss function def-initions are provided in Section S.6. 
+
+4.1. Comparison of Offset Refinement Strategies 
+
+A comparative analysis of two refinement strategies (in-troduced in Section 3.3 and Section 3.4) is presented in Table 2. The Baseline (No Prediction) represents the coarse, discretized output from the standard expectation step (Eqs. (3a)–(3b)), without any offset or height correc-tion. In the Single Proposal setting, the predicted offset and height values are applied only to these coarse, initially-extracted centerpoints. In contrast, in the Multiple Propos-als configuration, the predicted offset and height are applied to every pixel within the full rasterized mask region. Both proposal mechanisms significantly outperform the baseline, confirming the effectiveness of the offset and height prediction heads. The Multiple Proposals approach achieves the highest scores across all metrics, indicating that dense, non-directional refinement across the full mask region more robustly corrects discretization errors. 
+
+4.2. Ablation Study of the Multi-Proposal 
+
+To analyze the effects of offset and height predictions in the multiple-proposal setup, we ran an ablation in which each component was enabled alone and together. Table 3 shows that both offset and height predictions contribute positively to centerline detection and road topology metrics. Notably, height prediction alone yields a more substantial improve-6Table 3. Ablation study on the individual and combined contribu-tions of the proposed offset and height prediction heads.                     
+
+> Configuration DET lDET l ch TOP ll OLS l
+> No Prediction 31.1 31.7 22.5 36.8 Only Offset 32.5 33.1 23.8 38.2 Only Height 32.6 37.2 23.4 39.4 Offset + Height 33.1 37.9 25.0 40.3
+
+ment than offset prediction, particularly in DET l ch , suggest-ing it has a stronger effect on spatial localization. The com-bination of both produces the best overall results, indicating that offset and height predictions provide complementary benefits. 
+
+4.3. Architectural Enhancements to the Mask Head 
+
+We analyze the impact of various architectural modifica-tions to the mask head, including auxiliary supervision, matcher strategies, and attention mechanisms. Table 5 presents the performance of the base mask head and its en-hanced variants. In this table, MM and ML1M indicate Mask Matcher [4] and Mask-L1 mix matcher [13], respec-tively (See Secion S.2). MA [4] and BDA [10] indicate Masked Attention and Bezier Deformable Attention (See Section S.1). The analysis reveals a key interaction: while the auxil-iary B´ ezier regression head alone slightly degrades perfor-mance (40.2 OLS l vs 40.4), it is a prerequisite for the Mask-L1 Mix Matcher (ML1M). Enabling ML1M provides a net performance gain (41.1 OLS l), showing the matcher’s ben-efit outweighs its dependency’s minor interference. Since both ML1M and its auxiliary head are used only during training, this performance boost is achieved with no added inference cost. Further improvements are achieved by integrating Bezier Deformable Attention (BDA) in place of standard mask at-tention. BDA enhances spatial modeling and yields the best overall performance. However, unlike ML1M, BDA requires Bezier predictions not only in training but also in inference. A detailed comparative ablation showing their impact across all three head types (Mask, Bezier, and Fu-sion) is provided in Section S.8. 
+
+4.4. Performance Across Output Types Under Sen-sor Modalities and Long-Range Conditions 
+
+We evaluated OLS l for B´ ezier, Mask, and Fusion outputs across sensor setups (camera-only vs. camera+LiDAR), spatial ranges ( ±50 m vs. ±100 m), and two dataset splits: Original (geographically overlapping) and Near 
+
+(geographically disjoint). According to the results provided in Table 4, the key findings are: • In the Original split, the B´ ezier head has the best OLS l in three of four configurations; the Fusion head only slightly outperforms it in the long-range camera-only case. • In the Near split, Fusion consistently scores high-est across all configurations. Notably, in the long-range camera-only condition, the Mask head outperforms B´ ezier, demonstrating stronger generalization for that set-ting. • Extending the range to ±100 m causes large perfor-mance drops, especially for camera-only models. Cam-era+LiDAR models are markedly more robust, confirm-ing that LiDAR provides the greatest relative benefit at long range. • The relative improvement from LiDAR is larger in the 
+
+Original split, suggesting LiDAR-based models may also gain from geographic overlap (i.e., memorization). Together, these findings indicate that while the B´ ezier can excel when train and test regions overlap, it is more sus-ceptible to overfitting. On the other hand, Mask and Fu-sion are more robust and generalizable across splits, sen-sors, and extended ranges, making them promising can-didates for generalizable road topology understanding. A detailed breakdown of these sensor fusion gains is pro-vided in Section S.9. 
+
+4.5. Performance Analysis Across Dataset Splits 
+
+To study generalization across dataset distributions, we evaluated B´ ezier, Mask, and Fusion heads on five splits: 
+
+Original , Near , FarA , FarB , and FarC , reporting OLS l
+
+scores at the standard range ±50 m (Table 6). Mov-ing from the Original split to any geographically distinct split produces a sharp performance drop, confirming sig-nificant data leakage and memorization in the standard benchmark. While the Bezier head achieves the highest score on the 
+
+original split, the Fusion head outperforms it in three of the four geographically distinct splits— Near , FarA , and 
+
+FarC , indicating the Bezier head’s greater sensitivity to geographic overlap and overfitting. The gap between the Bezier and Mask heads also narrows considerably on the non-overlapping splits, indicating that the Mask head is a viable alternative with stronger geographic generaliza-tion. Notably, the B´ ezier head’s dominance on the Original 
+
+split is also dependent on the BDA mechanism; as shown in Supplementary Section S.8 , the base B´ ezier head (with MA) is weaker than the Mask head, and fusion pro-vides a clear benefit in that setting also for the original split. 
+
+Key Insight: The near-doubling of OLS l scores between the disjoint splits ( ≈20) and Original split ( ≈43) across 
+
+all methods quantifies the extent of benchmark inflation. This gap strongly argues for adopting geographically dis-tinct splits as the primary evaluation standard in road topology research, as done here. 7Table 4. OLS l for B´ ezier, Mask, and Fusion across splits (Original, Near), sensors (Camera, Cam+LiDAR), and ranges ( ±50 m, ±100 m).                                            
+
+> Output Type Original Split Near Split
+> Camera Cam+LiDAR Camera Cam+LiDAR
+> [−50 ,+50] [−100 ,+100] [−50 ,+50] [−100 ,+100] [−50 ,+50] [−100 ,+100] [−50 ,+50] [−100 ,+100]
+> Bezier 43.5 32.5 51.6 50.0 27.8 16.5 32.0 24.2
+> Mask 40.8 31.0 47.7 46.9 26.4 16.7 31.0 23.7
+> Fusion 42.5 32.9 50.0 48.6 27.9 17.4 32.0 24.5
+
+Formatting: bold = best, underline = second-best. 
+
+Table 5. Ablation of mask-head architectural enhancements. Re-sults are reported on the original split.                     
+
+> Method DET lDET l ch TOP ll OLS l
+> Base Mask Head 33.3 38.3 24.6 40.4 + Auxiliary Bezier Regression 32.9 37.6 24.9 40.2 + ML1M (from MM) 33.9 38.9 25.6 41.1 + BDA (from MA) 34.2 39.4 25.9 41.5
+
+Table 6. OLS l generalization of B´ ezier, Mask, and Fusion across splits: Original (overlap), Near, FarA, FarB, and FarC (disjoint).                     
+
+> Output Type Original Near FarA FarB FarC
+> Bezier 43.4 27.8 22.2 20.9 27.8 Mask 40.8 26.4 21.2 20.0 27.1 Fusion 42.5 27.9 22.3 20.7 28.3
+
+Formatting: bold = best, underline = second-best. 
+
+Table 7. Comparative evaluation on the Near split (geographically disjoint ) using the V1.1 metric with score remapping applied to the TOP ll scores of all methods.                                     
+
+> Method DET lDET l ch TOP ll OLS l
+> TopoNet [16] 18.9 23.5 12.7 26.0 TopoMLP [35] 15.6 22.4 14.5 25.3 TopoLogic [5] 16.9 22.7 15.5 26.3 TopoMaskV2 (M) [11] 16.4 20.1 10.9 23.2 TopoMaskV2 (F) [11] 18.5 23.8 11.7 25.5 TopoBDA [10] 20.8 24.9 13.0 27.3
+> TopoMaskV3 (M) (Ours) 19.3 25.6 13.6 27.3
+> TopoMaskV3 (F) (Ours) 20.5 26.2 15.1 28.5
+
+(M): Mask-based, and (F): Fusion-based approaches. Formatting: bold = best, underline = second-best. 
+
+4.6. Comparison with SOTA in OpenLane-V2 
+
+We adopt the geographically disjoint Near split as the primary benchmark for SOTA comparison, with all com-peting methods re-trained on this split. As established in Sections 4.4 and 4.5, the standard Original split is afflicted by geographic data leakage that disproportion-ately benefits B´ ezier-based representations. Crucially, this evaluation employs the score remapping technique 0
+
+[11] to correct the 0.5 thresholding flaw in the standard TOP ll metric. As shown in Table 7, TopoMaskV3 (F) achieves the 
+
+state-of-the-art OLS l score of 28.5 on the geographically disjoint Near split, surpassing all competing methods in-cluding the strong TopoBDA baseline (27.3 OLS l). The 
+
+> 0
+
+Using score remapping ( P (x) → P (x) + 1 × [P (x) > 0.05] ). See Sec. 4 and Sup. Sec. S.5 for details. 
+
+standalone TopoMaskV3 (M) also reaches 27.3 OLS l,matching TopoBDA and further confirming the general-ization strength of the mask-centric paradigm. A detailed breakdown of the score differences between the flawed V1.1 metric and the stable, remapped metric is provided in Supplementary Section S.10 (see Table S3 for a direct comparison). For completeness and comparability with prior literature, a full SOTA comparison on the standard Original split is provided in Supplementary Section S.14 (Table S7) 1. On the Original split, TopoMaskV3 (F) ranks second with 50.1 OLS, behind TopoBDA [10] (51.7 OLS) — a result directly consistent with the B´ ezier memorization effect: TopoBDA, as a purely B´ ezier-based architecture, ben-efits disproportionately from geographic overlap in the training data, artificially inflating its apparent advantage — an advantage that vanishes entirely on the geograph-ically disjoint Near split, where TopoMaskV3 (F) takes the lead. 
+
+## 5. Conclusion 
+
+This work introduced TopoMaskV3, which matures the mask-based paradigm for road topology by incorporat-ing dense offset and height prediction heads. On the geographically disjoint Near split, TopoMaskV3 (F) 
+
+achieves state-of-the-art 28.5 OLS l, and the mask-only variant matches TopoBDA at 27.3 OLS l. We also in-troduced geographically distinct splits and a long-range benchmark, showing that the mask head is more robust to geographic overfitting than the B´ ezier head, while Li-DAR fusion is most beneficial at extended range and appears partially inflated on overlapping splits due to memorization. Although TopoMaskV3 currently in-cludes a post-processing stage (i.e., it is not fully end-to-end), it provides a fundamentally different represen-tation : the dense offset field is a principled, rasterized-output-specific solution complementary to parametric ap-proaches. 
+
+Acknowledgements. We acknowledge computational resources from TRUBA (T ¨ UB˙ ITAK ULAKB˙ IM) and the EuroHPC Joint Undertaking (via MareNostrum 5 at BSC-CNS). 
+
+> 1
+
+The standard OLS metric is reported there, as OLS l cannot be com-puted for all methods since DET l ch is not provided in most prior works. 
+
+8References 
+
+[1] Holger Caesar, Varun Bankiti, Alex H Lang, Sourabh Vora, Venice Erin Liong, Qiang Xu, Anush Krishnan, Yu Pan, Giancarlo Baldan, and Oscar Beijbom. nuscenes: A multimodal dataset for autonomous driving. In Proceed-ings of the IEEE/CVF conference on computer vision and pattern recognition , pages 11621–11631, 2020. 6 [2] Yigit Baran Can, Alexander Liniger, Danda Pani Paudel, and Luc Van Gool. Structured bird’s-eye-view traffic scene understanding from onboard images. In Proceedings of the IEEE/CVF International Conference on Computer Vision ,pages 15661–15670, 2021. 2, 17 [3] Shaoyu Chen, Tianheng Cheng, Xinggang Wang, Wen-ming Meng, Qian Zhang, and Wenyu Liu. Effi-cient and robust 2d-to-bev representation learning via geometry-guided kernel transformer. arXiv preprint arXiv:2206.04584 , 2022. 3 [4] Bowen Cheng, Ishan Misra, Alexander G Schwing, Alexander Kirillov, and Rohit Girdhar. Masked-attention mask transformer for universal image segmentation. In 
+
+Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 1290–1299, 2022. 7, 11, 13 [5] Yanping Fu, Wenbin Liao, Xinyuan Liu, Yike Ma, Feng Dai, Yucheng Zhang, and others. TopoLogic: An Inter-pretable Pipeline for Lane Topology Reasoning on Driv-ing Scenes. arXiv preprint arXiv:2405.14747 , 2024. 2, 8, 17 [6] Yanping Fu, Xinyuan Liu, Tianyu Li, Yike Ma, Yucheng Zhang, and Feng Dai. TopoPoint: Enhance Topology Rea-soning via Endpoint Detection in Autonomous Driving, 2025. arXiv:2505.17771 [cs]. 2 [7] Adam W Harley, Zhaoyuan Fang, Jie Li, Rares Ambrus, and Katerina Fragkiadaki. Simple-bev: What really mat-ters for multi-sensor bev perception? In 2023 IEEE Inter-national Conference on Robotics and Automation (ICRA) ,pages 2759–2765. IEEE, 2023. 3 [8] Junjie Huang and Guan Huang. Bevpoolv2: A cutting-edge implementation of bevdet toward deployment. arXiv preprint arXiv:2211.17111 , 2022. 14 [9] Junjie Huang, Guan Huang, Zheng Zhu, Ye Yun, and Dalong Du. BEVDet: High-performance Multi-camera 3D Object Detection in Bird-Eye-View. arXiv preprint arXiv:2112.11790 , 2021. 3 [10] Muhammet Esat Kalfaoglu, Halil Ibrahim Ozturk, Ozsel Kilinc, and Alptekin Temizel. TopoBDA: Towards Bezier Deformable Attention for Road Topology Understanding. 
+
+arXiv preprint arXiv:2412.18951 , 2024. 2, 3, 5, 6, 7, 8, 11, 12, 14, 16, 17 [11] Muhammet Esat Kalfaoglu, Halil Ibrahim Ozturk, Ozsel Kilinc, and Alptekin Temizel. TopoMaskV2: Enhanced Instance-Mask-Based Formulation for the Road Topology Problem. arXiv preprint arXiv:2409.11325 , 2024. 1, 2, 3, 6, 8, 13, 14, 15, 17 [12] Feng Li, Hao Zhang, Shilong Liu, Jian Guo, Lionel M Ni, and Lei Zhang. Dn-detr: Accelerate detr training by intro-ducing query denoising. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition ,pages 13619–13627, 2022. 14 [13] Feng Li, Hao Zhang, Huaizhe Xu, Shilong Liu, Lei Zhang, Lionel M Ni, and Heung-Yeung Shum. Mask dino: Towards a unified transformer-based framework for ob-ject detection and segmentation. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 3041–3050, 2023. 7, 11 [14] Han Li, Zehao Huang, Zitian Wang, Wenge Rong, Naiyan Wang, and Si Liu. Enhancing 3D Lane Detection and Topology Reasoning with 2D Lane Priors, 2024. arXiv:2406.03105 [cs]. 2, 17 [15] Qi Li, Yue Wang, Yilun Wang, and Hang Zhao. Hdmap-net: An online hd map construction and evaluation frame-work. In 2022 International Conference on Robotics and Automation (ICRA) , pages 4628–4634. IEEE, 2022. 16 [16] Tianyu Li, Li Chen, Huijie Wang, Yang Li, Jiazhi Yang, Xiangwei Geng, Shengyin Jiang, Yuting Wang, Hang Xu, Chunjing Xu, and others. Graph-based topology reason-ing for driving scenes. arXiv preprint arXiv:2304.05277 ,2023. 2, 6, 8, 13, 17 [17] Tianyu Li, Peijin Jia, Bangjun Wang, Li Chen, Kun Jiang, Junchi Yan, and Hongyang Li. LaneSegNet: Map Learn-ing with Lane Segment Perception for Autonomous Driv-ing. In ICLR , 2024. 2 [18] Yinhao Li, Zheng Ge, Guanyi Yu, Jinrong Yang, Zen-gran Wang, Yukang Shi, Jianjian Sun, and Zeming Li. Bevdepth: Acquisition of reliable depth for multi-view 3d object detection. In Proceedings of the AAAI Conference on Artificial Intelligence , pages 1477–1485, 2023. 3 [19] Yangguang Li, Bin Huang, Zeren Chen, Yufeng Cui, Feng Liang, Mingzhu Shen, Fenggang Liu, Enze Xie, Lu Sheng, Wanli Ouyang, and others. Fast-bev: A fast and strong bird’s-eye view perception baseline. IEEE Transactions on Pattern Analysis and Machine Intelligence , 46(12):8665– 8679, 2024. Publisher: IEEE. 3 [20] Zhiqi Li, Wenhai Wang, Hongyang Li, Enze Xie, Chong-hao Sima, Tong Lu, Qiao Yu, and Jifeng Dai. Bevformer: learning bird’s-eye-view representation from lidar-camera via spatiotemporal transformers. IEEE Transactions on Pattern Analysis and Machine Intelligence , 2024. Pub-lisher: IEEE. 3 [21] Bencheng Liao, Shaoyu Chen, Bo Jiang, Tianheng Cheng, Qian Zhang, Wenyu Liu, Chang Huang, and Xinggang Wang. Lane Graph as Path: Continuity-preserving Path-wise Modeling for Online Lane Graph Construction. arXiv preprint arXiv:2303.08815 , 2023. 2 [22] Bencheng Liao, Shaoyu Chen, Xinggang Wang, Tian-heng Cheng, Qian Zhang, Wenyu Liu, and Chang Huang. Maptr: Structured modeling and learning for online vec-torized hd map construction. In International Conference on Learning Representations , 2023. 2, 16, 17 [23] Bencheng Liao, Shaoyu Chen, Yunchi Zhang, Bo Jiang, Qian Zhang, Wenyu Liu, Chang Huang, and Xinggang Wang. Maptrv2: An end-to-end framework for online vectorized hd map construction. International Journal of Computer Vision , pages 1–23, 2024. Publisher: Springer. 2
+
+9[24] Adam Lilja, Junsheng Fu, Erik Stenborg, and Lars Ham-marstrand. Localization Is All You Evaluate: Data Leak-age in Online Mapping Datasets and How to Fix It, 2024. arXiv:2312.06420 [cs]. 1, 2, 3, 6, 16 [25] Shilong Liu, Feng Li, Hao Zhang, Xiao Yang, Xianbiao Qi, Hang Su, Jun Zhu, and Lei Zhang. DAB-DETR: Dynamic Anchor Boxes are Better Queries for DETR. In International Conference on Learning Representations ,2022. 13, 14 [26] Yicheng Liu, Tianyuan Yuan, Yue Wang, Yilun Wang, and Hang Zhao. Vectormapnet: End-to-end vectorized hd map learning. In International Conference on Machine Learn-ing , pages 22352–22369. PMLR, 2023. 16, 17 [27] Katie Z Luo, Xinshuo Weng, Yan Wang, Shuang Wu, Jie Li, Kilian Q Weinberger, Yue Wang, and Marco Pavone. Augmenting Lane Perception and Topology Understand-ing with Standard Definition Navigation Maps. arXiv preprint arXiv:2311.04079 , 2023. 2 [28] Changsheng Lv, Mengshi Qi, Liang Liu, and Huadong Ma. T2SG: Traffic Topology Scene Graph for Topol-ogy Reasoning in Autonomous Driving. arXiv preprint arXiv:2411.18894 , 2024. 2, 17 [29] Zhongxing Ma, Shuang Liang, Yongkun Wen, Weixin Lu, and Guowei Wan. RoadPainter: Points Are Ideal Navigators for Topology transformER. arXiv preprint arXiv:2407.15349 , 2024. 17 [30] TorchVision maintainers and contributors. TorchVision: PyTorch’s Computer Vision library, 2016. 14 [31] Jonah Philion and Sanja Fidler. Lift, splat, shoot: Encod-ing images from arbitrary camera rigs by implicitly un-projecting to 3d. In Computer Vision–ECCV 2020: 16th European Conference, Glasgow, UK, August 23–28, 2020, Proceedings, Part XIV 16 , pages 194–210. Springer, 2020. 3, 12, 14 [32] Huijie Wang, Tianyu Li, Yang Li, Li Chen, Chonghao Sima, Zhenbo Liu, Bangjun Wang, Peijin Jia, Yuting Wang, Shengyin Jiang, and others. Openlane-v2: A topol-ogy reasoning benchmark for unified 3d hd mapping. Ad-vances in Neural Information Processing Systems , 36, 2024. 6 [33] Shihao Wang, Yingfei Liu, Tiancai Wang, Ying Li, and Xi-angyu Zhang. Exploring object-centric temporal modeling for efficient multi-view 3d object detection. In Proceed-ings of the IEEE/CVF international conference on com-puter vision , pages 3621–3631, 2023. 3 [34] Benjamin Wilson, William Qi, Tanmay Agarwal, John Lambert, Jagjeet Singh, Siddhesh Khandelwal, Bowen Pan, Ratnesh Kumar, Andrew Hartnett, Jhony Kaesemodel Pontes, and others. Argoverse 2: Next generation datasets for self-driving perception and forecasting. arXiv preprint arXiv:2301.00493 , 2023. 6 [35] Dongming Wu, Jiahao Chang, Fan Jia, Yingfei Liu, Tian-cai Wang, and Jianbing Shen. TopoMLP: An Simple yet Strong Pipeline for Driving Topology Reasoning. ICLR ,2024. 2, 8, 14, 17 [36] Enze Xie, Zhiding Yu, Daquan Zhou, Jonah Philion, An-ima Anandkumar, Sanja Fidler, Ping Luo, and Jose M Al-varez. Mˆ2BEV: Multi-Camera Joint 3D Detection and Segmentation with Unified Birds-Eye View Representa-tion. arXiv preprint arXiv:2204.05088 , 2022. 3 [37] Yan Yan, Yuxing Mao, and Bo Li. Second: Sparsely embedded convolutional detection. Sensors , 18(10):3337, 2018. Publisher: Multidisciplinary Digital Publishing In-stitute. 12 [38] Sen Yang, Minyue Jiang, Ziwei Fan, Xiaolu Xie, Xiao Tan, Yingying Li, Errui Ding, Liang Wang, and Jing-dong Wang. TopoSD: Topology-Enhanced Lane Seg-ment Perception with SDMap Prior. arXiv preprint arXiv:2411.14751 , 2024. 3 [39] Yiming Yang, Hongbin Lin, Yueru Luo, Suzhong Fu, Chao Zheng, Xinrui Yan, Shuqi Mei, Kun Tang, Shuguang Cui, and Zhen Li. FASTopoWM: Fast-Slow Lane Segment Topology Reasoning with Latent World Models. arXiv preprint arXiv:2507.23325 , 2025. 3 [40] Yiming Yang, Yueru Luo, Bingkun He, Hongbin Lin, Suzhong Fu, Chao Yan, Kun Tang, Xinrui Yan, Chao Zheng, Shuguang Cui, and Zhen Li. TopoStreamer: Tem-poral Lane Segment Topology Reasoning in Autonomous Driving, 2025. arXiv:2507.00709 [cs]. 3 [41] Junjie Ye, David Paz, Hengyuan Zhang, Yuliang Guo, Xinyu Huang, Henrik I Christensen, Yue Wang, and Liu Ren. SMART: Advancing Scalable Map Priors for Driving Topology Reasoning. arXiv preprint arXiv:2502.04329 ,2025. 3 [42] Tianyuan Yuan, Yicheng Liu, Yue Wang, Yilun Wang, and Hang Zhao. Streammapnet: Streaming mapping network for vectorized online hd map construction. In Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision , pages 7356–7365, 2024. 1, 2, 3, 6, 16 [43] Hao Zhang, Feng Li, Shilong Liu, Lei Zhang, Hang Su, Jun Zhu, Lionel M Ni, and Heung-Yeung Shum. Dino: Detr with improved denoising anchor boxes for end-to-end object detection. arXiv preprint arXiv:2203.03605 , 2022. 14 [44] Brady Zhou and Philipp Kr¨ ahenb¨ uhl. Cross-view trans-formers for real-time map-view semantic segmentation. In 
+
+Proceedings of the IEEE/CVF conference on computer vi-sion and pattern recognition , pages 13760–13769, 2022. 3
+
+10 Supplementary Material for: TopoMaskV3: 3D Mask Head with Dense Offset and Height Predictions for Road Topology Understanding (a) Masked   
+
+> Attention
+> (b) Bezier Deformable
+> Attention
+
+Figure S1. Attention Mechanisms. (a) Masked Attention restricts attention to foreground regions using a binary mask. (b) Bezier Deformable Attention (BDA) attends around predicted Bezier con-trol points, enabling flexible and structure-aware feature aggrega-tion. 
+
+## S. Supplementary Materials 
+
+S.1. Masked and Bezier Deformable Attention (Recap) 
+
+Masked Attention. To focus attention on relevant re-gions, Masked Attention introduces a mask term Ml−1
+
+into the standard attention formulation: 
+
+Xl = softmax (Ml−1 + QlKT 
+
+> l
+
+)Vl + Xl−1
+
+Here, Ml−1(x, y ) = 0 for foreground pixels and −∞ 
+
+otherwise, effectively suppressing background attention. Masks are obtained by thresholding predicted probabili-ties at 0.5. For detailed information, please refer to the original Mask2Former study [4]. 
+
+Bezier Deformable Attention. BDA extends deformable attention by replacing single reference points with Bezier control points C = {c0, . . . , cN }:BDA (q, V, C) = 
+
+> N
+
+X
+
+> n=0
+> K
+
+X
+
+> k=1
+
+An,k WnV(cn + ∆ pn,k )
+
+Each control point acts as an attention head, allowing the model to capture curve geometry without convert-ing control points into dense polylines, reducing overhead and improving structural awareness. For detailed formu-lations and ablation studies, please refer to the original TopoBDA study [10]. 
+
+S.2. Mask-L1 Mix Matcher (Recap) 
+
+The bipartite matching cost combines regression, mask, and classification terms: 
+
+Ll = λreg Lreg + λmask Lmask + λcls Lcls .
+
+When λreg = 0 , the matcher relies on mask similarity; when λmask = 0 , it becomes an L1-based matcher. Acti-vating both terms yields the Mask-L1 Mix Matcher , which follows the principle of MaskDINO [13] by jointly lever-aging regression and mask losses in the matching cost. 
+
+S.3. Detailed Curve Reconstruction Pipeline 
+
+The set of refined 3D points {˜pgrid } generated by the offset proposal (Section 3.3) and height-estimation (Sec-tion 3.4) steps is initially in the BEV grid’s pixel coordi-nate system. These points must be transformed and regu-larized into a smooth, ordered, continuous curve in real-world coordinates. This multi-step process is guided by the quad-direction label predicted by the classification head. 
+
+S.3.1. Coordinate Transformation 
+
+Each refined grid point ˜pgrid = ( i, j, h ) (where (i, j ) is the refined 2D location and h is the estimated normal-ized height value) is first mapped to its real-world 3D coordinate ˜pworld = ( x, y, z ) via a pre-defined grid-to-world transformation matrix V−1. This step yields a set of unordered 3D points {˜pworld } in the real-world space, where x represents the vertical (forward) axis and y rep-resents the horizontal (lateral) axis. 
+
+S.3.2. Direction-Aware Regularization and Ordering 
+
+This set of noisy, real-world points {˜pworld } is processed to form the final smooth curve. This regularization, which involves joint polynomial fitting and arc-length interpola-tion, is crucial for further smoothing discretization arti-facts. The benefits of this approach are experimentally evaluated in Section S.11. The process involves three main operations: 
+
+Polynomial Functions Fit First, polynomial functions are fit to the unordered 3D points {˜pworld }. This finds 11 the best-fit curves that represent the underlying shape of the noisy points. Two separate least-squares fits are per-formed: 
+
+– 2D Path Fit: A direction-aware polynomial is fit to the 
+
+(x, y ) coordinates based on the quad-direction label such that y = f (x) for ‘up’/‘down’ directions and x = f (y)
+
+for ‘left’/‘right’ directions. 
+
+– 3D Height Fit: A 2D polynomial surface, z = g(x, y ), is fit to the 3D points (x, y, z ) by solving for the coefficients 
+
+C of a 3rd-order polynomial: 
+
+z ≈ g(x, y ) = C0 +
+
+> 3
+
+X
+
+> i=1
+
+(C2i−1xi + C2iyi). (S1) 
+
+3D Curve Generation and Resampling Second, the 3D curve is generated and resampled. A preliminary 3D polyline, Ppoly , is generated by sampling the fitted 2D path f at linearly-spaced intervals (e.g., using ‘linspace‘) to get new (xi, y i) points. The 3D height surface g is then evaluated at these locations to get the corresponding 
+
+zi coordinates. This Ppoly is smooth but its points are not equidistant. This 3D polyline is then resampled us-ing arc-length interpolation (‘interp arc‘), which takes 
+
+Ppoly as input and produces the final, uniformly sampled set of N equidistant 3D points, {˜p′} = {(x′
+
+> i
+
+, y ′
+
+> i
+
+, z ′
+
+> i
+
+)}Ni=1 .
+
+Final Sorting Finally, this resulting set {˜p′} is explic-itly sorted to guarantee the correct directional flow, as de-fined by the quad-direction label. For instance, points for an ’up’ centerline are sorted by increasing x′-coordinates, while ’down’ centerlines are sorted by decreasing x′-coordinates. This step ensures the final point sequence is correctly ordered from start to end. 
+
+S.4. LiDAR Fusion Pipeline 
+
+The sensor fusion pipeline integrates camera and LiDAR data at the voxel level before projecting to a unified BEV representation. This early fusion in 3D space preserves fine-grained spatial information. The process, adapted from [10], is as follows: 
+
+S.4.1. Camera Feature Voxelization 
+
+A set of N perspective-view images {Ii}Ni=1 is first pro-cessed by a backbone fP V to extract features {FP V i }Ni=1 .These 2D features are then lifted into a 3D voxel repre-sentation FvoxelCam ∈ RHbev ×Wbev ×Z×Ccamera using a vox-elization module fvoxel (e.g., Lift-Splat [31]): 
+
+FvoxelCam = fvoxel ({FP V i }Ni=1 ). (S2) 
+
+S.4.2. LiDAR Feature Voxelization 
+
+Concurrently, the raw LiDAR point cloud {pj
+
+> lidar
+
+}Nlidar 
+
+> j=1
+
+is processed by a dedicated LiDAR encoder flidar (e.g., SECOND [37]). This module converts the sparse point cloud into a dense, feature-rich voxel grid FvoxelLidar ∈
+
+RHbev ×Wbev ×Z×Clidar that shares the same spatial dimen-sions: 
+
+FvoxelLidar = flidar ({pj
+
+> lidar
+
+}Nlidar  
+
+> j=1
+
+). (S3) 
+
+S.4.3. Voxel-Space Fusion 
+
+The two feature-rich voxel grids are concatenated along the channel dimension to create a unified fused tensor, 
+
+Ffused ∈ RHbev ×Wbev ×Z×(Ccamera +Clidar ):
+
+Ffused = concat (FvoxelCam , FvoxelLidar ). (S4) 
+
+S.4.4. BEV Feature Map Generation 
+
+Finally, the height ( Z) and channel dimensions of the fused voxels are flattened and passed through a 2D con-volutional layer fconv2 to produce the final, unified BEV feature map Fbev ∈ RHbev ×Wbev ×CBEV :
+
+Fbev = fconv2 (Ffused ). (S5) This BEV map serves as the input to the downstream de-coder heads. 
+
+S.5. Topology Metric 
+
+The TOP ll metric is an Average Precision (AP)-based measure for evaluating directed lane-to-lane topology in graph-structured predictions. A predicted adjacency ma-trix Pθ is constructed and aligned with the full ground-truth (GT) vertex set V by matching predicted and GT vertices using Fr´ echet distance thresholds Θ =
+
+{1 m, 2 m, 3 m}.For each GT edge: 
+
+– If both vertices are matched, the corresponding entry in 
+
+Pθ is set to the model’s predicted edge confidence. 
+
+– If either vertex is unmatched, the entry is set to 0 for GT-positive edges and to 0.5 + ε for GT-negative edges. This is intended to penalize missing detections as low-confidence false positives. For each GT vertex v ∈ V , AP is computed indepen-dently for outgoing ( d = out) and incoming ( d = in) edges. The AP for a given vertex, threshold θ, and direc-tion d is: AP (v, θ, d ) = 1
+
+|Nd(v)|
+
+X  
+
+> ˆn′∈ˆN′
+> θ,d (v)
+
+Pθ,d (ˆ n′)I(ˆ n′ ∈ Nd(v)) 
+
+(S6) where Nd(v) is the set of ground-truth neighbors, ˆN ′
+
+> θ,d
+
+(v)
+
+is the ranked predicted neighbor list, Pθ,d (ˆ n′) is the pre-cision at that rank, and I is the indicator function. The final TOP ll score is the mean of this AP over all thresholds, all vertices, and both directions: TOP ll = 12|Θ|| V |
+
+X
+
+> θ∈Θ
+
+X
+
+> v∈V
+
+X
+
+> d∈{ in, out }
+
+AP (v, θ, d ) (S7) 12 Critical Analysis of the 0.5 Confidence Threshold. Asignificant flaw in the V1.1 metric implementation is that only predicted edges with confidence greater than 0.5 
+
+are ranked for the AP calculation. This is a non-standard practice for an AP-based metric, which should evaluate the entire precision-recall curve by ranking all predic-tions. This 0.5 thresholding effectively ignores all pre-dictions in the lower half of the confidence range. As demonstrated in prior work [11], this flaw can be ex-ploited to artificially inflate scores. Simply remapping low-confidence predictions (e.g., > 0.05 ) to a value just above the 0.5 threshold can substantially boost perfor-mance (e.g., by +10.6 TOP ll for some models [11]) with-out any change to the model itself. This proves the met-ric, in its current form, is not a robust measure of perfor-mance. The quantitative impact of this remapping is de-tailed in our Supplementary Section S.10, which provides a direct comparison (Table S3) between the “flawed” V1.1 metric and the “healthy” remapped scores used in our main paper’s Table 7. A proper AP evaluation should rank all predictions. Asimple and effective fix would be to lower this ranking threshold from 0.5 to a near-zero value (e.g., 0.01 ). Corre-spondingly, the penalty for unmatched GT-negative edges should be set to 0.01 + ε to ensure they are correctly pe-nalized as low-confidence false positives. 
+
+S.6. Loss Functions 
+
+The overall training objective is a multi-component loss function. The total loss Ltotal is a weighted sum of the primary centerline loss Ll, a traffic element loss Lt (from DAB-DETR [25]), and topology losses Lll and Llt (from TopoNet [16]). 
+
+S.6.1. Total Loss 
+
+The total loss is defined as: 
+
+Ltotal = Ll + Lt + Lll + Llt .
+
+Our primary contributions are captured within the center-line loss Ll, which is a composite of five distinct terms: 
+
+Ll = λcls Lcls + λreg Lreg + λmask Lmask 
+
++ λoffset Loffset + λheight Lheight .
+
+S.6.2. Core Centerline Losses 
+
+Three components of the centerline loss are adapted from prior work. 
+
+Classification Loss (Lcls ) A standard cross-entropy loss is applied to each query to predict its class. This includes the four quad-direction labels (as explained in Section 3) and a ”no-object” class for empty queries. Due to the dominance of empty queries, the ”no-object” class is down-weighted by a factor of 0.1 following [4]. 
+
+B´ ezier Regression Loss ( Lreg ) For the optional B´ ezier head, a standard L1 regression loss is applied between the 
+
+N predicted normalized control points ci and the ground-truth points ˆci:
+
+Lreg = 1
+
+L
+
+> L
+
+X
+
+> j=1
+> N
+
+X
+
+> i=0
+
+∥ci,j − ˆci,j ∥1,
+
+where L is the number of matched ground-truth center-lines. 
+
+Instance Mask Loss ( Lmask ) Following [4], the in-stance mask loss is a combination of a Binary Cross En-tropy (BCE) loss and a Dice loss. This is computed ef-ficiently by sampling K points {ak} from the predicted probability map Mprob . The total mask loss is the sum of 
+
+LBCE and LDice :
+
+LBCE = 1
+
+K
+
+> K
+
+X
+
+> k=1
+
+BCE (Mprob (ak), Gmap (ak)) 
+
+LDice = 1 − 2 PKk=1 Mprob (ak)Gmap (ak)
+
+PKk=1 Mprob (ak) + PKk=1 Gmap (ak)
+
+S.6.3. Dense Offset and Height Losses (Ours) 
+
+To supervise the new architectural components intro-duced in the main paper (Sections 3.3 and 3.4), two novel L1-based losses are introduced. A key aspect of this supervision is the definition of the foreground mask, Mfg . For each pixel (i, j ), the L2 norm (Euclidean distance) of its target offset vector ˆO(i, j ) is computed. The pixel is included in the foreground mask only if this norm is less than a centerline thickness thresh-old, which is set to 4 pixels. 
+
+Mfg (i, j ) = I∥ ˆO(i, j )∥2 < 4
+
+This defines a supervision band, capturing all grid pixels whose closest point on the continuous centerline is up to 4 pixels away. 
+
+Offset Loss ( Loffset ) The dense offset head predicts an offset map O ∈ RH×W ×2. This is supervised by a masked L1 loss against the target offset map ˆO, using the dynamic foreground mask Mfg . The loss is normalized by the number of active foreground pixels: 
+
+Loffset = 1
+
+P Mfg 
+
+X
+
+> i,j
+
+∥O(i, j ) − ˆO(i, j )∥1 · Mfg (i, j ).
+
+Height Loss ( Lheight ) Similarly, the dense height head predicts a height map H ∈ RH×W . This is supervised by 13 a masked L1 loss against the target height map ˆH, using the exact same foreground mask Mfg :
+
+Lheight = 1
+
+P Mfg 
+
+X
+
+> i,j
+
+|H(i, j ) − ˆH(i, j )| · Mfg (i, j ).
+
+S.7. Implementation Details 
+
+S.7.1. Architecture Overview 
+
+The model architecture is built upon the Topo-MaskV2 [11] and TopoBDA [10] frameworks, utilizing distinct, non-weight-sharing backbones for the traffic ele-ment and centerline branches. The traffic element branch is based on DAB-DETR [25] and integrates concepts from DN-DETR [12] and DINO [43]. For all experiments in this study, both branches use the ResNet50 [30] archi-tecture. For BEV feature generation, the multi-height bin Lift-Splat [11, 31] and efficient Voxel Pooling [8] implemen-tations were used. The topology heads project the query embeddings from both branches into a shared space us-ing MLPs, concatenate them, and process the result with a final MLP. 
+
+S.7.2. Optimization Parameters 
+
+The model was trained with a batch size of 8 using the AdamW optimizer. The base learning rate was set to 3 ×
+
+10 −4 with a weight decay of 1 × 10 −2. The learning rates for both the PV and BEV backbones were scaled by 0.1. A polynomial learning rate decay schedule (factor 0.9) with 1000 warm-up iterations was used. Gradient norm clipping was set to 35. As detailed in Section S.6, the loss coefficients for the bipartite matcher were: λcls = 2 ,
+
+λreg = 5 , λmask BCE = 5 , λmask Dice = 5 , λoffset = 20 , and 
+
+λheight = 50 .
+
+S.7.3. Architecture Hyperparameters 
+
+The BEV grid dimensions ( Hbev , Wbev ) were set to 200 and 104, respectively, at a 0.5m x 0.5m resolution. The vertical dimension ( Z) was set to 20 bins, spanning 
+
+[−10 , 10] meters. For ground-truth generation, the cen-terline mask width was set to 4 pixels, following [10, 11]. When the B´ ezier branch was active, the number of con-trol points was set to 4 [10, 35]. The number of queries was 200, and the transformer hidden channel dimension was 256. The transformer encoder and decoder were set to 6 and 10 layers, respectively. Multi-scale features were used from PV scales 18 , 116 , and 132 , and BEV scales 1, 12 ,and 14 .
+
+S.7.4. Dataset Preprocessing 
+
+Standard preprocessing, including a uniform 0.5× scal-ing, was applied to all camera inputs. For Subset-A, im-ages were resized to 1024 × 736 (width × height) with top crops of 178 pixels (front) or 19 pixels (others) after scaling by 0.5× .
+
+S.8. Comparative Ablation of Architectural En-hancements Across Head Types              
+
+> Table S1. Comparative ablation of architectural enhancements across different head types, with results reported using OLS l.
+> Enhancement Bezier Mask Fusion
+> Base 38.3 40.2 40.6 + ML1M (from MM) 39.0 41.1 41.5 + BDA (from MA) 43.8 41.5 42.8
+
+To assess the impact of enhancements introduced in the TopoBDA study [10] when adapted to our framework, we perform a comparative ablation across three head types: Bezier, Mask, and Fusion. Table S1 reports OLS l
+
+scores for the base configuration and two adapted mech-anisms—Mask L1 Mix Matcher (ML1M) and Bezier De-formable Attention (BDA). Although ML1M and BDA are not proposed in this study, they are adapted from the TopoBDA framework to evalu-ate their compatibility and effectiveness within our mask head design. ML1M yields consistent improvements across all head types, suggesting its general utility. In contrast, BDA shows a particularly strong effect on the Bezier head, likely due to the direct alignment between Bezier regression outputs and the Bezier deformable at-tention mechanism. This synergy may facilitate more ef-fective gradient flow and feature refinement. While BDA also benefits the Mask and Fusion heads, its most pro-nounced impact is observed in the Bezier head. This strong synergistic effect of BDA on the B´ ezier head is pivotal. As shown in Table S1, in the Base (MA) con-figuration, the B´ ezier head (38.3 OLS l) is weaker than the Mask head (40.2 OLS l), and Fusion (40.6 OLS l) pro-vides a clear benefit. With the integration of BDA , this dynamic reverses: the B´ ezier head (43.8 OLS l) becomes the superior component, and Fusion (42.8 OLS l) is no longer beneficial. This explains why the enhanced stan-dalone B´ ezier head outperforms the Mask and Fusion heads on the Original dataset split. However, this out-come is shown to vary on different data partitions, as a more detailed analysis across dataset splits is presented in the main paper Section 4.5. 
+
+S.9. Sensor Fusion Impact on Different Splits and Ranges 
+
+Table S2 presents detection performance across different geographic splits, sensor configurations, and perception ranges. In this analysis, the TopoBDA [10] architecture has been utilized. Across all settings, incorporating Li-DAR consistently improves detection metrics compared to using RGB alone. Notably, the performance gain from LiDAR becomes more pronounced in the extended range setting ( ±100 m), where RGB-only setups suffer from significant degradation. 14 Table S2. Detection performance across geographic splits, perception ranges, and sensor configurations. Metrics include DET l, DET l ch ,TOP ll , and OLS l, with relative improvements from LiDAR integration reported as OLS%. This analysis is conducted using the TopoBDA benchmark setup.                                                                        
+
+> Split Range Sensor DET lDET l ch TOP ll OLS lOLS% ↑
+> Original ±50 mRGB 37.6 37.7 28.3 42.9 –Original ±50 mRGB + LiDAR 47.0 49.8 37.0 52.6 22.61%
+> Original ±100 mRGB 24.1 28.5 20.4 32.6 –Original ±100 mRGB + LiDAR 43.4 48.4 34.7 50.2 53.99%
+> Near ±50 mRGB 19.2 24.5 15.2 27.6 –Near ±50 mRGB + LiDAR 24.2 31.6 18.0 32.7 18.48%
+> Near ±100 mRGB 12.1 15.6 6.7 17.9 –Near ±100 mRGB + LiDAR 18.4 22.5 12.2 25.3 41.34%
+
+In both range settings, LiDAR integration yields consis-tently higher relative improvements in the Original split compared to the Near split. Specifically, in the ±50 mrange, LiDAR provides a relative gain of 22.61% in the 
+
+Original split, while the improvement in the Near split is only 18.48% . This trend becomes even more pronounced in the extended ±100 m range, where the relative gain reaches 53.99% in the Original split versus 41.34% in the Near split. These discrepancies suggest that LiDAR-based models may benefit more from geographic over-lap, potentially leveraging memorized spatial priors. In contrast, RGB-only models, while less performant over-all, exhibit more stable generalization across unseen re-gions. These findings highlight the importance of eval-uating sensor fusion strategies not only by absolute per-formance but also by their robustness across diverse geo-graphic domains. 
+
+S.10. Analysis of Score Remapping on the Near Split 
+
+Table S3. Direct comparison of topology and OLS scores with and without score remapping on the Near Split. Note the significant, non-uniform boost from remapping.                                      
+
+> Method Flawed Metric Remapped Metric
+> TOP ll OLS lTOP ll OLS l
+> TopoNet 6.2 22.4 12.7 (+6.5) 26.0 (+3.6) TopoMLP 13.0 24.7 14.5 (+1.5) 25.3 (+0.6) TopoLogic 15.0 26.1 15.5 (+0.5) 26.3 (+0.2) TopoMaskV2 (M) 6.1 20.4 10.9 (+4.8) 23.2 (+2.8) TopoMaskV2 (F) 6.6 22.6 11.7 (+5.1) 25.5 (+2.9) TopoBDA 10.6 26.1 13.0 (+2.4) 27.3 (+1.2)
+> TopoMaskV3 (M) 5.8 23.0 13.6 (+7.8) 27.3 (+4.3)
+> TopoMaskV3 (F) 6.6 24.2 15.1 (+8.5) 28.5 (+4.3)
+
+As detailed in the main paper and Supplementary Sec-tion S.5, the standard TOP ll metric’s 0.5 thresholding flaw prevents a stable comparison of topological reason-ing. The main paper’s Section 4.6 (Table 7) presents the SOTA comparison on the ‘Near Split’ using the corrected, “healthy” score remapping. To illustrate the impact of this correction, Table S3 in this section provides a direct side-by-side comparison of the OLS l and TOP ll scores computed with the flawed V1.1 metric versus the remapped metric. Table S3 quantifies the impact of applying the score remapping technique ( P (x) → P (x) + 1 × [P (x) >
+
+0.05] ) [11]. As shown, this yields significantly higher and more representative TOP ll scores for most methods (e.g., TopoNet’s score increases from 6.2 to 12.7). How-ever, the impact is non-uniform across different methods. For TopoLogic , applying the remapping technique was not feasible, as it already implements its own inherent distance-based score manipulation. To avoid the com-plexity of compounding these two strategies, a compa-rable “healthy” result was obtained by simply modify-ing the standard metric’s evaluation threshold from 0.5 to 0.05 for its outputs. Other methods, such as TopoMLP, are also less affected, as their original implementations al-ready produce high-confidence predictions that naturally bypass the flawed 0.5 threshold. This non-uniform im-pact highlights the instability of the original metric and validates the use of score remapping in the main paper (Table 7) for a more stable and fair comparison. 
+
+S.11. Impact of Post-Processing Methods on Instance-Level Point Outputs 
+
+Table S4. Performance comparison of post-processing methods. Best scores are bolded, second-best scores are underlined. 
+
+Method DET l DET l ch TOP ll OLS l
+
+None 28.1 34.0 17.6 34.7 P2 30.6 37.1 21.9 38.2 P3 32.7 37.4 23.4 39.5 Arc 25.7 33.0 14.5 32.2 P3+Arc 33.1 37.8 25.0 40.3 P4+Arc 33.3 38.0 25.8 40.7 
+
+To evaluate the effect of different post-processing strate-gies applied to the proposed instance-level point outputs, several configurations were tested. These include poly-nomial fitting of varying degrees and arc interpolation. Polynomial fitting was applied in the vertical-horizontal domain using second-, third-, and fourth-order polynomi-15 als. Arc interpolation was also considered both indepen-dently and in combination with polynomial fitting. Ta-ble S4 summarizes the results across four metrics: DET l,DET l chamfer , TOP ll , and OLS l.As shown in Table S4, applying polynomial fitting signif-icantly improves performance over the raw point outputs. While arc interpolation alone degrades performance, its combination with polynomial fitting—particularly third-and fourth-order—leads to notable gains. The best overall results are achieved with fourth-order polynomial fitting combined with arc interpolation, indicating that higher-order curve modeling and smooth interpolation are com-plementary in refining centerline predictions. 
+
+S.12. Threshold Sensitivity for Mask-Based Point Selection                                                 
+
+> Table S5. Performance across different mask probability thresh-olds. Best scores are bolded, second-best scores are underlined.
+> Threshold DET lDET l ch TOP ll OLS l
+> 0.01 30.4 36.6 22.4 38.1 0.10 32.8 37.5 23.9 39.7 0.20 32.9 37.6 24.2 39.9 0.30 33.0 37.7 24.3 40.0 0.40 33.0 37.7 24.5 40.1 0.50 33.1 37.8 24.6 40.2 0.60 33.1 37.8 24.8 40.2 0.70 33.1 37.8 24.9 40.3
+> 0.80 33.1 37.8 25.0 40.3
+> 0.90 33.1 37.9 25.0 40.3
+> 0.95 33.1 37.9 25.0 40.3
+
+To analyze the effect of thresholding on the mask proba-bility map M(l)
+
+> prob
+
+, a range of values was evaluated to select grid points corresponding to each instance query. This threshold τ (Eq. 2) determines which points are retained from the gridized mask map. Table S5 presents the per-formance across DET l, DET l ch , TOP ll , and OLS l metrics for varying threshold values. As shown in Table S5, increasing the threshold improves performance across all metrics, with convergence ob-served around τ = 0 .95 . This indicates that higher confi-dence regions in the mask probability map yield more re-liable point selections for instance-level queries, enhanc-ing centerline detection quality. 
+
+S.13. Comparison of Lane Divider and Centerline Representations 
+
+In addition to centerline representation, lane dividers are also extracted from the HDMap to extend the scope of the analysis. Unlike the OpenLane-V2 dataset, which treats lane dividers as part of the lane segment concept, this work considers lane dividers as independent geomet-ric entities as in studies [15, 22, 26]. Since HDMaps are structured around lane segments, converting them  
+
+> Table S6. Chamfer distance-based mAP scores (DET l ch ) of TopoBDA method for Centerline and Lane Divider representations across five splits in the Argoverse2 HDMap dataset. Best scores per split are highlighted in bold.
+
+Representation orig near farA farB farC 
+
+Centerline 39.8 25.0 20.3 19.1 25.3 Lane Divider 38.9 27.6 22.5 20.8 25.5 
+
+into lane dividers introduces duplication, particularly be-tween adjacent lane segments. To address this, a chamfer distance-based elimination strategy is applied to remove redundant lane divider instances and ensure non-duplicate divider instances. We conduct a comparative analysis of lane dividers and centerline representations across five distinct geographic splits of the Argoverse2 HDMap dataset. In this anal-ysis, the Bezier head is utilized. The evaluation metric is the Chamfer distance-based mean Average Precision (DET l ch ), and the results are summarized in Table S6. In the Original split, which exhibits significant geo-graphic overlap between training and evaluation scenes, the centerline representation achieves the highest perfor-mance with an mAP of 39.8, slightly outperforming lane dividers at 38.9. However, in all other splits— Near ,
+
+FarA , FarB , and FarC —lane dividers consistently out-perform centerlines. For instance, in the Near split, lane dividers achieve an mAP of 27.6 compared to 25.0 for centerlines, and in the FarA split, lane dividers score 22.5 
+
+versus 20.3 for centerlines. These results suggest that while centerline representations may benefit from memorization in geographically over-lapping regions, they exhibit reduced generalization in unseen areas. In contrast, lane divider representations demonstrate more robust performance across diverse ge-ographic domains, indicating stronger generalization ca-pabilities and reduced susceptibility to overfitting. 
+
+S.14. Comparison with SOTA on the Standard (Geographically Overlapping) Original Split 
+
+The Original split of OpenLane-V2 contains geographic overlap between training and validation sets [24, 42], which can inflate reported performance through memo-rization (see Sec. 4.6 and Sec. 4.5 in the main paper). We report results on this standard benchmark for complete-ness and comparability with prior literature. As discussed in the main paper, TopoMaskV3 (F) achieves 50.1 OLS — the second-highest score — surpassing all methods ex-cept the B´ ezier-based TopoBDA [10], whose advantage is attributable to B´ ezier’s higher susceptibility to geographic memorization. The TopoMaskV3 (M) standalone head achieves 49.1 OLS, substantially outperforming Topo-MaskV2 (M) (46.3 OLS), validating the newly introduced 16 Table S7. Comparative Evaluation of TopoMaskV3 and other Camera-Only Methods on the Original split ( geographically overlapping ) of OpenLane-V2 Subset-A using V1.1 Metric Base-line. 
+
+Method DET l DET t TOP ll TOP lt OLS 
+
+STSU [2] 12.7 43.0 2.9 19.8 29.3 VectorMapNet [26] 11.1 41.7 2.7 9.2 24.9 MapTR [22] 8.3 43.5 2.3 8.3 24.2 TopoNet [16] 28.6 48.6 10.9 23.9 39.8 TopoMLP [35] 28.5 49.5 21.7 26.9 44.1 Topo2D [14] 29.1 50.6 22.3 26.2 44.4 TopoLogic [5] 29.9 47.2 23.9 25.4 44.1 RoadPainter [29] 30.7 47.7 22.8 27.2 44.6 TopoFormer [28] 34.7 48.2 24.1 29.5 46.3 TopoMaskV2 (M) [11] 29.6 53.8 20.6 31.9 46.3 TopoMaskV2 (F) [11] 34.5 53.8 24.5 35.6 49.4 TopoBDA [10] 38.9 54.3 27.6 37.3 51.7 TopoMaskV3 (M) (Ours) 34.7 53.4 23.8 35.4 49.1 
+
+TopoMaskV3 (F) (Ours) 35.5 53.4 25.9 36.7 50.1 
+
+(M): Mask-based, (F): Fusion-based approaches. Formatting: bold = best, underline = second-best. 
+
+offset and height prediction mechanisms. This improve-ment surpasses most published works, including Topo-Former [28] and RoadPainter [29]. 17

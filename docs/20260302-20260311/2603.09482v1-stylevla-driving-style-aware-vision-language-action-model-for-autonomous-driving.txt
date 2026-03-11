@@ -1,0 +1,446 @@
+Title: StyleVLA: Driving Style-Aware Vision Language Action Model for Autonomous Driving
+
+URL Source: https://arxiv.org/pdf/2603.09482v1
+
+Published Time: Wed, 11 Mar 2026 00:55:25 GMT
+
+Number of Pages: 8
+
+Markdown Content:
+> This work has been submitted to the IEEE for possible publication. Copyright may be transferred without notice, after which this version may no longer be accessible.
+
+# StyleVLA: Driving Style-Aware Vision Language Action Model for Autonomous Driving 
+
+Yuan Gao 1, Dengyuan Hua 1, Mattia Piccinini 1, Finn Rasmus Sch¨ afer 1, Korbinian Moller 1, Lin Li 2, Johannes Betz 1
+
+https://anonymous-paper-2026.github.io/StyleVLA/ 
+
+Abstract — Vision Language Models (VLMs) are transform-ing intelligent systems by bridging the gap between visual perception and linguistic reasoning. In Autonomous Driving (AD), this synergy has catalyzed the development of Vision Language Action (VLA) models, which aim to translate high-level multimodal understanding into actionable driving be-haviors, typically represented as future trajectories. How-ever, current VLA models predominantly focus on generating generic collision-free trajectories. While collision avoidance is a fundamental requirement, adapting to diverse driving styles (e.g., sporty, comfortable) is essential for personalized user experiences. Furthermore, they often treat trajectory generation as a naive token prediction task, leading to kinematically infeasible actions. To address these limitations, we present StyleVLA, a physics-informed VLA framework that generates diverse, physically plausible driving behaviors. We introduce a novel hybrid loss function that integrates a physics-informed kinematic consistency constraint with a continuous regression head, enhancing the physical feasibility of generated trajec-tories. To train the StyleVLA model based on Qwen3-VL 4B, we construct a large-scale instruction dataset containing over 1.2k scenarios with 76k Bird’s Eye View (BEV) and 42k First Person View (FPV) samples, featuring ground-truth trajectories for five distinct driving styles and natural-language instructions. Extensive experiments demonstrate that our 4B-parameter StyleVLA model significantly outperforms proprietary models (e.g., Gemini-3-Pro) and State-of-the-Art (SOTA) VLA models. Using a composite driving score that measures success rate, physical feasibility, and adherence to user-specified driving styles, StyleVLA achieves 0.55 on BEV and 0.51 on FPV, compared to 0.32 and 0.35 for Gemini-3-Pro. This finding highlights that a specialized, physics-informed, lightweight model can surpass closed-source models on domain-specific tasks. 
+
+I. I NTRODUCTION 
+
+Foundation models, particularly Large Language Models (LLMs) and Vision Language Model (VLM), have revolu-tionized artificial intelligence by demonstrating remarkable reasoning and generalization capabilities across diverse do-mains, from natural language processing to Autonomous Driving (AD) [1]. By leveraging massive-scale pre-training on internet-scale data, these models can understand complex multi-modal contexts and perform tasks with minimal zero-shot adaptation [2]. In the realm of AD, this paradigm shift has catalyzed the development of Vision Language    
+
+> 1Y. Gao, D. Hua, M. Piccinini, F. Sch¨ afer, K. Moller, J. Betz are with the Professorship of Autonomous Vehicle Systems, TUM School of Engineering and Design, Technical University of Munich, 85748 Garching, Germany; Munich Institute of Robotics and Machine Intelligence (MIRMI)
+> 2L. Li is with the School of Mechanical and Aerospace Engineering, Nanyang Technological University
+> Fig. 1. Concept of StyleVLA: Enabling driving style-aware trajectory generation via VLA model. Our framework yields diverse driving styles (Default, Balanced, Comfort, Sporty, Safety) in response to user instructions.
+
+Action (VLA) models. These models aim to transcend the limitations of traditional rule-based systems and classical End-to-End (E2E) architectures by using the multi modal reasoning of VLMs for decision-making [3]. Specifically, existing VLA models prioritize collision avoidance, neglecting the heterogeneity of human driving preferences. As illustrated in Fig. 1, real-world driving requires adapting to diverse driving styles, such as sporty or comfort-oriented behaviors, based on user intent. This deficiency stems from the lack of large-scale datasets with ground-truth trajectories for diverse driving styles. To address this, we propose StyleVLA , a driving style-aware VLA model for trajectory generation in autonomous driving. This model leverages physics-informed supervision to generate diverse, physically plausible driving behaviors. To enable this, we also construct the accompanying StyleVLA dataset, which provides ground-truth supervision for distinct driving styles (Default, Balanced, Comfort, Sporty, Safety). 
+
+A. Related Work 1) Classical E2E Autonomous Driving: Recent literature increasingly favors E2E AD to address the limitations of modular pipelines, aiming to jointly optimize the entire driving stack by directly mapping raw sensor inputs to con-trol outputs via neural networks [4]. While early behavioral cloning approaches [5] suffered from covariate shift, classical unified architectures like UniAD [6] and VAD [7] have advanced the field through hierarchical query-based Trans-formers and efficient vectorized representations. However, for these traditional architectures [4], handling rare, long-tail scenarios and generalizing to diverse driving behaviors 
+
+> arXiv:2603.09482v1 [cs.RO] 10 Mar 2026
+
+remain significant challenges. This has motivated the evolu-tion towards VLA models, which integrate VLMs into the E2E framework to provide enhanced reasoning capabilities for more effectively addressing these complexities. 
+
+2) VLMs in Autonomous Driving: VLMs integrate visual encoders with language model backbones, enabling robust cross-modal reasoning capabilities [2]. Leveraging their pre-trained nature and adaptability, VLMs have been applied to path generation via three paradigms: E2E Planners (often referred to as VLA models), Hybrid Systems, and Teacher-Student Distillation [8]. While VLA models map sensor inputs directly to trajectory outputs by formulating plan-ning as a multimodal generation task (e.g., EMMA [9]) or using latent feature injection (e.g., VLP [10]), challenges such as quantization noise persist. Recent frameworks have addressed these limitations through distinct mechanisms: OpenDriveVLA [11] and Orion [12] improve feature align-ment and long-term context integration, while Alpamayo [13] and SimLingo [14] focus on enhancing reasoning-action consistency and instruction adherence. To address latency, Hybrid Systems (e.g., DriveVLM [15]) decouple reasoning from control, using a slower VLM for high-level decision making and a faster traditional motion planner for trajec-tory generation. Alternatively, Distillation approaches (e.g., VLM-AD [16]) train smaller student models to predict VLM-derived insights offline. Despite these advances, the integra-tion of diverse driving styles into VLA frameworks remains underexplored. Most existing models assume a single driving policy, limiting their ability to adapt trajectory generation to heterogeneous user preferences. 
+
+3) Autonomous Driving Datasets: The development of style-aware VLA models is fundamentally constrained by the quality and diversity of available training data. High-quality datasets are essential for developing robust AD systems. A recent foundation model survey [2] highlights several high-impact datasets, including Waymo Open [17], nuScenes [18], HighD [19], and DRAMA [20]. These datasets offer rich multimodal sensor data, including Bird’s Eye View (BEV) and First Person View (FPV) images, combined with detailed 2D/3D annotations and ego-trajectory information. However, they lack explicit annotations and diverse data distributions that represent heterogeneous driving styles. This limitation restricts the ability of current VLAs models to learn and execute personalized driving strategies. 
+
+4) Style-Aware Autonomous Driving: While safety and efficiency are paramount for AD, adapting to diverse driving styles is crucial for user acceptance and comfort. Recent works have explored personalized driving behaviors to ad-dress this need. MAVERIC [21] learns user-specific driving-style embeddings from demonstrations and predicts parame-ters for low-level controllers. StyleDrive [22] introduces a benchmark for evaluating driving-style awareness in E2E driving using coarse driving style labels (aggressive, nor-mal, and conservative). However, these approaches primarily focus on controller-level personalization or predefined style categories, rather than enabling flexible trajectory generation conditioned on user preferences. 
+
+B. Critical Summary 
+
+To the best of our knowledge, existing literature is limited by the following aspects:  
+
+> •
+
+Limited driving-style diversity in existing datasets. 
+
+Current AD datasets [17]–[20] provide rich multimodal perception data but lack explicit annotations and distri-butions that capture diverse driving styles (e.g., cautious or sporty), hindering research on personalized AD.  
+
+> •
+
+Lack of style-controllable trajectory generation. Ex-isting VLA models are typically trained on homoge-neous driving data and therefore lack mechanisms to condition trajectory generation on user-specified driving styles, resulting in generic driving behaviors.  
+
+> •
+
+Lack of physics-informed trajectory supervision. 
+
+Many VLA models treat trajectory generation as a token prediction task [23], [24] or use external decoders [12], [13], often without explicitly modeling vehicle kine-matic constraints. 
+
+C. Contributions 
+
+The key contributions of this paper are as follows:  
+
+> •
+
+We present the StyleVLA dataset ( 1, 216 scenarios, 
+
+76 , 030 BEV samples and 42 , 084 FPV samples), fea-turing trajectories with five distinct driving styles (De-fault, Balanced, Comfort, Sporty, Safety) and language instructions. This dataset enables training and evaluation of style-aware VLA models for personalized AD.  
+
+> •
+
+We propose a physics-informed VLA model fine-tuning framework for generating driving style-aware trajecto-ries. It integrates standard Cross-Entropy (CE) loss with an auxiliary Multi-Layer Perceptron (MLP) regression head and a physics-informed kinematic loss to improve trajectory feasibility and style adherence when fine-tuning a 4B VLM, outperforming zero-shot VLMs and SOTA VLA models on unseen data.  
+
+> •
+
+We conduct a large-scale evaluation of off-the-shelf VLMs and SOTA VLA methods on the StyleVLA dataset across BEV and FPV domains, revealing their limitations in style-aware trajectory generation. II. M ETHODOLOGY 
+
+This section details the methodology for developing StyleVLA (Fig. 2). First, we describe the construction of the StyleVLA dataset, where we generate ground-truth trajecto-ries for distinct driving styles using a multi-objective motion planner. Second, we explain the creation of multimodal instruction datasets for both BEV and FPV domains, pairing visual contexts with style-specific language instructions. Fi-nally, we present our fine-tuning framework, which employs a physics-informed hybrid loss to train the VLA model for precise and kinematically consistent trajectory generation. 
+
+A. StyleVLA Dataset Construction 
+
+To generate trajectories with diverse, custom driving styles, we employ the open-source sampling-based motion planner Frenetix [25] within the CommonRoad (CR) frame-work [26]. Different driving styles are realized by adapting Fig. 2. Overview of the StyleVLA framework. Top (Dataset Construction): A motion planner generates style-specific ground-truth trajectories to create multimodal instruction samples. Instruction Dataset Generation: Details the instruction generation process and 3D scenario replay in CARLA. 
+
+Bottom (Fine-tuning Architecture): The model predicts trajectory tokens using only an LLM head conditioned on visual context and language prompts. During training, an auxiliary MLP decoder maps the predicted tokens to continuous kinematic trajectories for physics-informed supervision. Training uses a physics-informed hybrid loss ( Ltotal ) combining cross-entropy ( Lce ), regression ( Lreg ), and kinematic consistency ( Lpikc ). Trajectory Generation: 
+
+Shows the model’s application in both 2D BEV and 3D FPV domains. 
+
+the motion planner’s multi-objective cost function to priori-tize style-specific metrics such as comfort or safety. 
+
+Stage 1: Cost Function Design. At each planning step, the motion planner generates a set of candidate trajectories 
+
+X by sampling target end states in the curvilinear coordinate frame (s, d ) along a given reference path. The sampling spans m lateral displacements d and n longitudinal velocities 
+
+˙s, yielding up to m × n trajectory candidates ξ per step. Each trajectory ξ is represented as a sequence of kinematic state vectors: 
+
+ξ = {st}Tt=1 , st = [ xt, y t, v t, a t, θ t]⊤ ∈ R5, (1) where (xt, y t) denote the ego-vehicle position, vt the veloc-ity, at the longitudinal acceleration, and θt the heading angle at timestep t. T denotes the maneuver duration. Each candidate trajectory ξ is subsequently subjected to a kinematic feasibility check enforcing bounds on ac-celeration, curvature, and yaw rate, with infeasible sam-ples being discarded. The remaining feasible trajectories 
+
+Xfeas are then evaluated using a driving style-specific 
+
+TABLE I WEIGHTS ACROSS DRIVING STYLES , FOR THE COST FUNCTION (2) OF THE FRENTIX MOTION PLANNER USED FOR DATASET GENERATION .                                     
+
+> Cost Term Comfort Balanced Sporty Safety Default
+> Kinematic Constraints (wkin )Longitudinal Jerk ( wj,lon )0.80 0.50 0.25 0.40 0.20 Lateral Jerk ( wj,lat )0.80 0.50 0.25 0.40 0.20 Velocity Offset ( wv)0.30 0.60 1.00 0.30 1.00 Distance to obstacles ( wobs )0.30 0.80 0.60 2.00 0.00
+> External Perception (wext )Phantom Risk ( wpm ) [27] 3.0 5.0 4.0 8.0 5.0 Visibility Seeking ( wve ) [28] 0.0 0.5 0.8 1.5 0.0
+
+cost function Jk for each style k ∈ D, where D =
+
+{Comfort , Sporty , Safe , Balanced , Default } denotes the set of considered driving styles. The cost for a trajectory ξ under driving style k is defined as 
+
+Jk(ξ) = w⊤
+
+> kin ,k
+
+Ckin (ξ) + w⊤
+
+> ext ,k
+
+Cext (ξ), (2) which balances internal kinematic costs Ckin (e.g., jerk or deviation from the desired velocity), weighted by wkin ,k ,and external perceptual costs Cext (e.g., occlusion risk), weighted by wext ,k . Table I lists the corresponding weight configurations for each driving style k ∈ D . Weights are designed according to the behavioral role of each cost term and tuned to produce distinct driving styles. Among the feasible trajectories Xfeas , the trajectory with the lowest cost Jk is selected as the style-conditioned output 
+
+ξ∗ 
+
+> k
+
+. By adjusting the weight vectors wkin ,k and wext ,k for each style, the same sampling pool produces qualitatively different driving behaviors. Specifically, Comfort Mode pri-oritizes passenger comfort by penalizing jerk, Sporty Mode 
+
+favors faster progress by penalizing deviations from the desired velocity, Safety Mode enforces larger spatial buffers around obstacles, and Balanced Mode represents a moderate trade-off between these objectives. The Default Mode serves as a baseline configuration. With the five driving styles k ∈ D defined, we next prepare the scenario corpus on which Frenetix [25] is executed. We use 1, 484 scenarios drawn from the CR scenario database [26]. The CR database comprises a large collection of traffic scenarios with road networks represented as Lanelet2 maps [29], enabling an accurate representation of real-world road structures. The scenarios originate from 
+
+14 countries (e.g., Germany: 597 , Greece: 258 , Poland: 245 )and include diverse traffic scenarios (e.g., urban intersections, TABLE II MEAN KINEMATIC FEATURES AND DISTRIBUTION OF FILTERED                                    
+
+> TRAJECTORIES BY STYLE
+> Style Label Samples Avg Velocity RMS Accel RMS Jerk Path Length
+> (Count / %) (m/s )(m/s 2)(m/s 3)(m)Balanced 14,102 (18.5%) 7.15 0.588 0.750 24.44 Comfort 13,766 (18.1%) 7.21 0.585 0.727 24.53 Default 17,684 (23.3%) 6.80 0.486 0.794 23.31 Sporty 14,790 (19.5%) 7.32 0.558 0.780 25.13
+> Safety 15,688 (20.6%) 6.39 0.583 0.746 21.44
+
+roundabouts, and highways) under varying traffic conditions. The corpus comprises 53 , 457 dynamic agents and 11 .2 h 
+
+of driving data, with an average scenario duration of 27 .13 s .Running all five styles across each scenario at a replan-ning frequency of 0.5 s yields 116 , 400 planning instances. Each instance represents a single time step, consisting of a BEV image and the corresponding ground-truth trajectory generated by the motion planner. However, environmental constraints can override style preferences, resulting in iden-tical behaviors across styles (e.g., Sporty vs. Comfort in dense traffic). To ensure clear supervision, we filter out ambiguous samples in which kinematics do not clearly reflect the assigned style. 
+
+Stage 2: Dataset Filtering. For every trajectory ξk with assigned style k ∈ D , we compute a fixed, scalar summary by aggregating kinematic statistics over all timesteps into a constant feature vector fξ,k :
+
+fξ,k = [¯ v, σ v , a rms , |a|max , j rms , σ j ]⊤, (3) where ¯v is the mean velocity, σv the standard deviation of velocity, arms the Root Mean Square (RMS) acceleration, 
+
+|a|max the peak absolute acceleration, jrms the RMS jerk, and σj the standard deviation of jerk, all computed as scalar aggregates over the full trajectory duration. fξ,k is thus a single constant vector per trajectory. To define the ground truth distribution for each style 
+
+k ∈ D , we collect {fξ,k } over all raw trajectories labeled k
+
+and fit a multivariate Gaussian N (μk, Σk), where μk ∈ R6
+
+is the style-specific mean vector and Σk ∈ R6×6 is the covariance matrix. We estimate (μk, Σk) using the Minimum Covariance Determinant (MCD) estimator [30], which fits the Gaussian to the densest subset of the data and is therefore robust to outliers in the raw pool. We then measure how well 
+
+fξ,k conforms to the fitted distribution N (μk, Σk) using the Mahalanobis distance DM :
+
+DM (ξk ) = 
+
+q
+
+(fξ,k − μk )T Σ−1 
+
+> k
+
+(fξ,k − μk ). (4) 
+
+This distance is mapped to a probabilistic conformance score 
+
+S ∈ [0 , 100] via the Chi-squared CDF with d = 6 degrees of freedom: 
+
+S(ξk ) = 100 ·  1 − χ2
+
+> cdf
+
+(D2 
+
+> M
+
+(ξk ), d ) . (5) 
+
+We retain samples with a conformance score S(ξk) > 80 ,corresponding to the lowest 20 % of the Chi-squared distribu-tion, a common statistical threshold for selecting samples that closely conform to the reference distribution. The filtering process yields a refined dataset of 76 , 030 planning instances across 1, 216 scenarios. Table II presents the mean kinematic characteristics of the final filtered BEV dataset, illustrating the quantitative distinctions preserved between styles. 
+
+B. Instruction Dataset Generation (BEV Domain) 
+
+To transform raw kinematic data into a format suitable for fine-tuning VLMs, we constructed a multimodal instruction dataset (Fig. 2). This process involves pairing visual context with linguistic instructions and historical state data, creating a rich supervised learning target. To ensure broad compatibility and leverage a proven instruction-following structure, we adopt the widely used LLaVA Visual Question Answering (VQA) conversation format [31]. Each VQA sample is structured into three key components aligned with the LLaVA format: the image field (Visual Input), the human message (Human Instruction), and the gpt message (Model Response). 
+
+1) Visual Input: The primary spatial context is provided by a single BEV image generated by the CR environment. It captures a 30 m radius local map where dynamic obstacles are distinguished by geometric shapes and colors, and road topology is defined by boundaries and markings. 
+
+2) Human Instruction: The user query integrates multi-modal context into a structured text prompt. It includes: (1) 
+
+Ego Vehicle History , a 0.5 s sequence of ego-states sampled at 10 Hz ; (2) Traffic Agents States , listing the kinematic states of the 10 nearest neighbor agents within the 30 m 
+
+radius; (3) Goal Region , defining the target position; and (4) 
+
+Style Command , a natural language instruction (e.g., ”Plan a trajectory with [Mode] driving style...”) that directs the model to adopt specific behavioral characteristics. Given the VLM’s sensitivity to prompts, we use DSPy 1 to automati-cally optimize this instruction. 
+
+3) Model Response: The model generates the future trajec-tory as a structured JSON object, covering a horizon of 3 s 
+
+(standard) or 5 s (extended) at 2 Hz . The response encodes the full kinematic state vector st = [ xt, y t, v t, a t, θ t] (1) for each timestamp, rather than just positions, to support physics-informed loss calculation. 
+
+C. Instruction Dataset Generation (FPV Domain) 
+
+To extend StyleVLA to 3D, we use the CARLA simulator and extend the BEV images with FPV camera images for realistic E2E driving as shown in Fig. 2. 
+
+1) Map Conversion and Scenario Replay: We convert CR scenario maps to the OpenDRIVE format 2 preserving lane topology, junctions, traffic signs, and traffic lights. The resulting OpenDRIVE maps are directly compatible with CARLA. To enhance visual realism, we implement a procedural landscape generation system that populates the environment with vegetation. Trees are spawned 4 m to 
+
+18 m from road edges using waypoint-based terrain elevation calculations, ensuring proper ground alignment. For each scenario, we perform a complete resimulation in CARLA with synchronized video recording. The camera is mounted on the vehicle roof in a FPV configuration 
+
+> 1https://dspy.ai/
+> 2https://www.asam.net/standards/detail/opendrive/
+
+following the nuScenes front-facing camera convention, po-sitioned forward and above the vehicle center with a 5◦
+
+downward tilt to capture the road ahead while maintaining horizon visibility. We replay the driving-style ground-truth trajectories by spawning both the ego vehicle and all traffic participants. At each simulation timestep, we update vehicle positions and orientations using coordinate transformation utilities that convert CR states to CARLA instances. To match CR obstacles to appropriate CARLA vehicle models, we employ a dimensional-similarity-matching system. The system maintains a database of CARLA vehicle dimensions and selects blueprints based on length, width, and height similarity, ensuring accurate visual representation of different vehicle types (e.g., cars, trucks, and buses). 
+
+2) Quality Control and Instruction Generation: To ensure data integrity, we implemented a two-stage filtering pipeline. First, an automated validation step discards frames with ren-dering failures (e.g., black screens), or map conversion errors (e.g., off-road spawning due to coordinate misalignment). Second, a human-in-the-loop verification removes scenarios with ambiguous visual cues or incomplete traffic participant spawning. This process yielded a final dataset of 42,084 high-quality instances from successfully replayed scenarios. We modify the Human Instruction to enforce implicit perception and vision-based driving. Unlike the BEV setting, where traffic-agent states are provided in the prompt, the FPV setting is vision-only: we omit external traffic states to prevent shortcut learning (i.e., relying on provided states instead of perception). The prompt contains only: (1) Ego-Vehicle History , (2) Goal Point , and (3) Style Command .
+
+D. Fine-Tuning StyleVLA 
+
+To enhance the capability of VLA models to generate diverse driving-style trajectories, we fine-tune a VLM on our StyleVLA instruction dataset . We adopt Qwen3-VL-4B [32] as our base model due to its strong multimodal reasoning capabilities and efficient parameter count, making it practical for deployment on edge platforms [2]. To make fine-tuning feasible on consumer-grade hardware, we employ QLoRA (low-rank adaptation with 4-bit quantization), freez-ing language model weights and training lightweight adapter matrices in the attention and feed-forward layers (Fig. 2). To bridge the gap between discrete semantic reasoning and continuous control, we introduce a physics-informed hybrid loss function. This objective jointly optimizes geometric accuracy and kinematic plausibility, improving trajectory feasibility compared to standard token-based prediction (Ta-ble IV). 
+
+1) Hybrid Loss Function Design: Standard VLMs are trained using a CE loss Lce [31], treating trajectory gen-eration as a next-token prediction task: 
+
+Lce = − 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+log Pθ (τgt ,i | Xi, I i), (6) 
+
+where N is the number of training samples. τgt ,i denotes the response with the target style trajectory (e.g., 3 s st =[xt, y t, v t, a t, θ t]), Xi the instruction prompt, Ii the visual input, and Pθ (·) the conditional probability distribution over               
+
+> 02,000 4,000 6,000 8,000
+> 0
+> 0.5
+> 1
+> 1.5
+> 2
+> 2.5
+> 3
+> 3.5
+> Value
+> Ltotal
+> Lce
+> Lreg
+> Lpikc
+> 02,000 4,000 6,000 8,000
+> −0.4
+> −0.2
+> 0
+> 0.2
+> Steps
+> Value
+> wce
+> wreg
+> Fig. 3. Example training dynamics of StyleVLA fine-tuning on the FPV instruction dataset. Top: loss terms ( Ltotal ,Lce ,Lreg ,Lpikc ). Bottom: learned log-variance parameters ( wce ,wreg ) that yield adaptive precision weights via exp( −w).
+
+output tokens predicted by the model with parameters θ.However, token-level classification discretizes continuous states, potentially introducing quantization error. To address this, we introduce an auxiliary MLP regression head attached to the Transformer’s final hidden states (Fig. 2). This head projects the pooled semantic embedding of the response into a continuous sequence of kinematic states ˆξreg , allowing us to minimize geometric error against the ground truth ξgt :
+
+Lreg = || ˆξreg − ξgt || 22. (7) 
+
+The MLP regression head is used only during training to provide physics-informed supervision. During inference, tra-jectory generation is performed solely by the LLM decoding head, which outputs structured trajectory tokens. To balance the discrete CE loss ( Lce ) and the continuous regression loss (Lreg ), which differ significantly in scale and convergence dynamics, we adopt a Homoscedastic Uncertainty Weighting strategy [33]. The unified hybrid loss objective is derived from maximizing the Gaussian likelihood: 
+
+Lhybrid =
+
+
+
+e−wce Lce + 12 wce 
+
+
+
++ 12
+
+ e−wreg Lreg + wreg 
+
+ , (8) 
+
+where wce and wreg are learnable log-variance parame-ters. Their corresponding precision weights, exp( −wce ) and 
+
+exp( −wreg ), adaptively rescale Lce and Lreg during fine-tuning: smaller w increases a term’s contribution. Fig. 3 visualizes the loss curves (top) and the learned parameters (bottom) during StyleVLA fine-tuning on the FPV instruction dataset. 
+
+2) Physics-Informed Kinematic Consistency (PIKC): To ensure physical plausibility, we enforce a PIKC Loss ( Lpikc ). By predicting the full state vector st = [ xt, y t, v t, a t, θ t]
+
+at each timestep, we derive the physically expected next position (ˆ xt+1 , ˆyt+1 ) based on the current state and discrete kinematic equations with time step ∆t:
+
+ˆxt+1 = xt + vt cos θt∆t + 0 .5 at cos θt(∆ t)2,
+
+ˆyt+1 = yt + vt sin θt∆t + 0 .5 at sin θt(∆ t)2. (9) TABLE III HYPERPARAMETERS USED IN FINE -TUNING                                  
+
+> Group Value
+> Regression Loss Weights
+> (wreg , w pikc )(2 .0,2.0,0.5,0.5,0.5,1.5)
+> Training Hyperparameters (FPV)
+> Backbone Qwen3-VL-4B-Instruct Quantization QLoRA, 4-bit LoRA (r, α, dropout) (256 ,512 ,0.05)
+> Optimizer/schedule AdamW (8-bit), cosine, warmup 0.03 Learning rate 1×10 −4(base) Component LRs vision 2×10 −6, merger 1×10 −5, reg-head
+> 1×10 −5,w-params 5×10 −5
+> Precision bf16
+
+The consistency loss is then defined as the error between the model’s directly predicted next position (xt+1 , y t+1 ) and this physically extrapolated one: 
+
+Lpikc = 1
+
+T − 1 
+
+> T−1
+
+X
+
+> t=0
+
+ || xt+1 − ˆxt+1 || 2 + || yt+1 − ˆyt+1 || 2 . (10) 
+
+This loss term does not depend on the ground truth data but instead operates on the internal consistency of the prediction itself, allowing the MLP head to learn a differentiable function of the vehicle’s kinematics. The final regression objective Lreg ,total combines the direct loss Lreg (7) with the kinematic penalty: 
+
+Lreg ,total = w⊤
+
+> reg
+
+Lreg + wpikc Lpikc , (11) 
+
+where wreg and wpikc are fixed loss weights (see Table III). We assign higher weights to the position and kinematic term, while velocity and heading serve as auxiliary guides. This physics-informed regularization is integrated into Lhybrid (8) by replacing the Lreg term with Lreg ,total . The resulting training objective is 
+
+Ltotal = Lhybrid Lreg →L reg ,total 
+
+. (12) 
+
+An ablation study on how the physics-informed hybrid loss affects the performance of the fine-tuned model is presented in Section III-B. III. R ESULTS & D ISCUSSION 
+
+A. Experimental Setup 
+
+All experiments are performed on a Dell Alienware R15 equipped with an Intel i7-13700KF CPU, an NVIDIA RTX 4090 GPU with 24GB VRAM, and 128 GB of RAM. 
+
+1) Evaluated Vision Language Models: Our evaluation includes leading proprietary and open-source VLMs. For the proprietary models, we use the following models: Gemini 2.5 Pro, Gemini 2.5 Flash, Gemini 3 Pro, and GPT 5 Nano. Regarding open-source models, we leverage LMDeploy 3 to deploy Qwen3-VL-4B, Qwen2.5-VL-7B, InternVL3-9B. 
+
+2) Evaluation metrics: We evaluate generated trajectory quality using standard metrics: Average Displacement Error (ADE) and Final Displacement Error (FDE), computed on the 2D position sequence (xt, y t) as the mean and final Euclidean distance to the ground truth. We also report the Planning Success Rate (PSR), defined as the percentage of 
+
+> 3
+
+https://github.com/InternLM/lmdeploy 
+
+TABLE IV ABLATION ON BEV S TYLE VLA (Q WEN 2.5-VL-7B, 3 S HORIZON ). SCALING DATA AND ADDING PHYSICS -INFORMED HYBRID LOSS CONSISTENTLY IMPROVES GENERALIZATION                                        
+
+> Configuration ADE (m) ↓FDE (m) ↓PSR ↑Heading MAE (rad) ↓
+> Impact of Training Data Scaling (with Physics-Informed Hybrid Loss)
+> Small (4.5k) 2.08 5.43 20.60% 0.073 Medium (20k) 1.51 3.92 27.14% 0.046 Large (40k) 1.47 3.81 29.37% 0.044
+> Standard (50k) 1.17 3.06 33.19% 0.035
+> Impact of Loss Components (50k Training dataset)
+> CE 1.47 3.82 29.00% 0.043 CE + REG 1.21 3.17 32.08% 0.036 CE + REG + PIKC 1.17 3.06 33.19% 0.035
+
+trajectories with ADE < 1.0 m , and the Miss Rate (MR) for failures with FDE > 2.0 m . Additionally, we introduce the Kinematic Consistency Error (KCE) to quantify physical violations, calculated as the discrepancy between the model’s output position at t + 1 and the predicted position computed from (9). Finally, we report the inference time for trajectory generation. To resolve trade-offs between disparate metrics, we pro-pose a unified grading formula Sfinal ∈ [0 , 1] that prioritizes safety and success over raw precision: 
+
+Sfinal = 0 .35 Ssucc + 0 .30 Sreach + 0 .20 Sacc + 0 .15 Skin (13) 
+
+where the components are defined as: 
+
+Ssucc = PSR , Sreach = 1 − MR ,Sacc = 0 .4e− ADE  
+
+> 1.5
+
++ 0 .6e− FDE  
+
+> 3.0
+
+,Skin = 0 .3Svel + 0 .3Shead + 0 .4Sconsist ,
+
+(14) 
+
+with the kinematic sub-scores given by: 
+
+Svel = max(0 , 1 − MAE v /3.0) ,Shead = max(0 , 1 − MAE θ /0.2) ,Sconsist = max(0 , 1 − KCE /0.5) .
+
+(15) 
+
+B. Experiment 1: Fine-tuning StyleVLA on BEV Domain 1) Ablation Study: Data Scaling Analysis . We trained the baseline Qwen2.5-VL-7B model on four subsets of our training dataset to determine the data volume required for robust generalization. The subsets were stratified by the number of distinct scenarios: small (4.5k samples), medium (20k samples), large (40k samples), and standard (50k sam-ples). All models were trained with a fixed LoRA rank of 256. Table IV shows that increasing dataset size consistently improves performance. The standard dataset achieves the lowest ADE ( 1.17 m ) and highest PSR ( 33 .19 % ), signif-icantly outperforming the small subset ( 2.08 m , 20 .60 % ), justifying our use of the standard dataset for final training. 
+
+Loss function Analysis: To quantify the impact of our physics-informed hybrid loss framework as stated in Sec-tion II-D, we perform an ablation study on the Qwen2.5-VL-7B model trained on the standard dataset (50k), comparing three configurations: (1) CE denotes Lce ; (2) CE + REG 
+
+corresponds to the hybrid loss Lhybrid ; and (3) CE + REG + PIKC enhanced Lhybrid by adding Lkin . Table IV highlights Fig. 4. Qualitative comparison of style-conditioned trajectory generation under five driving styles (Default, Balanced, Comfort, Sporty, Safety). We visualize the goal, ground truth, and predicted trajectories from pretrained VLMs and SOTA baselines (see legend). ”*” failed to generate trajectories. TABLE V BENCHMARKING ACROSS VLM S ON BEV DOMAIN (Z ERO -S HOT )                                                                              
+
+> Model Score ↑PSR ↑MR ↓ADE ↓FDE ↓KCE ↓Time ↓
+> (0-1) (ADE <1m) (FDE >2m) (m) (m) (m) (s)
+> Open Source Models
+> Qwen3-VL-4B 0.00 0.00% 100.0% ---2.00 Qwen2.5-VL-7B 0.00 0.00% 100.0% ---3.43 InternVL3-9B 0.00 0.00% 100.0% 12.63 25.89 3.72 5.77
+> Proprietary Models
+> Gemini-2.5-Flash 0.26 13.30% 73.40% 2.40 5.70 0.07 44.18 Gemini-2.5-Pro 0.27 13.41% 71.57% 2.25 5.74 0.09 44.77 Gemini-3-Pro 0.32 16.38% 66.21% 1.72 4.37 0.11 73.83
+> Ours (Fine-Tuned)
+> Qwen2.5-VL-7B 0.46 33.19% 48.18% 1.17 3.06 0.12 3.7
+> Qwen3-VL-4B 0.55 39.47% 39.91% 1.15 2.93 0.08 1.92
+
+Metrics are computed on generated trajectories. InternVL3-9B achieves a 
+
+90 .91 % generation rate; Qwen3-VL-4B and Qwen2.5-VL-7B generate none. “–” indicates metrics not computable due to zero success rate. 
+
+the progressive gains. Adding the MLP regression head reduces the FDE by 0.65 m (3.82 m → 3.17 m ) and boosts the PSR by 3.08 % . The kinematic consistency loss further refines control: the ADE improves ( 1.21 m → 1.17 m ) and the PSR sees a gain ( 1.11 % ), while the FDE improves (3.17 m → 3.06 m ) and the Heading MAE is reduced (0.036 rad → 0.035 rad ), confirming Lkin as a vital physics-informed constraint. 
+
+2) Benchmarking across VLMs: We fine-tuned two agents, Qwen2.5-VL-7B and Qwen3-VL-4B, on a training set of 50k samples ( 3 s ) and evaluated them on a held-out set of 2000 samples. As summarized in Table V, we compared our framework against the high-performance open-source models and proprietary models in a Zero-Shot setting. The results highlight three critical observations. First, 
+
+baseline open-source models fail completely to generate valid driving-style trajectories ( 0 % success), showing that driving physics is not innate to standard pre-training. Second, 
+
+proprietary models like Gemini-3-Pro, while performing best among baselines, still struggle with precise trajectory generation and require over 70 s per inference, making them unsuitable for online deployment. Third, fine-tuned mod-els outperform even large-scale models . Our fine-tuned version of Qwen3-VL-4B achieves a 39 .47 % success rate, while the best closed-source model achieves only 16 .38 % .Additionally, due to model size and quantization, the infer-ence time remains online-capable ( 1.92 s ). This proves that domain-specific adaptation is essential for bridging the gap between reasoning and control. Furthermore, Qwen3-VL-4B demonstrates superior efficiency, achieving faster inference (1.92 s vs. 3.70 s ) and higher performance (Score 0.55 vs. 
+
+TABLE VI BENCHMARKING ACROSS VLM S ON FPV DOMAIN (Z ERO -S HOT )                                                                                            
+
+> Model Score ↑PSR ↑MR ↓ADE ↓FDE ↓KCE ↓Time ↓
+> (0-1) (ADE <1m) (FDE >2m) (m) (m) (m) (s)
+> Open Source Baselines
+> Qwen3-VL-4B (Base) 0.00 -----4.97
+> Proprietary Models
+> Gemini 2.5 Flash 0.12 9.04% 87.21% 9.39 18.21 3.42 1.80 Gemini 2.5 Pro 0.29 16.63% 70.74% 2.23 5.76 0.06 35.48 GPT-5 Nano 0.29 16.67% 69.70% 2.36 6.06 0.11 49.05 Gemini 3 Pro 0.35 17.65% 62.35% 1.54 3.94 0.06 91.39
+> SOTA Models
+> SimLingo (1B) 0.00 0.30% 99.40% 8.01 17.58 /0.55 Orion (7B) 0.05 2.10% 96.40% 11.13 21.35 /0.36
+> OpenDriveVLA (0.5B) 0.13 7.38% 87.25% 5.83 9.82 /0.51 Alpamayo-R1 (10B) 0.19 13.60% 73.10% 3.37 5.85 /0.65
+> Qwen3-VL-4B (StyleVLA) 0.51 38.60% 36.90% 1.17 3.13 0.11 2.13
+
+Metrics are computed on successfully generated trajectories. All models achieve 100 % generation except OpenDriveVLA ( 14 .9 % ), Gemini 2.5 Flash ( 90 .9 % ), and Qwen3-VL-4B (Base, 0 % ). - indicates metrics not computable due to zero success rate. / indicates models lacking velocity or acceleration outputs; therefore, KCE cannot be computed. 
+
+0.46 ) compared to the Qwen2.5-VL-7B model, aligning with technical reports [32] that recent architectural advancements allow smaller models to match or exceed their predecessors. 
+
+C. Experiment 2: Fine-tuning StyleVLA on FPV Domain 
+
+Based on the ablation study and BEV benchmarking results, we select Qwen3-VL-4B as the optimal backbone and employ the physics-informed hybrid loss to fine-tune our StyleVLA agent (based on 40k samples). The training hyperparameters are listed in Table III. We benchmark its end-to-end capabilities on the CARLA FPV dataset ( 1000 
+
+samples) against high-impact pre-trained models. We also include SOTA VLA models into this comparison, as they are specifically tailored for E2E AD and offer open-source checkpoints for reproducible evaluation. Fig. 4 provides qualitative comparisons across pretrained VLMs and SOTA baselines under five driving styles. As shown in Table VI, three trends emerge. First, among 
+
+proprietary models , Gemini-3-Pro achieves the best zero-shot performance but suffers from prohibitive latency 
+
+(91 .39 s ), mirroring the BEV results in Table V. Second, baseline models and SOTA methods fail to generate high-quality driving-style trajectories , likely due to insufficient fine-tuning on style-specific datasets. Furthermore, these SOTA methods focus primarily on path generation and cannot output velocity or acceleration, making it impossible to evaluate their kinematic consistency. Third, our fine-tuned agent significantly outperforms both proprietary and SOTA baselines in Score ( 0.51 ), PSR ( 38 .60 % ), and MR (36 .90 % ). This confirms the value of our StyleVLA dataset and demonstrates that open source lightweight VLMs, after fine-tuning, can achieve competitive performance on domain-specific tasks, enabling effective E2E driving-style trajectory generation. While our inference time ( 2.13 s ) is slightly higher than that of the BEV model ( 1.92 s ), this is expected as the FPV agent must perform implicit perception to detect obstacles from raw images without explicit Traffic State lists (Section II-C). Despite this additional complexity, the FPV StyleVLA model trails the BEV StyleVLA model by only 
+
+∼0.9 % in PSR ( 38 .60 % vs. 39 .47 % ). IV. C ONCLUSION AND FUTURE WORK 
+
+In this paper, we presented a comprehensive framework to generate the StyleVLA dataset, a large-scale instruction dataset (1.2k scenarios, 76k BEV and 42k FPV samples) tai-lored for diverse driving styles (Default, Balanced, Comfort, Sporty, Safety). Based on the proposed dataset with BEV and FPV visual contexts, we benchmarked the performance of pre-trained off-the-shelf VLMs and SOTA VLA models. We showed that even top proprietary models like Gemini-3-Pro fail to generate valid driving-style trajectories. We also fine-tuned VLA models with the Qwen3-VL-4B backbone using a physics-informed hybrid loss. As demonstrated by our ablation study, this approach significantly outperforms zero-shot VLMs and SOTA VLA models. Our StyleVLA model achieves driving scores of 0.55 (39 % success rate) in BEV and 0.51 (38 % success rate) in FPV with an average inference time of 2 s , surpassing the best baseline (Gemini-3-Pro), which scores only 0.32 (16 % success rate) in BEV and 
+
+0.35 (17 % success rate) in FPV with high latency. For future work, we aim to extend our framework with a novel action decoder to reduce inference time. We also plan to convert our StyleVLA simulation images into photorealistic images to improve the realism and fidelity of the data. REFERENCES [1] H. Gao, Z. Wang, Y. Li, K. Long, M. Yang et al. , “A survey for foun-dation models in autonomous driving,” in International Conference on Computer Vision and Data Mining (ICCVDM) . IEEE, 2025. [2] Y. Gao, M. Piccinini, Y. Zhang, D. Wang, K. Moller et al. , “Foundation models in autonomous driving: A survey on scenario generation and scenario analysis,” IEEE OJ-ITS , 2026. [3] X. Huang, E. M. Wolff, P. Vernaza, T. Phan-Minh, H. Chen et al. ,“DriveGPT: Scaling Autoregressive Behavior Models for Driving,” in 
+
+42nd International Conference on Machine Learning , 2025. [4] L. Chen, P. Wu, K. Chitta, B. Jaeger, A. Geiger et al. , “End-to-end autonomous driving: Challenges and frontiers,” IEEE Transactions on Pattern Analysis and Machine Intelligence , 2024. [5] M. Bojarski, C. Chen, J. Daw, A. De˘ girmenci, J. Deri et al. , “The nvidia pilotnet experiments,” arXiv preprint arXiv:2010.08776 , 2020. [6] Y. Hu, J. Yang, L. Chen, K. Li, C. Sima et al. , “Planning-oriented autonomous driving,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 2023. [7] B. Jiang, S. Chen, Q. Xu, B. Liao, J. Chen et al. , “Vad: Vectorized scene representation for efficient autonomous driving,” in Proceedings of the IEEE/CVF International Conference on Computer Vision , 2023. [8] K. Oksuz, A. Buburuzan, A. Knittel, Y. Yao, and P. K. Dokania, “Foundation models for trajectory planning in autonomous driving: A review of progress and open challenges,” 2025. [9] J.-J. Hwang, R. Xu, H. Lin, W.-C. Hung, J. Ji et al. , “EMMA: End-to-End Multimodal Model for Autonomous Driving,” Transactions on Machine Learning Research , 2025. [10] C. Pan, B. Yaman, T. Nesti, A. Mallik, A. G. Allievi et al. , “VLP: Vision Language Planning for Autonomous Driving,” in IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2024. [11] X. Zhou, X. Han, F. Yang, Y. Ma, V. Tresp, and A. Knoll, “Open-DriveVLA: Towards End-to-end Autonomous Driving with Large Vision Language Action Model,” preprint arXiv:2503.23463 , 2025. [12] H. Fu, D. Zhang, Z. Zhao, J. Cui, D. Liang et al. , “Orion: A holistic end-to-end autonomous driving framework by vision-language instructed action generation,” in Proceedings of the IEEE/CVF Inter-national Conference on Computer Vision , 2025. [13] Y. Wang, W. Luo, J. Bai, Y. Cao, T. Che et al. , “Alpamayo-R1: Bridg-ing Reasoning and Action Prediction for Generalizable Autonomous Driving in the Long Tail,” arXiv preprint arXiv:2511.00088 , 2025. [14] K. Renz, L. Chen, E. Arani, and O. Sinavski, “Simlingo: Vision-only closed-loop autonomous driving with language-action alignment,” in 
+
+Computer Vision and Pattern Recognition Conference , 2025. [15] X. Tian, J. Gu, B. Li, Y. Liu, Y. Wang et al. , “Drivevlm: The conver-gence of autonomous driving and large vision-language models,” in 
+
+Conference on Robot Learning . PMLR, 2025. [16] Y. Xu, Y. Hu, Z. Zhang, G. P. Meyer, S. K. Mustikovela et al. , “Vlm-ad: End-to-end autonomous driving through vision-language model supervision,” arXiv preprint arXiv:2412.14446 , 2024. [17] P. Sun, H. Kretzschmar, X. Dotiwalla, A. Chouard, V. Patnaik et al. ,“Scalability in perception for autonomous driving: Waymo open dataset,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 2020. [18] H. Caesar, V. Bankiti, A. H. Lang, S. Vora, V. E. Liong et al. ,“nuscenes: A multimodal dataset for autonomous driving,” in Pro-ceedings of the IEEE/CVF conference on computer vision and pattern recognition , 2020. [19] R. Krajewski, J. Bock, L. Kloeker, and L. Eckstein, “The highD Dataset: A Drone Dataset of Naturalistic Vehicle Trajectories on Ger-man Highways for Validation of Highly Automated Driving Systems,” in International Conference on Intelligent Transportation Systems (ITSC) . IEEE, 2018. [20] S. Malla, C. Choi, I. Dwivedi, J. H. Choi, and J. Li, “Drama: Joint risk localization and captioning in driving,” in IEEE/CVF winter conference on applications of computer vision , 2023. [21] M. L. Schrum, E. Sumner, M. C. Gombolay, and A. Best, “Maveric: A data-driven approach to personalized autonomous driving,” IEEE Transactions on Robotics , 2024. [22] R. Hao, B. Jing, H. Yu, and Z. Nie, “StyleDrive: Towards Driving-Style Aware Benchmarking of End-To-End Autonomous Driving,” CoRR ,2025. [23] J. Mao, Y. Qian, J. Ye, H. Zhao, and Y. Wang, “Gpt-driver: Learning to drive with gpt,” arXiv preprint arXiv:2310.01415 , 2023. [24] C. Sima, K. Renz, K. Chitta, L. Chen, H. Zhang et al. , “Drivelm: Driv-ing with graph visual question answering,” in European conference on computer vision . Springer, 2024. [25] R. Trauth, K. Moller, G. W¨ ursching, and J. Betz, “Frenetix: A high-performance and modular motion planning framework for autonomous driving,” IEEE Access , vol. 12, 2024. [26] M. Althoff, M. Koschi, and S. Manzinger, “Commonroad: Composable benchmarks for motion planning on roads,” in 2017 IEEE Intelligent Vehicles Symposium (IV) . IEEE, 2017. [27] K. Moller, L. Schwarzmeier, and J. Betz, “From Shadows to Safety: Occlusion Tracking and Risk Mitigation for Urban Autonomous Driving,” in Intelligent Vehicles Symposium (IV) . IEEE, 2025. [28] R. Trauth, K. Moller, and J. Betz, “Toward Safer Autonomous Vehicles: Occlusion-Aware Trajectory Planning to Minimize Risky Behavior,” IEEE OJ-ITS , 2023. [29] F. Poggenhans, J.-H. Pauls, J. Janosovits, S. Orf, M. Naumann et al. ,“Lanelet2: A High-Definition Map Framework for the Future of Auto-mated Driving,” in Proceedings of the IEEE Intelligent Transportation Systems Conference (ITSC) , 2018. [30] M. Hubert, M. Debruyne, and P. J. Rousseeuw, “Minimum covariance determinant and extensions,” WIREs Computational Statistics , 2017. [31] H. Liu, C. Li, Q. Wu, and Y. J. Lee, “Visual instruction tuning,” 
+
+Advances in neural information processing systems , vol. 36, 2023. [32] S. Bai, Y. Cai, R. Chen, K. Chen, X. Chen et al. , “Qwen3-vl technical report,” arXiv preprint arXiv:2511.21631 , 2025. [33] A. Kendall, Y. Gal, and R. Cipolla, “Multi-task learning using uncertainty to weigh losses for scene geometry and semantics,” in 
+
+Proceedings of the IEEE conference on computer vision and pattern recognition , 2018.

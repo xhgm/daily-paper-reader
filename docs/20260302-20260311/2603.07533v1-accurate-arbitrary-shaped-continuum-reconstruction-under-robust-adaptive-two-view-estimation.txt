@@ -1,0 +1,340 @@
+Title: ACCURATE: Arbitrary-shaped Continuum Reconstruction Under Robust Adaptive Two-view Estimation
+
+URL Source: https://arxiv.org/pdf/2603.07533v1
+
+Published Time: Tue, 10 Mar 2026 01:14:52 GMT
+
+Number of Pages: 11
+
+Markdown Content:
+# ACCURATE: Arbitrary-shaped Continuum Reconstruction Under Robust Adaptive Two-view Estimation 
+
+Yaozhi Zhang 1, Shun Yu 1, Yugang Zhang 1, and Yang Liu 1
+
+Global Institute of Future Technology, Shanghai Jiao Tong University, Shanghai, China 
+
+{zhangyaozhi, shunyu2024, zyg202307, yang.liu1}@sjtu.edu.cn 
+
+Abstract. Accurate reconstruction of arbitrary-shaped long slender con-tinuum bodies, such as guidewires, catheters and other soft continuum manipulators, is essential for accurate mechanical simulation. However, existing image-based reconstruction approaches often suffer from lim-ited accuracy because they often underutilize camera geometry, or lack generality as they rely on rigid geometric assumptions that may fail for continuum robots with complex and highly deformable shapes. To address these limitations, we propose ACCURATE, a 3D reconstruc-tion framework integrating an image segmentation neural network with a geometry-constrained topology traversal and dynamic programming al-gorithm that enforces global biplanar geometric consistency, minimizes the cumulative point-to-epipolar-line distance, and remains robust to occlusions and epipolar ambiguities cases caused by noise and discretiza-tion. Our method achieves high reconstruction accuracy on both sim-ulated and real phantom datasets acquired using a clinical X-ray C-arm system, with mean absolute errors below 1.0 mm. An anonymized repository containing the code and datasets is available at https:// anonymous.4open.science/r/ACCURATE .
+
+Keywords: Continuum robots · Segmentation-based reconstruction ·
+
+3D reconstruction · Epipolar geometry. 
+
+## 1 Introduction 
+
+Accurate 3D reconstruction of arbitrary-shaped long slender continuum bod-ies plays a fundamental role in computer assisted intervention and other soft robotics applications [7,20]. Existing reconstruction strategies can be broadly categorized into sensor-based and imaging-based approaches [21]. Sensor-based approaches reconstruct the shape by measuring distributed strain or pose along the device, thus achieve excellent accuracy [19,17,8] but are hard to general-ize to different types of continuum bodies, e.g., in neuro-interventional proce-dures [9]. Consequently, shape reconstruction in these settings must primarily rely on imaging-based approaches.  
+
+> arXiv:2603.07533v1 [cs.RO] 8 Mar 2026 2Yaozhi Zhang et al.
+
+However, existing imaging-based approaches still face notable limitations. Learning-based methods handle multi-view information implicitly, treating cam-era geometry as a soft prior—either injected via token embeddings or imposed through loss functions rather than enforcing it as a hard constraint derived from the imaging model [18,6,23,24,25,1], may lead to suboptimal reconstruction accu-racy. While traditional epipolar methods explicitly enforce geometric constraints and are tailored for reconstructing long, slender continuum bodies [7,3,10,12], they depend on simplified imaging assumptions, e.g., known point order and precise camera calibration ensuring intersection between epipolar line and point, or only concern intersection points but not global epipolar-point distance infor-mation [2,11]. Such rigid formulations and assumptions can break down in the presence of large deformations, occlusions, or calibration inaccuracies, as strict point-level correspondence enforcement may overlook the global structural cor-respondence between two views [16]. To overcome these limitations, we propose ACCURATE , a biplanar imaging-based 3D reconstruction framework for arbitrary shaped long slender continuum bodies. Unlike end-to-end learning methods, ACCURATE comprises a segmenta-tion module and a segmentation-driven reconstruction module, jointly designed to integrate structural understanding with explicit geometric enforcement. The segmentation module, built upon Topology-aware Segmentation Network (TSN), extracts centerlines of arbitrary shaped long slender continuum bodies across di-verse backgrounds. The reconstruction module performs Geometry-consistent Curve Topology Traversal (GCTT) to infer topological ordering from unordered masks, followed by Epipolar-constrained Dynamic Programming (ECDP), which enforces strict biplanar geometric consistency by globally minimizing point-to-epipolar-line deviations. Through this unified design, ACCURATE simultane-ously preserves global structural coherence and adheres to camera geometry, enabling accurate and robust 3D reconstruction even under occlusions, missing intersections, and degenerate epipolar configurations where conventional local point-to-point correspondence methods often fail [5]. Experiments on both simulated data and real phantom data with accurate 3D ground truth demonstrate the improved accuracy and generalization of AC-CURATE across diverse continuum shapes. The real phantom dataset is ac-quired using a calibrated GE C-arm system, enabling precise 3D spatial an-notations. Notably, existing datasets for long slender continuum bodies (e.g., vascular guidewires) are often private or lack camera parameters and 3D ground truth [14]. To bridge this gap, we publicly release our simulated and real phan-tom datasets, providing biplane X-ray images together with calibrated camera parameters and accurate 3D annotations. Our contributions are summarized as follows: 1. We propose ACCURATE , a decoupled perception–geometry reconstruc-tion framework for arbitrary-shaped long slender continuum structures across diverse backgrounds. 2. We propose a global correspondence formulation solved via dynamic pro-gramming that integrates hard geometric constraints with a sub-pixel re-ACCURATE: Robust Two-View Reconstruction of Continuum Structures 3
+
+finement operator. This approach enforces global geometric consistency, en-abling robust reconstruction under occlusions, discretization artifacts, and ambiguous epipolar intersections. 3. We release a publicly available code and dataset for slender continuum re-construction, providing calibrated multi-view images and accurate 3D anno-tations to support standardized evaluation and fair comparison. 
+
+## 2 Method 
+
+The proposed ACCURATE decomposes the reconstruction task into three se-quential stages: (i) Topology-aware Segmentation Network (TSN), (ii) Geometry-consistent Curve Topology Traversal (GCTT), and (iii) Epipolar-constrained Dynamic Programming (ECDP). 
+
+Fig. 1: Module (a) takes the original images as input and extracts centerline masks. Module (b) converts the centerlines into topology-ordered point se-quences. Module (c) establishes cross-view point correspondences to reconstruct the 3D shape. 
+
+2.1 Topology-aware Segmentation Network (TSN) 
+
+To address the fragmentation issues often observed in slender guidewire seg-mentation, we employ an 8-stage nnUNet [13] as our backbone (Fig. 1(a)). We optimize a composite objective function, denoted as LT otal , to explicitly enforce structural connectivity: 
+
+LT otal = αLSkelRecall + βLclDice + LCE (1) 4 Yaozhi Zhang et al. 
+
+where LCE is the standard cross-entropy loss. To prevent topological fractures, 
+
+LSkelRecall [15] enforces local integrity by maximizing the overlap between the prediction P and a pre-computed dilated “tubed” skeleton Stubed :
+
+LSkelRecall = 1 −
+
+P PS tubed 
+
+P Stubed + ϵ (2) Complementarily, LclDice [22] aligns global topology by minimizing the diver-gence between the soft-skeleton of the prediction and the ground truth skeleton (SL): 
+
+LclDice = 1 − 2Tprec (SP, VL)Tsens (SL, VP)
+
+Tprec (SP, VL) + Tsens (SL, VP) (3) where Tprec and Tsens denote topology precision and sensitivity, respectively. We set the weights α = β = 1 .0. Finally, the predicted probability maps are binarized and skeletonized to one-pixel-wide centerlines, ensuring geometrically consistent structures for the topology traversal in Sec. 2.2. 
+
+2.2 Geometry-consistent Curve Topology Traversal (GCTT) 
+
+To achieve precise 3D reconstruction of long slender continuum bodies, strict epipolar correspondence between the two image planes is required. However, an epipolar line in one view may intersect the projected curve multiple or zero times in the other view due to intricate configurations such as self-occlusions, looping topologies, or geometric discrepancies caused by calibration uncertainties, lead-ing to ambiguous local associations [26]. Recovering the intrinsic topological order of the curve in each view provides a global structural prior that enables consistent correspondence in the subsequent optimization stage. Building on this motivation, we present GCTT. Given segmentation masks M(k) ∈ { 0, 1}H×W
+
+from two views k ∈ { 1, 2} predicted by TSN, we extract unordered point sets 
+
+P(k) = {p(k) 
+
+> n
+
+}Nk
+
+> n=1
+
+. The endpoint sets are N (k) = {n(k) ∈ P (k) | deg (n(k)) = 1 }.We measure cross-view geometric consistency using the point-to-epipolar-line distance d(n(1)  
+
+> i
+
+, n(2)  
+
+> j
+
+) = (˜ n(1)  
+
+> i)⊤F˜n(2)
+> j
+> r
+> F˜n(2)
+> j
+> 21
+> +
+> 
+> F˜n(2)
+> j
+> 22
+
+, where ˜n = ( u, v, 1) ⊤ denotes the homogeneous coordinate of n, and fundamental matrix F = K−⊤  
+
+> 1
+
+[t]×RK −12 .The selected endpoint pair (ˆ i, ˆj) = arg min n(1)      
+
+> i∈N (1) ,n(2)
+> j∈N (2)
+
+d(n(1)  
+
+> i
+
+, n(2)  
+
+> j
+
+). Given the identified starting s0 ∈ { n(1) ˆi , n(2) ˆj }, we recover the ordered topological se-quence by iteratively expanding from the current point. Let V denote the set of visited pixels, and let st be the current point at step t. The candidate set 
+
+C(st) is defined as all unvisited pixels lying within an annular neighborhood 
+
+C(st) = {q ∈ P \ V | ∥ q − st∥ ≤ rmax }, where larger rmax increases the percep-tual coverage and helps bypass occluded or missing points but also introduces higher computational cost. If |C (st)| = 1 , the unique candidate is selected. If ACCURATE: Robust Two-View Reconstruction of Continuum Structures 5
+
+multiple candidates exist, we choose the next point by minimizing a composite geometric loss st+1 = arg min q∈C (st) L(q), where the loss is 
+
+L(q) = κ(Wt ∪ q) + λaA(st−1, st, q) + λd∥q − st∥. (4) Here Wt = {st−m+1 , . . . , st} denotes a sliding window of the most recent m
+
+points. The curvature term κ(Wt ∪ q), which measures curvature of the best-fit quadratic curve, enforces local smoothness and the angle penalty is defined as 
+
+A(st−1, st, q) = 1 −(( st −st−1)⊤(q−st)) /(∥st −st−1∥ ∥ q−st∥), which discourages abrupt direction changes. The last term penalizes excessively long jumps between successive points. λa and λd are fixed weighting parameters (we choose λa = 1 .0,
+
+λd = 0 .5 and rmax = 50 ), resulting in an ordered topological sequence S =[s0, s1, . . . , sT ]. The process and loss are shown in Fig. 2. 
+
+Fig. 2: Illustration of the GCTT point selection strategy. From the current points 
+
+Wt = {st−m+1 , . . . , st}, multiple candidate successors may exist. Geometric loss 
+
+L(·) ensures smooth and consistent curve traversal. 
+
+2.3 Epipolar-constrained Dynamic Programming (ECDP) 
+
+After GCTT, we obtain two topology-consistent ordered pixel sequences S(1) =[s(1)  
+
+> i
+
+]N1 
+
+> i=1
+
+and S(2) = [ s(2)  
+
+> j
+
+]N2
+
+> j=1
+
+. We construct a cost matrix D ∈ RN1×N2 , where 
+
+Dij = d(s(1)  
+
+> i
+
+, s(2)  
+
+> j
+
+) and ECDP computes a globally optimal order-preserving cor-respondence by dynamic programming. Element Cij in accumulated cost ma-trix C ∈ RN1×N2 denotes the minimum cumulative cost of matching the pre-fixes [s(1) 1 , . . . , s(1)  
+
+> i
+
+] and [s(2) 1 , . . . , s(2)  
+
+> j
+
+]. The boundary conditions are initialized by cumulative summation along the first row and first column. For each interior entry, the recurrence is defined as Cij = Dij + min( Ci−1,j , Ci,j −1, Ci−1,j −1),equivalent to solving M = arg min Q
+
+P 
+
+> (i,j )∈Q
+
+Dij , s.t. Q is monotone in (i, j ),introduced by Baur et al. [4] while our dynamic programming formulation pro-vides a more efficient solution. However, due to occlusions, discretization, or local segmentation irregularities, the dynamic programming path may contain horizontal or vertical segments, leading to one-to-many or many-to-one corre-spondences, as also discussed in [4]. To enforce a unique correspondence for triangulation, we refine such degenerate matches by local interpolation. For a horizontal DP segment O = {(i∗, j 1), . . . , (i∗, j 2)}, we define a distance-weighted 6 Yaozhi Zhang et al. 
+
+linear refinement operator R(·) to convert one-to-many correspondences into unique continuous matches. The refined view 1 correspondence ˆs(1)  
+
+> i∗j
+
+is derived by incorporating the geometric constraints from adjacent rows i∗ ± 1: ˆs(1)  
+
+> i∗j
+
+=
+
+R
+
+
+
+s(1) 
+
+> i∗−1
+
+, s(1)  
+
+> i∗
+
+, s(1) 
+
+> i∗+1
+
+; Di∗−1,j , Di∗j , Di∗+1 ,j 
+
+
+
+, j ∈ [j1, j 2]. R(·) performs a weighted interpolation anchored at index j∗ = arg min j∈[j1,j 2] Di∗j , defined formally as: 
+
+R(·) = 
+
+
+
+Di∗j s(1)  
+
+> i∗−1
+
++ Di∗−1,j s(1) 
+
+> i∗
+
+Di∗−1,j + Di∗j
+
+, j < j ∗,
+
+s(1)  
+
+> i∗
+
+, j = j∗,
+
+Di∗+1 ,j s(1)  
+
+> i∗
+
++ Di∗j s(1) 
+
+> i∗+1
+
+Di∗j + Di∗+1 ,j 
+
+, j > j ∗,
+
+(5) After applying the refinement operator R, we obtain a unique one-to-one correspondence set cM = (ˆ s(1)  
+
+> ij
+
+, s(2)  
+
+> j
+
+) | ˆs(1)  
+
+> ij
+
+= R(s(1) 
+
+> i−1
+
+, s(1)  
+
+> i
+
+, s(1) 
+
+> i+1
+
+; D) N2
+
+> j=1
+
+, where 
+
+ˆs(1)  
+
+> ij
+
+denotes the refined point corresponding uniquely to s(2)  
+
+> j
+
+. The final 3D recon-struction is obtained by triangulating each pair (ˆ s(1)  
+
+> ij
+
+, s(2)  
+
+> j
+
+) using the calibrated camera parameters. An example of ECDP is shown in Fig. 3. 
+
+(a) An example of occlusion in view 1. Missing points are constructed by neighbor points in view 1. 
+
+(b) An example of epipolar degener-acy. Missing intersection at correct po-sition is constructed. 
+
+Fig. 3: Robust correspondence recovery by ECDP under challenging condi-tions.(a) Occlusion: ECDP interpolates consistent cross-view point pairs. (b) Epipolar degeneracy: ECDP avoids local mismatches. 
+
+## 3 Experiment 
+
+We evaluate ACCURATE on both simulated and real phantom data to assess reconstruction accuracy and generalization across diverse continuum shapes. For simulated data, we synthetically generate long slender continuum structures with ACCURATE: Robust Two-View Reconstruction of Continuum Structures 7
+
+Table 1: Quantitative comparison on simulation and phantom datasets under dif-ferent settings. We compare our method against general reconstruction baselines (using GT masks), classical geometry-based methods (using ordered points), and evaluate our end-to-end performance.                                                                                                
+
+> Method Input Calib. Simulation Dataset (pixel) Phantom Dataset (mm)
+> Acc. ↓Comp. ↓Overall ↓Max Err. ↓Acc. ↓Comp. ↓Overall ↓Max Err. ↓
+> Comparison with General Reconstruction Methods (GT Mask Provided)
+> VGGT [23] Mask %2.8532 2.4845 2.6689 8.6994 11.9963 10.9020 11.4492 28.9383 Fast3R [24] Mask %3.6407 3.3810 3.5109 9.9247 20.7836 12.7321 16.7579 43.1215 MonSter [6] Mask !4.1161 3.1932 3.6547 10.7965 4.8306 6.1811 5.5059 14.6172
+> Ours Mask !0.2363 0.3567 0.2965 2.7738 0.4475 0.4959 0.4717 1.6256
+> Comparison with Classical Geometry Method (Ordered Points Provided)
+> Baert et al. [3] Points !0.8843 0.5570 0.7207 5.2142 0.4051 0.3096 0.3573 1.9706 Hoffmann et al. [12] Points !0.1023 0.1195 0.1109 1.3444 0.4632 0.3315 0.3974 1.3208
+> Ours Points !0.0682 0.0636 0.0659 0.4378 0.3880 0.2724 0.3302 0.9457
+> End-to-End Full Pipeline Performance (Raw Images Input)
+> Ours Image !0.3118 0.2512 0.2815 2.4049 0.5965 0.6188 0.6076 2.0604
+
+highly deformable and complex geometries, where strong non-planar bending naturally leads to self-occlusion in projection. Using a virtual calibrated dual-view imaging setup built in Blender, we render projection images and exact 3D ground truth. For real phantom data, the fluoroscopic data of navigating clini-cally used guidewires (0.035" and 0.014" in diameter) in a 1:1 full-body vascular phantom, simulating cardiac and cerebrovascular intervention, is acquired using a GE INNOVA angiographic system. Three-dimensional reconstruction is per-formed on an Advantage Workstation (AW 4.6) using Innova3DXR software. Performance is assessed using Accuracy (Acc.), Completeness (Comp.), Overall Chamfer Distance(Overall), and Maximum Error(Max Err.). Table 1 summarizes results across different experimental settings. To provide a comprehensive evaluation, we select representative benchmark methods such as VGGT [23],Fast3R [24], and MonSter [6], representing the cur-rent state of the art in general 3D reconstruction. Classical geometry-based ap-proaches such as Baert et al. [3] reconstruct correspondences by computing in-tersections between epipolar lines and fitted curves, while Hoffmann et al. [12] also employ dynamic programming to construct correspondences of intersections. These methods are explicitly tailored to continuum-shaped objects and serve as strong geometry-based baselines. For VGGT [23], Fast3R [24], and MonSter [6], direct application leads to full-scene reconstruction thus two-dimensional GT masks are used to isolate the target structures. To ensure a fair comparison regarding geometric reconstruction capability, our method is also evaluated using GT masks. As shown in Table 1, Fig. 4 and Fig. 5, these methods yield relatively large errors, highlighting the necessity of designing algorithms tailored to long slender bodies. 8 Yaozhi Zhang et al. 
+
+To validate this motivation, classical geometry-based reconstruction methods such as Baert et al. [3], which is applied in reconstruction step of Guide3D [14], and Hoffmann et al. [12] are compared. Under the same setting, ACCURATE demonstrates improved accuracy on geometrically complex structures, indicat-ing better generalizability. In contrast, strict intersection-based methods may encounter incorrect intersections for complex curves, whereas our approach lever-ages global distance information for more robust matching. On the real phantom dataset containing relatively simple shapes, despite small calibration errors, our method still achieves consistent accuracy gains. Furthermore, we evaluate a full-pipeline scenario using images and camera parameters, as shown in Fig. 4 and Fig. 5, with quantitative results reported in Table 1. Compared with providing ordered points, increased error indicates that segmentation accuracy becomes the performance bottleneck. ACCURATE achieves good performance across all evaluation metrics with different input. Experiment results indicate that fully exploiting camera geome-try and designing reconstruction algorithms specifically for long slender bodies are crucial for achieving accurate and robust 3D reconstruction. 
+
+Fig. 4: GT and reconstruction re-sults on simulation dataset. 
+
+Fig. 5: Image, GT and reconstruction re-sults on real phantom dataset. 
+
+## 4 Conclusion 
+
+In this work, we presented ACCURATE, a biplanar imaging-based 3D recon-struction framework for arbitrary-shaped long slender continuum bodies that integrates topology-aware perception with explicit geometric enforcement. AC-CURATE combines segmentation-driven structural understanding with globally constrained epipolar optimization. By integrating geometry-consistent topology traversal with a dynamic programming-based solver, this framework achieves ro-bust reconstruction under large deformations, occlusions, discretization and de-generate epipolar lines. Experiments on both simulated and real phantom data ACCURATE: Robust Two-View Reconstruction of Continuum Structures 9
+
+demonstrate that ACCURATE achieves substantially improved reconstruction accuracy, reaching sub-millimeter reconstruction errors, leading to reliable down-stream mechanical simulation and intervention guidance. Furthermore, publicly released calibrated datasets and codebase establish a standardized benchmark for future research on slender continuum reconstruction. 
+
+## Acknowledgements 
+
+This work was supported by National Natural Science Foundation of China (52405282). 
+
+## References 
+
+1. Altingövde, O., Mishchuk, A., Ganeeva, G., Oveisi, E., Hebert, C., Fua, P.: 3d reconstruction of curvilinear structures with stereo matching deep convolutional neural networks. Ultramicroscopy 234 , 113460 (2022) 2. Ambrosini, P., Smal, I., Ruijters, D., Niessen, W.J., Moelker, A., van Walsum, T.: 3d catheter tip tracking in 2d x-ray image sequences using a hidden markov model and 3d rotational angiography. In: Workshop on Augmented Environments for Computer-Assisted Interventions. pp. 38–49. Springer (2015) 3. Baert, S.A., Van de Kraats, E.B., Van Walsum, T., Viergever, M.A., Niessen, W.J.: Three-dimensional guide-wire reconstruction from biplane image sequences for integrated display in 3-d vasculature. IEEE transactions on medical imaging 
+
+22 (10), 1252–1258 (2003) 4. Baur, C., Milletari, F., Belagiannis, V., Navab, N., Fallavollita, P.: Automatic 3d reconstruction of electrophysiology catheters from two-view monoplane c-arm image sequences. International journal of computer assisted radiology and surgery 
+
+11 (7), 1319–1328 (2016) 5. Cafaro, A., Dorent, R., Haouchine, N., Lepetit, V., Paragios, N., Wells III, W.M., Frisken, S.: Two projections suffice for cerebral vascular reconstruction. In: Inter-national Conference on Medical Image Computing and Computer-Assisted Inter-vention. pp. 722–731. Springer (2024) 6. Cheng, J., Liu, L., Xu, G., Wang, X., Zhang, Z., Deng, Y., Zang, J., Chen, Y., Cai, Z., Yang, X.: Monster: Marry monodepth to stereo unleashes power. In: Proceed-ings of the Computer Vision and Pattern Recognition Conference. pp. 6273–6282 (2025) 7. Diezinger, M.A., Tamadazte, B., Laurent, G.J.: 3d curvature-based tip load esti-mation for continuum robots. IEEE Robotics and Automation Letters 7(4), 10526– 10533 (2022) 8. Ha, X.T., Wu, D., Ourak, M., Borghesan, G., Menciassi, A., Vander Poorten, E.: Sensor fusion for shape reconstruction using electromagnetic tracking sensors and multi-core optical fiber. IEEE Robotics and Automation Letters 8(7), 4076–4083 (2023) 9. Harrigan, M.R., Deveikis, J.P.: Handbook of cerebrovascular disease and neuroin-terventional technique, vol. 1. Springer Science & Business Media (2012) 10. Hoffmann, M., Brost, A., Jakob, C., Bourier, F., Koch, M., Kurzidim, K., Horneg-ger, J., Strobel, N.: Semi-automatic catheter reconstruction from two views. In: International Conference on Medical Image Computing and Computer-Assisted Intervention. pp. 584–591. Springer (2012) 10 Yaozhi Zhang et al. 11. Hoffmann, M., Brost, A., Jakob, C., Koch, M., Bourier, F., Kurzidim, K., Horneg-ger, J., Strobel, N.: Reconstruction method for curvilinear structures from two views. In: Medical Imaging 2013: Image-Guided Procedures, Robotic Interventions, and Modeling. vol. 8671, pp. 630–637. SPIE (2013) 12. Hoffmann, M., Brost, A., Koch, M., Bourier, F., Maier, A., Kurzidim, K., Strobel, N., Hornegger, J.: Electrophysiology catheter detection and reconstruction from two views in fluoroscopic images. IEEE transactions on medical imaging 35 (2), 567–579 (2015) 13. Isensee, F., Jaeger, P.F., Kohl, S.A., Petersen, J., Maier-Hein, K.H.: nnu-net: a self-configuring method for deep learning-based biomedical image segmentation. Nature methods 18 (2), 203–211 (2021) 14. Jianu, T., Huang, B., Nguyen, H., Bhattarai, B., Do, T., Tjiputra, E., Tran, Q., Berthet-Rayne, P., Le, N., Fichera, S., et al.: Guide3d: A bi-planar x-ray dataset for guidewire segmentation and 3d reconstruction. In: Proceedings of the Asian Conference on Computer Vision. pp. 1549–1565 (2024) 15. Kirchhoff, Y., Rokuss, M.R., Roy, S., Kovacs, B., Ulrich, C., Wald, T., Zenk, M., Vollmuth, P., Kleesiek, J., Isensee, F., et al.: Skeleton recall loss for connectiv-ity conserving and resource efficient segmentation of thin tubular structures. In: European Conference on Computer Vision. pp. 218–234. Springer (2024) 16. Lu, B., Li, B., Chen, W., Jin, Y., Zhao, Z., Dou, Q., Heng, P.A., Liu, Y.: To-ward image-guided automated suture grasping under complex environments: A learning-enabled and optimization-based holistic framework. IEEE Transactions on Automation Science and Engineering 19 (4), 3794–3808 (2021) 17. Lu, Y., Chen, W., Li, B., Lu, B., Zhou, J., Chen, Z., Liu, Y.H.: A robust graph-based framework for 3-d shape reconstruction of flexible medical instruments using multi-core fbgs. IEEE Transactions on Medical Robotics and Bionics 5(3), 472–485 (2023) 18. Miyato, T., Jaeger, B., Welling, M., Geiger, A.: Gta: A geometry-aware attention mechanism for multi-view transformers. arXiv preprint arXiv:2310.10375 (2023) 19. Ourak, M., De Buck, S., Ha, X.T., Al-Ahmad, O., Bamps, K., Ector, J., Van-der Poorten, E.: Fusion of biplane fluoroscopy with fiber bragg grating for 3d catheter shape reconstruction. IEEE Robotics and Automation Letters 6(4), 6505– 6512 (2021) 20. Robertshaw, H., Wu, H.R., Granados, A., Booth, T.C.: World model for ai au-tonomous navigation in mechanical thrombectomy. In: International Conference on Medical Image Computing and Computer-Assisted Intervention. pp. 680–690. Springer (2025) 21. Sahu, S.K., Sozer, C., Rosa, B., Tamadon, I., Renaud, P., Menciassi, A.: Shape reconstruction processes for interventional application devices: State of the art, progress, and future directions. Frontiers in Robotics and AI 8, 758411 (2021) 22. Shit, S., Paetzold, J.C., Sekuboyina, A., Ezhov, I., Unger, A., Zhylka, A., Pluim, J.P., Bauer, U., Menze, B.H.: cldice-a novel topology-preserving loss function for tubular structure segmentation. In: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. pp. 16560–16569 (2021) 23. Wang, J., Chen, M., Karaev, N., Vedaldi, A., Rupprecht, C., Novotny, D.: Vggt: Visual geometry grounded transformer. In: Proceedings of the Computer Vision and Pattern Recognition Conference. pp. 5294–5306 (2025) 24. Yang, J., Sax, A., Liang, K.J., Henaff, M., Tang, H., Cao, A., Chai, J., Meier, F., Feiszli, M.: Fast3r: Towards 3d reconstruction of 1000+ images in one forward pass. In: Proceedings of the Computer Vision and Pattern Recognition Conference. pp. 21924–21935 (2025) ACCURATE: Robust Two-View Reconstruction of Continuum Structures 11 25. Yao, Y., Luo, Z., Li, S., Fang, T., Quan, L.: Mvsnet: Depth inference for unstruc-tured multi-view stereo. In: Proceedings of the European conference on computer vision (ECCV). pp. 767–783 (2018) 26. Zhang, Z.: Determining the epipolar geometry and its uncertainty: A review. In-ternational journal of computer vision 27 (2), 161–195 (1998)

@@ -1,0 +1,423 @@
+Title: Spherical-GOF: Geometry-Aware Panoramic Gaussian Opacity Fields for 3D Scene Reconstruction
+
+URL Source: https://arxiv.org/pdf/2603.08503v1
+
+Published Time: Tue, 10 Mar 2026 02:42:01 GMT
+
+Number of Pages: 9
+
+Markdown Content:
+# Spherical-GOF: Geometry-Aware Panoramic Gaussian Opacity Fields for 3D Scene Reconstruction 
+
+Zhe Yang 1, Guoqiang Zhao 1, Sheng Wu 1, Kai Luo 1, and Kailun Yang 1,2,†
+
+Fig. 1: Our ray casting-based method enables accurate panoramic Gaussian rendering from an input panorama and SfM poses. Compared to projection-based approaches (ODGS [1] and OmniGS [2]) and prior ray-based methods (SPaGS [3]), our method produces cleaner and more geometrically consistent depth and normals, avoiding texture-like ripple artifacts. 
+
+Abstract — Omnidirectional images are increasingly used in robotics and vision due to their wide field of view. However, extending 3D Gaussian Splatting (3DGS) to panoramic camera models remains challenging, as existing formulations are de-signed for perspective projections and naive adaptations often introduce distortion and geometric inconsistencies. We present Spherical-GOF, an omnidirectional Gaussian ren-dering framework built upon Gaussian Opacity Fields (GOF). Unlike projection-based rasterization, Spherical-GOF performs GOF ray sampling directly on the unit sphere in spherical ray space, enabling consistent ray-Gaussian interactions for panoramic rendering. To make the spherical ray casting ef-ficient and robust, we derive a conservative spherical bounding rule for fast ray-Gaussian culling and introduce a spherical filtering scheme that adapts Gaussian footprints to distortion-varying panoramic pixel sampling. Extensive experiments on standard panoramic benchmarks (OmniBlender and OmniPhotos) demonstrate competitive pho-tometric quality and substantially improved geometric consis-tency. Compared with the strongest baseline, Spherical-GOF reduces depth reprojection error by 57% and improves cycle inlier ratio by 21% . Qualitative results show cleaner depth and more coherent normal maps, with strong robustness to global panorama rotations. We further validate generalization on OmniRob, a real-world robotic omnidirectional dataset in-troduced in this work, featuring UAV and quadruped platforms. The source code and the OmniRob dataset will be released at 
+
+https://github.com/1170632760/Spherical-GOF .          
+
+> This work was supported in part by the National Natural Science Foundation of China (Grant No. 62473139), in part by the Hunan Provincial Research and Development Project (Grant No. 2025QK3019), and in part by the State Key Laboratory of Autonomous Intelligent Unmanned Systems (the opening project number ZZKF2025-2-10).
+> 1The authors are with the School of Artificial Intelligence and Robotics, Hunan University, China (email: kailun.yang@hnu.edu.cn).
+> 2The author is also with the National Engineering Research Center of Robot Visual Perception and Control Technology, Hunan University, China.
+> †Corresponding author: Kailun Yang.
+
+I. I NTRODUCTION 
+
+Advances in robotics and embodied intelligence, together with the rise of AR/VR and digital-twin applications, have made 3D scene reconstruction increasingly important for per-ception, simulation, and environment understanding [4], [5]. Accurate geometric representations are essential for building realistic simulation environments and digital twins, enabling perception-driven analysis and supporting downstream em-bodied AI and human-robot interaction research [6], [7]. Conventional reconstruction pipelines [8], [9] relying on pinhole cameras typically require the acquisition of exten-sive image datasets, followed by the recovery of feature-based point cloud maps via Structure-from-Motion (SfM). Panoramic cameras offer an expansive Field of View (FoV), enabling efficient 360° scene coverage with far fewer im-ages under practical sensing constraints, and have therefore attracted increasing attention in robotics and embodied vi-sion [10], [11]. Simultaneously, methods based on Neural Radiance Fields (NeRF) [12] and 3DGS [13] have garnered significant atten-tion due to their ability to not only recover scene geometry but also render high-fidelity photorealistic textures. Conse-quently, extending these paradigms to support panoramic cameras has become a focal point of research. Given the in-herent ray-sampling nature of NeRF, adapting it to panoramic models is relatively straightforward, and several studies have demonstrated impressive performance in this domain [14], [15], [16]. However, such methods inevitably inherit NeRF’s intrinsic limitations, specifically low rendering efficiency and protracted training times. Conversely, while 3DGS of-fers a significant leap in rendering speed, adapting it to panoramic imaging presents substantial challenges. Standard 
+
+> arXiv:2603.08503v1 [cs.CV] 9 Mar 2026
+
+3DGS [13]explicitly represents scenes using 3D Gaussians and relies on a projection mechanism tailored for pinhole camera models. Specifically, the projected covariance is computed by applying the Jacobian of the camera model to linearly approximate the inherently non-linear projection, under the assumption that a projected 3D Gaussian remains an ellipsoidal Gaussian on the image plane. Such geometric assumptions substantially impede the direct extension of 3D Gaussian Splatting to panoramic imagery; moreover, even spherical-aware splatting variants that achieve strong visual quality often prioritize optical appearance, leaving geometry-oriented accuracy less explicitly emphasized [1], [2], [3]. To address these challenges, we propose Spherical-GOF, a ray-space framework for omnidirectional Gaussian render-ing. Building on GOF [17], Spherical-GOF performs ray sampling directly on the unit sphere, enabling projection-consistent ray-Gaussian interactions for panoramic imaging without relying on planar projection approximations. To ensure robust and efficient rendering, we further derive a con-servative spherical bounding strategy for Gaussian primitives, which supports reliable ray–Gaussian culling in omnidirec-tional settings. In addition, we introduce a spherical filtering scheme that adapts Gaussian footprints to panoramic pixel sampling, effectively mitigating aliasing artifacts induced by spherical distortion and improving rendering stability. Quantitatively, Spherical-GOF reduces depth reprojection error by 57% and improves cycle consistency by 21% over the strongest baseline, while maintaining competitive rendering performance. These improvements translate into more accurate geometry and more reliable mesh extraction, making the method better suited for downstream tasks that require consistent surface reconstruction. In summary, this paper makes the following contributions:  
+
+> •
+
+We propose Spherical-GOF , a spherical ray-space GOF sampling framework for ERP panoramas, which im-proves geometric reconstruction accuracy of omnidirec-tional Gaussian rendering by avoiding local linearization errors introduced by planar projection.  
+
+> •
+
+We introduce a panoramic filter and sphere-metric-consistent geometric regularization that stabilize train-ing and reduce the influence of high-frequency appear-ance textures on geometry, leading to cleaner depth and more coherent normal estimates.  
+
+> •
+
+We conduct extensive experiments on public panoramic benchmarks to evaluate both photometric and geometric quality, and further validate camera-model adaptation on our robot-captured omnidirectional data, showing that our formulation can be applied to diverse omnidirec-tional camera setups with only minor modifications. II. R ELATED WORK 
+
+3D Gaussian splatting. Recent advances in 3D reconstruc-tion have been largely driven by NeRF [12] and 3DGS [13], both of which enable high-quality novel view synthesis. In particular, 3DGS has gained popularity for its real-time rendering speed. It represents a scene as a set of anisotropic 3D Gaussians with learnable attributes such as scale, rotation, opacity, and color, and renders them efficiently via rasteri-zation. However, this efficiency relies on a local affine ap-proximation of the projection, which can become unreliable for wide-FoV or highly distorted camera models. To improve rendering correctness and geometric reliability, several works modify the Gaussian representation or evalua-tion strategy. For example, 2D Gaussian Surfels (2DGS) [18] represent primitives as local surface patches, enabling more accurate depth and normal estimation. GOF [17] instead formulates Gaussian rendering in a volumetric occupancy-style manner, producing well-defined depth and normal out-puts. HTGS [19] further improves 3DGS by introducing perspective-correct, ray-based splat evaluation that avoids matrix inversion and stabilizes optimization. These devel-opments highlight the importance of projection-consistent formulations, especially when extending Gaussian-based re-construction to omnidirectional panoramic imagery. 
+
+Panoramic 3D reconstruction. Thanks to the wide FoV of panoramic cameras [10], panorama-based 3D reconstruction has received increasing attention. In NeRF, extending volu-metric rendering to panoramic imagery is relatively straight-forward since radiance is evaluated along rays; representative examples include EgoNeRF [16] and other NeRF-based methods for omnidirectional images [20], [21]. In contrast, adapting 3DGS to panoramic images is more challenging because its rasterization pipeline is tightly coupled with the camera projection model and typically assumes that a 3D Gaussian remains an elliptical 2D Gaussian after projection. To support panoramic rendering, some methods derive the Jacobian of panoramic projection and propagate covariance accordingly, such as OmniGS [2], ErpGS [22], and 360-GS [23]. However, they still rely on a local affine approx-imation, which can break down in highly distorted regions such as the polar areas of equirectangular panoramas and lead to projection inconsistencies. To avoid a single global projection, other approaches render on intermediate surfaces. For instance, ODGS [1] projects Gaussians onto locally defined tangent planes and maps them back to the panorama, while face-based methods render on cubemap-like piece-wise perspective surfaces, optionally introducing additional transition planes to reduce cross-face discontinuities, before mapping back to the panorama [24]. While such strategies alleviate severe distortion, they may introduce additional overhead and can suffer from approximation/stitching issues across pieces. More recently, SPaGS [3] extends the ray casting formu-lation of HTGS [19] to spherical panoramas via omnidirec-tional ray-splat intersection and bounding-box-based raster-ization, enabling projection-consistent panoramic rendering without local affine projection approximations. III. M ETHODOLOGY 
+
+A. Preliminary: Classical Gaussian Splatting and Gaussian Opacity Fields 
+
+3DGS is an emerging approach to 3D reconstruction. It takes as input a set of posed images and a sparse point cloud, which is typically obtained from SfM, it initializes a collection of anisotropic 3D Gaussians and optimizes their parameters by differentiable rendering under a photometric reconstruction loss. Each Gaussian i is parameterized by its mean position xi ∈ R3, color ci, opacity oi, and covariance 
+
+Σi ∈ R3×3. The covariance of each Gaussian is commonly represented using a rotation matrix Ri ∈ SO (3) and per-axis scales si ∈ R3. Let Si = diag( si) denote the scaling matrix. The covariance is then given by 
+
+Σi = RiSiS⊤ 
+
+> i
+
+R⊤ 
+
+> i
+
+. (1) Each Gaussian defines a 3D density 
+
+Gi(x) = exp 
+
+
+
+− 12 (x − μi)⊤Σ−1 
+
+> i
+
+(x − μi)
+
+
+
+. (2) Since perspective projection is inherently non-linear, classi-cal 3DGS adopts the EWA-splatting formulation [25], which approximates the projected footprint by a 2D Gaussian via local first-order linearization. Let xci denote the mean transformed to the camera coordinate system, and let π(·)
+
+be the perspective projection. The Jacobian of the projection evaluated at xci is denoted as Ji ∈ R2×3. The screen-space covariance is computed as 
+
+Σ′ 
+
+> i
+
+= Ji
+
+
+
+Rcw Σi (Rcw)⊤
+
+J⊤ 
+
+> i
+
+. (3) where Rcw denotes the rotation from the world coordinate system to the camera coordinate system. The resulting 2D Gaussian footprint at pixel coordinate 
+
+u ∈ R2 is 
+
+G′
+
+> i
+
+(u) = exp 
+
+
+
+− 12 (u − μ′
+
+> i
+
+)⊤(Σ′
+
+> i
+
+)−1(u − μ′
+
+> i
+
+)
+
+
+
+, (4) where μ′ 
+
+> i
+
+= π(xci ) denotes the projected mean. Finally, the pixel color is computed as: 
+
+C(u) = 
+
+> N
+
+X
+
+> j=1
+
+cj αj (u) Tj (u). (5) Here, αj (u) = oj G′ 
+
+> j
+
+(u), and Tj (u) = Qj−1 
+
+> k=1
+
+(1 − αk(u)) 
+
+denotes the accumulated transmittance. 
+
+B. Panoramic Rendering via Gaussian Opacity Field 
+
+Gaussian Opacity Fields [17] offer a ray-based rendering formulation that avoids screen-space projection approxima-tions. GOF evaluates each Gaussian’s opacity accumulation directly along camera rays, improving geometric consistency and yielding more accurate geometry estimation. Specifically, given the camera center o ∈ R3 and a ray direction r ∈ R3, any point along the ray can be written as x = o + tr, where t denotes the ray depth. For a 3D Gaussian i with mean xi, rotation Ri, and scaling matrix 
+
+Si = diag( si), we transform the ray into the local coordinate frame of the Gaussian, 
+
+oi = S−1 
+
+> i
+
+Ri(o − xi), (6) 
+
+ri = S−1 
+
+> i
+
+Rir, (7) 
+
+xi(t) = oi + tri. (8) Substituting the point in the Gaussian local frame into the Gaussian formulation yields the 1D response along the ray: 
+
+G1D  
+
+> i
+
+(t) = exp 
+
+
+
+− 12 xi(t)⊤xi(t)
+
+
+
+= exp 
+
+
+
+− 12
+
+ r⊤ 
+
+> i
+
+ri t2 + 2 o⊤ 
+
+> i
+
+ri t + o⊤ 
+
+> i
+
+oi
+
+
+
+. (9) According to Eq. (9), the exponent is a quadratic function of 
+
+t, whose maximum is attained at t∗ = − BA , where A = r⊤ 
+
+> i
+
+ri
+
+and B = o⊤ 
+
+> i
+
+ri.Since GOF evaluates Gaussian contributions along rays, the rendering no longer depends on a specific projec-tion model. This property enables a seamless exten-sion to panoramic imaging without introducing projection-approximation errors. We define the camera coordinate sys-tem such that the z-axis points forward and the x-axis points to the right, consistent with the pinhole convention. For an equirectangular panorama, the longitude and latitude of a 3D point x are defined as φ = atan2( xx, x z ) ∈ [−π, π ]
+
+and ϕ = arcsin( −xy /∥x∥2) ∈ [−π/ 2, π/ 2] . Using these definitions, the panoramic projection is given by 
+
+Proj( x) = 
+
+ W
+
+2π φ + W
+
+2 , − Hπ ϕ + H
+
+2
+
+⊤
+
+. (10) In addition, during preprocessing, it is necessary to de-termine the tile range influenced by each Gaussian for efficient rendering. In the original 3DGS pipeline, this range is estimated using the projection Jacobian, which is not suitable for panoramic imaging. Since directly computing the exact longitudinal and latitudinal extent of an anisotropic Gaussian on the panorama is challenging, we approximate each Gaussian as a sphere whose diameter is determined by its longest principal axis. We then compute conservative upper and lower bounds of the longitude and latitude covered by this sphere. Although this estimated range is looser than the exact projection, it guarantees that no valid ray-Gaussian contributions are clipped. 
+
+C. Optimization Strategies for Panoramic Rendering 
+
+Due to latitude-dependent distortion in panoramic projec-tions, Gaussians with identical 3D size can occupy markedly different areas on the image plane depending on their latitude. As a result, Gaussians at higher latitudes tend to accumulate much larger gradients than those at lower latitudes. To balance the splitting thresholds across different latitudes, we modify the Gaussian gradients to be latitude-dependent. We define 
+
+wlat = clamp(cos( ϕ), ϵ ) , (11) This weight is multiplied by the densification score to suppress excessive splitting near the poles. For ERP panoramas, the angular resolution varies with latitude, so identically sized Gaussians may have very differ-ent pixel footprints. To avoid sub-pixel footprints that cause aliasing and instability, we assign each Gaussian an isotropic filter radius fi according to the panorama’s angular resolu-tion. For each visible camera, we compute the camera-space distance r = ∥xcam ∥2 and the latitude ϕ = arcsin( −xy /r ).Given an image resolution W ×H, the vertical and horizontal angular resolutions are 
+
+∆θlat = πH , ∆θlon = 2πW cos ϕ. (12) and we set ∆θ = max(∆ θlat , ∆θlon ). This yields a pixel-support candidate fcand = r ∆θ. For a single Gaussian primitive, we take the maximum over all visible cameras and apply a constant factor κ:
+
+f = κ max  
+
+> cams
+
+fcand . (13) Given the per-axis scale s ∈ R3, we inflate the Gaussian scale with an isotropic radius f :
+
+˜s = ps ⊙ s + f 21, (14) where ⊙ denotes the Hadamard product and 1 ∈ R3 is an all-ones vector. This inflation enforces a stable lower bound on the Gaussian extent and avoids sub-pixel footprints. Since the inflation changes the Gaussian volume, we compensate the opacity to preserve density consistency: 
+
+o ← o ·
+
+s Q(s ⊙ s)
+
+Q(˜ s ⊙ ˜s) , (15) where Q(·) denotes the product of vector components. We apply this procedure to all Gaussians, which maintains sufficient image support in distant or high-latitude regions and suppresses numerical instability and aliasing. 
+
+D. Panorama-Aware Geometric Losses 
+
+Ray-space rendering removes screen-space projection er-rors, but optimizing geometry from photometric supervision alone remains ill-posed. Without additional constraints, ap-pearance variations can be partially explained by geometry, leading to high-frequency artifacts in depth and normals. We therefore augment the photometric objective with panorama-aware geometric regularizers: 
+
+L = Lrgb + λdn Ldn + λj1Ljump1 + λj2Ljump2 . (16) Here, Lrgb denotes the standard reconstruction loss used in Gaussian rendering, and the additional terms regularize normals and depth to suppress high-frequency geometric artifacts. 
+
+Opacity-based valid mask. Geometric regularization is only meaningful on pixels with sufficient rendered opacity. We therefore define the valid pixel set 
+
+Ω = u α(u) > τ , (17) where α(u) denotes the accumulated opacity at pixel u and 
+
+τ is a fixed threshold. 
+
+Depth-normal consistency. We encourage consistency be-tween the rendered normal map N(u) and a depth-induced normal map Nd(u) computed from the rendered depth. Let 
+
+p(u) denote the 3D point obtained by back-projecting pixel 
+
+u with its rendered depth. We estimate 
+
+Nd(u) = norm(∆ xp(u) × ∆y p(u)) , (18) Here, ∆x and ∆y denote first-order finite differences of p(u)
+
+along the image x- and y-directions using neighboring pixels, and we minimize the angular discrepancy between N(u) and 
+
+Nd(u).
+
+Ldn = X
+
+> u∈Ω
+
+ωlat (ϕ)
+
+
+
+1 − N(u)⊤Nd(u)
+
+
+
+, (19) Here, Ω denotes the opacity-based valid set defined in (17), and we apply the latitude weight ωlat (ϕ) in (11) to compen-sate for ERP’s latitude-dependent distortion and balance the contributions across latitudes. 
+
+Depth jump regularization. We suppress depth oscillations by applying hinge penalties to log-depth differences. Let ϵ be a small constant and define z(u) = log(max( D(u), ϵ )) and 
+
+s(ϕ) = max(cos ϕ, ϵ ). We compute first-order differences 
+
+∆xz(u) = z(u + ∆ x) − z(u)
+
+s(ϕ) , (20) 
+
+∆y z(u) = z(u + ∆ y ) − z(u), (21) and the corresponding hinge responses 
+
+Ex(u) = max  |∆xz(u)| − τ1, 0, (22) 
+
+Ey (u) = max  |∆y z(u)| − τ1, 0. (23) With edge-aware weights wx(u) = exp( −β∥∂xI(u)∥) and 
+
+wy (u) = exp( −β∥∂y I(u)∥) computed from the input panorama I, we define 
+
+Ljump1 = X
+
+> u∈Ω
+
+ωlat (ϕ)  wx(u)Ex(u) + wy (u)Ey (u). (24) We further penalize second-order log-depth differences to obtain Ljump2 , using the same horizontal ERP correction to reduce ripple-like artifacts. IV. E XPERIMENTS 
+
+A. Experimental Setup 
+
+Datasets. 
+
+We conduct experiments on three datasets: the synthetic OmniBlender [16], the real-world OmniPhotos [26], and OmniRob. OmniBlender is rendered in Blender, offering controlled omnidirectional imagery without operator-induced motion artifacts. OmniPhotos is captured using a consumer 360° camera in real environments. To evaluate transfer across camera models in robotic set-tings, we collect OmniRob on two platforms equipped with different omnidirectional cameras. OmniRob-UAV contains aerial sequences captured by an Antigravity UAV that pro-vides full equirectangular panoramas. OmniRob-Quadruped contains ground-level sequences captured by a Unitree Go2 legged robot equipped with an annular panoramic camera. Overall, OmniRob includes four scenes, with two scenes per platform. This setup enables evaluation under heterogeneous viewpoints and camera parameterizations. The annular camera used in OmniRob-Quadruped has a limited vertical field of view of [−39 ◦, 6◦]. To facilitate controlled comparisons under restricted vertical coverage, we crop the UAV panoramas to [−40 ◦, 20 ◦] to form pseudo-annular observations. Following ODGS [1], we subsample OmniBlender-Indoor [16] OmniBlender-Outdoor [16] OmniPhotos [26] Method DRE ↓ CIR ↑ PSNR ↑ SSIM ↑ LPIPS ↓ DRE ↓ CIR ↑ PSNR ↑ SSIM ↑ LPIPS ↓ DRE ↓ CIR ↑ PSNR ↑ SSIM ↑ LPIPS ↓                                                                           
+
+> EgoNeRF [16] 0.1254 49.47 31.427 0.8724 0.1916 0.4416 56.41 29.195 0.8746 0.1264 0.3443 51.93 26.283 0.8038 0.1951 ODGS [1] 0.2022 37.25 31.853 0.8873 0.1215 0.3116 46.34 28.884 0.8876 0.0885 0.3702 62.33 25.582 0.8247 0.1802 OmniGS [2] 0.0591 61.00 36.046 0.9233 0.0720 0.0965 58.59 32.683 0.9276 0.0479 0.1891 46.48 29.241 0.9005 0.0905
+> SPaGS [3] 0.0453 73.86 35.353 0.9248 0.1093 0.0944 67.75 32.412 0.9270 0.0588 0.1295 74.41 28.493 0.8936 0.1171 Ours 0.0169 90.56 34.684 0.9198 0.0709 0.0416 85.28 31.403 0.9195 0.0682 0.0620 86.02 27.797 0.8872 0.0978
+
+TABLE I: Quantitative comparison on public omnidirectional benchmarks. We report rendering quality (PSNR/SSIM/LPIPS), Depth reprojection error (DRE), and Cycle inlier ratio (CIR). 
+
+EgoNeRF [16] ODGS [1] OmniGS [2] SPaGS [3] Ours 
+
+Fig. 2: Qualitative comparison on OmniBlender [16] . We show RGB renderings and geometry-related outputs for representative scenes. Compared to projection-based panoramic 3DGS baselines, our method yields smoother and more structurally consistent depth, with fewer texture-aligned ripples on planar regions. Normal maps are computed from the rendered depth for visualization. 
+
+100 images per scene, use 25 views for training and 25 for testing, and reserve the remaining views unless otherwise specified. We initialize the sparse point cloud and camera poses using OpenMVG [9]. 
+
+Implementation details. Baselines are reproduced using their official settings. Our method is trained for 8k iterations on a single NVIDIA RTX 4090 GPU, with densification stopped at 4k iterations. We set λj1 = 0 .45 , λj2 = 0 .32 ,and λdn = 0 .03 for geometry regularization. We ramp up geometry regularization during training and enable the depth-normal term only in the later stage. 
+
+Evaluation metrics. We evaluate image-space rendering quality using PSNR, SSIM [27], and LPIPS [28], where LPIPS is computed with the AlexNet backbone [29]. To assess multi-view geometric stability without ground-truth depth, we report a depth reprojection consistency error (DRE). For a pixel u in view i with rendered depth Di(u),we back-project it to 3D, transform the point to view j, and reproject it to obtain a correspondence u′ and the predicted depth Dproj (u′). We then sample the rendered depth of view 
+
+j at u′ by bilinear interpolation, denoted Dj (u′), and define 
+
+e(u) = |Dproj (u′) − Dj (u′)|
+
+Dj (u′) + ϵ . (25) We report the mean of e(u) over all valid overlapping pixels across the same set of view pairs. A pixel is valid if u′
+
+lies inside the image domain of view j and both Di(u) and 
+
+Dj (u′) are defined. We additionally report the Cycle Inlier Ratio (CIR), which measures the fraction of pixels that remain consistent under a forward-backward reprojection cycle. Starting from u in θ = 0 ◦ θ = 60 ◦ θ = 90 ◦                                                                         
+
+> Method DRE ↓CIR ↑PSNR ↑SSIM ↑LPIPS ↓DRE ↓CIR ↑PSNR ↑SSIM ↑LPIPS ↓DRE ↓CIR ↑PSNR ↑SSIM ↑LPIPS ↓
+> ODGS [1] 0.2717 43.03 29.25 0.8862 0.1007 0.2968 42.43 25.63 0.8622 0.1161 0.2977 38.81 24.59 0.8440 0.1295 OmniGS [2] 0.0848 58.42 33.91 0.9260 0.0969 0.0887 58.05 24.28 0.8386 0.1461 0.0857 60.04 23.01 0.8193 0.1689 SPaGS [3] 0.0954 67.76 33.48 0.9262 0.0771 0.0945 67.92 34.89 0.9444 0.0589 0.0955 67.75 34.50 0.9407 0.0644 Ours 0.0326 87.20 32.61 0.9203 0.0697 0.0323 89.21 31.12 0.9188 0.0525 0.0322 90.36 30.27 0.9065 0.0585
+
+TABLE II: Rotation robustness on OmniBlender [16]. Models are trained on canonical poses and evaluated under additional random rotations within ±θ.
+
+ODGS [1] OmniGS [2] SPaGS [3] Ours Ground truth 
+
+> Yaw  0◦Yaw  +60 ◦
+> Yaw  +90 ◦
+
+Fig. 3: Rotation robustness under global panorama rotations. We train with canonical poses and evaluate the same scene under additional global rotations of 0◦, 60 ◦, and 90 ◦. Each result includes a zoom-in inset from a fixed region for easier comparison. Projection-based methods (ODGS [1] and OmniGS [2]) show increasing rotation-dependent degradation, while SPaGS [3] and our method remain more stable under large rotations. view i, we reproject to view j to obtain u′, and then reproject 
+
+u′ back to view i to obtain ˆu. We count u as an inlier if the round-trip pixel error ∥ˆu − u∥2 is below a threshold τcyc 
+
+(we use τcyc = 2 pixels). CIR is computed as the inlier ratio over the same valid overlapping pixels and view pairs. Lower DRE and higher CIR indicate more stable, view-consistent geometry.Intuitively, DRE measures the severity of cross-view depth drift, while CIR reflects the coverage of view-consistent geometry. 
+
+B. Experiment Results 
+
+Quantitative comparison. Table I summarizes photomet-ric quality and multi-view geometry consistency on Om-niBlender and OmniPhotos. Overall, OmniGS and SPaGS achieve strong photometric performance, and our method remains competitive on image-space metrics. More impor-tantly, our method consistently improves geometric consis-tency across all benchmarks, achieving the lowest DRE and the highest CIR in every setting. On OmniBlender-Indoor, our method reduces DRE by 62 .7% and increases CIR by 
+
+22 .6% relative to SPaGS, indicating substantially more view-consistent depth on scenes with large planar structures. Sim-ilar improvements are observed on OmniBlender-Outdoor and OmniPhotos, demonstrating stable cross-view geometry under both synthetic and real-world panoramas. This gain comes with a trade-off in training efficiency: SPaGS is the most training-efficient baseline and typically converges in tens of minutes, whereas our current implementation converges in about 1 hour. 
+
+Qualitative comparison. Fig. 2 presents qualitative compar-isons on the OmniBlender, where large planar surfaces make geometric artifacts particularly apparent. While all methods achieve visually plausible RGB renderings, we observe clear differences in the reconstructed geometry. Projection-based panoramic 3DGS baselines often introduce high-frequency distortions in depth that align with image texture patterns, resulting in ripple-like structures on otherwise planar regions. In contrast, our method produces significantly smoother depth maps with cleaner discontinuities, indicating stronger geometric coherence. We further visualize surface orientation using normal maps. Although our method can directly render normals, we derive normals from the rendered depth for all methods to ensure a fair comparison. Due to the extremely large field of view in ERP panoramas, depth-to-normal conversion can be sensitive to sampling density; nevertheless, normals from our reconstructions remain noticeably more stable on planar regions and are less correlated with appearance textures compared to prior methods. This qualitative behavior is Variant DRE ↓ CIR ↑ PSNR ↑ SSIM ↑ LPIPS ↓                         
+
+> Full (Ours) 0.0439 84.87 32.61 0.9195 0.0687 w/o Ldn 0.0397 85.25 32.70 0.9203 0.0669 w/o Ljump 0.0692 76.87 32.75 0.9212 0.0668 w/o Ldn and Ljump 0.0577 77.66 32.84 0.9222 0.0648
+
+TABLE III: Ablation study on OmniBlender [16].        
+
+> (a) Full (b) w/o Ldn
+> (c) w/o Ljump (d) w/o Ldn and Ljump
+
+Fig. 4: Qualitative ablation on OmniBlender [16]. consistent with our quantitative results in Table I. 
+
+Rotation robustness. Panoramic projection is highly nonlin-ear, and projection-based 3DGS variants often approximate it using screen-space local linearization. This approximation becomes less accurate in strongly distorted regions and can induce orientation-dependent rendering. We evaluate rotation robustness on OmniBlender by training with canonical poses and testing with additional random global rotations within 
+
+±θ. Quantitative results are reported in Table II, and quali-tative comparisons are shown in Fig. 3. Projection-based methods, including ODGS and OmniGS, degrade progressively as the rotation magnitude increases. OmniGS is particularly sensitive: at θ=90 ◦, its PSNR drops by about 32% relative to the canonical setting, and LPIPS increases by about 74% . ODGS exhibits the same trend with a smaller magnitude, with roughly 16% PSNR degradation at θ=90 ◦. As shown in Fig. 3, zoom-in regions become increasingly blurred, and fine textures near high latitudes can collapse into thin, needle-like streaks after rotation. These artifacts are consistent with distortion-sensitive screen-space linearization, which changes the effective sampling pattern with the panorama orientation. In contrast, SPaGS and our method remain largely stable across large rotations. At θ=90 ◦, our method reduces PSNR by only about 7% while maintaining consistently low LPIPS, and SPaGS stays essentially invariant. DRE and CIR vary less with rotation because they measure cross-view consis-tency without requiring ground-truth depth and apply outlier filtering, making them less sensitive to purely photometric degradations. Overall, the results indicate that evaluating Gaussian contributions in ray space yields more rotation-stable panoramic rendering. 
+
+Ablation. Table III reports an ablation of Ldn and Ljump .                                   
+
+> Setting / Method DRE ↓CIR ↑PSNR ↑SSIM ↑LPIPS ↓
+> OmniRob-UAV (full panorama)
+> SPaGS [3] 0.0715 73.44 35.28 0.9515 0.1908 Ours 0.0184 92.34 33.05 0.9297 0.0858
+> OmniRob-Quadruped (annular camera)
+> SPaGS [3] 0.2614 19.49 19.90 0.7492 0.3272 Ours 0.1568 47.63 19.60 0.7517 0.2077
+> Cropped-UAV (pseudo-annular)
+> SPaGS [3] 0.0770 83.20 35.24 0.9550 0.1098 Ours 0.0270 90.82 30.72 0.8879 0.1210
+
+TABLE IV: Analysis on OmniRob. We compare SPaGS and ours on OmniRob-UAV, OmniRob-Quadruped, and the Cropped-UAV annular setting. 
+
+OmniRob-UAV 
+
+> GT
+> SPaGS
+> RGB Normal
+> Ours
+> RGB Normal
+
+Fig. 5: Qualitative results on OmniRob annular panora-mas. Rows show GT, SPaGS (RGB/normal), and Ours (RGB/normal). Removing Ljump leads to a clear degradation in geometric consistency, with higher DRE and lower CIR. In contrast, adding Ldn can slightly reduce these proxy metrics, since DRE/CIR measures cross-view consistency rather than ab-solute correctness. We therefore also refer to Fig. 4, where 
+
+Ldn and Ljump visibly smooth planar regions and suppress ripple-like artifacts. 
+
+Adaptation to annular panoramic cameras. Unlike stitched panoramas, annular observations can be obtained from a single omnidirectional capture and therefore avoid panorama stitching seams and associated photometric incon-sistencies [30]. Moreover, annular images correspond to a different parameterization of omnidirectional measurements and thus provide a practically motivated stress test for robust-ness under re-parameterization. We evaluate our formulation on OmniRob under full-panorama, annular, and pseudo-annular observations, as summarized in Table IV and Fig. 5. Both SPaGS and our method can be applied to OmniRob-UAV, OmniRob-Quadruped, and Cropped-UAV with only minor modifications, while exhibiting complementary behav-ior. SPaGS emphasizes pixel fidelity and achieves higher Fig. 6: Mesh extraction results on OmniBlender [16]. Our method reconstructs clean surfaces with fewer holes and reduced texture-induced artifacts. PSNR and SSIM. In contrast, our method emphasizes per-ceptual quality and geometric consistency, achieving lower LPIPS and DRE with higher CIR. The Quadruped setting is more challenging due to capture conditions and artifacts introduced by annular unwrapping, so we additionally in-clude Cropped-UAV as a controlled pseudo-annular setting to reduce nuisance factors. 
+
+C. Implications for Embodied Intelligence 
+
+Our method produces geometrically consistent depth from omnidirectional observations, enabling mesh extraction for downstream embodied tasks. Although panoramic images inherently provide limited spatial resolution due to their large field of view, the reconstructed meshes preserve the overall scene structure and major geometric layouts. Fig. 6 visualizes representative meshes reconstructed. By reducing texture-induced ripple artifacts in depth, our method leads to smoother and more stable surface reconstructions compared to competing approaches. Such explicit 3D representations can directly support navigation, obstacle avoidance, and motion planning in robotic systems, highlighting the practical relevance of our approach for embodied applications. V. C ONCLUSION 
+
+In this work, we have presented Spherical-GOF, a spher-ical ray-space GOF sampling and omnidirectional Gaussian rendering framework for ERP panoramas. By using an ERP-aware footprinting strategy and sphere-metric-consistent ge-ometric regularization, our method achieves competitive pho-tometric quality while significantly improving multi-view geometric consistency, producing cleaner depth and more coherent normal maps with reduced sensitivity to high-frequency appearance textures, and remaining robust under large global panorama rotations. We further verified its generality on real-world robot-captured omnidirectional data from a panoramic UAV and a quadruped equipped with a ring-band camera. Future work will explore higher-quality and more efficient geometric reconstruction under omnidirectional imaging, in-cluding improved geometry priors and faster spherical sam-pling/rendering strategies. REFERENCES [1] S. Lee, J. Chung, J. Huh, and K. M. Lee, “ODGS: 3D scene recon-struction from omnidirectional images with 3D gaussian splattings,” in Proc. NeurIPS , 2024, pp. 57 050–57 075. [2] L. Li, H. Huang, S.-K. Yeung, and H. Cheng, “OmniGS: Fast radiance field reconstruction using omnidirectional gaussian splatting,” in Proc. WACV , 2025, pp. 2260–2268. [3] J. Li, F. Hahlbohm, T. Scholz, M. Eisemann, J. Tauscher, and M. A. Magnor, “SPaGS: Fast and accurate 3D gaussian splatting for spherical panoramas,” in Computer Graphics Forum , 2025, p. e70171. [4] D. Selvaratnam and D. Bazazian, “3D reconstruction in robotics: A comprehensive review,” Computers & Graphics , vol. 130, p. 104256, 2025. [5] Y. Bao et al. , “3D gaussian splatting: Survey, technologies, challenges, and opportunities,” IEEE Transactions on Circuits and Systems for Video Technology , vol. 35, no. 7, pp. 6832–6852, 2025. [6] A. Melnik et al. , “Digital twin generation from visual data: A survey,” 
+
+arXiv preprint arXiv:2504.13159 , 2025. [7] R. Jin et al. , “GS-Planner: A gaussian-splatting-based planning frame-work for active high-fidelity reconstruction,” in Proc. IROS , 2024, pp. 11 202–11 209. [8] J. L. Schonberger and J.-M. Frahm, “Structure-from-motion revisited,” in Proc. CVPR , 2016, pp. 4104–4113. [9] P. Moulon, P. Monasse, R. Perrot, and R. Marlet, “OpenMVG: Open multiple view geometry,” in Proc. RRPR , 2016, pp. 60–74. [10] H. Ai, Z. Cao, and L. Wang, “A survey of representation learning, optimization strategies, and applications for omnidirectional vision,” 
+
+International Journal of Computer Vision , vol. 133, no. 8, pp. 4973– 5012, 2025. [11] H. Huang and S.-K. Yeung, “360VO: Visual odometry using a single 360 camera,” in Proc. ICRA , 2022, pp. 5594–5600. [12] B. Mildenhall, P. P. Srinivasan, M. Tancik, J. T. Barron, R. Ramamoor-thi, and R. Ng, “NeRF: representing scenes as neural radiance fields for view synthesis,” Communications of the ACM , vol. 65, no. 1, pp. 99–106, 2021. [13] B. Kerbl, G. Kopanas, T. Leimkuehler, and G. Drettakis, “3D gaussian splatting for real-time radiance field rendering,” ACM Transactions on Graphics (TOG) , vol. 42, no. 4, pp. 1–14, 2023. [14] T. Müller, A. Evans, C. Schied, and A. Keller, “Instant neural graphics primitives with a multiresolution hash encoding,” ACM Transactions on Graphics (TOG) , vol. 41, no. 4, pp. 1–15, 2022. [15] A. Chen, Z. Xu, A. Geiger, J. Yu, and H. Su, “TensoRF: Tensorial radiance fields,” in Proc. ECCV , 2022, pp. 333–350. [16] C. Choi, S. M. Kim, and Y. M. Kim, “Balanced spherical grid for egocentric view synthesis,” in Proc. CVPR , 2023, pp. 12 663–12 673. [17] Z. Yu, T. Sattler, and A. Geiger, “Gaussian opacity fields: Efficient adaptive surface reconstruction in unbounded scenes,” ACM Transac-tions on Graphics (TOG) , vol. 43, no. 6, pp. 1–13, 2024. [18] B. Huang, Z. Yu, A. Chen, A. Geiger, and S. Gao, “2D gaussian splat-ting for geometrically accurate radiance fields,” in Proc. SIGGRAPH ,2024, p. 32. [19] F. Hahlbohm et al. , “Efficient perspective-correct 3D gaussian splatting using hybrid transparency,” in Computer Graphics Forum , 2025, p. e70014. [20] H. Huang, Y. Chen, T. Zhang, and S.-K. Yeung, “Real-time omnidi-rectional roaming in large scale indoor scenes,” in Proc. SIGGRAPH Asia Technical Communications , 2022, pp. 1–5. [21] S. Kulkarni, P. Yin, and S. Scherer, “360FusionNeRF: Panoramic neural radiance fields with joint guidance,” in Proc. IROS , 2023, pp. 7202–7209. [22] S. Ito, N. Takama, K. Ito, H.-T. Chen, and T. Aoki, “ErpGS: Equirect-angular image rendering enhanced with 3D gaussian regularization,” in Proc. ICIP , 2025, pp. 2850–2855. [23] J. Bai, L. Huang, J. Guo, W. Gong, Y. Li, and Y. Guo, “360-GS: Layout-guided panoramic gaussian splatting for indoor roaming,” in 
+
+Proc. 3DV , 2025, pp. 1042–1053. [24] Z. Shen, C. Lin, S. Huang, L. Nie, K. Liao, and Y. Zhao, “You need a transition plane: Bridging continuous panoramic 3D reconstruction with perspective gaussian splatting,” arXiv preprint arXiv:2504.09062 ,2025. [25] M. Zwicker, H. Pfister, J. Van Baar, and M. Gross, “EWA splatting,” 
+
+IEEE Transactions on Visualization & Computer Graphics , vol. 8, no. 03, pp. 223–238, 2002. [26] T. Bertel, M. Yuan, R. Lindroos, and C. Richardt, “OmniPhotos: casual 360° VR photography,” ACM Transactions on Graphics (TOG) ,vol. 39, no. 6, pp. 1–12, 2020. [27] Z. Wang, A. C. Bovik, H. R. Sheikh, and E. P. Simoncelli, “Image quality assessment: from error visibility to structural similarity,” IEEE Transactions on Image Processing , vol. 13, no. 4, pp. 600–612, 2004. [28] R. Zhang, P. Isola, A. A. Efros, E. Shechtman, and O. Wang, “The unreasonable effectiveness of deep features as a perceptual metric,” in 
+
+Proc. CVPR , 2018, pp. 586–595. [29] A. Krizhevsky, I. Sutskever, and G. E. Hinton, “ImageNet classification with deep convolutional neural networks,” in Proc. NeurIPS , 2012, pp. 1097–1105. [30] C. Shin, W. O. Cho, and S. J. Kim, “Seam360GS: Seamless 360° gaussian splatting from real-world omnidirectional images,” in Proc. ICCV , 2025, pp. 28 970–28 979.

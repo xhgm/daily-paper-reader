@@ -1,0 +1,647 @@
+Title: Towards Robot Skill Learning and Adaptation with Gaussian Processes
+
+URL Source: https://arxiv.org/pdf/2603.01480v1
+
+Published Time: Tue, 03 Mar 2026 03:01:27 GMT
+
+Number of Pages: 8
+
+Markdown Content:
+# Towards Robot Skill Learning and Adaptation with Gaussian Processes 
+
+A K M Nadimul Haque, Fouad Sukkar, Sheila Sujipto, Cedric Le Gentil, Marc G. Carmichael and Teresa Vidal-Calleja 
+
+Abstract —General robot skill adaptation requires expressive representations robust to varying task configurations. While recent learning-based skill adaptation methods refined via Re-inforcement Learning (RL), have shown success, existing skill models often lack sufficient representational capacity for anything beyond minor environmental changes. In contrast, Gaussian Process (GP)-based skill modelling provides an expressive repre-sentation with useful analytical properties; however, adaptation of GP-based skills remains underexplored. This paper proposes a novel, robust skill adaptation framework that utilises GPs with sparse via-points for compact and expressive modelling. The model considers the trajectory’s poses and leverages its first and second analytical derivatives to preserve the skill’s kinematic profile. We present three adaptation methods to cater for the variability between initial and observed configurations. Firstly, an optimisation agent that adjusts the path’s via-points while preserving the demonstration velocity. Second, a behaviour cloning agent trained to replicate output trajectories from the optimisation agent. Lastly, an RL agent that has learnt to modify via-points whilst maintaining the kinematic profile and enabling online capabilities. Evaluated across three tasks (drawer opening, cube-pushing and bar manipulation) in both simulation and hardware, our proposed methods outperform every benchmark in success rates. Furthermore, the results demonstrate that the GP-based representation enables all three methods to attain high cosine similarity and low velocity magnitude errors, indicating strong preservation of the kinematic profile. Overall, our formu-lation provides a compact representation capable of adapting to large deviations from a single demonstrated skill. 
+
+I. INTRODUCTION Robots performing manipulation tasks in industrial settings frequently encounter variations in task configurations (TCs), such as changes in object pose or start and final end-effector poses. Effective task execution under such variability requires not only modelling the skill but also adapting it to new TCs. Skill modelling typically provides a compact representation that captures the underlying motion. Skill adaptation updates the skill model to satisfy new TCs. However, it is often desired to not only adapt the path but also retain the kinematic profile of the demonstrated skill. In this work, we define this type of adaptation as structured skill adaptation. While recent work has improved robustness to task variability [1], structured skill adaptation in highly varying TCs remains a challenge. End-to-end models have been proposed for skill learning and adaptation; however, their reliance on large datasets and training times limits real-world applicability [2]. In contrast, learning from demonstration (LfD) frameworks efficiently learn skills from expert demonstrations through dynamical systems to parametrise trajectories [3], enabling skill adap-tation to varying TCs [1], [4]. Hybrid approaches combin-
+
+> Corresponding author e-mail: akmnadimul.haque@student.uts.edu.au
+
+Fig. 1: The agent learns to adapt the skill from a single demonstration (top) for one-shot deployment on a real robot under various initial conditions (bottom). ing skill models with learning are gaining traction for their robustness to varying TCs and sensor noise. State-of-the-art works combine parameterised models like Dynamic Move-ment Primitives (DMPs), Probabilistic Movement Primitives (ProMPs) and Gaussian Mixture Models (GMMs) with deep reinforcement learning (DRL). However, DMPs cannot capture trajectory distributions, GMMs often fail to capture com-plex motions, and ProMPs require high-dimensional weight vectors to represent complex motion, limiting compactness and scalability. In contrast, Gaussian Processes (GP) offer stronger representational power [5], analytical derivatives [6] and compact parameterisation [7], making them well suited for structured skill adaptation. While GPs have been applied to skill learning [8], [7], their potential for structured skill adaptation remains unexplored. Most GP-based skill parameterisation methods use dense formulations that adapt pose trajectories via new observations [5], often resulting in distorted kinematic profiles. While nonlinear constraint optimisation can preserve the kinematic profile, as demonstrated later in this work, its slow conver-gence limits real-time deployment. Moreover, unconstrained adaptation of GP models can lead to deviations in the kine-matic profile. Consequently, preserving the structure of ademonstrated skill remains an open challenge, and existing shape preservation methods still fall short for real-world 
+
+> arXiv:2603.01480v1 [cs.RO] 2 Mar 2026
+
+deployment [9], [10]. This paper proposes a novel GP-based robust, structured skill adaptation framework using sparse via-points for efficient skill modelling from a single demonstration. Fig. 2 provides an overview of the framework, in which a single demonstration is parameterised using GPs defined by a sparse set of via-points. Online adaptation is achieved by conditioning the GP on newly observed TCs through the strategic placement of key via-points, such as start or final poses. A major advantage of this GP-based parameterisation is its differentiability, enabling analytical derivatives of the pose trajectory to be queried and used to preserve the underlying kinematics. This representation further enables fine-tuned adaptation policies to be trained in simulation and transferred to real hardware in one shot. We evaluate the proposed framework on three manipulation tasks in both simulation and on a real robot, one of which is illustrated in Fig. 1. An algorithmic overview is given in Algorithm 1. We formulate three adaptation methods: (i) an optimisation-based method that adjusts via-points to match both the demon-strated trajectory and its kinematic profile; (ii) a behaviour cloning model trained to imitate the optimisation method in real time; and (iii) an RL policy trained from scratch, guided by a signature similarity reward metric rather than explicit supervision from the optimisation-based method. To summarise, the contributions are as follows:  
+
+> •
+
+A novel structured skill adaptation framework that em-ploys a GP-based parametrisation using sparse via-points.  
+
+> •
+
+An optimisation-based method that retains the kinematic profile of the demonstration in varying TCs.  
+
+> •
+
+A behaviour cloning-based method that runs in real-time and successfully imitates the output of the expert optimisation-based method.  
+
+> •
+
+An RL policy exploration method guided by a signature similarity metric to retain the kinematic profile without explicit supervision from the optimisation-based method.  
+
+> •
+
+Successful sim-to-real transfer demonstrating skill adap-tation for real-world object manipulation. II. R ELATED WORK 
+
+In skill learning, demonstrated trajectories are often param-eterised to enable generalisation to new TCs. DMPs use attrac-tor dynamics and forcing functions to reproduce motions [11]. Adapting DMPs to varying TCs often requires external poli-cies [12], [13]. However, DMPs prioritise smoothness over precision, which can hinder accurate skill execution [14]. Many state-of-the-art works adopt probabilistic trajectory parameterisation methods such as GMMs. GMMs represent trajectories as a weighted combination of Gaussian distribu-tions, which can be tuned to adapt to different TCs using an external framework [4], [1]. While lightweight, their limited modelling capacity and flexibility [5] limit successful skill adaptation to newly observed TCs, mostly near the predictive mean [4], [1]. Some works have suggested the use of GMMs in conjunction with DMPs [15] and GP Regression [8]. The former proposes skill parameterisation with GMMs and using it to initialise their DMP model to reproduce a smooth motion; however, skill adaptation was not addressed. The latter proposes using a GMM to initialise a GP framework, enabling the GP to follow Cartesian position predictions that are outside the training data [8]. ProMPs have emerged as a more powerful alternative to GMMs and DMPs, and have been combined with RL for adaptation [16]. However, parameterisation with high-dimensional weights increases complexity in RL integration, leading the authors of [16] to adapt only the nominal trajectory instead of the skill model itself. GPs are flexible, kernel-based, nonlinear probabilistic re-gression models that enable an expressive representation of a trajectory. Since GPs can be analytically differentiable de-pending on the kernel choice [6], the kinematics of the motion can also be analytically obtained, finding uses in accurate motion planning [17], [18]. Since GPs are more proficient in regressing a single output, researchers often opt for separate GPs per axis [5]. Additionally, GP-parameterised trajectories can easily be adapted to new TCs with a via-point-based pa-rameterisation [7]. Despite their flexibility, introducing discrete via-points can reduce the GP model accuracy and change the demonstrated skill’s shape and velocity profile. Outside the GP-based frameworks, alternative approaches have suggested using explicitly defined loss functions to retain key properties, such as the shape and geometry of the demon-stration. Authors in [9] learn a low-dimensional latent space from demonstrations through a Conditional Neural Process, before using a combination of supervised and RL to adapt a skill. While this implicitly retains the spatial structure of the demonstrated trajectory, the skill’s kinematic profile is not preserved. An alternative approach leverages a Generative Adversarial Network equipped with a shape preservation loss to generate letter-shaped trajectories [10]. However, this is computationally expensive and requires extensive supervision. Furthermore, both of these formulations operate in a latent space that is difficult to interpret and does not explicitly retain the skill kinematics. In contrast, GPs offer a principled and efficient alternative for kinematic preservation due to their smooth interpolation and analytical derivatives, yet they remain unexplored in the context of structured skill adaptation. III. B ACKGROUND 
+
+A. Trajectory Parameterisation with Gaussian Process 
+
+Let us consider a demonstrated trajectory defined as a set of robot poses over time ζ(t) modelled using a GP as: 
+
+ζ(t) ∼ GP (0 , k(t, t ′)) , (1) where k(t, t ′) represents the kernel function that encodes the covariance between various time instances of the trajectory. Given N noisy observations of trajectory poses yi = ζ(ti)+ η,where η ∼ N (0 , σ 2 
+
+> y
+
+I) and i = 1 , 2, ..., N , the multi-variate Gaussian distribution for the noisy observations y and the latent function value at a new query point ζ(ˆ t) is given by, 
+
+ y
+
+ζ(ˆ t)
+
+
+
+∼ N 
+
+ 00
+
+
+
+,
+
+Ktt + σ2 
+
+> y
+
+I kt(ˆ t)⊤
+
+kt(ˆ t) k(ˆ t, ˆt)
+
+ 
+
+, (2) where kt represents the cross-correlation between the obser-vations and the query point and Ktt is the covariance matrix Parameterised Skill    
+
+> with Sparse Via-Points Learning in Simulation Adapted Skill Hardware Execution
+> Demonstration
+
+Fig. 2: A single demonstration is parameterised through a GP formulation with sparse via-points. The subsequent skill adaptation method learns to tune the via-points to accomplish the task in varying TCs. This can be successfully transferred to hardware for one-shot execution. of the observations. Then, the posterior mean of the trajectory at the query point can be expressed as, 
+
+ζ(ˆ t) = kt(ˆ t) Ktt + σ2 
+
+> y
+
+I−1 y. (3) Given a new observation yo at time to, the GP can be updated by appending (to, yo) to the existing training set y.The posterior mean trajectory can then be recomputed using Eq. (3), ensuring the updated trajectory passes through the observed location. Linear operators are often used to extend GP models, en-abling the system to analytically query the GP mean function to obtain properties of the underlying function, such as the derivative, integral, Jacobian, and Hessian. In this work, we are interested in the first and second derivatives given by the following, 
+
+˙ζ(t) = Lt 
+
+> ζ
+
+kt(t)  Ktt + σ2 
+
+> y
+
+I−1 y (4) 
+
+¨ζ(t) = Ltt  
+
+> ζ
+
+kt(t)  Ktt + σ2 
+
+> y
+
+I−1 y (5) where Lt 
+
+> ζ
+
+= ∂∂t and Ltt  
+
+> ζ
+
+= ∂2 
+
+> ∂t 2
+
+are the first and second derivative operators respectively. Note that Eqs. (4) and (5) only require differentiating the kernel function. Thus, instead of numerically evaluating the derivatives of the trajectory to obtain velocity and acceleration, as commonly done, this work analytically infers these quantities by simply querying the linearly operated GP at the desired time t.
+
+B. Soft Actor Critic 
+
+Soft Actor-Critic (SAC) [19] is a stochastic, off-policy reinforcement learning algorithm designed for continuous ac-tion spaces. Unlike conventional RL methods, SAC promotes exploration by maximising entropy, defined as the expected negative log-probability of actions. The policy π is updated by maximising a reward R (as a function of current state st
+
+and next state st+1 and the action at) augmented by a discount factor γ and the entropy term, given by, 
+
+π∗ = arg max  
+
+> π
+
+E 
+
+> τ∼π
+
+" ∞X
+
+> t=0
+
+γt (R(st, a t, s t+1 ) + αH (π(·| st))) 
+
+#
+
+,
+
+(6) where α is the temperature parameter controlling the exploration-exploitation trade-off, H is the entropy, and E the expectation taken over the policy and environment. IV. T OWARDS SKILL LEARNING AND ADAPTATION 
+
+A. Skill Parameterisation with GP 
+
+Given a demonstrated end-effector trajectory ζ(t), we can model the motion with six independent GPs paired with their timestamps, i.e., 
+
+p(t) ∼ GP (0 , k(t, t ′)) 
+
+r(t) ∼ GP (0 , k(t, t ′)) , (7) where p(t) = [p x, py, pz]T is the end-effector position, and 
+
+r(t) = [r x, ry, rz]T is the end-effector orientation expressed with the rotation vector parameterisation. Following [7], we have opted for the Squared Exponential (SE) kernel, where its hyperparameters have been empirically chosen to best fit the provided demonstration. In practice, we found length-scales of 
+
+λ = 0 .66 and noise of values σ2 
+
+> y
+
+= 0 .005 worked well for all targeted skills. To facilitate skill adaptation without retraining, we follow the work in [7] and introduce a set of sparse via-points for each of the six GPs, linearly spread over time. These sparse sets of via-points summarise our GP parametrised trajectory. Thus, we can rewrite Eq. (3) to query points along the trajectory as, 
+
+p∗(t) = kt(t) Ktt + σ2 
+
+> y
+
+I−1 Γp
+
+r∗(t) = kt(t) Ktt + σ2 
+
+> y
+
+I−1 Γr , (8) where Γp and Γr are the matrices of via-points for position and orientation, respectively. Furthermore, by applying linear operators on the GP kernel, the corresponding linear veloci-ties and rotation-vector derivatives ( ˙p∗(t), ˙r∗(t)) and second derivatives ( ¨p∗(t), ¨r∗(t)) are obtained through Eq. (4) and Eq. (5) respectively. To ensure that the sparse points represent the demonstrated trajectory, we formulate a non-linear optimisation that min-imises the differences between the true posterior and the posterior approximated with the via-points through Eq. (8) as, 
+
+{˜Γpx , ˜Γpy , ˜Γpz } = arg min    
+
+> {˜Γpx ,˜Γpy ,˜Γpz }
+> Q
+
+X
+
+> i=1
+
+∥p∗ 
+
+> i
+
+(ti) − pi∥2
+
+!
+
+{˜Γrx , ˜Γry , ˜Γrz } = arg min    
+
+> {˜Γrx ,˜Γry ,˜Γrz }
+> Q
+
+X
+
+> i=1
+
+∥r∗ 
+
+> i
+
+(ti) − ri∥2
+
+!
+
+,
+
+(9) where ˜Γ are the optimised via-points, and Q is the number of via-points selected to enforce the approximation. This ensures that the inference using ˜Γp and ˜Γr accurately produces the demonstrated skill. B. Skill-GP: Nonlinear Optimisation for Skill Adaptation 
+
+The via-point-based parameterisation enables efficient adap-tation to new TCs, such as start, object and goal location, by conditioning the GP on the new observations. These locations can be incorporated into the GP by aligning these locations with a subset of via-points from the original set of via-points, ensuring the adapted skill passes through the observed locations. This subset depends on the structure of the demonstration. Although simple skills can be adapted this way, complex, realistic motions require fine adjustments of the rest of the via-points to preserve the shape and kinematics of the skill. Thus, we propose an optimisation formulation to minimise the motion discrepancies. Specifically, we formulate a non-linear least squares problem similar to Eq. (9), such that it minimises discrepancies in the first and second derivatives of position and rotation-vector trajectories of the adapted skill with respect to the demonstration. Furthermore, to prevent the optimised points from reverting to their original values, we leverage the newly observed via-points by anchoring the optimisation around those points. We designate a small subset of via-points, 
+
+Γfixed , to reflect observed conditions, typically two or three points out of 15 in each axis, such as the start location, contact point and final location. These via-points can be identified by calculating the nearest via-point from the observed conditions. The remaining via-points, Γfree , are then optimised to satisfy the desired trajectory. Thus, the equation becomes, 
+
+{Γ∗ 
+
+> px
+
+, Γ∗ 
+
+> py
+
+, Γ∗ 
+
+> pz
+
+} = arg min    
+
+> {Γfree
+> px ,Γfree
+> py ,Γfree
+> pz }
+> Q
+
+X
+
+> i=1
+
+˙p∗ 
+
+> i
+
+(ti) − ˙˜pi
+
+> 2
+
++ λ
+
+> Q
+
+X
+
+> i=1
+
+¨p∗ 
+
+> i
+
+(ti) − ¨˜pi
+
+> 2
+
+{Γ∗ 
+
+> rx
+
+, Γ∗ 
+
+> ry
+
+, Γ∗ 
+
+> rz
+
+} = arg min    
+
+> {Γfree
+> rx ,Γfree
+> ry ,Γfree
+> rz }
+> Q
+
+X
+
+> i=1
+
+˙r∗ 
+
+> i
+
+(ti) − ˙˜ri
+
+> 2
+
++ λ
+
+> Q
+
+X
+
+> i=1
+
+¨r∗ 
+
+> i
+
+(ti) − ¨˜ri
+
+> 2
+
+,
+
+(10) where, λ is a scaling factor, determined empirically, (˜ pi, ˜ri)
+
+are the demonstrated end-effector pose samples from ζ(t) at time ti. With these optimised via-points, we can infer the adapted skill ζ′(t) through Eq. (8). 
+
+Algorithm 1 Structured Skill Adaptation (General Pipeline) 
+
+Require: Demonstration ζ(t), task configuration T C 
+
+Ensure: Adapted trajectory ˆζ(t) 
+
+> 1:
+
+Parameterise ζ(t) with a GP defined with sparse via-points  
+
+> 2:
+
+Extract task-relevant via-points from T C  
+
+> 3:
+
+Condition the GP on the observed via-points  
+
+> 4:
+
+Adapt the via-points and Update the GP posterior  
+
+> 5:
+
+Query the updated GP to reconstruct ˆζ(t) 
+
+> 6:
+
+return ˆζ(t)
+
+C. Skill Cloning: Skill Adaptation with Imitation Learning 
+
+Although we can solve Eq. (10) through standard non-linear least squares methods, it is unsuitable for real-time applications due to their high computational cost and slow convergence to the global minimum. Thus, we propose to train a policy through behaviour cloning (BC) [20] that mimics the behaviour of the optimisation-based method. Let us formulate the problem as a supervised state-action learning problem, defined by the state space, X , and the action space, A. Each BC state sBC ∈ X , is defined as the concatenation of two distance vectors: the vector from the end-effector to the object, dBC o , and vector from the object to its goal pose, dBC g .The corresponding actions, aBC ∈ A , are the proposed shifts ∆Γ, to the via-points of our GP formulation, 
+
+sBC = {dBC o , dBC g }; aBC = ∆ Γ. (11) Given an expert policy π∗(sBC ), the goal is to learn a policy that imitates the actions of the expert given the state inputs. Essentially, the objective function minimises, 
+
+LBC =
+
+> N
+
+X
+
+> t=1
+
+π∗(sBC ) − aBC 2 . (12) Since Skill-GP can achieve excellent adaptation from a single expert demonstration, we can treat it as the pseudo-expert policy, and create a diverse dataset of the updates to the via-points given by Skill-GP at a given state observation. Namely, we run Skill-GP for a certain number of episodes and collect the state-action pairs of those runs to build up our expert dataset. Using the expert dataset, we learn to imitate the optimisation in a supervised manner to obtain our cloned policy. We choose a shallow network of similar architecture to that of the SAC [19]. This facilitates efficient, real-time skill adaptation in a diverse set of TCs. 
+
+D. GPRL: Fast Off-Policy Skill Adaptation 
+
+While imitation learning offers a practical means of policy learning by mimicking expert behaviour, it relies heavily on building a large and diverse expert dataset. This can be time-consuming, especially in varying environments, as Skill-GP requires significant time to converge and generate expert trajectories. As an alternative, we train an RL policy with a single demonstration to adaptively refine the parameterised skill while preserving its kinematic profile. 
+
+1) Problem Formulation: Let us augment our previous formulation of the problem as a complete MDP by adding the transition probability distribution P, the reward function 
+
+r : X × A → R, and the discount factor γ ∈ [0 , 1] . At time-step ts, the state is given by sGP RL ts ∈ X as the concatenation of: the distance vector from the end-effector to the object to be manipulated dGP RL o , the distance vector from the object to its goal pose dGP RL g , the time-step ts, the means of the current velocities and accelerations ¯v and ¯a. Note that we use our formulation to analytically query velocity and acceleration via Eqs. (4) and (5), then compute their means to be included as state inputs, yielding a 19-dimensional state-space vector. We propose a global adaptation by updating the GP, thus the mean velocity and accelerations provide a compact representation of the current kinematic information. The actions, aGP RL ts ∈ A ,at each time-step, ts, are again the proposed shifts ∆Γ to the via-points of our formulation, which are typically small to ensure stable axis-angle updates, 
+
+sGP RL ts = {dGP RL o , dGP RL g , t s, ¯v, ¯a}; aGP RL ts = ∆ Γ. (13) The aim is to find an optimal policy, π∗, that maximises the cumulative reward through Eq. (6). To ensure the adapted GP trajectory, ζ′(t), inferred through Eq. (8) using the updated via-points Γ∗ = ˜Γ + ∆ Γ, retains the shape and velocity profile of the skilled demonstration, ζ(t), we must ensure that the new kinematic profile follows the provided demonstration as closely as possible. Through Eq. (5), we can infer the velocity of the updated trajectory as ˙ζ′(t) and the provided demonstration as, ˙ζ(t). Thus, our goal becomes finding a policy π∗(a|s) such that min | ˙ζ′(t) − ˙ζ(t)| is satisfied. 
+
+2) Shape Preservation with Signature Similarity Scores: To guide the policy towards retaining the velocity profile of the demonstration, we must provide compact and consistent scalar rewards based on the velocity similarities. We propose the use of signature similarity scores [21], a metric that is derived from signature kernels [22]. Given a trajectory ζ(t), the path signature encodes its geometry and order through a collection of iterated integrals that capture increasingly complex relations between the dimensions of the path, making it a compact and rich representation of its dynamics and geometry. The signature kernel allows us to compare the signatures of two trajectories. In our case, given the velocities of the skilled demonstration and updated trajectory are defined as ˙ζ(t) and 
+
+˙ζ′(t) respectively, the signature kernel is formulated as, 
+
+ksig 
+
+ ˙ζ(t), ˙ζ′(t)
+
+
+
+=
+
+D
+
+S
+
+ ˙ζ(t)
+
+
+
+, S 
+
+ ˙ζ′(t)
+
+E 
+
+> H
+
+(14) where S(·) denotes the truncated path signatures, and H is the corresponding Hilbert space, capturing iterated integrals of the path that encode its sequential structure and dynamics. To obtain a bounded similarity score from 0 to 1, the normalised signature index is calculated as, Sim 
+
+ ˙ζ(t), ˙ζ′(t)
+
+
+
+=
+
+ksig 
+
+ ˙ζ(t), ˙ζ′(t)
+
+r
+
+ksig 
+
+ ˙ζ(t), ˙ζ(t)
+
+
+
+· ksig 
+
+ ˙ζ′(t), ˙ζ′(t)
+
+ .
+
+(15) A higher similarity score indicates greater alignment in the kinematic profile and geometric structure of the adapted skill. We follow the implementation of [21] and compute the signa-ture with a truncation depth of 3, applied directly to the 3D linear and angular velocities separately. We use the default SE kernel, with a lengthscale chosen through a median heuristic. Furthermore, we use the left Jacobian of SO (3) to provide the mapping from rotation vector’s derivative to the angular velocities. The reward function combines task completion rtc ,signature similarity rss , and spatial and temporal penalties 
+
+rsp and rtp , respectively. rtc with a binary value contributes towards task success while rss calculated with Eq. (15), guides the learnt policy to retain high velocity similarities. The spatio-temporal penalties address the mismatch in skill execution time, specifically cases where the GP reaches the final pose too early, causing deviations from the desired goal. This encourages the policy to maintain the demonstration’s velocity and acceleration profile. To define the penalties rsp and rtp , let pn
+
+> demo
+
+, qn 
+
+> demo
+
+and pnπ , qnπ
+
+denote the final position and orientation (in quaternions) of the demonstration and the policy-adapted GP trajectory, respectively. The spatial penalty is defined as 
+
+rsp = ∥pnπ − pn
+
+> demo
+
+∥2 + 2 cos −1 (|⟨ qnπ , qn
+
+> demo
+
+⟩| ) . (16) The temporal penalty is computed as the time difference between the final pose of the demonstration pndemo and the closest matching pose pi in the policy-adapted trajectory. Given the demonstration length Tdemo ,
+
+rtp = Tdemo − tπ ; where tπ = arg min  
+
+> t∈T
+
+∥pi − pndemo ∥2 .
+
+(17) Thus, the full reward function is given by, 
+
+r = rtc + α · rss − β · rsp − η · rtp , (18) where α, β and η are scaling factors. We manually tune these values depending on the task to obtain the policy with the highest success rates and high velocity similarities. 
+
+3) Frequent Checkpointing and Annealing: With a skilled demonstration and a method to incorporate critical via-points, the RL agent’s primary task is to adjust via-points to ensure task success whilst minimising velocity deviations. This biases the policy search toward regions near the conditioned GP for greater training stability. To enforce this constraint, frequent checkpointing is used to revert to the best-saved policy after a fixed number of episodes. Additionally, exploration annealing is applied by reducing the temperature over episodes, stabil-ising learning and preventing divergence. 
+
+Algorithm 2 Skill Adaptation with GPRL 
+
+Require: Demonstration ζ(t)
+
+Ensure: Adapted trajectory ˆζ(t) 
+
+> 1:
+
+Initialise policy πθ , parameters θ and exploration schedule  
+
+> 2:
+
+for each episode e do  
+
+> 3:
+
+Reset via-points to the demonstration set ˜Γ 
+
+> 4:
+
+Condition the GP based on observed T C  
+
+> 5:
+
+if N th episodes after warm-up then  
+
+> 6:
+
+Load best checkpoint: θ ← θ⋆ 
+
+> 7:
+
+end if  
+
+> 8:
+
+Propose corrective via-point deltas ∆Γ ∼ πθ 
+
+> 9:
+
+Update GP posterior using Γ∗ = ˜Γ + ∆ Γ 
+
+> 10:
+
+Query adapted trajectory and kinematics  
+
+> 11:
+
+Compute rewards rtc , rss , rsp and rtp  
+
+> 12:
+
+Update policy parameters θ 
+
+> 13:
+
+if current policy improves best performance then  
+
+> 14:
+
+Update best checkpoint: θ⋆ ← θ 
+
+> 15:
+
+end if  
+
+> 16:
+
+end for  
+
+> 17:
+
+Query the GP updated by the best policy to obtain ˆζ(t) 
+
+> 18:
+
+return ˆζ(t)
+
+4) Training Details: Given a single demonstrated trajectory 
+
+ζ(t) parameterised with our GP formulation, training proceeds episodically over varying task configurations. At the beginning of each episode, the GP is conditioned on the current TC by aligning the closest via-point to the newly observed object location using Eq. (3), ensuring interpolation through the observation. This conditioned GP provides a feasible initial 0.0         
+
+> 0.2
+> 0.4
+> 0.6
+> Error (m/s)
+> (a) Velocity Error (Linear)
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> Error (rad/s)
+> (b) Velocity Error (Angular)
+> 020 40 60 80
+> Time Step
+> −1.0
+> −0.5
+> 0.0
+> 0.5
+> 1.0
+> Cosine Similarity
+> (c) Cosine Similarity (Linear)
+> 020 40 60 80
+> Time Step
+> −1.0
+> −0.5
+> 0.0
+> 0.5
+> 1.0
+> Cosine Similarity
+> (d) Cosine Similarity (Angular)
+> SAC-GMM
+> Vanilla GP
+> ProMP
+> ProMP-RRL
+> Skill-GP
+> Skill Cloning
+> GPRL (no SP)
+> GPRL
+
+Fig. 3: Retention of demonstrated velocities: Both Skill-GP and Skill Cloning demonstrate near-perfect retention. GPRL is able to obtain competitive scores in comparison to the vanilla GP. ProMP and ProMP-RRL show low magnitude error, but with poorer directional similarities. 
+
+Fig. 4: Simulated environments for drawer pulling, cube pushing and bar manipulation tasks. trajectory, which the RL policy subsequently refines through corrective shifts ∆Γ, of up-to ±4cm , to the via-point set 
+
+˜Γ. These via-points provide expressiveness of the trajectory and localised control over the trajectory shape. Too few via-points limit expressiveness, while too many increase the action space and hinder learning. In practice, for all the targeted tasks, 15 via-points per axis provide a good balance between representational fidelity and learning efficiency. The corrective shifts update the GP model to obtain a new mean function 
+
+ˆμ(t). The updated GP is used to query the mean trajectory for execution, as well as velocities to calculate similarity rewards, before saving the transition in a replay buffer. At the end of each episode, the via-points are reset to their original state, ˜Γ, restoring the mean trajectory to μ(t). After collecting a batch of transitions, the agent samples from the replay buffer to update the policy π through Eq. (6). Through repeated updates over the collected batch, the policy gradually improves, maximising the cumulative rewards. Once the update is complete, a new round of interaction begins based on the updated policy. An algorithmic summary is provided in Algorithm 2. V. E XPERIMENTS 
+
+A. Experimental Setup 
+
+Our methods are first validated in simulation through three tasks (Fig. 4) that assess their performance. All experiments are conducted in PyBullet [23], with a single demonstration per task. The same setup is later replicated on hardware. 
+
+Drawer Opening (DOT) : The robot inserts its gripper between the cabinet door and handle, then pulls outward to open the drawer. The cabinet’s position is varied across trials. 
+
+Cube Pushing (CPT) : The robot pushes a cube across a flat surface while avoiding an obstacle and collisions. We test two variants: the static case, S-CPT, where the cube’s initial pose is perturbed up to 20 cm along the xy-plane from the demonstration, and the dynamic case, D-CPT, where the cube’s pose is continuously perturbed during execution. Success is defined by pushing the cube to the goal area. 
+
+Bar Manipulation (BMT) : The robot must grasp and remove one of two bars from a conveyor, compensating for up to 20 cm offset along the conveyor’s width. To transfer the learned policies to hardware, we leverage the proposed GP formulation to generate time-varying poses and analytical velocities for execution on the Universal Robots UR5e manipulator. For DOT, ArUco markers are used to localise the robot base, end-effector, task goal and drawer handle in the workspace, enabling the system to obtain their poses. A similar setup is followed for CPT. For BMT, we fine-tune a YOLOv11 [24] model on 140 annotated images to detect and segment the bar. The colour images of the scene are obtained from a Intel Realsense D455 RGB-D camera, and the 3D points of the bar are recovered using depth data from the camera. Extrinsic calibration utilises an ArUco marker placed at a known transform from the base of the UR5e robot. 
+
+B. Baselines 
+
+Our proposed methods are benchmarked against four state-of-the-art adaptation frameworks. 
+
+SAC-GMM : Following [4], SAC-GMM is implemented with checkpointing and annealing to aid in convergence. 
+
+Vanilla GP : The GP formulation used is described in Sec-tion IV, conditioned on the newly observed TC. Fig. 5: Vanilla GP crashes onto the bar (left), whereas our methods successfully adapt the learnt skill (right). 
+
+Object-centric ProMP [25] : Demonstrations in the object frame are parameterised with a ProMP with 10 basis functions. At test time, we offset the observed TC from the nominal trajectory to obtain the adapted skill. 
+
+ProMP-RRL [16] : We follow [16] to first obtain the above object-centric ProMP and then use SAC to adapt the nominal skilled trajectory. The default implementation of [19] has been used for every benchmark that leverages SAC. 
+
+C. Simulation Results 
+
+Our simulated experiments comprise 100 runs with varying TCs, with deviations from the demonstration of up to 20 cm across all benchmarks. For SAC-GMM, ProMP and ProMP-RRL, we provide 20 demonstrations, linearly distributed over a 20 cm grid around the original demonstration to facilitate better representational power. The results shown in Table I show that SAC-GMM is unable to cope with the TC deviations despite access to multiple demonstrations. The vanilla GP, conditioned on the observed TC, achieves high success rates in simpler tasks such as DOT and CPT. However, its performance degrades in more complex tasks like BMT. A similar trend is observed for ProMP, which achieves a high success rate in all tasks except for in BMT. Conversely, ProMP-RRL does poorly in both S-CPT and D-CPT, where its policy is unable to avoid collisions with the plane but shows good performance in BMT. In contrast, the success rate of our proposed methods, Skill-GP, Skill Cloning and GPRL, vastly outperforms the benchmarks for all tasks. To evaluate the velocity retention for each method, we compute the cosine similarities of trajectory gradients and plot the velocity magnitudes relative to the demonstration. From Fig. 3, both Skill-GP and Skill Cloning produce near-perfect cosine similarities, with very low velocity errors. GPRL slightly underperforms compared to the vanilla GP in linear and angular velocity errors; it is still able to retain high cosine similarities demanded by more complex tasks and trajectories. In contrast, GPRL without similarity rewards (GPRL (no SP)) show the poorest similarity and the highest velocity errors, highlighting the importance of the similarity rewards. The results also illustrate that ProMP and ProMP-RRL exhibit very low cosine similarity, despite achieving lower velocity errors than GPRL. Likewise, SAC-GMM performs poorly, with low cosine similarity and sporadically high velocity errors. Lastly, we evaluate the inference time for each method. All methods were tested on an 11th-generation Intel Core i7-1185G7 processor with 16 GB DDR4 RAM. For BMT, on average, the Skill-GP converges at 1.8 seconds at each time-step. In contrast, both Skill Cloning and GPRL inference take only 0.03 seconds. TABLE I: Success Rates Across Experiments in Simulation                              
+
+> Task SAC-GMM Vanilla GP ProMP ProMP RRL Skill-GP (Ours) Skill Cloning (Ours) GPRL (Ours) DOT 28% 90% 92% 83% 100% 95% 99% S-CPT 21% 83% 88% 41% 100% 93% 100%
+> D-CPT 17% 71% 84% 16% 100% 81% 95% BMT 0% 57% 39% 63% 100% 85% 97%
+
+D. Hardware Results 
+
+Hardware results over 10 iterations (Table II) show that SAC-GMM achieve poor success across all the tasks. ProMP performs better with high success rates except for in BMT. The addition of RL aids ProMP performance in BMT, but similar to simulation, the learnt policy is prone to collisions with the plane in both CPTs. Vanilla GP is able to adapt to the changing TCs to a degree, but fails in more complex tasks, especially when it is more than 10 cm away from the demonstration. In contrast, our methods achieve the highest success rates in all tasks. A video recording showing our experiments is available here: https://youtu.be/CCgaULV3Uv0. TABLE II: Success Rates Across Experiments in Hardware                              
+
+> Task SAC-GMM Vanilla GP ProMP ProMP-RRL Skill-GP (Ours) Skill Cloning (Ours) GPRL (Ours) DOT 10% 100 %100 %70% 100 %100 %100 %S-CPT 20% 90% 80% 10% 100% 90% 100%
+> D-CPT 10% 70% 70% 0% 100% 90% 100%
+> BMT 0% 60% 20% 50% 100% 80% 100%
+
+E. Discussion 
+
+Results show that GMM and ProMP-based adaptation frameworks underperform compared to GP-based methods, both in accuracy and kinematic retention. Despite access to multiple demonstrations, SAC-GMM lacks robustness to large TC deviations. Furthermore, GMM-based parameterisation offers no clear method to impose kinematic constraints for adaptation, relying instead on numerical approximations. This results in limited adaptability and large deviations in kinematic profiles. ProMPs offer a robust solution for skill adaptation, but their integration with RL is non-trivial. Although augmenting the nominal ProMP skill with residuals improves success rates in BMT, this compromises velocity similarity (Fig. 3). Additionally, residual learning causes jittery motions, often leading to collisions when operating close to surfaces. In contrast, vanilla GP conditioned on a newly observed TC can adapt effectively in simpler tasks. However, in more complex scenarios like BMT, where fine adjustments and minimisation TABLE III: Effects of TC Offsets on Skill-GP Time             
+
+> Offset (cm) −15 −10 −2.5+2 .5+10 +15
+> Time (s) 2.96 2.28 1.18 0.93 1.97 2.45
+
+of the velocity deviations are required for successful removal, it underperforms. A key limitation of the vanilla GP is that conditioning on distant TCs introduces spikes in the kinematic profile, which can cause failures (Fig. 5). Skill-GP achieves perfect success rates and near-perfect velocity retention across all tasks. Its only limitation is its convergence time, which increases with the distance between the new TC and training demonstrations (see Table III). This limits its applicability in real-world deployments. Despite this, Skill-GP offers a highly accurate solution in applications with-out real-time adaptation requirements. Skill Cloning eliminates the need for online optimisation by training a policy based on a dataset generated using Skill-GP. While this accelerates inference, performance depends on the dataset quality and scale, which is time-consuming to build. With 30000 expert state-action pairs, the cloned policy demonstrates near-perfect kinematic retention. However, without larger datasets or online refinement, it lacks robustness in terms of success rates. Thus, tasks that prioritise kinematic profile retention over accuracy with real-time adaptation can take advantage of this method. These findings motivate GPRL, which introduces a balance between success rate and velocity retention. Unlike Skill Cloning, GPRL does not require a pre-existing dataset. Fre-quent checkpointing and annealing enable rapid convergence to a stable policy that achieves high success rates while retain-ing the required velocities. These trends are consistent with hardware results, where GPRL achieves high success rates for all tasks. Finally, we note some limitations. The contact tasks presented in this work involve relatively lightweight objects, and experiments with higher payloads have not yet been conducted. Furthermore, GPs have limited extrapolation capability, leading to velocity deviations toward the end of skill execution. While reward shaping partially mitigates this effect, residual deviations remain (see Fig. 3). In addition, our evaluations primarily consider translational deviations of up to 20 cm in the xy-plane. Deviations beyond this range result in significant deformation to the adapted skill’s kinematic profile. VI. C ONCLUSION 
+
+This paper presents a GP-based skill learning and adaptation framework. We demonstrate how we can attain structured skill adaptation for complex tasks while retaining the kine-matic profile of the demonstration through optimisation and behaviour cloning. Furthermore, we developed a fast online variant that utilises signature similarity rewards for adapting to a wide range of TCs and reducing reliance on expert demon-strations. Our results boast near-perfect success rates with high similarity scores, vastly outperforming the benchmarks. It further proves that GP parameterisation aids adaptation with RL and provides an elegant way of velocity profile retention. Future work will consider an analytical approach instead of reward shaping to achieve the desired success and similarity scores, as well as accommodating diverse demonstrator pref-erences. REFERENCES [1] A. K. M. N. Haque1, F. Sukkar, L. Tanz, M. G. Carmichael, and T. Vidal-Calleja, “Constrained bootstrapped learning for few-shot robot skill adaptation,” in IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , pp. 8651–8657, IEEE, 2022. [2] X. Chen, C. Huang, C. Wang, and L. Chen, “Trajectory generation: a survey on methods and techniques,” GeoInformatica , pp. 1–26, 2025. [3] H. C. Ravichandar, I. Salehi, and A. P. Dani, “Learning partially con-tracting dynamical systems from demonstrations.,” in CoRL , pp. 369– 378, 2017. [4] I. Nematollahi, E. Rosete-Beas, A. R¨ ofer, T. Welschehold, A. Valada, and W. Burgard, “Robot skill adaptation via soft actor-critic gaussian mixture models,” in 2022 International Conference on Robotics and Automation (ICRA) , pp. 8651–8657, IEEE, 2022. [5] M. Arduengo, A. Colom´ e, J. Lobo-Prat, L. Sentis, and C. Torras, “Gaussian-process-based robot learning from demonstration,” Journal of Ambient Intelligence and Humanized Computing , pp. 1–14, 2023. [6] S. S¨ arkk¨ a, “Linear operators and stochastic partial differential equations in gaussian process regression,” in Artificial Neural Networks and Machine Learning–ICANN 2011, 14-17 , pp. 151–158, Springer, 2011. [7] F. Sukkar, R. Savery, N. Haque, C. Le Gentil, R. Guenot-Falque, and T. Vidal-Calleja, “A robotic system for imitating human percussionists,” 
+
+Australasian Conference on Robotics and Automation (ACRA) , 2023. [8] N. Jaquier, D. Ginsbourger, and S. Calinon, “Learning from demon-stration with model-based gaussian process,” in Conference on Robot Learning , pp. 247–257, PMLR, 2020. [9] M. Akbulut, E. Oztop, M. Y. Seker, X. Hh, A. Tekden, and E. Ugur, “Acnmp: Skill transfer and task extrapolation through learning from demonstration and reinforcement learning via representation sharing,” in Conference on Robot Learning , pp. 1896–1907, PMLR, 2021. [10] K. An, Z. Wu, Q. Shangguan, Y. Song, and X. Xu, “Robust learning from demonstration based on gans and affine transformation,” Applied Sciences , vol. 14, no. 7, p. 2902, 2024. [11] A. J. Ijspeert, J. Nakanishi, H. Hoffmann, P. Pastor, and S. Schaal, “Dynamical movement primitives: learning attractor models for motor behaviors,” Neural computation , vol. 25, no. 2, pp. 328–373, 2013. [12] Z. Lu, N. Wang, M. Li, and C. Yang, “Incremental motor skill learning and generalization from human dynamic reactions based on dynamic movement primitives and fuzzy logic system,” IEEE Transactions on Fuzzy Systems , vol. 30, no. 6, pp. 1506–1515, 2021. [13] T. Davchev, K. S. Luck, M. Burke, F. Meier, S. Schaal, and S. Ra-mamoorthy, “Residual learning from demonstration: Adapting dmps for contact-rich manipulation,” IEEE Robotics and Automation Letters ,vol. 7, no. 2, pp. 4488–4495, 2022. [14] B. Luciani, S. Costante, F. Braghin, A. Pedrocchi, and M. Gandolla, “Im-itation learning using gaussian mixture models and dynamic movement primitives for rehabilitation exoskeletons: A comparison,” in 2024 10th IEEE RAS/EMBS International Conference for Biomedical Robotics and Biomechatronics (BioRob) , pp. 122–127, IEEE, 2024. [15] J. Dong, W. Si, N. Wang, and C. Yang, “Robot learning from multiple demonstrations based on generalized gaussian mixture model,” in 2023 28th International Conference on Automation and Computing (ICAC) ,pp. 1–6, IEEE, 2023. [16] J. Carvalho, D. Koert, M. Daniv, and J. Peters, “Adapting object-centric probabilistic movement primitives with residual reinforcement learning,” in 2022 IEEE-RAS 21st International Conference on Humanoid Robots (Humanoids) , pp. 405–412, IEEE, 2022. [17] M. Mukadam, X. Yan, and B. Boots, “Gaussian process motion plan-ning,” in 2016 IEEE international conference on robotics and automa-tion (ICRA) , pp. 9–15, IEEE, 2016. [18] M. Mukadam, J. Dong, X. Yan, F. Dellaert, and B. Boots, “Continuous-time gaussian process motion planning via probabilistic inference,” The International Journal of Robotics Research , vol. 37, no. 11, pp. 1319– 1340, 2018. [19] T. Haarnoja, A. Zhou, P. Abbeel, and S. Levine, “Soft actor-critic: Off-policy maximum entropy deep reinforcement learning with a stochastic actor,” in International conference on machine learning , pp. 1861–1870, PMLR, 2018. [20] A. Kumar, J. Hong, A. Singh, and S. Levine, “Should i run offline rein-forcement learning or behavioral cloning?,” in International conference on learning representations , 2021. [21] L. Barcelos, T. Lai, R. Oliveira, P. Borges, and F. Ramos, “Path signatures for diversity in probabilistic trajectory optimisation,” The International Journal of Robotics Research , vol. 43, no. 11, pp. 1693– 1710, 2024. [22] C. Salvi, T. Cass, J. Foster, T. Lyons, and W. Yang, “The signature kernel is the solution of a goursat pde,” arXiv preprint arXiv:2006.14794 , 2020. [23] E. Coumans and Y. Bai, “Pybullet, a python module for physics simulation for games, robotics and machine learning,” 2016. [24] G. Jocher and J. Qiu, “Ultralytics yolo11,” 2024. [25] A. Paraschos, C. Daniel, J. R. Peters, and G. Neumann, “Probabilis-tic movement primitives,” Advances in neural information processing systems , vol. 26, 2013.

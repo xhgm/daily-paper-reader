@@ -1,0 +1,590 @@
+Title: SimRecon: SimReady Compositional Scene Reconstruction from Real Videos
+
+URL Source: https://arxiv.org/pdf/2603.02133v2
+
+Published Time: Wed, 04 Mar 2026 02:08:15 GMT
+
+Number of Pages: 12
+
+Markdown Content:
+# SimRecon: SimReady Compositional Scene Reconstruction from Real Videos 
+
+## Chong Xia 1,2, ⋆,* Kai Zhu 1,* Zizhuo Wang 1 Fangfu Liu 1 Zhizheng Zhang 2 Yueqi Duan 1,† 1Tsinghua University 2Galbot Project Page: https://xiac20.github.io/SimRecon/ Input View 
+
+Selection 
+
+Canonical View 
+
+Sampling 
+
+Active View 
+
+Optimization 
+
+In-Situ 
+
+Assembly 
+
+Corrective 
+
+Assembly 
+
+Constructive 
+
+Assembly 
+
+Generated Assets 
+
+From Perception to Generation From Generation to Simulation 
+
+Key Challenge: How to acquire visually faithful assets? 
+
+Real Video 
+
+Key Challenge: How to construct physically plausible scenes? 
+
+Semantic Reconstruction Simulation-Ready Scene 
+
+Figure 1. We propose SimRecon, a framework for reconstructing simulation-ready, compositional 3D scenes from real-world videos. 
+
+Our method introduces a “Perception-Generation-Simulation” pipeline which transforms cluttered input videos into physically assembled scenes. To ensure visually faithful generated assets and physically plausible final scenes, we propose two bridging strategies: Active View Optimization to acquire optimal generation conditions, and Constructive Assembly to follow a native building principle. 
+
+## Abstract 
+
+Compositional scene reconstruction seeks to create object-centric representations rather than holistic scenes from real-world videos, which is natively applicable for sim-ulation and interaction. Conventional compositional re-construction approaches primarily emphasize on visual appearance and show limited generalization ability to real-world scenarios. In this paper, we propose SimRe-con, a framework that realizes a “Perception-Generation-Simulation” pipeline towards cluttered scene reconstruc-tion, which first conducts scene-level semantic reconstruc-tion from video input, then performs single-object gener-ation, and finally assembles these assets in the simulator.     
+
+> *Equal contribution. †Corresponding author.
+> ⋆Work done during an internship at Galbot.
+
+However, naively combining these three stages leads to vi-sual infidelity of generated assets and physical implausibil-ity of the final scene, a problem particularly severe for com-plex scenes. Thus, we further propose two bridging modules between the three stages to address this problem. To be spe-cific, for the transition from Perception to Generation, crit-ical for visual fidelity, we introduce Active Viewpoint Opti-mization, which actively searches in 3D space to acquire optimal projected images as conditions for single-object completion. Moreover, for the transition from Generation to Simulation, essential for physical plausibility, we propose a Scene Graph Synthesizer, which guides the construction from scratch in 3D simulators, mirroring the native, con-structive principle of the real world. Extensive experiments on the ScanNet dataset validate our method’s superior per-
+
+> arXiv:2603.02133v2 [cs.CV] 3 Mar 2026
+
+formance over previous state-of-the-art approaches. 
+
+## 1. Introduction 
+
+3D scene reconstruction from multi-view images is a long-standing challenge in computer vision. Recent advances in neural representations [26, 37] have enabled significant progress in 3D geometry reconstruction [42, 61, 76] and novel view rendering [6, 13, 65, 71]. However, these meth-ods represent the scene holistically: although they achieve impressive visual fidelity, they remain fundamentally un-suitable for simulation and interaction since they lack com-plete object geometry and well-defined object boundaries. Concurrently, contemporary studies have focused on creat-ing 3D indoor simulators by manually placing assets within simulated environments [14, 27, 29, 46], by using special-ized capture hardware during scanning [7, 53, 77, 78] with extensive manual annotation, or by employing procedural generation via rule-based [11, 44, 47] or learned layout gen-erative models [57, 72, 73]. These datasets have signifi-cantly advanced Embodied AI research, particularly in em-bodied reasoning [10, 35, 52], navigation [16, 22, 23, 55], and manipulation [14, 19, 27]. Nonetheless, these scene creation methods still depend on well-reconstructed scan data with extensive manual engagement, and suffer from artificial layouts that diverge from the real world. A new branch of work has begun to explore composi-tional 3D reconstruction from only multi-view images in the wild [32, 40, 64, 74], but several key limitations in these approaches hinder this goal. First, these methods often rely on heuristic view selection from the input images or 3D rep-resentation for single-object generation, which struggles to produce complete and plausible geometry for small, large or occluded objects. Second, their final result is still a visual representation rather than a simulation-ready scene, leading to a “real-to-sim” gap manifested as physical implausibil-ity. Third, they often rely on specially designed methods for semantic reconstruction and object generation, which are tightly coupled to their own pipeline and cannot easily leverage advanced approaches in these areas. In this paper, we propose SimRecon, a framework that realizes a “Perception-Generation-Simulation” pipeline with a unified object-centric spatial representation, aiming at transforming the clutter video input to a simulation-ready compositional 3D scene. Our framework starts with se-mantic reconstruction from video input to restore 3D scene and differentiate individual objects, then conducts single-object generation to complete each instance, and finally as-sembles these assets within a physical simulator. The pri-mary challenges are the visual infidelity of generated as-sets and physically implausibility of the final constructed scenes, which derive from the connection parts from the three stages. Building upon this observation, we mainly focus on designing bridging modules to address these bot-tlenecks: achieving complete geometry and appearance for individual objects, and ensuring their physically plausible placement. The bridging module design paradigm also en-dows our framework with inherent extensibility. Specifically, to bridge the gap from perception to gener-ation, which requires converting unstructured and cluttered 3D geometric representations into effective image condi-tions for generation models, we introduce Active View-point Optimization, which intelligently searches for opti-mal views in the 3D scene with maximized information gain as the best view condition. This method moves be-yond heuristic view selection, which often yields occluded views in complex scenes and leads to deformed generated assets. Moreover, to ensure plausible scene construction in the simulator, we introduce Scene Graph Synthesizer, which progressively extracts a global scene graph from mul-tiple incomplete observations. This scene graph mainly models the supportive and attached relations among objects, which serves as the native constructive guideline for the fol-lowing hierarchical physical assembly to ensure physical plausibility. Extensive experiments on the ScanNet dataset demonstrate the superiority of our approach over state-of-the-art methods in terms of reconstruction fidelity for com-plex scenes and physical plausibility in the simulator. 
+
+## 2. Related Work 
+
+3D Indoor Scene Simulators. Recent efforts have fo-cused on creating 3D indoor scene simulators for em-bodied tasks, which are mainly categorized into three types based on their scene construction methods: hand-crafted, generation-based, and scan-based. Hand-crafted methods [14, 27, 29, 46] manually design scene layouts and place assets within simulated environments, requiring extensive manual annotation. With the development of VLMs [1, 34, 62] and diffusion models [15], many gener-ative works employ procedural scene generation with rule-based commensense priors [11, 44, 47] or learned layout priors [57, 72, 73]. However, both hand-crafted and gen-erative methods often result in layouts that are overly sim-plistic and deviate from real-world complexity. Scan-based approaches, conversely, offer superior realism and authen-ticity by leveraging data captured from real environments. However, these scanning methods rely on specialized cap-ture devices to acquire 3D point clouds or meshes and still require extensive manual annotation [8, 17, 54], even with semi-automated post-processing [4, 9, 78]. Recent approaches [30, 39, 63] have begun to explore fully au-tomated reconstruction of real table-top or specific scenes from a single image, often leveraging segmentation foun-dation models [28, 48, 49] and 3D asset generation mod-els [56, 59, 70, 80]. Furthermore, in this paper, we aim to establish a fully automated pipeline for scene-level, Active Viewpoint Optimization Compositional 3D Scene Scene Graph Synthesizer 
+
+Intrinsic Attributes 
+
+Aspatial 
+
+Aappr Aphys 
+
+Relational Attributes 
+
+Region Views 
+
+Progressive Synthesizer 
+
+Hierarchical Assembly Active Optimization 
+
+Asset Generation 
+
+Lavo Lavo             
+
+> Backpack supported by Armchair. Picture attached to Wall.
+> supported by attach ed to
+> 10 11
+> 1
+> 2
+> 3
+> 4
+> 5
+> 6
+> 7
+> 9
+> 1
+> 7
+> 5
+> 4
+> 68
+> 1
+> 2
+> 12
+> 13 14
+> 1
+> 2
+> 15
+> Floor Wall
+> Armchair
+> Table Picture
+> Floor Wall
+> Armchair
+> Sofa Table
+> Backpack
+> Door Picture
+> Floor Wall
+> Armchair
+> Sofa Table
+> Picture
+> Floor Wall
+> Armchair
+> Sofa Table
+> Backpack
+> Picture
+> Level 1
+> Level 2
+> Activate
+> Simulation
+> Floor Wall
+> Sofa
+> Table
+> Door
+> Picture
+> Armchair
+> Backpack
+> Backpack
+> Armchair
+> Translation
+> Rotation
+> Scale
+> 3D Gen.
+
+Semantic Gaussians 
+
+v0
+
+v1*
+
+v2*      
+
+> Mask
+> Inpaint
+> max
+> 𝐀 1
+> 𝐀🀀 (𝐀 1)max
+> 𝐀 2
+> 𝐀🀀 (𝐀 2)
+> 𝐀 2=𝐀 1∙ ( 1−𝐀𤀀𝐀𦐀 (𝐀 ’( 𝐀 1∗), 0,1))
+
+Sem. 
+
+RGB Figure 2. The overall framework of our approach SimRecon. We propose a “Perception-Generation-Simulation” pipeline with object-centric scene representations towards compositional 3D scene reconstruction from cluttered video input. In this figure, we provide illustra-tive visualizations using the backpack as the example to introduce our two core modules: Active Viewpoint Optimization (AVO) and Scene Graph Synthesizer (SGS). There, we visualize a semantic-level graph for clarity, while our framework operates at the instance-level. 
+
+simulation-ready reconstruction from raw video input, un-locking the potential to generate diverse simulation environ-ments from arbitrary videos. 
+
+Compositional 3D Reconstruction. Previous scene re-construction approaches [25, 38, 50] usually model the en-tire scene as a holistic representation, whereas recent works have begun to focus on compositional 3D reconstruction methods [2, 20, 36, 40, 69, 74, 75] for interactive scene generation and downstream embodied tasks. Early meth-ods mainly focus on the simplified single-view scenarios, leveraging either a multi-stage pipeline [2, 75] or an end-to-end generation paradigm [20, 36]. Recent work DPRe-con [40] proposes a scene-level reconstruction pipeline, but its reliance on SDF [43] and SDS [45] with well-segmented input makes it time-consuming and hard to generalize to real scenarios. InstaScene [74] further leverages 3D seman-tic reconstruction to segment instances and specialized gen-eration model to complete objects, but struggles with real scenes with complex objects and mainly focuses on visual appearance rather than simulation-ready scenes. In contrast, our framework robustly handles real complex scenes with fine-grained complete geometry for each object and finally constructs the corresponding simulation-ready scene within the physical simulator. 
+
+3D Scene Graphs. 3D scene graph is a graph structure where nodes represent objects or areas, and edges encode pairwise relationships between them, such as spatial or functional connections. Traditional methods typically learn such graphs using Graph Neural Networks (GNNs) with 3D point clouds as input [3, 21, 60, 66, 67]. However, with the advent of LLMs [1, 33] and VLMs [34, 62], scene graphs recently can be inferred more easily through proce-dural queries. Nowadays, the 3D scene graph often serves as a concise scene representation, acting as a fundamen-tal structure for scene understanding and other downstream tasks. For example, OpenIN [58] builds hierarchical open-vocabulary 3D scene graphs for robot navigation, while ScenePainter [68] utilizes learnable textual token graphs for 3D scene outpainting. In this work, we aim to build a scene graph in a progressive paradigm to model the supportive and attached relations among objects, serving as the guide-line for the following construction within the simulator. 
+
+## 3. Approach 
+
+In this section, we present our method, SimRecon, which realizes a “Perception-Generation-Simulation” pipeline for compositional 3D reconstruction. At first, we detail our object-centric scene representation and overall architecture in Section 3.1. Next, in Section 3.2, we introduce Active Viewpoint Optimization (AVO), an approach designed to extract maximally informative projection views in 3D space for each object, even robust under heavy occlusion in com-plex scenes. Furthermore, in Section 3.3, we present Scene Graph Synthesizer (SGS), a method to infer the global scene graph in an online paradigm to guide the final hierarchical physical assembly. The overall framework of SimRecon is illustrated in Figure 2. 
+
+3.1. Object-Centric Scene Representation 
+
+Compositional Scene Primitives. Conventional holistic approaches, exemplified by 3D Gaussian Splatting [26], represent a scene Sholistic as a vast collection of low-level rendering primitives, {gi}Ni=1 . This representation is non-structural, lacking explicit object boundaries or semantics, thus inherently unsuitable for physical interaction or seman-tic reasoning. In contrast, our compositional framework de-fines the scene Scomp as a structured set of L discrete, high-level object primitives oi, which serve as the fundamental building blocks for the scene: 
+
+Scomp = {o1, o 2, . . . , o L}. (1) Each object primitive oi is a comprehensive entity defined by two categories of attributes: intrinsic attributes Aint and relational attributes Arel .
+
+Intrinsic Attributes. The intrinsic attributes define the object oi in isolation, independent of its surrounding con-text. We formally represent this as a tuple mainly compris-ing three primary dimensions: 
+
+Aint ,i = ( Aspatial ,i , A appr ,i , A phys ,i ). (2) Here, Aspatial ,i denotes the spatial attributes, including its scale si ∈ R3, its rotation Ri ∈ SO (3) and translation 
+
+ti ∈ R3, which together form the 6-DoF pose Ti ∈ SE (3) .
+
+Aappr ,i represents the appearance attributes, defined by a complete geometric mesh Mi with its corresponding PBR textures Ti. Finally, Aphys ,i comprises physical attributes essential for simulation, including its semantic label li, ma-terial mat i, center of mass ci, and mass mi.
+
+Relational Attributes. The relational attributes Arel de-fine the object’s role and context within the scene by en-coding supportive, spatial, and functional semantic relation-ships with other objects. These explicit interactions are organized into a structured Scene Graph G = ( Scomp , E),where E is the set of edges eij = ( oi, r ij , o j ) representing a relation rij between two object primitives. 
+
+Overall Architecture. In our pipeline, these attributes are progressively populated, transforming raw image observa-tions into simulation-ready entities. The initial semantic re-construction stage provides the foundational set of attributes 
+
+{si, T i, l i} for each segmented object. The 3D asset gener-ation stage, conditioned on actively optimized image pro-jections, then completes the geometry Mi and appearance 
+
+Ti and allows for the inference of the remaining physical attributes {mat i, c i, m i}. Finally, the scene graph G is con-structed by our online graph merging method, where its sup-portive and attached relations guides the hierarchical scene construction within simulators, ensuring a physically stable and plausible 3D scene. 
+
+3.2. Active Viewpoint Optimization 
+
+View Projection as a Bottleneck. Images serve as a general-purpose and powerful condition for 3D generative models. However, the quality of these views, particularly in the presence of severe occlusion or partial observations, drastically impacts the fidelity of the generated asset. Con-ventional methods often resort to heuristic strategies, such as using the original input views or sampling canonical sur-rounding viewpoints. These static approaches often fail to sufficiently capture complete and informative observations of the object, often yielding low-quality, uninformative, or redundant views that lead to deformed assets, especially for complex scenes. To overcome this, we propose Active Viewpoint Optimization (AVO), a framework that actively optimizes for most informative viewpoints for each object. 
+
+Information Theory Formulation. We model the opti-mal view projection problem as an information gaining task in information theory, where the goal is to optimize a view-point v that maximizes the information gain about the ob-ject’s complete reconstructed geometry Xi, from the initial viewpoint v0. The information gain is defined as the reduc-tion in information entropy H with a new viewpoint v:
+
+IG (v) = H(X|v0) − H(X|v). (3) Considering directly computing this entropy is intractable, we propose a practical and differentiable proxy for 
+
+−H(X|v) based on the alpha-blending process inherent in 3D Gaussian Splatting rendering. Intuitively, a viewpoint that yields a rendering with high accumulated opacity sig-nifies a more solid and informative observation, thus corre-sponding to higher negative entropy. Let α(p, v ) denote the accumulated opacity rendered along the ray passing through pixel p from viewpoint v, calculated using the standard vol-umetric rendering equation: 
+
+α(p, v ) = X
+
+> i∈N p
+
+αii−1Y
+
+> j=1
+
+(1 − αj ) (4) where Np are the Gaussians intersected by the ray for pixel 
+
+p, ordered by depth, and αi is the intrinsic opacity of the 
+
+i-th Gaussian along the ray. We define our total informa-tion proxy A(v) as the sum over pixels corresponding to the object of this rendered opacity map: 
+
+A(v) = X
+
+> p∈P obj (v)
+
+α(p, v ) (5) Maximizing this total accumulated opacity A(v) serves as a differentiable surrogate for maximizing the information gain IG (v), thus the final objective is: 
+
+max  
+
+> v
+
+IG (v) = max  
+
+> v
+
+A(v) = max 
+
+> v
+
+X
+
+> p∈P obj (v)
+
+α(p, v ). (6) This formulation directly leverages the differentiability of the Gaussian Splatting rendering pipeline for efficient gradient-based optimization. 
+
+Single View Optimization with Constraints. Our first objective is to find the single optimal viewpoint v∗ by max-imizing the information gain proxy A(v) defined in Eq. 5. We parameterize the view pose Tv of viewpoint v (using a quaternion q for rotation and position t) and initialize the parameters from one input view v0 that captures the target object. The the optimization loss LIG is defined as the neg-ative of the information gain: 
+
+LIG (v) = −A(v) = − X
+
+> p∈P obj (v)
+
+α(p, v ). (7) Since standard 3DGS rendering is non-differentiable for camera parameters Tv , we enable their optimization by ap-plying the relative camera transformation to the differen-tiable Gaussian parameters G instead. Furthermore, to prevent extreme cases, such as the view-point collapsing too close to the object surface, we intro-duce a depth regularization term Ldepth . This regularizer encourages the rendered depth D(p, v ) at each object pixel 
+
+p ∈ P obj (v) to remain close to a target depth dtarget (si),which is determined proportionally to the object’s size si.We formulate this using an averaged quadratic penalty: 
+
+Ldepth (v) = λdepth 
+
+|P obj (v)|
+
+X
+
+> p∈P obj (v)
+
+(D(p, v ) − dtarget (si)) 2.
+
+(8) Here, Pobj (v) are the pixels corresponding to the object ren-dered from view v. The full optimization objective is thus: 
+
+LAV O (v) = LIG (v) + Ldepth (v). (9) The optimization then proceeds by iteratively updating Tv
+
+based on the gradient signal derived from the Gaussian ren-dering parameters. 
+
+Iterative Viewpoint Expansion. To generate a set of K
+
+informative views, we employ an iterative optimization strategy. At each iteration k, we seek the viewpoint v∗ 
+
+> k
+
+that maximizes information gain based on the currently remain-ing potential information, represented by effective opacities 
+
+α(k−1)  
+
+> i
+
+(initially α(0)  
+
+> i
+
+). The viewpoint v∗ 
+
+> k
+
+is found by mini-mizing the single-view loss L(k) 
+
+> AV O
+
+(v), which computes ac-cumulated opacity using effective α(k−1)  
+
+> i
+
+:
+
+v∗ 
+
+> k
+
+= arg min 
+
+> v
+
+− X
+
+> p∈P obj (v)
+
+α(p, v |{ α(k−1)  
+
+> i
+
+}) + Ldepth (v)
+
+ .
+
+(10) After finding v∗
+
+> k
+
+, we update the effective opacities via multi-plicative decay, reducing α(k−1)  
+
+> i
+
+based on its rendered con-tribution α′
+
+> i
+
+(v∗
+
+> k
+
+) from the selected view: 
+
+α(k) 
+
+> i
+
+= α(k−1)  
+
+> i
+
+· (1 − clip (α′
+
+> i
+
+(v∗
+
+> k
+
+), 0, 1)) . (11) This decay ensures subsequent iterations naturally focus on less observed regions. The process repeats until K views are generated or a coverage threshold is met (e.g., remain-ing P α(k) 
+
+> i
+
+< η P α(0)  
+
+> i
+
+). Finally, for each v∗
+
+> k
+
+, we render the object appearance, inpaint occlusions, and provide these complete views as conditions to the generative model. 
+
+3.3. Scene Graph Synthesizer 
+
+Scene Graph as Physical Scaffolding. While the pre-vious stage provides visually complete object assets, as-sembling them correctly within a simulator is also chal-lenging. Direct in-situ placement based on initial posi-tions or corrective post-processing placement often leads to physically implausible configurations like floating ob-jects or penetrations. Therefore, we propose a construc-tive placement method to ensure the physical plausibility at all times, which builds on the understanding of physical interdependencies among objects. To achieve this, we con-struct a scene graph G = ( N , E) which explicitly encodes fundamental physical support and attachment relationships. However, inferring such a graph directly for an entire clut-tered scene is challenging due to severe occlusions and the complexity of global reasoning. Therefore, we adopt a pro-gressive approach, synthesizing the global graph incremen-tally from multiple local observations. 
+
+Region-based Scene Graph Inference. To implement this progressive synthesis, we first partition the set of object instances Scomp into K spatial regions C = {C 1, . . . , CK }
+
+via DBSCAN [12] clustering on the object centroids 
+
+{ci}Li=1 . Objects not assigned to any cluster are subse-quently assigned to the spatially nearest cluster. For each region Ck, an optimal observation viewpoint v∗ 
+
+> k
+
+is obtained by adapting the Active Viewpoint Optimization objective to maximize information gain across all objects within Ck. A projection image Ik is rendered from v∗
+
+> k
+
+, annotated with the corresponding instance IDs for visible objects. This image 
+
+Ik, along with the list of visible instance IDs, is fed to a Vision-Language Model (VLM) via a structured prompt to request “(Child ID, Relation, Parent ID)” triplets describ-ing direct physical support (“supported by”) and attachment (“attached to”) relationships. Floor and wall entities are treated as initial nodes in this graph structure and serve as the physical foundation for other objects within the scene. This yields a local subgraph Gk = ( Nk, Ek) per region. 
+
+Online Scene Graph Merging. The final global graph 
+
+G = ( N , E) is synthesized by progressively merging the local subgraphs Gk = ( Nk, Ek). We maintain G, initial-ized with base nodes (e.g., Floor, Wall), and iteratively in-corporate each Gk. To process the edges from Gk, we per-form a Breadth-First Search (BFS) starting from edges con-nected to the base nodes in Gk. For each edge enew =(oi, r new , o j ) in subgraph Gk: If either object primitive 
+
+oi or oj is not yet in the global node set N in G, we add the new node and the edge enew directly to G. How-ever, if both oi, o j ∈ N , we must check the new edge 
+
+enew = ( oi, r new , o j ) for potential conflict against the ex-isting structure of G. A conflict is identified if no path cur-rently exists between oi and oj , or if an existing path con-tains relationships inconsistent with rnew or exhibits a dis-ordered parent-child hierarchy. If such a conflict is detected, we initiate a conflict resolution: we identify all nodes Opath 
+
+involved in the relevant path, re-optimize for an adjudica-tion viewpoint v∗ 
+
+> adj
+
+targeting Opath , re-infer the relation-ship set Eadj among these nodes via VLM, and merge Eadj 
+
+into G, replacing existing wrong edges. Conversely, if a path exists and is consistent with rnew , we consider enew redun-dant and discard it, preserving the original graph structure. This iterative merging and conflict resolution process yields the final, globally consistent scene graph G.
+
+Hierarchical Physical Assembly. The synthesized scene graph G guides the following construction within the phys-ical simulator. We initialize the environment by placing the base nodes Floor and Wall in G and designate them as pas-sive rigid bodies. We then perform a Breadth-First Search (BFS) starting from these base nodes. For each new edge 
+
+eij = ( oi, r, o j ), where oi is the already placed parent ob-ject and oj is the child object to be placed. If the relation r
+
+is support relationship, we place oj at its initial position Tj
+
+but adjust slightly upwards relative to oi. Object oj is mo-mentarily set as an active rigid body, and physics simulation is briefly activated, allowing it to undergo realistic settling onto oi’s surface via gravity and collision. Once settled, oj
+
+is typically converted back to a passive rigid body to ensure stability. Alternatively, if the relation r is attachment rela-tionship, we apply a fixed constraint between oi and oj to simulate anchoring oj directly onto oi’s surface, mimick-ing a physical attachment. This hierarchical, physics-based assembly process, guided by the scene graph, ensures a na-tively plausible scene construction. 
+
+## 4. Experiments 
+
+4.1. Experimental Settings 
+
+Datasets. We conduct experiments on 20 scenes from the real-world ScanNet dataset [8], using only raw RGB videos as input, without access to depths, normals, or semantics. 
+
+Baselines. For compositional scene reconstruction, we compare against state-of-the-art baselines DPRecon [41] and InstaScene [74]. We also include comparisons with top-performing single-view methods, Gen3DSR [2] and Scene-Gen [36], which take the target image as input. Addition-ally, to evaluate physical plausibility of the final simulation-ready scenes, we further compare against the 3D indoor simulator MetaScenes [78]. 
+
+Metrics. We assess our method using quantitative met-rics for reconstruction and rendering. For reconstruction quality, we evaluate Chamfer Distance (CD), F-Score, and Normal Consistency (NC) following MonoSDF [79]. For rendering fidelity, we adopt the full-reference (FR) and no-reference (NR) setup from ExtraNeRF [51]. The FR metrics include PSNR, SSIM, and LPIPS, while for NR, we employ MUSIQ [24] to assess perceptual quality. Additionally, we report the average processing time of each method. 
+
+Implementation Details. In this paper, we leverage 2DGS [18] for 3D reconstruction from video input, follow SceneSplat [31] for semantic segmentation, perform single-object generation using Rodin [80] and finally construct the simulation-ready scenes in Blender and Issac Sim. More-over, we adopt Qwen2.5-VL [5] for intrinsic attributes in-ference and scene graph inference. We optimize our ac-tive viewpoint on a single NVIDIA RTX A6000 GPU with about 30 seconds for each object. More details of our frame-work are discussed in the supplementary material. 
+
+4.2. Results 
+
+Compositional 3D Reconstruction. Table 1 and Figure 3 present the quantitative and qualitative results for the com-positional 3D reconstruction task. We observe that single-view methods like Gen3DSR [2] and SceneGen [36] strug-gle to reconstruct faithful object geometry with accurate spatial positions, demonstrating limited generalization abil-ity to real images. DPRecon [41], which employs a signed distance field (SDF) of each object as a strong 3D genera-tive condition, consequently suffers from deformed artifacts stemming from the heavily incomplete 3D structure, which also costs significant inference time. InstaScene [74], which leverages a heuristic view sampling strategy on semantic 3D Gaussians as conditions, often yields heavily occluded projected images, consequently failing to generate accurate Table 1. Quantitative Comparison for Compositional 3D Reconstruction. We evaluate our method against single-view (Gen3DSR [2], SceneGen [36]) and scene-level (DPRecon [41], InstaScene [74]) baselines. The comparison includes metrics for geometric fidelity (CD, F-Score, NC), novel-view rendering quality (PSNR, SSIM, LPIPS, MUSIQ), and inference time. 
+
+Method Reconstruction Rendering Time CD ↓ F-Score ↑ NC ↑ PSNR ↑ SSIM ↑ LPIPS ↓ MUSIQ ↑
+
+Gen3DSR 11.69 30.19 70.50 19.26 0.886 0.425 60.94 17min SceneGen 7.66 46.72 79.13 18.18 0.873 0.334 60.22 6min 
+
+DPRecon 9.26 46.12 78.28 21.97 0.913 0.257 71.49 10h 42min InstaScene 6.90 49.69 82.55 22.35 0.907 0.302 71.57 29min 
+
+Ours 4.34 62.65 87.37 24.43 0.924 0.153 73.56 21min Gen3DSR DPRecon Ours InstaScene SceneGen GT 
+
+Figure 3. Qualitative Comparison for Compositional 3D Reconstruction. We present qualitative visualizations of the final reconstructed scenes. For single-view setting, we render the 3D representation at the target viewpoint as the input for these methods. 3D Gen. View 
+
+> Input View
+> Selection
+> Canonical View
+> Sampling
+> Ours
+> (AVO)
+> 3D Gen. View
+
+Figure 4. Qualitative comparison of viewpoint sampling strate-gies. We uniformly use a single image as the condition and utilize the same generative model. 
+
+geometry and appearance. In contrast, our method employs Active Viewpoint Optimization to intelligently search for optimal projections by maximizing 3D information gain, facilitating the reconstruction of assets with high geomet-ric and visual fidelity. Moreover, our framework utilizes the synthesized scene graph to dictate the physics-based asset View 1 
+
+MetaScenes 
+
+Ours (SGS) 
+
+View 2 View 3 
+
+Figure 5. Qualitative comparison of physical scene construc-tion in the simulator. 
+
+assembly, ensuring a physically plausible final configura-tion without floating or penetrated situations. 
+
+Projected Images Comparison. Figure 4 presents the visualization results of three distinct viewpoint sampling methods. First, we evaluate the input view with maxi-mum 2D object visibility, but this sampling objective is 9
+
+> 2
+
+Region View 
+
+Local Graph 
+
+Global Graph                   
+
+> 3
+> 4
+> 1
+> 2
+> 56
+> 78
+> 9
+> 7
+> 1
+> 2
+> 10
+> 11
+> 2
+> 7
+> 9
+> 12
+> 567
+> 12
+> 5673
+> 4
+> 12
+> 7
+> 8
+> 9
+> 1
+> 5673
+> 48
+> 12
+> 7
+> 9
+> 10
+> 11
+> 12
+> 5673
+> 489
+> 10
+> 11
+> (Conflict Resolution) (Conflict Resolution) (Inherent Constraint)
+> support
+> attach
+> support
+> attach
+> support
+> attach
+
+Figure 6. Visualization of the progressive Scene Graph Synthe-sizer. Optimal region images are captured (top row), from which local current graphs are inferred (middle row) and then progres-sively merged into the final global graph (bottom row). We use green signals for instance IDs and red signals for special edges. 
+
+often insufficient to guide the complete object generation, due to the discrepancy between its 2D pixel coverage and the required 3D structural information. Second, we sample canonical views around the target object, but this strategy still yields occluded perspectives, resulting in malformed geometry and appearance. In contrast, our method actively optimizes for an ideal viewpoint in 3D space capturing the full structure and appearance of the target object, proving successful as the condition for 3D generation models, and robustly adaptive to target objects of varying scales. 
+
+Physical Construction Comparison. Figure 5 presents the visualization results in the 3D simulator Blender against MetaScenes [78], which provides 3D indoor simulation data derived from ScanNet [8]. This method relies on well-reconstructed 3D point clouds as input and primarily em-ploys a retrieval-based strategy to acquire objects, which re-sults in a lack of fidelity to the original scene. For the final physical scene construction, MetaScenes relies on a post-hoc Markov Chain Monte Carlo (MCMC) search to merely resolve collisions, an inefficient “blind” optimization that is prone to local optima and fails to model accurate contact re-lationships. In contrast, our framework adopts a physically native approach, leveraging the synthesized scene graph to guide a hierarchical, physics-informed assembly that na-tively ensures both semantic coherence and physical stabil-ity from the outset. We further provide illustrative visual-izations for our scene graph synthesizer in Figure 6. 
+
+4.3. Ablation Study 
+
+We conduct extensive ablation studies to validate the ef-fectiveness of our two bridging modules. For the Active Max. 2D Vis. w/o Ours (AVO) Initial View 
+
+Figure 7. Ablation study for our Active Viewpoint Optimiza-tion (AVO). Here, the target object is the kettle and Max. 2D Vis. denotes the baseline using the optimization objective of maximiz-ing 2D object visibility. Global Infer. Naive Merging Ours (SGS) Region Views          
+
+> ...
+> 1
+> 2
+> 3
+> 4
+> 6
+> 7
+> 89
+> 1
+> 4
+> 3
+> 6
+> 10
+> 12
+> 4563
+> 7
+> 11
+> 10 8
+> 9
+> 11
+> 12
+> 46310 9
+> 5
+> 12
+> 4
+> 563
+> 7
+> 11 10
+> 8
+> 9
+> support
+> attach
+> support
+> attach
+> support
+> attach
+
+Figure 8. Ablation study for our Scene Graph Synthesizer (SGS). Here, green signals represent the instance IDs. Global In-fer. and Naive Merging represent the baseline with a single global inference and the baseline that simply merges subgraphs without conflict resolution respectively. 
+
+Viewpoint Optimization (AVO) module, we visualize the projected images from two ablated settings in Figure 7: an optimization result based solely on maximum 2D visibility, and our optimized result without the Ldepth supervision. The maximum 2D visibility baseline often just covers the whole object without further refinement, while omitting the depth constraint results in viewpoints that collapse imprac-tically close to the object surface. For the Scene Graph Syn-thesizer (SGS) module, we visualize the synthesized scene graphs from two ablated strategies in Figure 8: a single in-ference on a global projected image, and a naive merging process lacking conflict resolution. The single inference ap-proach fails to capture all objects and their relations accu-rately, and the naive merging strategy produces an incoher-ent graph with messy relationships, unsuitable for guiding the subsequent construction process. 
+
+## 5. Conclusion 
+
+In this paper, we propose SimRecon, a “Perception-Generation-Simulation” pipeline designed to create object-centric, simulation-ready scenes from cluttered real-world videos. Our framework addresses the critical stage transi-tion barriers that cause visual infidelity and physical im-plausibility in naive pipeline combinations. We introduce two key bridging modules: Active Viewpoint Optimization, which actively searches for optimal projections to ensure high-fidelity generative conditions, and a Scene Graph Syn-thesizer, which guides a constructive assembly that mirrors the real construction principle to ensure physical plausibil-ity from the outset. Experiments on the ScanNet dataset validate that our method achieves superior performance in both reconstruction quality and physical adherence. References 
+
+[1] Josh Achiam, Steven Adler, Sandhini Agarwal, Lama Ah-mad, Ilge Akkaya, Florencia Leoni Aleman, Diogo Almeida, Janko Altenschmidt, Sam Altman, Shyamal Anadkat, et al. Gpt-4 technical report. arXiv preprint arXiv:2303.08774 ,2023. 2, 3 [2] Andreea Ardelean, Mert ¨Ozer, and Bernhard Egger. Gen3dsr: Generalizable 3d scene reconstruction via divide and conquer from a single view. In 2025 International Con-ference on 3D Vision (3DV) , pages 616–626. IEEE, 2025. 3, 6, 7 [3] Iro Armeni, Zhi-Yang He, JunYoung Gwak, Amir R Zamir, Martin Fischer, Jitendra Malik, and Silvio Savarese. 3D SceneGgraph: A Structure for Unified Semantics, 3D Space, and Camera. In ICCV , 2019. 3 [4] Armen Avetisyan, Manuel Dahnert, Angela Dai, Manolis Savva, Angel X Chang, and Matthias Nießner. Scan2cad: Learning cad model alignment in rgb-d scans. In CVPR ,2019. 2 [5] Shuai Bai, Keqin Chen, Xuejing Liu, Jialin Wang, Wenbin Ge, Sibo Song, Kai Dang, Peng Wang, Shijie Wang, Jun Tang, et al. Qwen2. 5-vl technical report. arXiv preprint arXiv:2502.13923 , 2025. 6 [6] Jonathan T Barron, Ben Mildenhall, Dor Verbin, Pratul P Srinivasan, and Peter Hedman. Mip-nerf 360: Unbounded anti-aliased neural radiance fields. In CVPR , 2022. 2 [7] Gilad Baruch, Zhuoyuan Chen, Afshin Dehghan, Tal Dimry, Yuri Feigin, Peter Fu, Thomas Gebauer, Brandon Joffe, Daniel Kurz, Arik Schwartz, et al. Arkitscenes: A diverse real-world dataset for 3d indoor scene understanding using mobile rgb-d data. arXiv preprint arXiv:2111.08897 , 2021. 2[8] Angela Dai, Angel X. Chang, Manolis Savva, Maciej Hal-ber, Thomas Funkhouser, and Matthias Nießner. Scannet: Richly-annotated 3d reconstructions of indoor scenes. In 
+
+CVPR , pages 5828—-5839, 2017. 2, 6, 8 [9] Tianyuan Dai, Josiah Wong, Yunfan Jiang, Chen Wang, Cem Gokmen, Ruohan Zhang, Jiajun Wu, and Li Fei-Fei. Acdc: Automated creation of digital cousins for robust policy learn-ing. arXiv preprint arXiv:2410.07408 , 2024. 2 [10] Abhishek Das, Samyak Datta, Georgia Gkioxari, Stefan Lee, Devi Parikh, and Dhruv Batra. Embodied question answer-ing. In CVPR , 2018. 2 [11] Matt Deitke, Eli VanderBilt, Alvaro Herrasti, Luca Weihs, Kiana Ehsani, Jordi Salvador, Winson Han, Eric Kolve, Aniruddha Kembhavi, and Roozbeh Mottaghi. Procthor: Large-scale embodied ai using procedural generation. 2022. 2[12] Martin Ester, Hans-Peter Kriegel, J¨ org Sander, Xiaowei Xu, et al. A density-based algorithm for discovering clusters in large spatial databases with noise. In kdd , pages 226–231, 1996. 5 [13] Ruiqi Gao*, Aleksander Holynski*, Philipp Henzler, Arthur Brussee, Ricardo Martin-Brualla, Pratul P. Srinivasan, Jonathan T. Barron, and Ben Poole*. Cat3d: Create anything in 3d with multi-view diffusion models. 2024. 2 [14] Yunhao Ge, Yihe Tang, Jiashu Xu, Cem Gokmen, Chengshu Li, Wensi Ai, Benjamin Jose Martinez, Arman Aydin, Mona Anvari, Ayush K Chakravarthy, et al. Behavior vision suite: Customizable dataset generation via simulation. In CVPR ,2024. 2 [15] Jonathan Ho, Ajay Jain, and Pieter Abbeel. Denoising diffu-sion probabilistic models. 2020. 2 [16] Yicong Hong, Qi Wu, Yuankai Qi, Cristian Rodriguez-Opazo, and Stephen Gould. Vln bert: A recurrent vision-and-language bert for navigation. In CVPR , 2021. 2 [17] Binh-Son Hua, Quang-Hieu Pham, Duc Thanh Nguyen, Minh-Khoi Tran, Lap-Fai Yu, and Sai-Kit Yeung. Scenenn: A scene meshes dataset with annotations. pages 92–101. Ieee, 2016. 2 [18] Binbin Huang, Zehao Yu, Anpei Chen, Andreas Geiger, and Shenghua Gao. 2d gaussian splatting for geometrically ac-curate radiance fields. In ACM SIGGRAPH 2024 conference papers , pages 1–11, 2024. 6 [19] Jiangyong Huang, Silong Yong, Xiaojian Ma, Xiongkun Linghu, Puhao Li, Yan Wang, Qing Li, Song-Chun Zhu, Baoxiong Jia, and Siyuan Huang. An embodied generalist agent in 3d world. 2024. 2 [20] Zehuan Huang, Yuan-Chen Guo, Xingqiao An, Yunhan Yang, Yangguang Li, Zi-Xin Zou, Ding Liang, Xihui Liu, Yan-Pei Cao, and Lu Sheng. Midi: Multi-instance diffusion for single image to 3d scene generation. In Proceedings of the Computer Vision and Pattern Recognition Conference ,pages 23646–23657, 2025. 3 [21] N. Hughes, Y. Chang, and L. Carlone. Hydra: A real-time spatial perception system for 3D scene graph construction and optimization. In Robotics: Science and Systems (RSS) ,2022. 3 [22] Nan Jiang, Zimo He, Zi Wang, Hongjie Li, Yixin Chen, Siyuan Huang, and Yixin Zhu. Autonomous character-scene interaction synthesis from text instruction. In SIGGRAPH Asia 2024 Conference Papers , 2024. 2 [23] Nan Jiang, Zhiyuan Zhang, Hongjie Li, Xiaoxuan Ma, Zan Wang, Yixin Chen, Tengyu Liu, Yixin Zhu, and Siyuan Huang. Scaling up dynamic human-scene interaction mod-eling. In Proceedings of the IEEE/CVF Conference on Com-puter Vision and Pattern Recognition , pages 1737–1747, 2024. 2 [24] Junjie Ke, Qifei Wang, Yilin Wang, Peyman Milanfar, and Feng Yang. Musiq: Multi-scale image quality transformer. In ICCV , 2021. 6 [25] Bernhard Kerbl, Georgios Kopanas, Thomas Leimk¨ uhler, and George Drettakis. 3d gaussian splatting for real-time radiance field rendering. ACM Trans. Graph. , 42(4):139–1, 2023. 3 [26] Bernhard Kerbl, Georgios Kopanas, Thomas Leimk¨ uhler, and George Drettakis. 3d gaussian splatting for real-time radiance field rendering. 2023. 2, 4 [27] Mukul Khanna, Yongsen Mao, Hanxiao Jiang, Sanjay Haresh, Brennan Shacklett, Dhruv Batra, Alexander Clegg, Eric Undersander, Angel X Chang, and Manolis Savva. Habitat synthetic scenes dataset (hssd-200): An analysis of 3d scene scale and realism tradeoffs for objectgoal naviga-tion. In CVPR , 2024. 2 [28] Alexander Kirillov, Eric Mintun, Nikhila Ravi, Hanzi Mao, Chloe Rolland, Laura Gustafson, Tete Xiao, Spencer White-head, Alexander C Berg, Wan-Yen Lo, et al. Segment any-thing. In Proceedings of the IEEE/CVF international confer-ence on computer vision , pages 4015–4026, 2023. 2 [29] Chengshu Li, Fei Xia, Roberto Mart´ ın-Mart´ ın, Michael Lin-gelbach, Sanjana Srivastava, Bokui Shen, Kent Vainio, Cem Gokmen, Gokul Dharan, Tanish Jain, et al. igibson 2.0: Object-centric simulation for robot learning of everyday household tasks. arXiv preprint arXiv:2108.03272 , 2021. 2 [30] Xinhai Li, Jialin Li, Ziheng Zhang, Rui Zhang, Fan Jia, Tiancai Wang, Haoqiang Fan, Kuo-Kun Tseng, and Ruiping Wang. Robogsim: A real2sim2real robotic gaussian splatting simulator. arXiv preprint arXiv:2411.11839 , 2024. 2 [31] Yue Li, Qi Ma, Runyi Yang, Huapeng Li, Mengjiao Ma, Bin Ren, Nikola Popovic, Nicu Sebe, Ender Konukoglu, Theo Gevers, et al. Scenesplat: Gaussian splatting-based scene un-derstanding with vision-language pretraining. arXiv preprint arXiv:2503.18052 , 2025. 6 [32] Zizhang Li, Xiaoyang Lyu, Yuanyuan Ding, Mengmeng Wang, Yiyi Liao, and Yong Liu. Rico: Regularizing the unobservable for indoor compositional reconstruction. In 
+
+Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 17761–17771, 2023. 2 [33] Aixin Liu, Bei Feng, Bing Xue, Bingxuan Wang, Bochao Wu, Chengda Lu, Chenggang Zhao, Chengqi Deng, Chenyu Zhang, Chong Ruan, et al. Deepseek-v3 technical report. 
+
+arXiv preprint arXiv:2412.19437 , 2024. 3 [34] Haoyu Lu, Wen Liu, Bo Zhang, Bingxuan Wang, Kai Dong, Bo Liu, Jingxiang Sun, Tongzheng Ren, Zhuoshu Li, Hao Yang, et al. Deepseek-vl: towards real-world vision-language understanding. arXiv preprint arXiv:2403.05525 ,2024. 2, 3 [35] Arjun Majumdar, Anurag Ajay, Xiaohan Zhang, Pranav Putta, Sriram Yenamandra, Mikael Henaff, Sneha Silwal, Paul Mcvay, Oleksandr Maksymets, Sergio Arnaud, et al. Openeqa: Embodied question answering in the era of foun-dation models. In CVPR , 2024. 2 [36] Yanxu Meng, Haoning Wu, Ya Zhang, and Weidi Xie. Sce-negen: Single-image 3d scene generation in one feedforward pass. arXiv preprint arXiv:2508.15769 , 2025. 3, 6, 7 [37] Ben Mildenhall, Pratul P. Srinivasan, Matthew Tancik, Jonathan T. Barron, Ravi Ramamoorthi, and Ren Ng. Nerf: Representing scenes as neural radiance fields for view syn-thesis. In ECCV , 2020. 2 [38] Ben Mildenhall, Pratul P Srinivasan, Matthew Tancik, Jonathan T Barron, Ravi Ramamoorthi, and Ren Ng. Nerf: Representing scenes as neural radiance fields for view syn-thesis. Communications of the ACM , 65(1):99–106, 2021. 3[39] Yao Mu, Tianxing Chen, Zanxin Chen, Shijia Peng, Zhiqian Lan, Zeyu Gao, Zhixuan Liang, Qiaojun Yu, Yude Zou, Mingkun Xu, et al. Robotwin: Dual-arm robot bench-mark with generative digital twins. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 27649–27660, 2025. 2 [40] Junfeng Ni, Yu Liu, Ruijie Lu, Zirui Zhou, Song-Chun Zhu, Yixin Chen, and Siyuan Huang. Decompositional neural scene reconstruction with generative diffusion prior. In Pro-ceedings of the Computer Vision and Pattern Recognition Conference , pages 6022–6033, 2025. 2, 3 [41] Junfeng Ni, Yu Liu, Ruijie Lu, Zirui Zhou, Song-Chun Zhu, Yixin Chen, and Siyuan Huang. Decompositional neu-ral scene reconstruction with generative diffusion prior. In 
+
+CVPR , 2025. 6, 7 [42] Michael Oechsle, Songyou Peng, and Andreas Geiger. Unisurf: Unifying neural implicit surfaces and radiance fields for multi-view reconstruction. In ICCV , 2021. 2 [43] Jeong Joon Park, Peter Florence, Julian Straub, Richard Newcombe, and Steven Lovegrove. Deepsdf: Learning con-tinuous signed distance functions for shape representation. In CVPR , 2019. 3 [44] Despoina Paschalidou, Amlan Kar, Maria Shugrina, Karsten Kreis, Andreas Geiger, and Sanja Fidler. Atiss: Autoregres-sive transformers for indoor scene synthesis. 2021. 2 [45] Ben Poole, Ajay Jain, Jonathan T Barron, and Ben Milden-hall. Dreamfusion: Text-to-3d using 2d diffusion. arXiv preprint arXiv:2209.14988 , 2022. 3 [46] Xavier Puig, Eric Undersander, Andrew Szot, Mikael Dal-laire Cote, Tsung-Yen Yang, Ruslan Partsey, Ruta Desai, Alexander William Clegg, Michal Hlavac, So Yeon Min, et al. Habitat 3.0: A co-habitat for humans, avatars and robots. arXiv preprint arXiv:2310.13724 , 2023. 2 [47] Alexander Raistrick, Lingjie Mei, Karhan Kayan, David Yan, Yiming Zuo, Beining Han, Hongyu Wen, Meenal Parakh, Stamatis Alexandropoulos, Lahav Lipson, et al. In-finigen indoors: Photorealistic indoor scenes using procedu-ral generation. In CVPR , 2024. 2 [48] Nikhila Ravi, Valentin Gabeur, Yuan-Ting Hu, Ronghang Hu, Chaitanya Ryali, Tengyu Ma, Haitham Khedr, Roman R¨ adle, Chloe Rolland, Laura Gustafson, et al. Sam 2: Segment anything in images and videos. arXiv preprint arXiv:2408.00714 , 2024. 2 [49] Tianhe Ren, Shilong Liu, Ailing Zeng, Jing Lin, Kunchang Li, He Cao, Jiayu Chen, Xinyu Huang, Yukang Chen, Feng Yan, et al. Grounded sam: Assembling open-world models for diverse visual tasks. arXiv preprint arXiv:2401.14159 ,2024. 2 [50] Johannes Lutz Sch¨ onberger, Enliang Zheng, Marc Pollefeys, and Jan-Michael Frahm. Pixelwise view selection for un-structured multi-view stereo. In European Conference on Computer Vision (ECCV) , 2016. 3 [51] Meng-Li Shih, Wei-Chiu Ma, Lorenzo Boyice, Aleksander Holynski, Forrester Cole, Brian L. Curless, and Janne Kon-tkanen. Extranerf: Visibility-aware view extrapolation of neural radiance fields with diffusion models. In CVPR , 2024. 6[52] Mohit Shridhar, Jesse Thomason, Daniel Gordon, Yonatan Bisk, Winson Han, Roozbeh Mottaghi, Luke Zettlemoyer, and Dieter Fox. Alfred: A benchmark for interpreting grounded instructions for everyday tasks. In CVPR , 2020. 2[53] Julian Straub, Thomas Whelan, Lingni Ma, Yufan Chen, Erik Wijmans, Simon Green, Jakob J Engel, Raul Mur-Artal, Carl Ren, Shobhit Verma, et al. The replica dataset: A digital replica of indoor spaces. arXiv preprint arXiv:1906.05797 ,2019. 2 [54] Xingyuan Sun, Jiajun Wu, Xiuming Zhang, Zhoutong Zhang, Chengkai Zhang, Tianfan Xue, Joshua B Tenenbaum, and William T Freeman. Pix3d: Dataset and methods for single-image 3d shape modeling. In CVPR , pages 2974– 2983, 2018. 2 [55] Andrew Szot, Alex Clegg, Eric Undersander, Erik Wijmans, Yili Zhao, John Turner, Noah Maestre, Mustafa Mukadam, Devendra Chaplot, Oleksandr Maksymets, Aaron Gokaslan, Vladimir Vondrus, Sameer Dharur, Franziska Meier, Woj-ciech Galuba, Angel Chang, Zsolt Kira, Vladlen Koltun, Ji-tendra Malik, Manolis Savva, and Dhruv Batra. Habitat 2.0: Training home assistants to rearrange their habitat. 2021. 2 [56] Jiaxiang Tang, Zhaoxi Chen, Xiaokang Chen, Tengfei Wang, Gang Zeng, and Ziwei Liu. Lgm: Large multi-view gaussian model for high-resolution 3d content creation. In European Conference on Computer Vision , pages 1–18. Springer, 2024. 2[57] Jiapeng Tang, Yinyu Nie, Lev Markhasin, Angela Dai, Justus Thies, and Matthias Nießner. Diffuscene: Denoising diffu-sion models for gerative indoor scene synthesis. In CVPR ,2024. 2 [58] Yujie Tang, Meiling Wang, Yinan Deng, Zibo Zheng, Jingchuan Deng, Sibo Zuo, and Yufeng Yue. Openin: Open-vocabulary instance-oriented navigation in dynamic domes-tic environments. IEEE Robotics and Automation Letters , 10 (9):9256–9263, 2025. 3 [59] Vikram Voleti, Chun-Han Yao, Mark Boss, Adam Letts, David Pankratz, Dmitry Tochilkin, Christian Laforte, Robin Rombach, and Varun Jampani. Sv3d: Novel multi-view syn-thesis and 3d generation from a single image using latent video diffusion. In European Conference on Computer Vi-sion , pages 439–457. Springer, 2024. 2 [60] Johanna Wald, Helisa Dhamo, Nassir Navab, and Federico Tombari. Learning 3D Semantic Scene Graphs from 3D In-door Reconstructions. In CVPR , 2020. 3 [61] Peng Wang, Lingjie Liu, Yuan Liu, Christian Theobalt, Taku Komura, and Wenping Wang. Neus: Learning neural implicit surfaces by volume rendering for multi-view reconstruction. 2021. 2 [62] Peng Wang, Shuai Bai, Sinan Tan, Shijie Wang, Zhihao Fan, Jinze Bai, Keqin Chen, Xuejing Liu, Jialin Wang, Wenbin Ge, et al. Qwen2-vl: Enhancing vision-language model’s perception of the world at any resolution. arXiv preprint arXiv:2409.12191 , 2024. 2, 3 [63] Xinjie Wang, Liu Liu, Yu Cao, Ruiqi Wu, Wenkang Qin, Dehui Wang, Wei Sui, and Zhizhong Su. Embodiedgen: Towards a generative 3d world engine for embodied intel-ligence. arXiv preprint arXiv:2506.10600 , 2025. 2 [64] Qianyi Wu, Kaisiyuan Wang, Kejie Li, Jianmin Zheng, and Jianfei Cai. Objectsdf++: Improved object-compositional neural implicit surfaces. In ICCV , 2023. 2 [65] Rundi Wu, Ben Mildenhall, Philipp Henzler, Keunhong Park, Ruiqi Gao, Daniel Watson, Pratul P. Srinivasan, Dor Verbin, Jonathan T. Barron, Ben Poole, and Aleksander Holynski. Reconfusion: 3d reconstruction with diffusion pri-ors. In CVPR , 2024. 2 [66] Shun-Cheng Wu, Johanna Wald, Keisuke Tateno, Nassir Navab, and Federico Tombari. Scenegraphfusion: Incremen-tal 3d scene graph prediction from rgb-d sequences. In Pro-ceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 7515–7525, 2021. 3 [67] Shun-Cheng Wu, Keisuke Tateno, Nassir Navab, and Fed-erico Tombari. Incremental 3d semantic scene graph predic-tion from rgb sequences. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition ,pages 5064–5074, 2023. 3 [68] Chong Xia, Shengjun Zhang, Fangfu Liu, Chang Liu, Khod-chaphun Hirunyaratsameewong, and Yueqi Duan. Scene-painter: Semantically consistent perpetual 3d scene gen-eration with concept relation alignment. arXiv preprint arXiv:2507.19058 , 2025. 3 [69] Hongchi Xia, Entong Su, Marius Memmel, Arhan Jain, Ray-mond Yu, Numfor Mbiziwo-Tiapo, Ali Farhadi, Abhishek Gupta, Shenlong Wang, and Wei-Chiu Ma. Drawer: Digital reconstruction and articulation with environment realism. In 
+
+Proceedings of the Computer Vision and Pattern Recognition Conference , pages 21771–21782, 2025. 3 [70] Jiale Xu, Weihao Cheng, Yiming Gao, Xintao Wang, Shenghua Gao, and Ying Shan. Instantmesh: Efficient 3d mesh generation from a single image with sparse-view large reconstruction models. arXiv preprint arXiv:2404.07191 ,2024. 2 [71] Jiawei Yang, Marco Pavone, and Yue Wang. Freenerf: Im-proving few-shot neural rendering with free frequency regu-larization. In CVPR , 2023. 2 [72] Yandan Yang, Baoxiong Jia, Peiyuan Zhi, and Siyuan Huang. Physcene: Physically interactable 3d scene synthesis for embodied ai. In CVPR , 2024. 2 [73] Yue Yang, Fan-Yun Sun, Luca Weihs, Eli VanderBilt, Al-varo Herrasti, Winson Han, Jiajun Wu, Nick Haber, Ranjay Krishna, Lingjie Liu, et al. Holodeck: Language guided gen-eration of 3d embodied ai environments. In CVPR , 2024. 2 [74] Zesong Yang, Bangbang Yang, Wenqi Dong, Chenxuan Cao, Liyuan Cui, Yuewen Ma, Zhaopeng Cui, and Hujun Bao. Instascene: Towards complete 3d instance decomposition and reconstruction from cluttered scenes. arXiv preprint arXiv:2507.08416 , 2025. 2, 3, 6, 7 [75] Kaixin Yao, Longwen Zhang, Xinhao Yan, Yan Zeng, Qix-uan Zhang, Lan Xu, Wei Yang, Jiayuan Gu, and Jingyi Yu. Cast: Component-aligned 3d scene reconstruction from an rgb image. ACM Transactions on Graphics (TOG) , 44(4): 1–19, 2025. 3 [76] Lior Yariv, Jiatao Gu, Yoni Kasten, and Yaron Lipman. Vol-ume rendering of neural implicit surfaces. 2021. 2 [77] Chandan Yeshwanth, Yueh-Cheng Liu, Matthias Nießner, and Angela Dai. Scannet++: A high-fidelity dataset of 3d indoor scenes. In ICCV , 2023. 2 [78] Huangyue Yu, Baoxiong Jia, Yixin Chen, Yandan Yang, Puhao Li, Rongpeng Su, Jiaxin Li, Qing Li, Wei Liang, Song-Chun Zhu, et al. Metascenes: Towards automated replica creation for real-world 3d scans. In Proceedings of the Computer Vision and Pattern Recognition Conference ,pages 1667–1679, 2025. 2, 6, 8 [79] Zehao Yu, Songyou Peng, Michael Niemeyer, Torsten Sat-tler, and Andreas Geiger. Monosdf: Exploring monocu-lar geometric cues for neural implicit surface reconstruction. 2022. 6 [80] Longwen Zhang, Ziyu Wang, Qixuan Zhang, Qiwei Qiu, Anqi Pang, Haoran Jiang, Wei Yang, Lan Xu, and Jingyi Yu. Clay: A controllable large-scale generative model for creat-ing high-quality 3d assets. ACM Transactions on Graphics (TOG) , 43(4):1–20, 2024. 2, 6

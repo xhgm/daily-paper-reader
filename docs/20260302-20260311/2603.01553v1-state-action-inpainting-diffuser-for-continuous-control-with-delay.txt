@@ -1,0 +1,678 @@
+Title: State-Action Inpainting Diffuser for Continuous Control with Delay
+
+URL Source: https://arxiv.org/pdf/2603.01553v1
+
+Published Time: Tue, 03 Mar 2026 03:07:24 GMT
+
+Number of Pages: 20
+
+Markdown Content:
+# State-Action Inpainting Diffuser for Continuous Control with Delay 
+
+Dongqi Han 1 William Wei Wang 2 Enze Zhang 3 Dongsheng Li 1
+
+## Abstract 
+
+Signal delay poses a fundamental challenge in continuous control and reinforcement learning (RL) by introducing a temporal gap between inter-action and perception. Current solutions have largely evolved along two distinct paradigms: model-free approaches which utilize state aug-mentation to preserve Markovian properties, and model-based methods which focus on inferring latent beliefs via dynamics modeling. In this pa-per, we bridge these perspectives by introducing State-Action Inpainting Diffuser (SAID), a frame-work that integrates the inductive bias of dynam-ics learning with the direct decision-making capa-bility of policy optimization. By formulating the problem as a joint sequence inpainting task, SAID implicitly captures environmental dynamics while directly generating consistent plans, effectively operating at the intersection of model-based and model-free paradigms. Crucially, this generative formulation allows SAID to be seamlessly applied to both online and offline RL. Extensive experi-ments on delayed continuous control benchmarks demonstrate that SAID achieves state-of-the-art and robust performance. Our study suggests a new methodology to advance the field of RL with delay. 
+
+## 1. Introduction 
+
+Deep reinforcement learning (DRL) has evolved rapidly (Sutton & Barto, 1998), achieving success in virtual do-mains like video games (Vinyals et al., 2019) and simula-tions (Haarnoja et al., 2018a), as well as complex real-world tasks ranging from Tokamak control (Degrave et al., 2022) to tuning language models (Schulman et al., 2017; Brown et al., 2020). However, a critical challenge in DRL is signal delay : where observations or actions are not instantaneously               
+
+> 1Microsoft Research Asia 2University of Pennsylva-nia 3Shanghai Jiaotong University. Correspondence to: Dongqi Han <dongqihan@microsoft.com >,Dongsheng Li
+> <dongsli@microsoft.com >.
+> Preprint.
+
+received by the decision maker. Such delays are universal in practice, arising from network latency or processing bottle-necks in autonomous navigation (Jafaripournimchahi et al., 2022), high-frequency trading (Fang et al., 2021), robotics (Abad ´ıa et al., 2021), and tele-medicine (Meng et al., 2004). Even brief delays (e.g., 1 ms inference time) can be detri-mental in rapidly changing environments like Tokamaks (Degrave et al., 2022). These latencies significantly de-grade DRL performance, necessitating urgent research into effective solutions. Furthermore, signal delay is intrinsic to biological systems. Human neural signals take approx-imately 150 ms (Gerwig et al., 2005) to traverse afferent (sensor-to-brain) and efferent (brain-to-muscle) pathways. This lag is significant during high-speed motor control, such as sprinting or piano playing (Bastian, 2006). Standard deep RL methods, including those designed for partially observable tasks, have been reported to experience catastrophic failure on RL with delay (RLwD), even when the delay is small. In response to this challenge, a number of studies have been proposed recently to specifically handle RLwD problems. These methods can be categorized into two classes: model-free and model-based .Model-free methods (Nath et al., 2021; Liotet et al., 2022; Bouteiller et al., 2021; Wu et al., 2024a;b) for RLwD are based on a theorem that delayed observation can be con-verted into a standard Markov decision process (MDP) prob-lem by attaching previous actions into the current obser-vation as the input for the decision-making model (Wang et al., 2024a). Such methods are often referred to as state-augmentation methods, which are simple to implement, yet requiring the decision making model to learn the nature of control with delay (i.e., less inductive bias for the task). Model-based RLwD methods (Agarwal & Aggarwal, 2021; Chen et al., 2021; Liotet et al., 2021; Karamzade et al., 2024; Wu et al., 2025) focused on estimating the true state (undelayed observation) or the belief of it (Schmidhuber, 1991; Han et al., 2020) using an explicit or latent world model (such as Dreamer (Hafner et al., 2019)). A policy model then takes the estimated true state of the belief of it as input for decision making. Meanwhile, these methods are, as one might expect, dependent on the accuracy and capacity of the employed world model. Here, we propose a new approach based on diffusion plan-1 
+
+> arXiv:2603.01553v1 [cs.AI] 2 Mar 2026 State-Action Inpainting Diffuser
+> Figure 1. Illustration of our idea under case delay=3 as an exam-ple. Upper: inpainting in images. Bottom: state-action sequence inpainting for decision making with signal delay (our approach).
+
+ning (Janner et al., 2022), formulating RLwD as an inpaint-ing task (like in image generation) using diffusion models (Ho et al., 2020), as illustrated in Fig. 1. Our approach can be considered at the intersection of model-based and model-free RLwD methods. It implicitly learns the state-transition dynamics of the environment, while also taking the current observation and previous actions as input to out-put the desired action directly. Our approach, referred to as State-Action Inpainting Diffuser (SAID), integrates the advantages of model-free and model-based RLwD methods. SAID has several key advantages. First, it performs well both with and without delay compared with different base-lines (Table. 2 & Table. 1). Moreover, it can be effec-tively applied to both online RL and offline RL (Sec. 6.1 & Sec. 6.2), showing its versatility. Finally, it is robust to many design choices (Sec. 6.4), indicating that the performance gain is not from the implementation tricks but the novelty of this method. In light of our results, it suggests a new cat-egory of approach rather than previous state-augmented and belief-based methods to address the signal delay problems in reinforcement learning and continuous control. 
+
+## 2. Background 
+
+2.1. Markov decision process and RL 
+
+A Markov Decision Process (MDP) (Bellman, 1957) pro-vides the formal framework underlying reinforcement learn-ing (RL) (Sutton & Barto, 1998), defined by a state space, an action space, a transition distribution, a reward func-tion, and a discount factor. In RL, an agent interacts with the environment modeled as an MDP to learn a policy that maximizes cumulative reward. In online RL (Mnih et al., 2015; Haarnoja et al., 2018a), the agent learns through real-time interaction, continuously collecting new data while updating its policy. In contrast, offline RL (or batch RL) (Fu-jimoto et al., 2019; Levine et al., 2020) learns solely from a fixed dataset of previously collected trajectories, without any further environment interaction, making it particularly suitable for domains where exploration is costly, risky, or impractical. 
+
+2.2. Delayed Observation MDP 
+
+A Delayed observation Markov decision process (DOMDP) (Chen et al., 2021; Wang et al., 2024a) is defined as a special case of a POMDP by specifying its state as σ =(s(−T ), s (−T +1) , ..., s (−1) , s ), where T denotes the maxi-mum delay and s represents the state of an MDP without delay. Intuitively, s(−t) represents the state of the original MDP from t steps prior, and the superscript (−t) is used to indicate the relative timestep shift so that the Markovian property is preserved. The transition probability function of a DOMDP is defined as 
+
+T (σ′, r | σ, a ) = T0(s′, r | s, a )
+
+> T
+
+Y
+
+> t=1
+
+I(s′(−t) = s(−t+1) ),
+
+where I denotes the indicator function and T0(s′, r | s, a )
+
+denotes the transition probability of the original MDP. The term QTt=1 I(s′(−t) = s(−t+1) ) is used to transfer s(−t+1) 
+
+at the current step to s(−t) at the next step, thereby inter-preting s(−t) as the delayed state from t steps prior, without requiring the introduction of an absolute time step as in a time-dependent MDP (Boyan & Littman, 2000). The observation probability is then defined as 
+
+O(˜ s | σ) = O(˜ s | s(−T ), s (−T +1) , ..., s (−1) , s )=
+
+> T
+
+X
+
+> t=1
+
+P(t) I(˜ s = s(−t)),
+
+where ˜s denotes the observation (i.e., the delayed state), and 
+
+P(t) denotes the probability that the signal is delayed for t
+
+steps. A simple case is given by P(t) = I(t = ∆ T ), which indicates that the signal delay is fixed as ∆T steps, implying 
+
+˜s = s(−∆T ). A DOMDP is thus fully defined by specifying the elements of the corresponding POMDP. An important properties of DOMDP is described as follows (proven by Wang et al. (2024a)) 
+
+Theorem 2.1 (Recovering Markovian Property by State Augmentation) . By integrating historical actions a<t into the observation, the process becomes an MDP with state transition probability ¯P(¯ st+1 | ¯st, a t), where the aug-mented state is ¯st = (˜ st, a t−∆T :t−1).
+
+2.3. Diffusion models for decision making 
+
+Diffusion models have recently shown impressive effective-ness in decision-making tasks, largely due to their capacity for capturing complex distributions. In contrast to classical 2State-Action Inpainting Diffuser 
+
+diagonal Gaussian policies (Haarnoja et al., 2018b; Schul-man et al., 2017; Kostrikov et al., 2021; Kumar et al., 2020), diffusion-based approaches have achieved state-of-the-art results in both online (Wang et al., 2024b; Yang et al., 2023; Psenka et al., 2023; Ren et al., 2024) and offline reinforce-ment learning (Chen et al., 2023; Li et al., 2023; Wang et al., 2023; Hansen-Estruch et al., 2023; Janner et al., 2022), as well as in demonstration learning (Ze et al., 2024; Chi et al., 2023). Broadly, diffusion models are utilized in decision-making through two primary paradigms: (1) Diffusion planner (Ajay et al., 2022; Janner et al., 2022; Liang et al., 2023; Lu et al., 2025a), which models a trajec-tory τ capturing the current state and the following H future states (or state–action pairs) over a planning horizon: 
+
+τ = st, s t+1 , · · · , s t+H−1
+
+ or 
+
+st, s t+1 , · · · , s t+H−1
+
+at, a t+1 , · · · , a t+H−1
+
+
+
+.
+
+(2) Diffusion policy (Hansen-Estruch et al., 2023; Wang et al., 2023), which directly models the action distribution 
+
+p(at | st) using diffusion models, and can be interpreted as trajectory modeling with horizon H = 1 , i.e., τ = [ st at].Recent work has further broadened the scope of diffu-sion planning, extending it to settings such as vision-based decision-making (Chi et al., 2023) and approaches incor-porating 3D visual representations (Ze et al., 2024). Acomprehensive study (Lu et al., 2025a) examines crucial design factors and provides practical guidance for effective diffusion planning. Our method, SAID, falls within the class of diffusion planners. 
+
+## 3. Related Work 
+
+Recent work in RL commonly formalizes signal delay un-der the MDP framework, including delayed MDPs with equivalence transformations to standard MDPs (Nath et al., 2021), and modeling delayed observations as a special form of partially observable Markov decision processes (POMDPs), termed Delayed-Observation MDPs (DOMDPs) (Wang et al., 2024a). Alongside these theoretical formu-lations, existing approaches can be broadly grouped into two methodological paradigms. Augmentation-based ap-proaches optimize policies in an augmented MDP by con-catenating delay-window histories to the policy input. For instance, DIDA (Liotet et al., 2022) learns delayed policies in the augmented MDP by imitating delay-free expert behav-iors; DCAC performs delay-corrected actor–critic updates via off-policy multi-step value estimation under stochastic delays (Bouteiller et al., 2021); AD-RL bootstraps long-delay learning using auxiliary short-delay tasks (Wu et al., 2024a); and VDPO improves optimization efficiency by casting delayed RL in a variational inference framework (Wu et al., 2024b). However, augmentation-based meth-ods operate over increasingly high-dimensional augmented state spaces as the delay horizon grows, which can lead to scalability issues and degraded sample efficiency. Belief-/prediction-based approaches instead infer the current la-tent state (belief) from delayed observations and optimize policies based on the inferred belief, avoiding delay-window expansion; their performance is therefore tightly coupled to belief estimation accuracy. Representative early works explicitly model delay-aware dynamics and belief estima-tion, including EMQL (Agarwal & Aggarwal, 2021), which selects actions by maximizing expected Q-values under the inferred belief, DATS in delay-aware model-based RL (Chen et al., 2021) and attention-based belief prediction as in D-SAC (Liotet et al., 2021), while world-model-based approaches such as D-Dreamer reduce delayed POMDPs to (belief) MDPs and enable visual delayed continuous con-trol (Karamzade et al., 2024). A challenge for forecasting-based belief estimation is error accumulation under recur-sive multi-step prediction, which can lead to compounding errors; DFBT directly forecasts beliefs to mitigate such com-pounding effects compared to step-by-step prediction (Wu et al., 2025). 
+
+## 4. Methods 
+
+4.1. Nomenclature 
+
+To make the symbols and variable names clear, here we details the essential quantities as follows. The environment step in an episode is denoted as t, which is used for the subscript for the state st = s at step t. In a DOMDP with delay step ∆T , the observation, namely the delayed state, is denoted by ˜st. which is equal to st−∆T . Action and reward are denoted by at and rt.
+
+4.2. State-action inpainting for DOMDP 
+
+In the context of a Delayed-Observation MDP (DOMDP), the objective is to recover the underlying Markovian dynam-ics from delayed signals. Theoretically, since the delayed state ˜st is simply a time-shifted version of the true state st, it should be possible to infer the current true state by applying the transition dynamics recursively ∆T times. Conventional approaches often attempt to learn a forward dynamics model and perform multi-step forecasting to bridge the delay gap (Chen et al., 2021). However, while this approach is theoret-ically sound, it frequently results in catastrophic failure in practice, particularly as the delay horizon increases (Wang et al., 2024a). The fundamental limitation of explicit belief estimation lies in the nature of the regression task involved in continuous control. Unlike classification, where decision boundaries can be robust to minor perturbations, continuous state re-gression is highly sensitive to precision. As demonstrated empirically in our motivation verification (Section 5), autore-3State-Action Inpainting Diffuser 
+
+gressive prediction suffers severely from the “compounding error” phenomenon. When a model feeds its own prediction back as input for the next step, small approximation errors at t = 0 accumulate and amplify exponentially over the planning horizon H. This leads to a significant distribu-tional drift, where the predicted trajectory diverges rapidly from the ground truth dynamics (see Figure 4), rendering the estimated current state unreliable for policy input. To alleviate this problem, we propose a paradigm shift from recursive forecasting to generative inpainting, grounded in two key insights. First, we propose to generate the unde-layed observation using a diffusion model rather than an autoregressive model. Diffusion models generate the en-tire sequence holistically in a non-autoregressive manner, thereby avoiding the sequential accumulation of single-step errors (Janner et al., 2022). Second, we propose to jointly generate both state and action sequences. Since the tran-sition dynamics in a DOMDP are coupled with the action history, modeling the joint distribution p(τ ) of state-action pairs allows the model to capture the complex dependencies required to recover the underlying dynamics more accurately than state-only prediction. Building on these insights, we introduce the State-Action Inpainting Diffuser (SAID) . We formulate the delay prob-lem as a sequence inpainting task, analogous to filling in missing regions in an image. We define a trajectory of horizon H consisting of state-action pairs (Fig. 2). In the DOMDP setting, the history of delayed observations and executed actions is known (the ”condition”), while the cur-rent true state and optimal future actions are unknown (the ”mask”). During inference, we condition the diffusion pro-cess on the available delayed history and allow the model to “inpaint” the missing state and actions simultaneously (red-colored variables in Fig. 2). This approach effectively recovers the Markovian state st and generates a consistent plan without explicit state stacking or recursive estimation. We adopt the Diffuser architecture (Janner et al., 2022) but replaced the original U-Net (Ronneberger et al., 2015) by the Diffusion Transformer (DiT) architecture (Peebles & Xie, 2023) for the Denoising Diffusion Implicit Models (DDIM) (Song et al., 2020) planner. At each decision step, we em-ploy Monte-Carlo Sampling with Selection (MCSS) (Lu et al., 2025a)—at each decision step, the planner samples multiple candidates of state-action trajectories, and a critic function is used to select the highest-valued trajectory to make the final decision. Details are deferred to Appendix. B. 
+
+4.3. Practical algorithm 
+
+The State-Action Inpainting Diffuser (SAID) framework 1
+
+fundamentally relies on a dataset of state-action sequences     
+
+> 1Source code is available in Supplementary Materials.
+> Figure 2. The being modeled state-action sequence (in the dashed rectangle) of our State-Action Inpainting Diffuser at environment timestep twith delay ∆t. Black color indicates input conditions and red color indicates the inpainting values.
+
+to train a diffusion planner that can recover Markovian dy-namics from delayed observations. In the offline reinforce-ment learning setting described in Alg. 2, the method sim-ply utilizes the provided static dataset, preprocessing it to align delayed observations with their corresponding actions. Conversely, for the online reinforcement learning context outlined in Alg. 1, the system actively collects this training data by employing an existing delay-aware RL algorithm to interact with the environment and populate a replay buffer. A primary distinction between the two approaches lies in value function learning; the online method utilizes the value function maintained by the existing online agent, whereas the offline method must explicitly train a value function from the offline dataset, such as Implicit Q-Learning (Kostrikov et al., 2021), which we adopted in this study. Despite these differences in data acquisition and training, the remaining in-ference mechanism is shared across both paradigms, where the diffusion model generates candidate trajectories and the value function selects the optimal action for execution. More details of implementation are deferred to Appendix B. 
+
+4.4. Handling initial steps    
+
+> Figure 3. Handling episode start by padding initial actions and states, using t=0 and t=1 as examples. The symbols are the same as those in Figure 2.
+
+Fig. 3 illustrates the method’s strategy for handling the start of an episode, where a complete history of delayed obser-vations is not yet available. It depicts the use of padding (filling missing historical values with zeros) for the initial actions and delayed states at early timesteps (e.g., t = 0 and 
+
+t = 1 ) to allow the diffusion model to generate the true state and action sequences from the very beginning of a task. 4State-Action Inpainting Diffuser 
+
+## 5. Motivation Verification 
+
+Figure 4. The “compounding error” phenomenon of autoregressive state-transition models. See Fig. 11 for more examples. 
+
+To empirically verify the hypothesis that prediction errors accumulate in autoregressive state-transition models (of-ten referred to as the “compounding error” phenomenon), we conducted a toy experiment using D4RL MuJoCo loco-motion datasets (Fu et al., 2020). We established a base-line state-transition model parameterized by a multi-layer perceptron (MLP), which approximates the state transition function ˆst+1 = st + fθ (st, a t). The model was trained via standard supervised learning on single-step transitions, min-imizing the reconstruction loss given ground-truth current states (i.e., teacher forcing). During evaluation, we tested the model in an open-loop autoregressive setting over a fixed horizon H. Crucially, the model’s own predicted state ˆst—rather than the ground truth—was fed back as input for the subsequent prediction step. We then recorded the mean ab-solute error (MAE) between the predicted and ground-truth states at each timestep t to quantify the divergence of the generated trajectory over time (Fig. 4). This analysis quanti-fies the severity of distributional drift in autoregressive state prediction, thereby providing empirical justification for the adoption of our diffusion model-based generation methods. 
+
+## 6. Experiment Results 
+
+Following previous studies on RLwD (Chen et al., 2021; Wang et al., 2024a; Wu et al., 2024b; Zhan et al., 2025), we examined SAID on a set of robot locomotion tasks with de-lay, since these continuous control tasks are largely affected by signal delay in reality. SAID can be applied to both online and offline RL tasks, which will be discussed in the next two sections. We tested delay steps = 0 , 4, 8, 16 . For each delay step, the actual physical time is 8 milliseconds for Hopper and Walker and 50 milliseconds for HalfCheetah and Ant robots. 
+
+6.1. Online RL Benchmark tasks. Following standard practice in RLwD researches (Wang et al., 2024a; Wu et al., 2024b), we exam-ined SAID on the latest version of continuous control tasks from Gymnasium (Towers et al., 2024): Halfcheetah-v5, Ant-v5, Walker2d-v5, and Hopper-v5. 
+
+Baseline methods. We compare SAID against several rep-resentative online RL baselines for delayed control. Vanilla SAC (Haarnoja et al., 2018a) serves as a standard RL base-line that does not explicitly account for observation delays. We further evaluate delay-aware approaches, including state augmentation (SA-MLP) and delay-reconciled critic (DR-Critic) (Wang et al., 2024a). We additionally include vari-ational delayed policy optimization (VDPO) (Wu et al., 2024b), which learns delayed policies by imitating a policy trained in a non-delayed environment. 4 8 16              
+
+> Delay Steps
+> 0
+> 2000
+> 4000
+> 6000
+> 8000
+> 10000
+> HalfCheetah-v5
+> Vanilla SAC
+> DR-Critic
+> SA-MLP+DR-Critic
+> VDPO
+> SAID (Ours)
+> 4816
+> Delay Steps
+> 1000
+> 2000
+> 3000
+> 4000
+> 5000
+> 6000
+> Ant-v5
+> 4816
+> Delay Steps
+> 0
+> 1000
+> 2000
+> 3000
+> Hopper-v5
+> 4816
+> Delay Steps
+> 0
+> 2000
+> 4000
+> Walker2d-v5
+> 4816
+> Delay Steps
+> 0
+> 2000
+> 4000
+> 6000
+> 8000 Task Average (All Methods)
+> Vanilla SAC
+> DR-Critic
+> SA-MLP+DR-Critic
+> VDPO
+> SAID (Ours)
+> 0.0 0.2 0.4 0.6 0.8
+> delay physical time (sec)
+> 2000
+> 4000
+> 6000
+> 8000
+> 10000
+> SAID (Ours) vs. physical delay time
+> HalfCheetah-v5
+> Ant-v5
+> Hopper-v5
+> Walker2d-v5
+
+Figure 5. Performance (mean episodic return) for online RL with delay. One may notice that the experimental result of Hopper at delay=16 is higher than that at delay=8. This is also reported in Table 10 of the reference paper (Wu et al., 2025). 
+
+Fig. 5 and Table. 1 demonstrate that SAID consistently outperforms competing baseline methods across online rein-forcement learning benchmarks subject to signal delay. In the evaluation of four MuJoCo locomotion environments, SAID achieves the highest mean episodic returns across all tested delay durations ( 4, 8, and 16 steps), exhibiting su-perior stability compared to baselines. The “Task Average” plot further substantiates this superiority, showing that while standard methods such as Vanilla SAC suffer catastrophic failure and other baselines degrade significantly as latency 5State-Action Inpainting Diffuser 
+
+increases, SAID maintains robust performance. Task Method Delay steps 0 4 8 16 HC-v5 SAC 12450 ±695 −109 ±15 −129 ±18 −121 ±11                                                                                             
+
+> DR —4702 ±668 2873 ±537 1249 ±574
+> SADR —8190 ±543 4945 ±417 4565 ±816
+> VDPO —6720 ±733 3350 ±520 2085 ±332
+> SAID 14845 ±367 9648 ±436 5565 ±274 5289 ±432
+> Ant-v5 SAC 4553 ±2017 1047 ±30 982 ±13 961 ±6
+> DR —2241 ±249 1662 ±107 1282 ±123
+> SADR —4716 ±1253 4512 ±521 4118 ±62
+> VDPO —4834 ±422 3032 ±324 2588 ±524
+> SAID 5953 ±84 4586 ±660 4610 ±383 4137 ±41
+> Hop.-v5 SAC 2354 ±645 188 ±65 61 ±27 50 ±27
+> DR —65 ±58 21 ±10 34 ±21
+> SADR —2405 ±610 2002 ±556 2171 ±372
+> VDPO —1652 ±574 1518 ±321 1551 ±362
+> SAID 3170 ±283 2698 ±305 2514 ±415 3268 ±237
+> Walk.-v5 SAC 4910 ±501 338 ±79 185 ±98 157 ±111
+> DR —1979 ±868 2050 ±587 447 ±281
+> SADR —4999 ±559 5102 ±468 4827 ±320
+> VDPO —4494 ±584 4323 ±630 3032 ±542
+> SAID 5158 ±360 4874 ±230 5222 ±295 4913 ±175
+> Task Avg. SAC 6067 ±965 366 ±47 275 ±39 262 ±39
+> DR —2247 ±461 1652 ±310 753 ±250
+> SADR —5078 ±741 4140 ±491 3920 ±393
+> VDPO —4425 ±1812 3056 ±1007 2314 ±553
+> SAID 7282 ±274 5452 ±408 4478 ±342 4402 ±221
+
+Table 1. Results across methods under different delays (mean ±
+
+standard error across 4 training random seeds). Method abbrevia-tions: SAC (Vanilla SAC), DR (DR-Critic), SADR (SA-MLP+DR-Critic). For delay=0, DR-Critic and SA-MLP+DR-Critic reduce to Vanilla SAC; hence we report a single SAC(0) baseline and mark other methods with —. The results of SAID are obtained from 4 random seeds with 200 evaluation episodes per seed. Bold indicates the best mean within each task and delay. 
+
+6.2. Offline RL Benchmark tasks. We used the locomotion tasks from the standard D4RL (Fu et al., 2020) benchmark, which contains 3 environments (halfcheetah, hopper, walker2d), each with 3 kinds of data (medium, medium-expert, medium-replay). 
+
+Baseline methods. As we are not aware of any published work adapting offline RL with online delays 2, we compare our method to the SOTA diffusion-based method—diffusion Q-learning (Wang et al., 2023) with a modification to add state-augmentation. For a fair comparison, we also per-formed a grid search for the policy temperature of DQL+SA 
+
+> 2
+
+While we acknowledge the existence of Zhan et al. (2025) on arXiv, we exclude it from our primary comparison. Despite our requests, the authors did not provide code or sufficient im-plementation details to replicate their results. Following standard scientific practice, we restrict our comparison to peer-reviewed or reproducible methods to ensure a fair evaluation 0 1 2 4 8 16 delay steps 020 40 60 80 100 mean episodic return 
+
+> Mujoco locomotion offline RL (D4RL)
+> SAID (All tasks) SAID (Hopper & Walker2d) DQL+SA (All tasks) DQL+SA (Hopper & Walker2d)
+
+Figure 6. Offline RL performance, compared with Diffusion Q-Learning (DQL) with state augmentation (SA). 
+
+and report the best results. We also report the performance (delay=0) of representative, SOTA offline RL methods from various categories of algorithms for reference, such as CQL (Kumar et al., 2020), ReBRAC (Tarasov et al., 2023), Dif-fuser (Janner et al., 2022), DV (Lu et al., 2025a). For ensemble-based methods (e.g. An et al. (2021), Yang et al. (2022)), we omit the comparison due to the orthogonality between our contributions. We present the results in and Table 2, SAID exhibits sig-nificantly superior robustness and performance in offline reinforcement learning tasks with signal delay compared to the baseline Diffusion Q-Learning with State Augmenta-tion (DQL+SA). Fig. 6 visually demonstrates that whereas DQL+SA suffers severely when the delay increases to 4 steps. SAID maintains high episodic returns with only a gradual decline, even extending to 16 delay steps (Table 2). These findings strongly suggest that the inpainting-based formulation of SAID effectively mitigates the compounding errors inherent in state-augmentation methods for delayed offline control. Also, for the case of delay=0, SAID shows comparable performance to DQL, significantly outperforming SOTA diffusion planning method DV (Lu et al., 2025a). Since the performance without delay is not the focus of this study, the result of SAID at delay=0 is provided mainly for reference to the performance degradation with delay (Fig. 6). 
+
+6.3. Random seed matters in online learning, not offline 
+
+To investigate the robustness of our method, SAID, across different experimental conditions, we analyzed the impact of random seed initialization on performance stability. We compared the normalized standard deviation (STD) of the returns between Online RL and Offline RL settings across different delay steps. Fig. 7 presents the uncertainty arising from different training seeds. We observed that Online RL exhibits significantly higher variance across training seeds compared to Offline 6State-Action Inpainting Diffuser 
+
+Category Non-diffusion Diffusion Policies Diffusion Planners Baseline w/ delay 
+
+Method BC CQL ReBRAC DQL DQL* Diffuser DV SAID (ours) DQL+SA 
+
+Delay No delay 0 4 8 16 4 8 16 halfcheetah-medium-expert-v2 35.8 62.4 108.1 96.8 95.9 88.9 92.7 106.2 32.8 4.5 1.9 2.9 2.1 1.4 halfcheetah-medium-replay-v2 38.4 46.2 51.2 47.8 48.9 37.7 45.8 50.2 34.3 8.3 2.1 0.2 1.4 1.3 halfcheetah-medium-v2 36.1 44.4 66.4 51.1 52.6 42.8 50.4 58.5 45.2 5.8 1.5 2.4 2 1.3 walker2d-medium-expert-v2 6.4 111 104.6 110.1 112 106.9 109.2 111.1 111.1 110.8 106.7 8.1 -0.3 -0.1 walker2d-medium-replay-v2 11.8 26.7 89.4 95.5 99.9 70.6 85 95.5 91.1 85.6 45.2 7.1 -0.1 -0.2 walker2d-medium-v2 6.6 79.2 92.7 87 91.2 79.6 82.8 84.4 84.8 84.1 80.3 -0.1 -0.1 -0.1 hopper-medium-expert-v2 111.9 98.7 109.8 111.1 111.1 103.3 110.1 112.3 111.4 111.2 110.3 4.2 1.9 1hopper-medium-replay-v2 11.3 48.6 97.2 101.3 102.9 93.6 91.9 98.3 87.5 85.6 90.3 2.7 1.8 2.1 hopper-medium-v2 29 58 91.1 90.5 102 74.3 83.6 84.6 82 83.5 86.6 3.1 2 2
+
+All Tasks Average 31.9 63.9 90.1 87.9 90.7 77.5 83.5 89.0 75.6 64.4 58.3 3.4 1.2 1.0 Walker & Hopper Average 29.5 70.4 97.5 99.3 103.2 88.1 93.8 97.7 94.6 93.5 86.6 4.2 0.9 0.8 
+
+Table 2. Offline RL results on D4RL MuJoCo locomotion tasks, the performance of SAID is averaged over 4 random model seeds with each evaluated over 200 episodes. Here we omit the confidence interval since the performance of SAID for offline RL is less sensitive to random seed, see Sec. 6.3 for more discussion. DQL* is our replicated results using the same code base as SAID. Online Offline    
+
+> 0.05
+> 0.10
+> 0.15
+> 0.20
+> 0.25
+> Normalized STD
+> p = 0.011 *
+> Delay = 0
+> Online Offline
+> 0.05
+> 0.10
+> 0.15
+> 0.20
+> 0.25
+> p = 0.003 **
+> Delay = 4
+> Online Offline
+> 0.05
+> 0.10
+> 0.15
+> 0.20
+> 0.25
+> Normalized STD
+> p = 0.006 **
+> Delay = 8
+> Online Offline
+> 0.05
+> 0.10
+> 0.15
+> 0.20
+> 0.25
+> p = 0.076 (ns)
+> Delay = 16
+
+Figure 7. Violin plot of relative uncertainly (STD) of Online RL vs. offline RL among different same training seeds (averaged over 200 evaluation episdoes). The white point indicates the data mean. Mann-Whitney U-test was conducted and it showed a significantly higher seed-uncertainty of online RL than offline RL. 
+
+RL. Specifically, Mann-Whitney U-tests indicated statisti-cally significant differences in seed-uncertainty for lower delays. This suggests that the performance of Online RL is highly sensitive to the initial random seed (i.e., ”lucky seeds”), whereas Offline RL maintains consistent perfor-mance regardless of initialization. The difference became less significant at extreme delays, likely due to the generally increased difficulty of the task for both paradigms. In contrast, Fig. 8 illustrates the uncertainty across different evaluation episodes for a fixed trained policy. Here, we found no significant difference between the variances of Online and Offline RL. This indicates that once the mod-els are trained, the stochasticity of the policy execution is comparable between the two approaches. In conclusion, while SAID proves effective in both settings, its sensitivity to random seeds is much lower in offline RL. Therefore we report only the mean performance in Table 6.2. Online Offline     
+
+> 0.025
+> 0.050
+> 0.075
+> 0.100
+> 0.125
+> 0.150
+> 0.175
+> Normalized STD  p = 1.000 (ns)
+> Delay = 0
+> Online Offline
+> 0.025
+> 0.050
+> 0.075
+> 0.100
+> 0.125
+> 0.150
+> 0.175
+> p = 0.503 (ns)
+> Delay = 4
+> Online Offline
+> 0.025
+> 0.050
+> 0.075
+> 0.100
+> 0.125
+> 0.150
+> 0.175
+> Normalized STD  p = 0.825 (ns)
+> Delay = 8
+> Online Offline
+> 0.025
+> 0.050
+> 0.075
+> 0.100
+> 0.125
+> 0.150
+> 0.175 p = 0.503 (ns)
+> Delay = 16
+
+Figure 8. Violin plot of relative uncertainly (STD) of Online RL vs. offline RL among different evaluation episodes (averaged over 4 random training seeds). The white point indicates the data mean. Mann-Whitney U-test was conducted but no significant difference was observed. 
+
+6.4. Robustness analysis 
+
+We also conducted experiments to further investigate how robust SAID is to different design choices (ablation studies). Firstly, in Fig. 9, we observed that SAID maintains robust performance even no matter we use the full data from on-line experience (Algorithm 1) or only the most recent 20% of experiences (1 million steps, which contain relatively better, converged policies). Across all tested environments and delays, the average returns remain comparable, with overlapping error bars indicating no statistically significant performance difference. Secondly, we tested how diffusion denoising steps (Ho et al., 2020) affects the effectiveness of our methods. It is well 7State-Action Inpainting Diffuser Delay 0 Delay 4 Delay 8 Delay 16             
+
+> 0
+> 5000
+> 10000
+> 15000
+> Performance
+> HalfCheetah
+> Delay 0 Delay 4 Delay 8 Delay 16
+> 0
+> 2000
+> 4000
+> 6000
+> Ant
+> Delay 0 Delay 4 Delay 8 Delay 16
+> 0
+> 1000
+> 2000
+> 3000
+> Performance
+> Hopper
+> Delay 0 Delay 4 Delay 8 Delay 16
+> 0
+> 2000
+> 4000
+> Walker2d
+> Delay 0 Delay 4 Delay 8 Delay 16
+> 0
+> 2500
+> 5000
+> 7500
+> 10000
+> Performance
+> Average
+> use all experiences
+> use last 20% experiences
+
+Figure 9. Examining SAID’s performance for online RLwD tasks when using all online experiences (5M steps) or using only the last 20% experiences (1M steps). Data are Mean ± S.E.M. 
+
+known that diffusion model makes more accurate and fine generation but suffers from linearly increased computational overhead when denoising step increases. Fig. 10 shows that SAID is also robust to the choice of denoising steps. The performance increases only slightly when more denoising steps are adopted. 
+
+6.5. Inference Speed 
+
+For decision making with delay, the time spend by the model itself is also, the above section has shown that our model performs similarly well even only with 2 denoising steps. In this case, we evaluated the inference latency of SAID using a single A-100 GPU. The latency at per environment step (single environment, delay=8) is approximately 0.015 seconds, which is much smaller than the robot’s physical delay (Fig. 6.1, Bottom Right). 
+
+## 7. Conclusion & Discussion 
+
+In this work, we introduced the State-Action Inpainting Diffuser (SAID). Rather than proposing a new model archi-tecture, we propose a novel methodology that fundamentally reformulates RLwD as a trajectory inpainting task. By treat-ing the unknown current states and future actions—masked by signal latency—as missing regions in a spatio-temporal sequence, SAID leverages the powerful generative capabili-ties of diffusion models to reconstruct optimal trajectories conditioned on delayed observations. The success of this 2 5 10 20          
+
+> 0
+> 2000
+> 4000
+> 6000
+> Performance
+> Delay 0
+> 2510 20
+> 0
+> 1000
+> 2000
+> 3000
+> 4000
+> 5000
+> 6000
+> Delay 4
+> 2510 20
+> Denoising Steps
+> 0
+> 1000
+> 2000
+> 3000
+> 4000
+> 5000
+> Performance
+> Delay 8
+> 2510 20
+> Denoising Steps
+> 0
+> 1000
+> 2000
+> 3000
+> 4000
+> Delay 16
+
+Figure 10. Examining SAID’s performance for online RLwD (all-tasks average) with different denoising steps during inference. Data are Mean ± S.E.M. 
+
+approach is primarily driven by its ability to implicitly learn environmental dynamics without relying on an explicit, po-tentially biased world model. Furthermore, unlike autore-gressive prediction methods that suffer from compounding errors, the diffusion-based inpainting mechanism effectively captures the uncertainty inherent in delayed control, allow-ing the agent to generate consistent and plausible plans even under significant latency. SAID shares a notable limitation with other diffusion plan-ning methods: the high computational cost during inference. The iterative denoising process required to generate high-fidelity trajectories introduces calculation latency that poses challenges for high-frequency real-time control systems. However, this computational bottleneck is not insurmount-able. Recent advancements in diffusion acceleration, such as Habi (Lu et al., 2025b), offer a promising solution by adapting the denoising process to reuse previous generation patterns. Incorporating such acceleration techniques could drastically reduce the number of required sampling steps, making SAID feasible for deployment on hardware with lim-ited compute budgets without sacrificing the performance benefits of the inpainting formulation. Future work will focus on extending the framework to han-dle highly stochastic or time-varying delays without retrain-ing. Additionally, we aim to investigate the theoretical bounds of generative inpainting for control and validate the approach on physical robotic systems where delays are coupled with sensor noise. We believe the generative per-spective introduced here establishes a new standard for ro-bust continuous control, paving the way for delay-invariant autonomous systems. 8State-Action Inpainting Diffuser 
+
+## Impact Statement 
+
+This research advances technical progress in machine learn-ing by offering an effective decision-making framework under observation delay. It does not raise unique ethical issues beyond the usual considerations involved in the de-velopment and deployment of algorithms. 
+
+## References 
+
+Abad´ ıa, I., Naveros, F., Ros, E., Carrillo, R. R., and Luque, N. R. A cerebellar-based solution to the nondeterministic time delay problem in robotic control. Science Robotics ,6(58):eabf2756, 2021. Agarwal, M. and Aggarwal, V. Blind decision making: Re-inforcement learning with delayed observations. Pattern Recognition Letters , 150:176–182, 2021. Ajay, A., Du, Y., Gupta, A., Tenenbaum, J. B., Jaakkola, T. S., and Agrawal, P. Is conditional generative modeling all you need for decision making? In The Eleventh International Conference on Learning Representations ,2022. An, G., Moon, S., Kim, J.-H., and Song, H. O. Uncertainty-based offline reinforcement learning with diversified q-ensemble. Advances in neural information processing systems , 34:7436–7447, 2021. Bastian, A. J. Learning to predict the future: the cerebellum adapts feedforward movement control. Current opinion in neurobiology , 16(6):645–649, 2006. Bellman, R. A Markovian decision process. Journal of Mathematics and Mechanics , pp. 679–684, 1957. Bouteiller, Y., Ramstedt, S., Beltrame, G., Pal, C. J., and Binas, J. Reinforcement learning with random delays. In 
+
+International Conference on Learning Representations ,2021. Boyan, J. and Littman, M. Exact solutions to time-dependent mdps. Advances in Neural Information Pro-cessing Systems , 13, 2000. Brown, T., Mann, B., Ryder, N., Subbiah, M., Kaplan, J. D., Dhariwal, P., Neelakantan, A., Shyam, P., Sastry, G., Askell, A., et al. Language models are few-shot learners. 
+
+Advances in neural information processing systems , 33: 1877–1901, 2020. Chen, B., Xu, M., Li, L., and Zhao, D. Delay-aware model-based reinforcement learning for continuous control. Neu-rocomputing , 450:119–128, 2021. Chen, H., Lu, C., Ying, C., Su, H., and Zhu, J. Offline rein-forcement learning via high-fidelity generative behavior modeling. In The Eleventh International Conference on Learning Representations , 2023. Chi, C., Xu, Z., Feng, S., Cousineau, E., Du, Y., Burchfiel, B., Tedrake, R., and Song, S. Diffusion policy: Visuomo-tor policy learning via action diffusion. The International Journal of Robotics Research , pp. 02783649241273668, 2023. Degrave, J., Felici, F., Buchli, J., Neunert, M., Tracey, B., Carpanese, F., Ewalds, T., Hafner, R., Abdolmaleki, A., de Las Casas, D., et al. Magnetic control of Tokamak plasmas through deep reinforcement learning. Nature ,602(7897):414–419, 2022. Dong, Z., Yuan, Y., HAO, J., Ni, F., Ma, Y., Li, P., and ZHENG, Y. Cleandiffuser: An easy-to-use modularized library for diffusion models in decision making. In The Thirty-eight Conference on Neural Information Process-ing Systems Datasets and Benchmarks Track , 2024. Fang, Y., Ren, K., Liu, W., Zhou, D., Zhang, W., Bian, J., Yu, Y., and Liu, T.-Y. Universal trading for order execution with oracle policy distillation. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 35, pp. 107–115, 2021. Fu, J., Kumar, A., Nachum, O., Tucker, G., and Levine, S. D4rl: Datasets for deep data-driven reinforcement learning, 2020. Fujimoto, S., Meger, D., and Precup, D. Off-policy deep reinforcement learning without exploration. In Interna-tional Conference on Machine Learning , pp. 2052–2062. PMLR, 2019. Gerwig, M., Hajjar, K., Dimitrova, A., Maschke, M., Kolb, F. P., Frings, M., Thilmann, A. F., Forsting, M., Diener, H. C., and Timmann, D. Timing of conditioned eyeblink responses is impaired in cerebellar patients. Journal of Neuroscience , 25(15):3919–3931, 2005. Haarnoja, T., Zhou, A., Abbeel, P., and Levine, S. Soft actor-critic: Off-policy maximum entropy deep reinforce-ment learning with a stochastic actor. In International Conference on Machine Learning , pp. 1856–1865, 2018a. Haarnoja, T., Zhou, A., Hartikainen, K., Tucker, G., Ha, S., Tan, J., Kumar, V., Zhu, H., Gupta, A., Abbeel, P., et al. Soft actor-critic algorithms and applications. arXiv preprint arXiv:1812.05905 , 2018b. Hafner, D., Lillicrap, T., Ba, J., and Norouzi, M. Dream to control: Learning behaviors by latent imagination. In 
+
+International Conference on Learning Representations ,2019. 9State-Action Inpainting Diffuser 
+
+Han, D., Doya, K., and Tani, J. Variational recurrent models for solving partially observable control tasks. In Interna-tional Conference on Learning Representations , 2020. Hansen-Estruch, P., Kostrikov, I., Janner, M., Kuba, J. G., and Levine, S. Idql: Implicit q-learning as an actor-critic method with diffusion policies. arXiv preprint arXiv:2304.10573 , 2023. Ho, J., Jain, A., and Abbeel, P. Denoising diffusion proba-bilistic models. Advances in neural information process-ing systems , 33:6840–6851, 2020. Jafaripournimchahi, A., Cai, Y., Wang, H., Sun, L., and Yang, B. Stability analysis of delayed-feedback control effect in the continuum traffic flow of autonomous vehi-cles without v2i communication. Physica A: Statistical Mechanics and its Applications , 605:127975, 2022. Janner, M., Du, Y., Tenenbaum, J., and Levine, S. Planning with diffusion for flexible behavior synthesis. In Interna-tional Conference on Machine Learning , pp. 9902–9915. PMLR, 2022. Karamzade, A., Kim, K., Kalsi, M., and Fox, R. Rein-forcement learning from delayed observations via world models. arXiv preprint arXiv:2403.12309 , 2024. Kostrikov, I., Nair, A., and Levine, S. Offline reinforce-ment learning with implicit q-learning. arXiv preprint arXiv:2110.06169 , 2021. Kumar, A., Zhou, A., Tucker, G., and Levine, S. Con-servative q-learning for offline reinforcement learning. 
+
+Advances in Neural Information Processing Systems , 33: 1179–1191, 2020. Levine, S., Kumar, A., Tucker, G., and Fu, J. Offline rein-forcement learning: Tutorial, review, and perspectives on open problems. arXiv preprint arXiv:2005.01643 , 2020. Li, W., Wang, X., Jin, B., and Zha, H. Hierarchical diffusion for offline decision making. In International Conference on Machine Learning , pp. 20035–20064. PMLR, 2023. Liang, Z., Mu, Y., Ding, M., Ni, F., Tomizuka, M., and Luo, P. Adaptdiffuser: Diffusion models as adaptive self-evolving planners. ICML , 2023. Liotet, P., Venneri, E., and Restelli, M. Learning a belief rep-resentation for delayed reinforcement learning. In Inter-national Joint Conference on Neural Networks (IJCNN) ,2021. doi: 10.1109/IJCNN52387.2021.9534358. Liotet, P., Maran, D., Bisi, L., Restelli, M., and Pirotta, M. Delayed reinforcement learning by imitation. In 
+
+International Conference on Machine Learning , 2022. Lu, H., Han, D., Shen, Y., and Li, D. What makes a good diffusion planner for decision making? In The Thirteenth International Conference on Learning Representations ,2025a. Lu, H., Shen, Y., Li, D., Xing, J., and Han, D. Habitizing diffusion planning for efficient and effective decision making. In Forty-second International Conference on Machine Learning , 2025b. Meng, C., Wang, T., Chou, W., Luan, S., Zhang, Y., and Tian, Z. Remote surgery case: robot-assisted teleneuro-surgery. In IEEE International Conference on Robotics and Automation, 2004. Proceedings. ICRA’04. 2004 , vol-ume 1, pp. 819–823. IEEE, 2004. Mnih, V., Kavukcuoglu, K., Silver, D., Rusu, A. A., Veness, J., Bellemare, M. G., Graves, A., Riedmiller, M., Fidje-land, A. K., Ostrovski, G., et al. Human-level control through deep reinforcement learning. Nature , 518(7540): 529, 2015. Nath, S., Baranwal, M., and Khadilkar, H. Revisiting state augmentation methods for reinforcement learning with stochastic delays. In ACM International Conference on Information and Knowledge Management , 2021. Paszke, A., Gross, S., Massa, F., Lerer, A., Bradbury, J., Chanan, G., Killeen, T., Lin, Z., Gimelshein, N., Antiga, L., et al. Pytorch: An imperative style, high-performance deep learning library. Advances in neural information processing systems , 32, 2019. Peebles, W. and Xie, S. Scalable diffusion models with transformers. In Proceedings of the IEEE/CVF Interna-tional Conference on Computer Vision , pp. 4195–4205, 2023. Psenka, M., Escontrela, A., Abbeel, P., and Ma, Y. Learn-ing a diffusion model policy from rewards via Q-score matching. arXiv preprint arXiv:2312.11752 , 2023. Ren, A. Z., Lidard, J., Ankile, L. L., Simeonov, A., Agrawal, P., Majumdar, A., Burchfiel, B., Dai, H., and Simchowitz, M. Diffusion policy policy optimization. arXiv preprint arXiv:2409.00588 , 2024. Ronneberger, O., Fischer, P., and Brox, T. U-net: Con-volutional networks for biomedical image segmentation. In Medical Image Computing and Computer-Assisted Intervention–MICCAI 2015: 18th International Confer-ence, Munich, Germany, October 5-9, 2015, Proceedings, Part III 18 , pp. 234–241. Springer, 2015. Schmidhuber, J. Reinforcement learning in Markovian and non-Markovian environments. In Advances in Neural Information Processing Systems , pp. 500–506, 1991. 10 State-Action Inpainting Diffuser 
+
+Schulman, J., Wolski, F., Dhariwal, P., Radford, A., and Klimov, O. Proximal policy optimization algorithms. 
+
+arXiv preprint arXiv:1707.06347 , 2017. Song, J., Meng, C., and Ermon, S. Denoising diffusion implicit models. arXiv preprint arXiv:2010.02502 , 2020. Sutton, R. S. and Barto, A. G. Reinforcement learning: An introduction , volume 1. MIT press Cambridge, 1998. Tarasov, D., Kurenkov, V., Nikulin, A., and Kolesnikov, S. Revisiting the minimalist approach to offline rein-forcement learning. Advances in Neural Information Processing Systems , 36:11592–11620, 2023. Towers, M., Kwiatkowski, A., Terry, J., Balis, J. U., De Cola, G., Deleu, T., Goul ˜ao, M., Kallinteris, A., Krimmel, M., KG, A., et al. Gymnasium: A standard interface for reinforcement learning environments. arXiv preprint arXiv:2407.17032 , 2024. Vinyals, O., Babuschkin, I., Czarnecki, W. M., Mathieu, M., Dudzik, A., Chung, J., Choi, D. H., Powell, R., Ewalds, T., Georgiev, P., et al. Grandmaster level in starcraft ii using multi-agent reinforcement learning. Nature , 575 (7782):350–354, 2019. Wang, W., Han, D., Luo, X., and Li, D. Addressing signal delay in deep reinforcement learning. In International Conference on Learning Representations , 2024a. Wang, Y., Wang, L., Jiang, Y., Zou, W., Liu, T., Song, X., Wang, W., Xiao, L., Wu, J., Duan, J., et al. Diffu-sion actor-critic with entropy regulator. arXiv preprint arXiv:2405.15177 , 2024b. Wang, Z., Hunt, J. J., and Zhou, M. Diffusion policies as an expressive policy class for offline reinforcement learning. In The Eleventh International Conference on Learning Representations , 2023. Wu, Q., Zhan, S. S., Wang, Y., Wang, Y., Lin, C.-W., Lv, C., Zhu, Q., Schmidhuber, J., and Huang, C. Boosting reinforcement learning with strongly delayed feedback through auxiliary short delays. In International Confer-ence on Machine Learning , 2024a. Wu, Q., Zhan, S. S., Wang, Y., Wang, Y., Lin, C.-W., Lv, C., Zhu, Q., Schmidhuber, J., and Huang, C. Variational delayed policy optimization. In Advances in Neural In-formation Processing Systems , 2024b. Wu, Q., Wang, Y., Zhan, S. S., Wang, Y., Lin, C.-W., Lv, C., Zhu, Q., Schmidhuber, J., and Huang, C. Directly forecasting belief for reinforcement learning with delays. In International Conference on Machine Learning , 2025. Yang, L., Huang, Z., Lei, F., Zhong, Y., Yang, Y., Fang, C., Wen, S., Zhou, B., and Lin, Z. Policy representation via diffusion probability model for reinforcement learning. 
+
+arXiv preprint arXiv:2305.13122 , 2023. Yang, R., Bai, C., Ma, X., Wang, Z., Zhang, C., and Han, L. Rorl: Robust offline reinforcement learning via con-servative smoothing. Advances in neural information processing systems , 35:23851–23866, 2022. Ze, Y., Zhang, G., Zhang, K., Hu, C., Wang, M., and Xu, H. 3D diffusion policy. arXiv preprint arXiv:2403.03954 ,2024. Zhan, S. S., Wu, Q., Yang, F., Shi, X., Huang, C., and Zhu, Q. Adapting offline reinforcement learning with online delays. arXiv preprint arXiv:2506.00131 , 2025. 11 State-Action Inpainting Diffuser 
+
+## A. Algorithm Pseudo-Code 
+
+Algorithm 1 SAID for Online RLwD 
+
+1: Input: Task environment E with observation delay ∆t
+
+2: Input: Randomly initialized diffusion model θ, planning horizon H
+
+3: Input: Any online RLwD algorithm A (we adopt Wang et al. (2024a) in this study) and its policy model π and state value function v; replay buffer B
+
+4: ▷ Pre-learning and collect data 
+
+5: for episode m = 1 to M do 
+
+6: Reset environment, initial observation ˜s0.
+
+7: t ← 0
+
+8: while not terminal or truncated do 
+
+9: Sample action at ∼ π(a|st, a t−∆t:t−1)
+
+10: Execute at in E
+
+11: Receive reward rt and next observation ˜st+1 
+
+12: Store transition (˜ st, a t, r t, ˜st+1 ) in B
+
+13: Update policy π and value function v using A
+
+14: t ← t + 1 , st ← st+1 
+
+15: end while 
+
+16: end for 
+
+17: ▷ Train diffusion planner of SAID 
+
+18: for gradient step n = 1 to N do 
+
+19: Randomly sample a batch of state-action sequences (˜ sτ :τ +H−1, a τ −∆t:τ −∆+ H−1) from B
+
+20: Train θ conditioned on (˜ sτ , a τ −∆t:τ −1) (Fig. 2) (Here we adopted DV as base model (Lu et al., 2025a)) 
+
+21: end for 
+
+22: ▷ Inference using SAID 
+
+23: for evaluation episode m′ = 1 to M ′ do 
+
+24: Reset environment, initial observation ˜s0.
+
+25: t ← 0
+
+26: Initialize action buffer D
+
+27: while not terminal or truncated do 
+
+28: Use θ to generate multiple candidates of ˜st+1: t+H+1 , a t:t+H−1, conditioned on (˜ st, a t−∆t:t−1) (Fig. 2,3) 
+
+29: Compute the mean value of ˜st+1: t+H+1 using trained value function v and select the best trajectory from all the candidates 
+
+30: Choose at from the best trajectory in E
+
+31: Append at to D
+
+32: Receive reward rt an next observation t+1 
+
+33: t ← t + 1 ,
+
+34: st ← st+1 
+
+35: end while 
+
+36: end for 
+
+12 State-Action Inpainting Diffuser 
+
+Algorithm 2 SAID for offline RLwD 
+
+1: Input: Task environment E, offline dataset (st, a t, r t, s t+1 ) , and observation delay ∆t.
+
+2: Input: Randomly initialized diffusion model θ, planning horizon H, value function v and corresponding learning algorithm (here we adopt implicit Q-learning (Kostrikov et al., 2021)) 
+
+3: ▷ Pre-learning and collect data 
+
+4: Convert offline dataset to (˜ st, a t, r t, ˜st+1 ) by shifting the states by ∆t steps. 
+
+5: ▷ Train diffusion planner of SAID and value function 
+
+6: for gradient step n = 1 to N do 
+
+7: Randomly sample a batch of state-action sequences (˜ sτ :τ +H−1, a τ −∆t:τ −∆+ H−1) from B
+
+8: Train θ conditioned on (˜ sτ , a τ −∆t:τ −1) (Fig. 2) 
+
+9: Train value function v
+
+10: end for 
+
+11: ▷ Inference using SAID 
+
+12: for evaluation episode m′ = 1 to M ′ do 
+
+13: Reset environment, initial observation ˜s0.
+
+14: t ← 0
+
+15: Initialize action buffer D
+
+16: while not terminal or truncated do 
+
+17: Use θ to generate multiple candidates of ˜st+1: t+H+1 , a t:t+H−1, conditioned on (˜ st, a t−∆t:t−1) (Fig. 2,3) 
+
+18: Compute the mean value of ˜st+1: t+H+1 using trained value function v and select the best trajectory from all the candidates 
+
+19: Choose at from the best trajectory 
+
+20: Execute at in E; append at to D
+
+21: Receive reward rt an next observation t+1 
+
+22: t ← t + 1 ,
+
+23: st ← st+1 
+
+24: end while 
+
+25: end for 
+
+13 State-Action Inpainting Diffuser 
+
+## B. Implementation Details 
+
+Our implementation is built upon the PyTorch framework (Paszke et al., 2019), utilizing the cleandiffuser library (Dong et al., 2024) for the diffusion model backbone and sampling utilities. 
+
+B.1. Environment and Signal Delay 
+
+To simulate observation delays in both online and offline settings, we implemented a custom environment wrapper, 
+
+DelayedEnvWrapper . This wrapper maintains a First-In-First-Out (FIFO) buffer with a capacity equal to the delay steps ∆t.• Initialization: Upon environment reset, the buffer is initialized by repeating the initial observation s0 for ∆t times. • Step Function: At each timestep t, the wrapper returns the delayed observation st−∆t from the front of the buffer and appends the newly received true observation st+1 to the back. • Reward and Termination: Consistent with the problem formulation, rewards rt and termination signals are provided without delay. 
+
+B.2. Dataset and Preprocessing 
+
+For offline reinforcement learning, we utilize the D4RL benchmark datasets. For online experiments, we use Gymnasium environments ( HalfCheetah-v5 , Ant-v5 , Hopper-v5 , Walker2d-v5 ) (Towers et al., 2024). • Sequence Construction: We utilize a sequence dataset loader. The planning horizon is dynamically adjusted to 
+
+H + ∆ t, ensuring the model captures both the delay window and the future planning horizon. • Normalization: States and actions are normalized to zero mean and unit variance. Actions are clipped to 
+
+[−0.999 , 0.999] and transformed using the inverse hyperbolic tangent ( arctanh ) to map them to an unbounded Gaussian distribution suitable for diffusion training. 
+
+B.3. Model Architecture 
+
+The core of the State-Action Inpainting Diffuser (SAID) is a conditional diffusion model designed to recover the sequence of true states and actions. • Backbone: We employ a 1D Diffusion Transformer ( DiT1d ) as the noise prediction network ϵθ . The network processes the flattened state-action trajectories. We utilize Fourier feature encodings for timestep embeddings. The architecture depth are configurable hyperparameters (see Appendix B.6), and the network width is 256. • Inpainting Mask: We utilize a fixed masking strategy (‘fix mask‘) to enforce conditions. The current observation (delayed state) ˜st (at relative index 0) and the history of executed actions at−∆t:t−1 (indices 0 to ∆t) are masked as known values. The diffusion model is tasked with inpainting the unknown future states and actions. 
+
+B.4. Training 
+
+The diffusion planner is trained to approximate the data distribution of valid trajectories. • Optimization: We use the Adam optimizer with a Cosine Annealing learning rate scheduler. • Loss Function: We support a weighted regression loss to prioritize high-value trajectories. The loss is computed as: 
+
+L = E w(τ ) · || ϵ − ϵθ (xt, t )|| 2 (1) where the weight w(τ ) = exp( β · (V (τ ) − 1)) is derived from the value estimates of the trajectory, controlled by a temperature parameter β (weight factor). • Value Function: For offline RL, we concurrently train an Implicit Q-Learning (IQL) (Kostrikov et al., 2021) value function ( Vψ ) to provide the necessary value guidance and trajectory evaluation using MCSS (Lu et al., 2025a). 14 State-Action Inpainting Diffuser 
+
+B.5. Inference and Control 
+
+During evaluation, the model operates in a receding horizon control loop: • Sampling: At each step, we generate N candidate trajectories in parallel (where N = num envs ×
+
+planner num candidates ). The sampling process begins with Gaussian noise and is denoised using a DDIM scheduler. • Conditioning: The reverse diffusion process is conditioned on the delayed observation history and previously executed actions using the inpainting mask. • Selection Strategy (MCSS): We employ Monte-Carlo Sampling with Selection. The generated candidate trajectories are evaluated using the learned Value Network Vψ . The trajectory with the highest mean predicted value is selected as the optimal plan. • Execution: The action corresponding to the current time step (relative index ∆t in the generated sequence) is extracted, denormalized (applying tanh ), and executed in the environment. For other potentially not mentioned configurations, we simply follow the SOTA diffusion planner DV (Lu et al., 2025a). 
+
+B.6. Hyper-parameters 
+
+Most hyper-parameters are task-independent, which are specified in Table 3. Area Hyperparameter Value What it controls Environment / reward shaping terminal penalty -100 Penalty on terminal condition. Environment / reward shaping full traj bonus 0 Bonus for completing full trajectory. Planner diffusion planner solver ddim Sampling/solver for planner diffusion. Planner architecture planner emb dim 128 Planner embedding dimension. Planner architecture planner d model 256 Transformer model width (d model). Planner sampling planner sampling steps 20 Steps used when sampling planner diffusion. Planner objective planner predict noise TRUE Train planner to predict noise. Planner EMA planner ema rate 0.9999 EMA decay rate for planner parameters. Regression weighting weight factor 2 Strength for weight regression Critic learning discount 0.99 Discount factor Critic learning critic learning rate 0.0003 Critic function learning rate Critic learning iql tau 0.7 Hyper-parameter τ in IQL (for offline RL) Training budget planner diffusion gradient steps 1000000 Update steps for planner diffusion. Training batch batch size 256 Batch size for training. Planner inference planner num candidates 50 Number of candidate plans sampled/considered. Planner inference planner use ema TRUE Use EMA weights for planner at inference. Planning planner horizon 8 + Delay Steps Plan sequence length Planning stride 1 Plan sequence stride 
+
+Table 3. Task-independent hyperparameters of SAID. 
+
+We did grid search for two crucial hyper-parameters (planner network depth and inference temperature). The importance of these two hyper-parameters have also been discussed in previous study by Lu et al. (2025a).The search range was 
+
+[0 , 0.3, 0.6, 0.8, 1] for temperature and [2 , 4, 8] for planner depth. The tunned hyper-parameters are reported in Table 4. 
+
+## C. Extensive Experimental Results 
+
+We also provide the SAID’s offline RL performance with error bar (Table. 5, the detailed performance when denoising steps changes (Table. 6), as well as the distributions of episodic returns of SAID for each task (Fig. 12,13,14,15). 15 State-Action Inpainting Diffuser 
+
+Figure 11. Full D4RL locomotion task results for Fig. 4. 
+
+16 State-Action Inpainting Diffuser 
+
+Task Name Delay 0 (pd / tmp) Delay 4 (pd / tmp) Delay 8 (pd / tmp) Delay 16 (pd / tmp) Online RL Tasks Ant-v5 8 / 0.6 8 / 0.6 8 / 0.6 8 / 0.8 HalfCheetah-v5 8 / 0.6 8 / 0.3 8 / 0.3 8 / 0.1 Hopper-v5 8 / 0.6 4 / 0.3 2 / 0.1 8 / 0.6 Walker2d-v5 8 / 0.8 8 / 0.6 4 / 0.8 8 / 0.6 HalfCheetah (D4RL) medium-expert-v2 8 / 0.8 8 / 0.3 8 / 0.1 4 / 0.1 medium-replay-v2 4 / 1.0 8 / 0.6 8 / 0.1 8 / 0.3 medium-v2 8 / 0.8 8 / 0.3 8 / 0.1 8 / 0.1 Walker2d (D4RL) medium-expert-v2 8 / 1.0 8 / 0.8 8 / 0.8 8 / 0.3 medium-replay-v2 2 / 0.8 4 / 0.8 4 / 0.6 8 / 0.8 medium-v2 8 / 1.0 8 / 1.0 4 / 1.0 8 / 0.6 Hopper (D4RL) medium-expert-v2 8 / 0.3 8 / 0.3 4 / 0.1 8 / 0.1 medium-replay-v2 2 / 0.6 8 / 1.0 8 / 0.8 4 / 0.8 medium-v2 8 / 1.0 4 / 1.0 4 / 1.0 8 / 1.0 
+
+Table 4. Best hyperparameters of SAID for each task after grid search (pd: depth of the planner DiT, tmp: temperature of the planner during inference). 
+
+Task Delay 0 Delay 4 Delay 8 Delay 16 halfcheetah-medium-expert-v2 106.2 ± 0.1 32.8 ± 0.8 4.5 ± 0.1 1.9 ± 0.5 halfcheetah-medium-replay-v2 50.2 ± 0.2 34.3 ± 0.5 8.3 ± 0.6 2.1 ± 0.8 halfcheetah-medium-v2 58.5 ± 0.2 45.2 ± 0.5 5.8 ± 0.1 1.5 ± 0.3 walker2d-medium-expert-v2 111.1 ± 0.0 111.1 ± 0.0 110.8 ± 0.0 106.7 ± 0.9 walker2d-medium-replay-v2 95.5 ± 0.5 91.1 ± 1.1 85.6 ± 1.4 45.2 ± 1.7 walker2d-medium-v2 84.4 ± 0.0 84.8 ± 0.1 84.1 ± 0.1 80.3 ± 0.6 hopper-medium-expert-v2 112.3 ± 0.1 111.4 ± 0.3 111.2 ± 0.3 110.3 ± 0.3 hopper-medium-replay-v2 98.3 ± 0.9 87.5 ± 1.1 85.6 ± 4.8 90.3 ± 1.5 hopper-medium-v2 84.6 ± 2.8 82.0 ± 1.6 83.5 ± 1.4 86.6 ± 0.6 
+
+Table 5. SAID’s offline RL performance with error bar (S.E.M. 4 random seeds). 
+
+17 State-Action Inpainting Diffuser 
+
+Task Delay denoising step=2 denoising step=5 denoising step=10 denoising step=20 HalfCheetah 0 14304.3 ± 272.1 14735.6 ± 350.1 14817.9 ± 362.5 14844.8 ± 366.7 4 9065.5 ± 425.4 9412.7 ± 446.3 9520.5 ± 455.9 9647.9 ± 435.5 8 5478.1 ± 278.6 5510.9 ± 269.5 5556.2 ± 278.3 5565.2 ± 273.7 16 5192.4 ± 413.2 5289.3 ± 425.9 5265.9 ± 424.3 5288.9 ± 431.8 Ant 0 5586.9 ± 102.7 5900.8 ± 79.7 5964.3 ± 117.6 5953.4 ± 83.5 4 4540.8 ± 643.6 4615.8 ± 676.2 4544.5 ± 635.4 4585.6 ± 659.5 8 4436 ± 500.2 4507.6 ± 372.1 4507.3 ± 471.8 4609.9 ± 383 16 4171.4 ± 41.4 4134.9 ± 46.8 4123.8 ± 45.8 4137.4 ± 41.1 Hopper 0 2750.7 ± 293.4 3086.7 ± 278.3 3145.6 ± 237.9 3170 ± 283.3 4 2856.9 ± 320.3 2798.8 ± 251.9 2744.6 ± 263 2697.7 ± 305.4 8 2916.1 ± 376.1 2805.2 ± 388.9 2537.4 ± 385.3 2513.7 ± 414.5 16 3321.7 ± 219.6 3260.5 ± 311.1 3261.8 ± 295 3268.1 ± 236.7 Walker2d-v5 0 5002 ± 439.6 5122.1 ± 364.2 5147.1 ± 355.2 5158.1 ± 359.9 4 4805.1 ± 180.8 4851.5 ± 196.2 4874.2 ± 216.9 4874.1 ± 230.2 8 5108 ± 279.2 5182.7 ± 298.6 5210.5 ± 294.7 5222.4 ± 295.2 16 4814 ± 181.1 4916.1 ± 185.1 4921.6 ± 183.6 4913 ± 175.2  
+
+> Table 6. SAID’s online RL performance vs. Denoising steps of the diffusion model during inference.
+
+18 State-Action Inpainting Diffuser 
+
+Figure 12. Episodic returns of SAID for each task (delay=0). The histogram shows the performance distribution of 200 episodes of one trained diffusion planning model. 
+
+Figure 13. Episodic returns of SAID for each task (delay=4). The histogram shows the performance distribution of 200 episodes of one trained diffusion planning model. 
+
+19 State-Action Inpainting Diffuser 
+
+Figure 14. Episodic returns of SAID for each task (delay=8). The histogram shows the performance distribution of 200 episodes of one trained diffusion planning model. 
+
+Figure 15. Episodic returns of SAID for each task (delay=16). The histogram shows the performance distribution of 200 episodes of one trained diffusion planning model. 
+
+20

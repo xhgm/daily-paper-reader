@@ -1,0 +1,416 @@
+Title: Learning Vision-Based Omnidirectional Navigation: A Teacher-Student Approach Using Monocular Depth Estimation
+
+URL Source: https://arxiv.org/pdf/2603.01999v1
+
+Published Time: Tue, 03 Mar 2026 03:49:55 GMT
+
+Number of Pages: 8
+
+Markdown Content:
+# Learning Vision-Based Omnidirectional Navigation: A Teacher-Student Approach Using Monocular Depth Estimation 
+
+Jan Finke 1,2, Wayne Paul Martis 1,2, Adrian Schmelter 1,2,Lars Erbach 1,2, Christian Jestel 1,2, Marvin Wiedemann 1,2
+
+Abstract — Reliable obstacle avoidance in industrial settings demands 3D scene understanding, but widely used 2D LiDAR sensors perceive only a single horizontal slice of the envi-ronment, missing critical obstacles above or below the scan plane. We present a teacher-student framework for vision-based mobile robot navigation that eliminates the need for LiDAR sensors. A teacher policy trained via Proximal Policy Optimization (PPO) in NVIDIA Isaac Lab leverages privileged 2D LiDAR observations that account for the full robot footprint to learn robust navigation. The learned behavior is distilled into a student policy that relies solely on monocular depth maps predicted by a fine-tuned Depth Anything V2 model from four RGB cameras. The complete inference pipeline, comprising monocular depth estimation (MDE), policy execu-tion, and motor control, runs entirely onboard an NVIDIA Jetson Orin AGX mounted on a DJI RoboMaster platform, requiring no external computation for inference. In simulation, the student achieves success rates of 82–96.5%, consistently outperforming the standard 2D LiDAR teacher (50–89%). In real-world experiments, the MDE-based student outperforms the 2D LiDAR teacher when navigating around obstacles with complex 3D geometries, such as overhanging structures and low-profile objects, that fall outside the single scan plane of a 2D LiDAR. 
+
+I. I NTRODUCTION 
+
+Autonomous mobile robots (AMRs) are widely deployed in industrial environments to automate material transport between designated locations. For navigation and collision avoidance, they predominantly rely on 2D Light Detection and Ranging (LiDAR) sensors [1]. However, since this perception is limited to a single horizontal scan plane, AMRs struggle to operate reliably in complex scenarios involving obstacles that extend outside this plane, such as forklift tines, overhanging loads, or partially occupied shelves [2]. While supplementary 3D sensors such as stereo cameras or time-of-flight systems can mitigate this limitation [3], [4], they add significant cost, weight, and integration complexity compared to standard RGB cameras [5]. Recent advances in monocular depth estimation (MDE), driven by large-scale foundation models, now yield highly accurate relative depth maps from single RGB images with-out dedicated depth sensors [6], [7]. Foundation models such as Depth Anything V2 [8] can infer dense depth maps from single RGB images, effectively turning inexpensive off-the-shelf cameras into depth sensors while preserving rich spatial information. In this work, we combine MDE with deep reinforcement learning (DRL) to realize vision-based navigation, mapping depth observations directly to velocity commands without 
+
+Fig. 1: Parallel training environments in NVIDIA Isaac Lab. Each environment contains a randomized set of industrial obstacles for domain randomization during policy training. requiring hand-crafted planners or costmaps. We adopt a teacher-student training scheme: a teacher policy is first trained with access to privileged collision information [9] in NVIDIA Isaac Lab [10] (Fig. 1). The teacher’s behavior is then distilled into a student policy that operates solely on depth maps obtained from four onboard RGB cameras through MDE at a control frequency of 10 Hz, using a fine-tuned Depth Anything V2 model adapted to our domain. Do-main randomization [11] and depth map augmentation [12] facilitate robust sim-to-real transfer. An overview of the complete pipeline is shown in Fig. 2. Our main contributions are as follows:  
+
+> •
+
+A teacher-student reinforcement learning (RL) frame-work in which a Proximal Policy Optimization (PPO)-trained teacher with privileged 2D LiDAR observations distills its policy into a student that navigates using only MDE-derived depth maps from a multi-camera setup.  
+
+> •
+
+An onboard deployment on an NVIDIA Jetson Orin AGX embedded platform with successful sim-to-real transfer.  
+
+> •
+
+A comparative evaluation in both simulation and real-world experiments demonstrating that the MDE-based student policy matches or exceeds the 2D LiDAR teacher. II. R ELATED WORK 
+
+Our work builds on three research areas: deep reinforce-ment learning for navigation, monocular depth estimation          
+
+> arXiv:2603.01999v1 [cs.RO] 2 Mar 2026 Teacher Policy (PPO Training)
+> Exteroceptive
+> (2D LiDAR)
+> Proprioceptive (Odometry)
+> Rewards (Reward Function)
+> Actions (cmd_vel)
+> NVIDIA ISAAC Lab Simulation 2D LiDAR Raycaster
+> Privileged Information (Collision Meshes)
+> Observations
+> Robomaster Asset (360 Degree 2D LiDAR)
+> Step I
+> Teacher Training with Privileged Observations (Online)
+> Teacher Policy (Inference)
+> Step II
+> Data Logging with Depth Noise Augmentation (Online)
+> Actions
+> (cmd_vel)
+> Exteroceptive
+> (2D LiDAR)
+> Proprioceptive (Odometry)
+> Observations
+> Offline Dataset
+> Noise Augmentation
+> n Depth Maps
+> Offline Dataset
+> Step III
+> Student Training Supervised Learning (Offline)
+> Student Policy (Training Supervised)
+> Behavior Cloning
+> Loss
+> Teacher Actions
+> (cmd_vel)
+> Student Actions
+> (cmd_vel)
+> Proprioceptive (Odometry)
+> Exteroceptive
+> (Depth Maps)
+> Domain Randomization
+> - Number of Objects -Object Positions - Mass, Friction - LiDAR Noise,
+> - LiDAR Angle Error ...
+> NVIDIA ISAAC Lab Simulation 2D LiDAR Raycaster and Depth Maps
+
+Fig. 2: Teacher-student pipeline for learning vision-based navigation from privileged LiDAR observations. as a LiDAR alternative, and privileged learning for policy distillation. 
+
+A. Deep Reinforcement Learning for Mobile Robot Naviga-tion 
+
+DRL has emerged as a powerful paradigm for learning navigation policies that directly map sensory observations to control commands, bypassing the manual engineering required by traditional layered architectures [13]. However, large-scale real-world evaluations reveal that the choice of sensor modality critically affects sim-to-real transfer [14]. Training such policies requires simulation environments that balance physical realism with computational efficiency [10], [15]. For training, PPO [16] has become the de facto standard for on-policy RL due to its training stability and efficient scaling to massively parallel settings [17]. 
+
+B. Monocular Depth Estimation for Mobile Robots 
+
+LiDAR sensors provide accurate 3D perception for mobile robot navigation but their high cost and power consump-tion [3] motivate the search for lightweight sensor alterna-tives in applications such as intralogistics [1]. While stereo cameras offer an alternative [4], [5], monocular cameras provide the most lightweight solution, requiring only a single lens but depending on learned depth estimation [18], [19]. The advent of deep learning enabled end-to-end depth pre-diction from single images [6], and recent foundation models achieve strong zero-shot generalization across diverse scenes. These models can be categorized by output type: affine-invariant models such as Depth Anything V2 [8] predict relative depth with robust edge preservation, while metric models such as Metric3D v2 [7] recover absolute distances by modeling camera parameters. Lightweight variants enable real-time inference on embedded platforms [20], [21]. Since metrically perfect reconstruction is not required for navi-gation [22], affine-invariant models are particularly suitable for learning-based approaches. Remaining challenges such as scale ambiguity and domain shift [18] motivate robust training strategies for sim-to-real transfer. 
+
+C. Teacher-Student Learning and Sim-to-Real Transfer 
+
+Transferring policies from simulation to real robots re-mains a fundamental challenge. While domain randomiza-tion [11] can partially bridge this gap, it becomes insufficient when deployed sensors differ fundamentally from those used during training. The teacher-student paradigm addresses this by first training a teacher with access to privileged simulation-only information, then distilling its behavior into a student that uses only the sensor modality available during deployment [9]. This approach has been successfully applied across diverse robotic domains including locomotion [12], planetary exploration [23], and vision-based indoor naviga-tion [24]. A major constraint is computational cost: training RL policies on depth maps requires rendering for thousands of environments, demanding substantial GPU memory [17] and limiting the parallelization critical for efficient training. This motivates our approach: the teacher is trained on simulated laser scans with full parallelization, whereas the student is trained to navigate from simulated depth maps, with MDE applied during sim-to-real transfer. III. M ETHODOLOGY 
+
+We propose a teacher-student framework that bridges MDE with RL to enable vision-based robot navigation. The central challenge is the domain gap between rendered and MDE-predicted depth : RL policies trained on ground-truth depth cannot directly consume MDE outputs, which are noisy and partially accurate. Further, the computational over-head of simulating cameras hinders RL policy training. Our framework resolves this through a teacher-student training pipeline. An expert teacher policy trained with privileged 2D LiDAR achieves robust navigation via parallel simula-tion [17], then distills its behavior offline into a student that operates on noise-augmented depth maps. Domain random-ization [11] and depth augmentation facilitate sim-to-real transfer. Section III-A formalizes the navigation problem. Section III-B describes the MDE module. Sections III-C and III-D detail the teacher and student policy training, respectively. Fig. 3: Data collection setup for fine-tuning the MDE back-bone: (a) recording platform with Orbbec Femto Bolt ToF camera, (b) example RGB image, and (c) corresponding ground-truth depth map. 
+
+A. Problem Formulation 
+
+We address collision-free goal-directed navigation for an omnidirectional mobile robot in indoor environments with static obstacles, formulated as a partially observable Markov Decision Process (POMDP) (S, A, O, R, P, γ ) with state space S, action space A, observation space O, reward func-tion R, transition dynamics P , and discount factor γ ∈ [0 , 1) .The robot receives partial observations ot ∈ O of the true state st ∈ S and selects actions at ∈ A according to a policy πθ (at | ot). Crucially, the observation space differs between teacher and student: the teacher observes privileged 2D LiDAR scans (Section III-C), while the student receives monocular depth maps (Section III-D). Both policies share the action space and proprioceptive observations, but only the teacher requires the reward function, as the student is trained offline via behavior cloning. 
+
+B. Monocular Depth Estimation Backbone 
+
+As established in Section II-B, affine-invariant depth mod-els are sufficient for learning-based navigation. We select Depth Anything V2 [8] in its Vision Transformer (ViT)-Small variant (25M parameters) for its zero-shot generaliza-tion and compatibility with embedded inference on NVIDIA Jetson platforms. To reduce the domain gap between ren-dered and MDE-predicted depth, we fine-tune the model on domain-specific metric data from a warehouse environment. 
+
+Fine-Tuning of Depth Anything V2: For fine-tuning, we recorded a domain-specific dataset of 24,499 RGB and depth map pairs using an Orbbec Femto Bolt time-of-flight (ToF) camera (Fig. 3), covering typical logistics scenarios such as loaded pallets, industrial trucks, and high-bay warehouses. The ViT-Small model from Depth Anything V2 was then fine-tuned for 80 epochs on the training split (77.6%). Fine-tuning resulted in an improvement of 118.4% in the 
+
+δ1 accuracy on the test data split compared to the metric ViT-Small model from Depth Anything V2, which was fine-tuned exclusively on the Hypersim dataset [25]. Here, δ1 denotes the fraction of pixels satisfying max( d∗/d, d/d ∗) < 1.25 ,where d and d∗ are the predicted and ground-truth depth, respectively. 
+
+Deployment: We export the fine-tuned model to TensorRT (BF16) and benchmark batch inference of four camera im-ages at 480 × 300 pixels on three NVIDIA Jetson platforms (Table I). We select the Jetson Orin AGX for deployment, TABLE I: Inference performance of the fine-tuned MDE model on NVIDIA Jetson platforms.                   
+
+> Platform JetPack Latency [ms] Avg. FPS
+> NVIDIA Jetson Orin NX 6.1 98 .63 ±2.06 10.1 NVIDIA Jetson Orin AGX 6.1 50 .16 ±8.22 19.9 NVIDIA Jetson Thor 7.0 19 .02 ±4.81 52.6
+
+which completes a batch in 50 .16 ± 8.22 ms ( 19 .9 FPS), pro-viding sufficient headroom for the 10 Hz control frequency required by the navigation policy. 
+
+C. Teacher Policy 
+
+The teacher policy is trained with access to privileged simulation-only information, enabling it to learn a robust navigation behavior that the student later imitates using only onboard sensors. The following paragraphs detail the POMDP formulation and training procedure. 
+
+Observation Space: The teacher policy receives privi-leged observations composed of exteroceptive and propri-oceptive inputs: 
+
+oteacher  
+
+> t
+
+= ( oet , o pt ) (1) The exteroceptive input is a 2D LiDAR scan with nscan =3000 range measurements: 
+
+oet = lt ∈ Rnscan (2) The proprioceptive input combines odometry, goal informa-tion, and the previous action: 
+
+opt = ( sodom  
+
+> t
+
+, pgoal robot , d goal , a t−1) (3) The odometry history stores the current and past nodom = 5 
+
+velocity estimates vodom = ( vx, v y , ω z )T :
+
+sodom  
+
+> t
+
+= ( vodom  
+
+> t
+
+, v odom  
+
+> t−1
+
+, . . . , v odom  
+
+> t−nodom
+
+) (4) This history enables the policy to implicitly learn the robot’s dynamics. The unit vector pgoal robot points toward the goal in the robot’s coordinate frame, and dgoal denotes the Euclidean goal distance. Notably, the relative angle to the goal θgoal 
+
+is omitted, as the robot’s omnidirectional mobility makes orientation-independent navigation preferable. In simulation, the LiDAR observations are obtained via raycasting against privileged collision meshes that extend beyond the true object boundaries, preventing the robot from entering gaps narrower than its own footprint. An example of an object with a privileged collider is shown in Fig. 4. The resulting dis-tance measurements inherently block regions where the robot cannot physically fit, so the teacher only perceives passages that are actually traversable. This privileged information is unavailable during real-world deployment and is therefore not used by the student policy. 
+
+Action Space: The policy outputs normalized actions 
+
+ateacher  
+
+> t
+
+= ( vx, v y , ω z ) ∈ [−1, 1] 3 via a tanh activation, which are scaled to physical velocity commands with vx, max =
+
+vy, max = 0 .5 m/s and ωz, max = 1 .0 rad/s. Actions are sent to the robot at a control frequency of 10 Hz. Standard Collision Mesh Visual 
+
+> Mesh
+> Privileged Collision Mesh
+
+Fig. 4: Collision mesh representation used for privileged LiDAR-based observations in the teacher training phase. IMPALA CNN 1D MLP ACTION HEAD  
+
+> ACTOR
+> MLP
+> IMPALA CNN 1D
+> MLP
+> MIN POOLING
+> IMPALA CNN 1D MLP
+> MLP
+> IMPALA CNN 1D
+> MLP
+> MIN POOLING
+> CRITIC
+
+Fig. 5: Teacher policy network architecture with separate actor and critic. Both process exteroceptive LiDAR obser-vations oet via an IMPALA encoder and proprioceptive input 
+
+opt via an multi-layer perceptron (MLP). 
+
+Reward Function: The reward at each timestep t is a piecewise function combining sparse terminal rewards and weighted continuous shaping terms: 
+
+rt =
+
+
+
+rfinished , if goal reached 
+
+rcollision , if collision occurred 
+
+0, if timeout 
+
+rat goal + P 
+
+> i
+
+wirti , otherwise (5) where rfinished is a large positive sparse reward for successful goal reaching, rcollision a corresponding penalty, and rat goal adiscrete bonus triggered once upon entering the goal radius 
+
+dthresh goal . The continuous shaping terms are:  
+
+> •
+
+rt
+
+> ∆d
+
+: delta distance reward for progress toward the goal,  
+
+> •
+
+rt
+
+> lidar
+
+: minimum LiDAR distance penalty discouraging proximity to obstacles within dmin , 
+
+> •
+
+rta: action magnitude penalty,  
+
+> •
+
+rt
+
+> ∆a
+
+: action rate penalty to smooth velocity commands. The weights (w∆d, w lidar , w a, w ∆a) control the relative im-portance of each component. All reward parameters are listed in Table II. Episodes terminate upon goal reaching, collision, or timeout. 
+
+Network Architecture: The teacher policy uses an actor-critic architecture, as illustrated in Fig. 5. Both networks share a nearly identical structure, processing exteroceptive and proprioceptive inputs through separate encoding path-ways. The exteroceptive LiDAR input oet is first down-sampled via min-pooling (kernel size 10) to retain nearest-obstacle information, then encoded by two consecutive 1D TABLE II: Reward function parameters and weights.                 
+
+> Parameter Value Parameter Value
+> w∆d0.5 w∆a-0.1
+> wlidar -0.1 rt
+> at goal 10.0
+> dmin 0.7 m dthresh goal 0.5 m
+> wa-0.05 rcollision -50.0
+> rfinished 50.0
+
+TABLE III: PPO hyperparameters for teacher policy training.                   
+
+> Parameter Value Parameter Value
+> Learning rate ( α)1×10 −3Discount factor ( γ)0.99 Horizon ( T)96 Clip range ( ϵ)0.2 Mini-epochs 5Batch size 98304 Minibatch size 24576 Environments ( Nenv )1024
+
+IMPALA-CNN blocks [26] with 24 and 16 filters, respec-tively. The proprioceptive input opt is processed indepen-dently through a 96-unit linear layer with ReLU activation. Both representations are concatenated and passed through a shared 256-unit MLP. The actor’s output head applies a 
+
+tanh activation to bound the action output to [−1, 1] , while the critic produces a scalar value estimate for advantage computation. 
+
+Training: The teacher policy is trained online using the PPO [16] implementation provided by Isaac Lab [10]. Training runs across 1024 parallel environments at a sim-ulation rate of 360 Hz with a control frequency of 10 Hz. The Adam optimizer is used for gradient updates with an adaptive learning rate schedule based on Kullback-Leibler (KL) divergence, which measures the deviation between successive policy distributions and reduces the learning rate when updates become too large. Rollouts of horizon length 
+
+T = 96 are collected before each update step. Key PPO hyperparameters are listed in Table III. 
+
+D. Student Policy 
+
+The following paragraphs describe the data collection from the teacher, the noise augmentation pipeline for bridging the sim-to-real gap, and the student’s network architecture and training procedure. 
+
+Data Logging: Expert demonstrations are collected by executing the trained teacher policy in inference mode within the Isaac Lab simulation. At each timestep t, the teacher produces expert actions ateacher  
+
+> t
+
+from its LiDAR observations. Simultaneously, four depth maps Dt and the proprioceptive state opt are recorded alongside the teacher’s actions, yielding tuples (Dt, o pt , a teacher  
+
+> t
+
+). Domain randomiza-tion across episodes ensures diverse navigation scenarios. The dataset consists of 28,838 successful episodes, with collision episodes filtered out to ensure high-quality expert demonstrations. 
+
+Noise Augmentation: To bridge the sim-to-real gap be-tween perfect rendered depth and real MDE outputs, we apply a seven-stage augmentation pipeline to simulated depth maps during data collection, inspired by [12], [23]. The 3D tensor stacked  
+
+> ACTION HEAD MLP IMPALA CNN
+> MLP
+> MIN POOLING MLP
+
+Fig. 6: Student network architecture. It is similar to the teacher actor network but instead of 2D LiDAR data, it processes 4 depth maps through an IMPALA-CNN encoder followed by an MLP. pipeline includes: (1) Gaussian smoothing for lens blur, (2) motion blur artifacts, (3) background smudging for far-range degradation, (4) elastic smearing for edge distortions, (5) random scale-shift perturbations to model MDE affine-invariance [8], (6) low-frequency Gaussian noise for en-vironmental effects, and (7) quantization noise simulating compression. 
+
+Network Architecture: The student policy shares several architectural components with the teacher, as illustrated in Fig. 6. Key hyperparameters such as the MLP width (256 and 96 units) are shared between teacher and student to maintain comparable latent representations. The student operates on visual observations ostudent  
+
+> t
+
+= ( Dt, o pt ), where 
+
+Dt ∈ R4×300 ×480 is a stack of four depth maps from four cameras covering a 360 ◦ field of view (FOV), replacing the privileged LiDAR input. The proprioceptive observations opt
+
+remain identical to those of the teacher. The key distinction from the teacher lies in the exteroceptive pathway. The four depth maps are stacked along their channel dimension to form a 3D tensor, which is first downsampled via min-pooling with a 5 × 5 kernel to preserve nearest-obstacle information. The downsampled tensor is then passed through a 2D IMPALA-CNN [26] encoder with three sequential blocks (feature dimensions [16 , 32 , 32] ), followed by a ReLU activation and a fully connected layer with 256 hidden units. In parallel, the proprioceptive input opt is processed through a 96-unit MLP, consistent with the teacher network. Both latent representations are concatenated and forwarded through a shared 256-unit MLP to produce the final action output, bounded to [−1, 1] via tanh( ·) activation. 
+
+Training: The student policy is trained offline via super-vised imitation learning (behavior cloning) on the logged dataset. At each timestep, the student receives noise-augmented depth maps Dnoise  
+
+> t
+
+and proprioceptive observa-tions opt as input, and is expected to reproduce the expert ac-tions ateacher  
+
+> t
+
+of the teacher. The noise augmentation simulates the degradation modalities of real MDE outputs encountered during deployment, thereby exposing the student to a repre-sentative distribution of depth artifacts and enabling robust imitation of the teacher’s expert behavior under realistic sensing conditions. Depth maps are clipped to a maximum range of 5 m to suppress irrelevant background information. Training minimizes the behavior cloning loss, defined as the mean squared error (MSE) between the teacher’s ground-truth actions and the student’s predicted actions: 
+
+LBC = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+ateacher  
+
+> i
+
+− astudent  
+
+> i
+> 2
+
+(6) where N is the number of samples in a batch, ateacher  
+
+> i
+
+is the expert action, and astudent  
+
+> i
+
+= πθ (Dnoise  
+
+> i
+
+, o pi ) is the student’s predicted action for the i-th sample. The student is optimized using the Adam optimizer with a constant learning rate of 
+
+5 × 10 −4, a batch size of 8, and trained for 100 epochs. IV. E XPERIMENTS 
+
+We evaluate our framework in simulation and on the real robot platform. 
+
+A. Isaac Lab Simulation Environment 
+
+Training is conducted on a single NVIDIA RTX 4090 GPU with 24 GB VRAM. The teacher policy is trained in Isaac Sim 5.1 with the Isaac Lab framework, running 1024 parallel environments for large-scale RL (Fig. 1). The training uses three arena configurations of varying size to encourage generalization across different spatial scales. In each episode, obstacles sampled from a pool of 15 distinct object types are randomly placed within the arena to create diverse navigation scenarios. The student policy is subse-quently trained offline on the same GPU using the logged demonstration data from the teacher (see Section III-D). 
+
+B. Hardware Platform and Camera Calibration 
+
+For our experiments, we utilize the DJI RoboMaster S1, which features four Mecanum wheels for omnidirectional movement. The robot is equipped with an NVIDIA Jetson Orin AGX, which is used for onboard inference of the student policy and to run the MDE model locally. To have a full view of the robot’s surroundings, the robot is equipped with four RGB cameras with AR0234 global shutter image sensors. These sensors are connected to a Luxonis FFC4 module, which generates a hardware trigger to synchronize all cam-eras and outputs images at a resolution of 480 × 300 pixels. The sensors are equipped with Arducam LN056 wide-angle lenses. All cameras are calibrated to each other using the Basalt framework [27] and an AprilTag [28] calibration target. To undistort the cameras, we upload the Kannala-Brandt calibration parameters [29] to the Luxonis boards, yielding a FOV of 93 .97 ◦ × 67 .64 ◦ for each camera. Additionally, an RPLIDAR S2 2D LiDAR sensor is mounted on top of the robot, providing 360 ◦ range mea-surements. Because the angular offset of the raw scan varies between sweeps, the measurements are rebinned into 
+
+nscan = 3000 fixed angular positions to match the simulation raycasting layout. This enables deployment of the teacher policy on the real robot for baseline comparison with the MDE-based student policy. Fig. 7: DJI RoboMaster platform: (a) simulation model, (b) real robot, (c) Mecanum wheel with sphere colliders, and (d) detailed collider geometry of a single Mecanum roller. 
+
+C. Simulation Asset 
+
+The simulation asset is shown in Fig. 7. The robot model consists of four Mecanum wheels, each with 12 free-rolling rollers. Following the approach of [30], each roller is approx-imated by 7 sphere colliders. The physical parameters of the asset, such as friction and joint damping, are optimized using recorded ground-truth motion data and the system identifi-cation approach from [30], [31]. Additionally, a deadzone is applied to each wheel to account for the inability of the RoboMaster’s motors to actuate at low velocities. 
+
+D. Simulation Results: Teacher Policy 
+
+The teacher policy is trained for 300 epochs, completing in approximately 120 minutes. Fig. 8 shows the average episode reward over training. The reward increases steeply within the first 25 epochs and plateaus at approximately 14.5 after epoch 50, indicating fast and stable convergence of the teacher policy. Fig. 9 illustrates the episode termination distribution: the policy transitions from timeouts through a collision-heavy phase to mostly successful episodes, reaching a peak success rate of 98.5%, noting that training episodes sample a higher and variable number of objects than the fixed evaluation configurations in Table IV. 
+
+E. Simulation Results: Student Policy 
+
+Table IV summarizes the success rates across simulation environments with varying obstacle density. In these experi-ments, the teacher operates with standard (non-privileged) collision meshes, removing the traversability advantage it had during training. Under these conditions, the depth-based student consistently outperforms the LiDAR-based teacher. Without the privileged collision meshes, the teacher’s 2D LiDAR scans miss obstacles outside the scan plane, leading to a steep performance drop as obstacle density increases. The student’s depth maps, by contrast, capture the full       
+
+> 050 100 150 200 250 300
+> Epochs
+> −5
+> 0
+> 5
+> 10
+> 15
+> Reward
+
+Fig. 8: Training reward progression during teacher policy training. 0 50 100 150 200 250 300   
+
+> Epochs
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100
+> Rate (%)
+> Success Rate Collision Rate Timeout Rate
+
+Fig. 9: Success rate distribution of the teacher policy across evaluation episodes. vertical extent of obstacles, maintaining higher success rates across all configurations. 
+
+F. Real-World Results 
+
+To evaluate sim-to-real transfer, we deploy both policies on the real robot in an 8 m × 8 m arena containing objects of varying size, as shown in Fig. 10. Robot trajectories are recorded using a VICON motion capture system, which provides ground-truth goal distance and direction to both policies, isolating the exteroceptive perception (2D LiDAR vs. MDE) as the sole variable under evaluation. For this scenario, we measured the success rate of the teacher and student policies deployed on the RoboMaster for three different endpoints from a common starting point, with 10 runs per endpoint. Table V shows the success rates of the real-world experi-ments. The MDE-based student consistently outperforms the LiDAR-based teacher across all three endpoints, achieving an average success rate of 80% compared to 37% for the teacher. The teacher’s failures are predominantly caused by collisions with low-lying obstacles outside the LiDAR scan plane, which the depth-based student perceives through its full-frame FOV. TABLE IV: Teacher and student success rates in simulation for varying obstacle counts. Std. and Priv. refer to standard and privileged collision meshes, respectively (see Fig. 4).                      
+
+> Obstacle Teacher Teacher Student Counts LiDAR (Std.) LiDAR (Priv.) MDE (Std.)
+> 5100% 100% 100% 10 89% 99.5% 96.5% 15 73.5% 93% 94.5% 20 58% 95% 92% 25 50% 89.5% 82%
+
+Fig. 10: Real-world test environment: an 8 m × 8 m arena with obstacles of varying size and geometry used for sim-to-real evaluation. 
+
+G. Sim-to-Real Analysis 
+
+Fig. 11 shows example trajectories for both policies during real-world deployment. Two of the three teacher runs collide with the ladder, while the student reaches the goal. However, the student trajectories exhibit oscillatory behavior. These oscillations are attributed to a combination of inference latency, residual MDE depth errors, and inaccuracies in the dynamic modeling of the real robot. Despite fine-tuning the Depth Anything V2 model on domain-specific data, a mismatch in absolute distance re-mains, as shown in Fig. 12. For visualization, the figure displays a point cloud generated from the MDE depth maps using the camera calibration parameters from Section IV-B, alongside the absolute range measurements from the RPLIDAR S2 (shown in red). The MDE model estimates close-range distances with higher accuracy, while errors increase at larger distances, resulting in a residual sim-to-real gap. V. C ONCLUSION AND OUTLOOK 
+
+We presented a teacher-student framework that replaces 2D LiDAR with MDE for vision-based mobile robot naviga-tion. In simulation, the MDE-based student achieved success rates of 82–96.5% across obstacle densities, consistently outperforming the standard 2D LiDAR teacher (50–89%). In real-world experiments, the student achieved an average TABLE V: Real-world success rate for teacher and student across three endpoints with 10 runs each.                  
+
+> Scenario Teacher Student LiDAR MDE
+> Endpoint A 40% 80% Endpoint B 30% 60% Endpoint C 40% 100% 42024
+> Y
+> 4
+> 2
+> 0
+> 2
+> 4
+> X
+> Start Endpoint A Endpoint B Endpoint C
+> Teacher (LiDAR) Student (MDE)
+
+Fig. 11: Visualization of the starting point and the three endpoints (axes in meters). Three trajectories for Endpoint A are shown for both the teacher and student policies during real-world deployment. 
+
+Fig. 12: Point cloud comparison between ground-truth Li-DAR (red) and MDE-predicted depth. The scale mismatch increases at larger distances. success rate of 80% compared to 37% for the LiDAR-based teacher, as the full-frame depth maps capture obstacles outside the LiDAR scan plane. The complete inference pipeline runs onboard an NVIDIA Jetson Orin AGX at 10 Hz without external computation for inference. Current limitations include the restriction to static environments, residual MDE scale errors at larger distances, and the absence of comparisons with external baselines, as differences in robot platforms and sensor configurations preclude a direct comparison. Future work will address dynamic obstacle avoidance and investigate online adaptation strategies to further close the sim-to-real gap. ACKNOWLEDGMENT The authors acknowledge the use of Anthropic’s Claude for language refinement, including grammar, clarity, and conciseness improvements. All technical content, results, and interpretations remain the sole work of the authors. REFERENCES [1] T. Lackner, J. Hermann, C. Kuhn, and D. Palm, “Review of autonomous mobile robots in intralogistics: state-of-the-art, limitations and research gaps,” Procedia CIRP , vol. 130, pp. 930–935, 2024. [Online]. Available: https://www.sciencedirect.com/ science/article/pii/S2212827124013441 [2] Y. Han, I. H. Zhan, W. Zhao, J. Pan, Z. Zhang, Y. Wang, and Y.-J. Liu, “Deep reinforcement learning for robot collision avoidance with self-state-attention and sensor fusion,” IEEE Robotics and Automation Letters , vol. 7, no. 3, pp. 6886–6893, 2022. [3] H. Gim, S. Baek, J. Park, H. Lee, C. Sung, K.-T. Kim, and S. Han, “Suitability of various lidar and radar sensors for application in robotics: A measurable capability comparison,” IEEE Robotics & Automation Magazine , vol. 30, no. 3, pp. 28–43, 2023. [4] O. A. Adamides, A. Avery, K. Subramanian, and F. Sahin, “Evaluation of on-robot depth sensors for industrial robotics,” in 2023 IEEE International Conference on Systems, Man, and Cybernetics (SMC) ,2023, pp. 1014–1021. [5] F. Tosi, L. Bartolomei, and M. Poggi, “A survey on deep stereo matching in the twenties,” International Journal of Computer Vision ,vol. 133, pp. 4245–4276, 2025. [6] U. Rajapaksha, F. Sohel, H. Laga, D. Diepeveen, and M. Bennamoun, “Deep learning-based depth estimation methods from monocular image and videos: A comprehensive survey,” ACM Comput. Surv. , vol. 56, no. 12, Oct. 2024. [Online]. Available: https: //doi.org/10.1145/3677327 [7] M. Hu, W. Yin, C. Zhang, Z. Cai, X. Long, H. Chen, K. Wang, G. Yu, C. Shen, and S. Shen, “Metric3d v2: A versatile monocular geometric foundation model for zero-shot metric depth and surface normal estimation,” IEEE Transactions on Pattern Analysis and Machine Intelligence , vol. 46, no. 12, pp. 10 579–10 596, Dec. 2024. [Online]. Available: http://dx.doi.org/10.1109/TPAMI.2024.3444912 [8] L. Yang, B. Kang, Z. Huang, Z. Zhao, X. Xu, J. Feng, and H. Zhao, “Depth anything v2,” in Advances in Neural Information Processing Systems , A. Globerson, L. Mackey, D. Belgrave, A. Fan, U. Paquet, J. Tomczak, and C. Zhang, Eds., vol. 37. Curran Associates, Inc., 2024, pp. 21 875–21 911. [9] D. Chen, B. Zhou, V. Koltun, and P. Kr¨ ahenb¨ uhl, “Learning by cheating,” in Proceedings of the Conference on Robot Learning ,ser. Proceedings of Machine Learning Research, L. P. Kaelbling, D. Kragic, and K. Sugiura, Eds., vol. 100. PMLR, 2020, pp. 66–75. [Online]. Available: https://proceedings.mlr.press/v100/chen20a.html [10] M. Mittal, P. Roth, J. Tigue, A. Richard, O. Zhang, P. Du et al. ,“Isaac lab: A gpu-accelerated simulation framework for multi-modal robot learning,” arXiv preprint arXiv:2511.04831 , 2025. [Online]. Available: https://arxiv.org/abs/2511.04831 [11] J. Tobin, R. Fong, A. Ray, J. Schneider, W. Zaremba, and P. Abbeel, “Domain randomization for transferring deep neural networks from simulation to the real world,” in 2017 IEEE/RSJ International Con-ference on Intelligent Robots and Systems (IROS) , 2017, pp. 23–30. [12] T. Miki, J. Lee, J. Hwangbo, L. Wellhausen, V. Koltun, and M. Hutter, “Learning robust perceptive locomotion for quadrupedal robots in the wild,” Science Robotics , vol. 7, no. 62, p. eabk2822, 2022. [Online]. Available: https://www.science.org/doi/abs/10.1126/ scirobotics.abk2822 [13] C. Tang, B. Abbatematteo, J. Hu, R. Chandra, R. Mart´ ın-Mart´ ın, and P. Stone, “Deep reinforcement learning for robotics: A survey of real-world successes,” Annual Review of Control, Robotics, and Autonomous Systems , vol. 8, no. 1, pp. 153–188, 2025. [Online]. Available: https://www.annualreviews.org/content/journals/ 10.1146/annurev-control-030323-022510 [14] T. Gervet, S. Chintala, D. Batra, J. Malik, and D. S. Chaplot, “Navigating to objects in the real world,” Science Robotics , vol. 8, no. 79, p. eadf6991, 2023. [15] C. Jestel, K. R¨ osner, N. Dietz, N. Bach, J. Eßer, J. Finke, and O. Urbann, “Murosim – a fast and efficient multi-robot simulation for learning-based navigation,” in 2024 IEEE International Conference on Robotics and Automation (ICRA) , 2024, pp. 16 881–16 887. [16] J. Schulman, F. Wolski, P. Dhariwal, A. Radford, and O. Klimov, “Proximal policy optimization algorithms,” arXiv preprint arXiv:1707.06347 , 2017. [17] N. Rudin, D. Hoeller, P. Reist, and M. Hutter, “Learning to walk in minutes using massively parallel deep reinforcement learning,” in 
+
+Conference on Robot Learning (CoRL) . PMLR, 2022, pp. 91–100. [18] X. Dong, M. A. Garratt, S. G. Anavatti, and H. A. Abbass, “Towards real-time monocular depth estimation for robotics: A survey,” IEEE Transactions on Intelligent Transportation Systems , vol. 23, no. 10, pp. 16 940–16 961, 2022. [19] J. Ding, L. Gao, W. Liu, H. Piao, J. Pan, Z. Du, X. Yang, and B. Yin, “Monocular camera-based complex obstacle avoidance via efficient deep reinforcement learning,” IEEE Transactions on Circuits and Systems for Video Technology , vol. 33, no. 2, pp. 756–770, 2023. [20] D. Wofk, F. Ma, T.-J. Yang, S. Karaman, and V. Sze, “Fastdepth: Fast monocular depth estimation on embedded systems,” in 2019 International Conference on Robotics and Automation (ICRA) , 2019, pp. 6101–6108. [21] C. Feng, C. Zhang, Z. Chen, W. Hu, and L. Ge, “Real-time monocular depth estimation on embedded systems,” in 2024 IEEE International Conference on Image Processing (ICIP) , 2024, pp. 3464–3470. [22] L. Gao, J. Ding, W. Liu, H. Piao, Y. Wang, X. Yang, and B. Yin, “A vision-based irregular obstacle avoidance framework via deep reinforcement learning,” in 2021 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , 2021, pp. 9262–9269. [23] A. B. Mortensen, E. T. Pedersen, L. V. Benedicto, L. Burg, M. R. Madsen, and S. Bøgh, “Two-stage reinforcement learning for planetary rover navigation: Reducing the reality gap with offline noisy data,” in 
+
+2024 International Conference on Space Robotics (iSpaRo) , 2024, pp. 266–272. [24] C. Xu, W. Liu, J. Wang, L. Ma, F. Yin, and Z. Deng, “Dune: Sim2real transfer for depth-based navigation in unstructured dynamic indoor environments,” in 2025 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) , 2025. [25] M. Roberts, J. Ramapuram, A. Ranjan, A. Kumar, M. A. Bautista, N. Paczan, R. Webb, and J. M. Susskind, “Hypersim: A photorealistic synthetic dataset for holistic indoor scene understanding,” in Interna-tional Conference on Computer Vision (ICCV) 2021 , 2021. [26] L. Espeholt, H. Soyer, R. Munos, K. Simonyan, V. Mnih, T. Ward, Y. Doron, V. Firoiu, T. Harley, I. Dunning et al. , “Impala: Scalable dis-tributed deep-rl with importance weighted actor-learner architectures,” in International conference on machine learning . PMLR, 2018, pp. 1407–1416. [27] V. C. Usenko, N. Demmel, D. Schubert, J. St¨ uckler, and D. Cre-mers, “Visual-inertial mapping with non-linear factor recovery,” IEEE Robotics and Automation Letters , vol. 5, pp. 422–429, 2019. [28] E. Olson, “Apriltag: A robust and flexible visual fiducial system,” in 
+
+2011 IEEE International Conference on Robotics and Automation ,2011, pp. 3400–3407. [29] J. Kannala and S. Brandt, “A generic camera calibration method for fish-eye lenses,” in 2004 International Conference on Pattern Recognition (ICPR) , vol. 1, 2004, pp. 10–13. [30] M. Wiedemann, O. Ahmed, A. Dieckh¨ ofer, R. Gasoto, and S. Kerner, “Simulation modeling of highly dynamic omnidirectional mobile robots based on real-world data,” in 2024 IEEE International Confer-ence on Robotics and Automation (ICRA) , 2024, pp. 16 923–16 929. [31] M. Wiedemann, O. Ahmed, M. Hatwar, R. Gasoto, P. Detzner, and S. Kerner, “Automated tuning of non-differentiable rigid body simulation models for wheeled mobile robots,” in 2025 IEEE 21st International Conference on Automation Science and Engineering (CASE) , 2025, pp. 2436–2443.

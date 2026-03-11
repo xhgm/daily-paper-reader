@@ -1,0 +1,552 @@
+Title: SPREAD: Subspace Representation Distillation for Lifelong Imitation Learning
+
+URL Source: https://arxiv.org/pdf/2603.08763v1
+
+Published Time: Wed, 11 Mar 2026 00:01:52 GMT
+
+Number of Pages: 8
+
+Markdown Content:
+# SPREAD: Subspace Representation Distillation for Lifelong Imitation Learning 
+
+Kaushik Roy 1, Giovanni D’urso 1, Nicholas Lawrance 1, Brendan Tidd 1, Peyman Moghadam 1,2
+
+Fig. 1: Geometrical interpretation of the Subspace Representation Distillation loss. SP READ maximizes similarity between consecutive LIL policies by minimizing discrepancies in projected feature representations across different input modalities within each policy’s subspace. 
+
+Abstract — A key challenge in lifelong imitation learning (LIL) is enabling agents to acquire new skills from expert demonstrations while retaining prior knowledge. This re-quires preserving the low-dimensional manifolds and geometric structures that underlie task representations across sequential learning. Existing distillation methods, which rely on L2-norm feature matching in raw feature space, are sensitive to noise and high-dimensional variability, often failing to preserve intrinsic task manifolds. To address this, we introduce SP READ , a geometry-preserving framework that employs singular value decomposition (SVD) to align policy representations across tasks within low-rank subspaces. This alignment maintains the underlying geometry of multimodal features, facilitating stable transfer, robustness, and generalization. Additionally, we propose a confidence-guided distillation strategy that applies a Kullback–Leibler divergence loss restricted to the top-M
+
+most confident action samples, emphasizing reliable modes and improving optimization stability. Experiments on the LIBERO, lifelong imitation learning benchmark, show that SP READ 
+
+substantially improves knowledge transfer, mitigates catas-trophic forgetting, and achieves state-of-the-art performance. 
+
+I. I NTRODUCTION 
+
+Robotic agents are increasingly required to operate in open-world environments where new tasks arise sequentially and previously acquired skills must be retained over long horizons. While imitation learning [1]–[5] has demonstrated strong performance in teaching robots complex behaviors from demonstrations, its standard formulations assume a fixed task distribution and thus fail under continual task acquisition. When exposed to sequential learning, policy networks suffer from catastrophic forgetting [6], [7], where adapting to new demonstrations degrades representations         
+
+> 1CSIRO Robotics, DATA61, CSIRO, Australia. E-mails:
+> firstname.lastname @csiro.au
+> 2Queensland University of Technology (QUT), Brisbane, Australia. E-mails: firstname.lastname @qut.edu.au
+
+required for prior skills. Addressing this challenge is central to enabling scalable and reliable lifelong imitation learning. A variety of strategies have been proposed to alleviate catastrophic forgetting in lifelong imitation learning. Expe-rience Replay (ER) [8] addresses forgetting by replaying samples from previous tasks, but imbalanced data distribu-tions often shift the representation space toward the current task, degrading performance on earlier tasks. Hierarchical skill learning methods such as LOTUS [9] enhance scalabil-ity through a dynamic skill library, but remain vulnerable to degradation of past knowledge. Distillation-based ap-proaches, such as M2Distill [10], transfer multimodal knowl-edge between policies; however, their reliance on L2 feature alignment in raw feature space neglects the underlying geo-metric structure of task representations. This limitation can lead to overly rigid alignment that impedes adaptation. These shortcomings highlight the need for subspace-preserving, geometry-aware distillation strategies to enable robust and scalable lifelong imitation learning. To this end, we propose SP READ , a lifelong imitation learning framework that explicitly aligns the low-rank sub-space representations of consecutive policies. By enforcing consistency in how features are projected onto dominant subspaces, our approach preserves the intrinsic directions that define task manifolds while leaving orthogonal direc-tions available for novel skill acquisition (see Fig. 1). The motivation for subspace alignment arises from the obser-vation that neural representations are often concentrated in low-dimensional subspaces within high-dimensional feature spaces. Prior work in representation learning has demon-strated that these subspaces capture the most discrimina-tive and transferable structure of task-relevant features [11], while also exhibiting robustness to noise [12]. Leveraging this property allows SP READ to distill knowledge more                     
+
+> arXiv:2603.08763v1 [cs.LG] 9 Mar 2026 Time
+> Confidence-guided Policy Distillation
+> Temporal Transformer
+> GMM Policy Head
+> Action
+> Step:
+> Frozen
+> Token Token Token Token
+> Temporal Transformer
+> Action
+> Step:
+> Time
+> GMM Policy Head
+> SPREAD Token Token Token Token
+> Low-Rank Subspace Representation
+> Low-Rank Subspace Representation
+> Pick up the cream cheese and place it in the basket
+> Instruction AgentView HandEye Joint/Gripper
+> Pick up the cream cheese and place it in the basket
+> Instruction AgentView HandEye Joint/Gripper
+> MLP ResNet CLIP ResNet MLP ResNet ResNet CLIP
+> Teacher Student
+
+Fig. 2: Overview of our proposed SP READ method. Subspace Representation Distillation aligns the latent representations from different input modality encoders ( e.g. , Task, AgentView, HandEye, Joint, and Gripper information), while confidence-guided policy distillation maps the action distribution of the GMM policy between incremental steps T k−1 and T k .
+
+effectively, avoiding over-constraining raw activations while maintaining the geometry critical for skill retention. This geometry-aware distillation provides a principled balance between stability and plasticity: the representational essence of past tasks is retained, yet sufficient capacity remains to encode new skills without interference. Complementing this, our confidence-guided policy distillation applies Kullback-Leibler (KL) divergence [13] to top-K action samples, ensuring robust behavioral transfer. We evaluate SP READ on diverse robotic manipula-tion benchmarks under sequential learning settings. Results show that SP READ significantly outperforms conventional feature-level distillation and state-of-the-art lifelong imitation learning baselines. Beyond quantitative gains, our analysis reveals that SP READ maintains the intrinsic manifold structure of task features, thereby yielding more robust transfer and retention across tasks. In summary, this work makes the following contributions:  
+
+> •
+
+We introduce SP READ , a novel framework that pre-serves the low-dimensional subspace geometry of task features in lifelong imitation learning. We provide the-oretical justification for why subspace-level alignment better preserves intrinsic task manifolds compared to feature-level distillation.  
+
+> •
+
+We present a confidence-guided policy distillation strat-egy, using KL divergence on top-K actions to enhance behavioral robustness.  
+
+> •
+
+We demonstrate through extensive experiments that 
+
+SP READ achieves state-of-the-art performance in mitigating catastrophic forgetting, while enabling effi-cient adaptation to new robotic skills. II. R ELATED WORK 
+
+Imitation learning (IL) enables robots to replicate ex-pert behaviors by mapping observations to actions [1]–[3], [14]. Extending IL to sequential settings, Lifelong Imitation Learning (LIL) aims to continuously acquire new skills while retaining past ones, thereby addressing catastrophic forgetting [6], [7]. Existing LIL approaches draw inspiration from lifelong learning in vision [15], [16] and language [17], adapting regularization [18], [19], memory-replay [6], [20]– [22], and dynamic architecture [23], [24] based strategies to mitigate catastrophic forgetting. Experience Replay (ER) [8] retains a limited subset of trajectories from past tasks and replays them alongside new demonstrations, but im-balanced replay distributions can bias the learned policy toward more recent skills. Similarly, CRIL [22] leverages deep generative replay (DGR) [25] to generate pseudo-demonstrations through action-conditioned video prediction, however, the instability and inaccuracy of generated videos degrade performance on complex LIL tasks. EWC [6] uses a Fisher information-based measure to constrain updates on parameters essential for earlier tasks to balance plasticity and stability, but struggles to maintain consistent performance in LIL. By decomposing complex behaviors into modular skills, BUDS [26] enables effective skill reuse through au-tonomous segmentation of demonstration trajectories. LO-TUS [9] advances this paradigm by coupling unsupervised skill discovery with open-vocabulary vision models to build a continually expanding skill library. Despite their scal-ability benefits, both BUDS and LOTUS face challenges in maintaining efficiency and representational consistency as the skill library scales. Tokenization-based frameworks such as T2S [27] introduce parameter-efficient skill tokens that extend transformer architectures without uncontrolled parameter growth, while SPECI [28] adopts a prompt-driven skill codebook for efficient skill reuse and adaptation. These approaches improve scalability but often depend on strong architectural assumptions. Knowledge distillation strategies like PolyTask [29] consolidates task-specific policies into a single generalist model. M2Distill [10] employs multi-modal distillation to align visual, textual, and motor features between old and new policies, thereby reducing modality drift. However, most distillation-based approaches rely on L2
+
+matching in raw feature space, neglecting the intrinsic low-dimensional manifold structure of task features. Our work addresses this gap by introducing SP READ , a subspace representation distillation framework that explicitly respects the geometry of task representations. III. P ROPOSED METHODOLOGY 
+
+A. Problem Formulation 
+
+In lifelong imitation learning (LIL), a robot sequentially learns a policy π over a sequence of tasks {T 1, . . . , T K } to mimic expert demonstrations while retaining and transferring knowledge across tasks. Each task T k = (μk 
+
+> 0
+
+, g k, l k) is defined by an initial state distribution μk 
+
+> 0
+
+, a goal predicate 
+
+gk : S → { 0, 1}, and a language description lk, within a shared Markov Decision Process M = ( S, A, T , H ), where 
+
+S is the state space, A is the action space, T : S × A → S 
+
+is the transition function, and H is the episode horizon. For each task T k, the robot receives N expert demonstration tra-jectories Dk = {τ ki }Ni=1 , along with an associated language description lk. Each demonstration trajectory τ ki consists of a sequence of state–action pairs {(st, a t)}Lk
+
+> t=1
+
+, where Lk < H 
+
+and H denotes the episode horizon. These demonstrations are typically collected via teleoperation and serve as supervision for training a policy π. The policy is optimized through behavioral cloning [30], which minimizes the negative log-likelihood of expert actions given the corresponding states: 
+
+min  
+
+> π
+
+J(π) = 1
+
+K
+
+> K
+
+X
+
+> k=1
+
+Est,a t∼Dk
+
+
+
+> Lk
+
+X
+
+> t=1
+
+− log π(at | s≤t; T k)
+
+ .
+
+(1) A central challenge in this setting is that the robot, while progressing through tasks sequentially, no longer has direct access to demonstrations from earlier tasks. Consequently, the policy must not only sequentially adapt to new tasks but also preserve knowledge from prior tasks, thereby mitigating catastrophic forgetting and enabling effective transfer of skills across the task sequence. In lifelong imitation learning (LIL), preserving the in-trinsic low-dimensional manifold and geometric structure of task features across sequential tasks is critical to mit-igate catastrophic forgetting while enabling adaptation to new tasks. Unlike conventional L2-norm-based distillation, which is sensitive to noise and high-dimensional variations, we propose a subspace representation distillation loss that aligns low-rank subspace projections of teacher and stu-dent features. This approach leverages singular value de-composition (SVD) [31] to capture the principal geometric structure of multimodal features, ensuring robust knowledge transfer. Additionally, for policy distillation, we introduce a confidence-guided Kullback-Leibler (KL) divergence loss that prioritizes the top K samples with high log probability scores, enhancing stability by focusing on reliable action distributions. Fig. 2 shows the complete architecture of the proposed SP READ framework. 
+
+B. Subspace Representation Distillation 
+
+Knowledge distillation [32] aims to transfer learned repre-sentations from a teacher model to a student model, preserv-ing performance while supporting efficient adaptation. We in-troduce Subs pace Re present ation Distillation (SP READ ), a geometry-aware distillation method that aligns the principal subspaces of feature representations between teacher and student. Given a feature matrix f ∈ Rm×n, we compute its reduced SVD [33]: f = U ΣV ⊤, where U ∈ Rm×r
+
+contains the top-r left singular vectors spanning the dominant feature subspace. The projection of f onto this r-dimensional subspace is given by U U ⊤f , which captures the most informative directions in the representation. For teacher and student feature matrices ft and fs,
+
+SP READ minimizes the discrepancy between their subspace-projected features using the Frobenius norm: 
+
+LSPREAD = ∥UtU ⊤ 
+
+> t
+
+ft −UsU ⊤ 
+
+> s
+
+fs∥2 
+
+> F
+
++∥UtU ⊤ 
+
+> t
+
+fs −UsU ⊤ 
+
+> s
+
+ft∥2 
+
+> F
+
+,
+
+(2) where Ut and Us are the top-r left singular vectors of ft
+
+and fs, respectively. This symmetric formulation encourages both alignment of the subspace bases (i.e. , Us ≈ Ut)and consistency of feature content within those subspaces. Although subspace representation distillation introduces an 
+
+O(mnr ) computational overhead, the overhead is limited in practice, and the resulting performance improvements justify the computation. 
+
+Theoretical Significance. SPREAD leverages the geometric structure of feature representations by focusing on the prin-cipal subspaces, which encapsulate the dominant patterns in the data. The projection U U T f retains the most informative components of f , as determined by the largest singular values in Σ. By minimizing LSPREAD , the student model (at step 
+
+k) aligns its feature subspace with that of the teacher (at step k − 1), ensuring the preservation of critical task-relevant structures. This approach is robust to noise and model-specific artifacts, unlike direct feature matching ( e.g. , ∥ft −
+
+fs∥2 
+
+> F
+
+), as it prioritizes the principal directions of variation. The SPREAD loss further optimizes both the alignment of subspace bases ( Us ≈ Ut) and the content within those subspaces ( UsU Ts fs ≈ UtU Tt ft). This can be interpreted as minimizing the principal angles between the column spaces of ft and fs, providing a geometrically sound framework for knowledge transfer. Moreover, SPREAD is invariant to differences in feature magnitude or dimensionality, making it particularly effective for distillation across incremental steps in lifelong imitation learning. In incremental learning, at step k, the frozen model from step 
+
+k−1 acts as the teacher, and the model at step k learning task 
+
+T k is the student. For a batch of size N and sequence length 
+
+L, each modality’s latent tensor is reshaped into a D ×(N L )
+
+matrix by flattening the batch and temporal dimensions, yielding compact feature matrices for distillation. 
+
+Visual Modalities (wrist-mounted (HandEye) and over-head (AgentView) camera). Let F k−1,ϵ , F k,ϵ ∈ RD×(N L )
+
+denote the reshaped feature matrices extracted using Resnet18 [34] for modality ϵ ∈ { HandEye , AgentView }
+
+at steps k − 1 and k, respectively. The image modality distillation loss is: 
+
+Limage = X
+
+> ϵ∈{ HandEye ,AgentView }
+
+LSPREAD 
+
+ F k−1,ϵ , F k,ϵ  .
+
+(3) 
+
+Language (Text). For text features Gk−1, G k ∈ RD×(N L )
+
+extracted using CLIP [35] language encoder and subse-quently passed through an MLP at steps k − 1 and k, we apply subspace representation distillation analogously: 
+
+Ltext = LSPREAD 
+
+ Gk−1, G k . (4) 
+
+Extra Modalities (e.g. , Joints, Gripper). For proprio-ceptive signals such as joint angles and gripper state, let 
+
+Hk−1,ϵ , H k,ϵ ∈ RD×(N L ) denote the reshaped features extracted via an MLP for ϵ ∈ { joint , gripper } at steps k − 1
+
+and k. The distillation loss for these modalities is: 
+
+Lextra = X
+
+> ϵ∈{ joint ,gripper }
+
+LSPREAD 
+
+ Hk−1,ϵ , H k,ϵ  . (5) 
+
+C. Confidence-guided Policy Distillation 
+
+To ensure consistent retention of prior knowledge in lifelong imitation learning, we align the action distributions of previously learned tasks, parameterized as a Gaussian mixture policy. While the Kullback–Leibler (KL) divergence is the standard measure for distributional alignment, a closed-form solution is intractable for mixture models [36]; hence, we employ a Monte Carlo approximation. However, uniform sampling introduces variance, as low-probability regions of the prior policy can disproportionately affect estimation and destabilize optimization. To address this, we use high-confidence samples from the prior policy, focusing knowl-edge transfer on statistically reliable and behaviorally mean-ingful regions. This selective distillation reduces spurious influence, preserves prior policy structure, and improves the stability of lifelong adaptation. Let πk and πk−1 be the policies at steps k and k −
+
+1. For policy distillation, we align action distributions by minimizing a confidence-weighted KL divergence between the current GMM policy πk and the previous policy πk−1.We uniformly sample {as}Bs=1 ∼ πk−1 and select the top 
+
+M = ⌊0.9B⌋ samples with the highest log probabilities 
+
+log πk−1(as), indexed by SM . The distillation loss is: 
+
+Lpolicy = 1
+
+M
+
+X
+
+> s∈S M
+
+ log πk(as) − log πk−1(as) , (6) Eq. 6 focuses distillation on confident regions of πk−1
+
+(high density under the prior policy), reducing variance and avoiding misleading gradients from low-likelihood samples. 
+
+Final Optimization Objective. Integrating the task loss with the modality-specific distillation objectives, the final optimization objective updates the policy π by minimizing: 
+
+J(π) = 1
+
+K
+
+> K
+
+X
+
+> k=1
+
+Est,a t∼Dk ∪ ˆDk
+
+" Lk
+
+X
+
+> t=0
+
+− log π(at | (st)≤t; T k)+ λiLimage + λtLtext + λeLextra + λpLpolicy 
+
+#
+
+. (7) where ˆDk refers to memory exemplars uniformly sampled from previously learned tasks. λi, λ t, λ e, and λp are weight-ing coefficients that balance the trade-off between stability (preserving past knowledge) and plasticity (adapting to new tasks) during the learning process. This joint optimization takes inspiration from experience replay, to ensure that the policy not only adapts to the current task but also maintains consistency with previously acquired knowledge. IV. E XPERIMENTAL SETTINGS 
+
+A. Training and Implementation Details 
+
+We train our subspace representation distillation frame-work on an NVIDIA H100 GPU, employing the same data augmentation strategy and ResNet–Transformer backbone as the ResNet-T baseline [37]. Each incremental task is trained for 50 epochs. To account for varying levels of task complexity, we adopt different regularization weights across the LIBERO suites. For LIBERO-OBJECT , we set 
+
+λp = 0 .003 and λt = λi = λe = 0 .005 . For LIBERO-SPATIAL , the weights are increased to λp = 0 .005 and 
+
+λt = λi = λe = 0 .03 . Finally, for LIBERO-GOAL , due to its higher difficulty, we employ λp = 0 .01 and λt =
+
+λi = λe = 0 .3. We fix the subspace rank to r = 48 for all experiments. We evaluate our method against the following baselines: (1) SEQUENTIAL [37], which naively fine-tunes tasks sequentially using the ResNet-Transformer; (2) 
+
+EWC [6], a regularization method that selectively updates less critical weights to preserve prior task knowledge; (3) 
+
+ER [8], a rehearsal-based approach with a 1000-trajectory memory buffer to retain prior task samples; (4) BUDS [26], a hierarchical policy method using multitask skill discovery; (5) LOTUS [9], a hierarchical imitation learning frame-work with open-vocabulary vision and experience replay for unsupervised skill discovery; and (6) M2Distill [10], a multi-modal distillation method maintaining consistent latent spaces across vision, language, and action modalities. Baseline results are sourced from M2Distill [10]. 
+
+B. Datasets 
+
+For our evaluations, we utilize the LIBERO bench-mark [37], designed for lifelong imitation learning in robotic manipulation. LIBERO encompasses diverse, language-conditioned tasks with varied objects, sparse rewards, and long-horizon objectives, making it ideal for assessing contin-ual learning. We focus on three task suites, each comprising 10 sequential tasks: LIBERO-OBJECT, LIBERO-GOAL, and LIBERO-SPATIAL. These suites evaluate knowledge trans-fer in distinct dimensions: object-specific declarative knowl-edge, procedural goal-oriented behaviors, and spatial rela-tional understanding, respectively. LIBERO-OBJECT tasks require continual learning to manipulate distinct objects. LIBERO-GOAL tasks involve identical objects with different spatial arrangements and task objectives, necessitating adap-tation of motions and behaviors. LIBERO-SPATIAL tasks challenge the robot to distinguish identical objects based solely on spatial context, demanding persistent learning of spatial relationships. This setup rigorously tests our subspace TABLE I: Experimental results across three different LIBERO task suites. The reported values are averages from three seeds, including the mean and standard error. The best values are highlighted in bold, and the second-best values are underlined. The dash (-) indicates a failure to reproduce results. All metrics are measured based on success rates (%).                                                                                                                                                
+
+> Method LIBERO-OBJECT LIBERO-GOAL LIBERO-SPATIAL FWT ( ↑)NBT ( ↓)AUC (↑)FWT ( ↑)NBT ( ↓)AUC (↑)FWT ( ↑)NBT ( ↓)AUC ( ↑)Sequential 62.0 ( ±1.0) 63.0 ( ±2.0) 30.0 ( ±1.0) 55.0 ( ±1.0) 70.0 ( ±1.0) 23.0 ( ±1.0) 72.0 ( ±1.0) 81.0 ( ±1.0) 20.0 ( ±1.0) EWC [6] 56.0 ( ±3.0) 69.0 ( ±2.0) 16.0 ( ±2.0) 32.0 ( ±2.0) 48.0 ( ±3.0) 6.0 ( ±1.0) 23.0 ( ±1.0) 33.0 ( ±1.0) 6.0 ( ±1.0) ER [8] 56.0 ( ±1.0) 24.0 ( ±1.0) 49.0 ( ±1.0) 53.0 ( ±1.0) 36.0 ( ±1.0) 47.0 ( ±2.0) 65.0 ( ±3.0) 27.0 ( ±3.0) 56.0 ( ±1.0) BUDS [26] 52.0 ( ±2.0) 21.0 ( ±1.0) 47.0 ( ±1.0) 50.0 ( ±1.0) 39.0 ( ±1.0) 42.0 ( ±1.0) ---LOTUS [9] 74.0 ( ±3.0) 11.0 ( ±1.0) 65.0 ( ±3.0) 61.0 ( ±3.0) 30.0 ( ±1.0) 56.0 ( ±1.0) ---M2Distill [10] 75.0 ( ±3.0) 8.0 ( ±5.0) 69.0 ( ±4.0) 71.0 ( ±1.0) 20.0 ( ±3.0) 57.0 ( ±2.0) 74.0 (±1.0) 11.0 ( ±1.0) 61.0 ( ±2.0)
+> SP READ (Ours) 81.0 (±2.0) 8.0 (±1.0) 73.0 (±3.0) 78.0 (±1.0) 9.0 (±5.0) 72.0 (±1.0) 71.0 ( ±1.0) 8.0 (±5.0) 66.0 (±2.0)
+
+representation distillation framework’s ability to preserve geometric structures and action distributions across tasks. 
+
+C. Evaluation Metrics 
+
+To assess policy performance in lifelong imitation learning for robotic manipulation tasks, we adopt three key met-rics: Forward Transfer (FWT), Negative Backward Trans-fer (NBT), and Area Under the Success Rate Curve (AUC), following established protocols [9], [37]. These metrics, based on task success rates, offer a robust eval-uation compared to training loss, which is less reli-able for manipulation tasks. FWT, defined as FWT =
+
+> 1
+> K
+
+PKk=1 FWT k where FWT k = 151 
+
+P50  
+
+> e=0
+
+ck,k,e , mea-sures adaptation to new tasks using prior knowledge, with higher values indicating better transfer. NBT, NBT =
+
+> 1
+> K
+
+PKk=1 1
+
+> K−k
+
+PKτ =k+1 (ck,k − cτ,k ), quantifies forgetting of prior tasks, with lower values reflecting stronger retention. AUC, AUC = 1
+
+> K
+
+PKk=1 1
+
+> K−k+1
+
+
+
+FWT k + PKτ =k+1 cτ,k 
+
+
+
+,assesses overall task performance, with higher scores denot-ing superior success. Here, K is the number of tasks, ck,k,e is the success rate of task k at epoch e, and cτ,k is the success rate of task k after training on task τ [37]. V. E XPERIMENTAL EVALUATION 
+
+Comparison to SOTA. We evaluate our Subspace Represen-tation Distillation framework, which aligns low-rank feature projections and employs confidence-guided policy distillation with top-K samples, by comparing it against state-of-the-art (SOTA) methods on the LIBERO benchmark [37], compris-ing three task suites (LIBERO-OBJECT, LIBERO-GOAL, LIBERO-SPATIAL), each with 10 sequential robotic manip-ulation tasks. Following prior work, we report FWT, NBT, and AUC, with results averaged over three random seeds (see Table I). Across all benchmarks, SP READ achieves the best or competitive performance compared to strong baselines such as LOTUS and M2Distill. On LIBERO-OBJECT , SP READ obtains the highest FWT (81.0% ±,2.0), AUC (73.0% ± 3.0), while also maintaining the lowest NBT (8.0% ± 1.0), outperforming M2Distill by +6% in FWT and +4% in AUC. On LIBERO-GOAL , which presents more challenging goal-conditioned tasks, SP READ sur-passes prior methods by a large margin, achieving an FWT of 78.0% ± 1.0 and an NBT of only 9.0% ± 5.0; in contrast, LOTUS and M2Distill suffer significantly higher forgetting (30.0% ± 1.0 and 20.0% ± 3.0, respectively). Finally, on LIBERO-SPATIAL , SP READ reaches the best AUC (66.0% ± 2.0) while keeping NBT low (8.0% 
+
+± 5.0), outperforming M2Distill by +5% in AUC with comparable FWT. These results demonstrate SP READ ’s superior adaptation (FWT) and retention (NBT), driven by its low-rank subspace alignment and confidence-guided pol-icy distillation, which preserve intrinsic task manifolds and robust action distributions across diverse LIL scenarios. 
+
+Success Rate Analysis. We evaluate our subspace rep-resentation distillation and M2Distill baseline across ten incremental steps on the LIBERO-OBJECT and LIBERO-GOAL datasets to assess robustness in continual learning and present the result in Fig. 3. On LIBERO-OBJECT, our method achieved success rates from 64 .0% ± 4.0% to a peak of 93 .0% ± 3.0% at step 2, staying above 70 .0% ,while M2Distill started at 93 .0% ± 5.0% but dropped to 
+
+68 .0% ±4.0% by step 10, with variability like 63 .0% ±12 .0% 
+
+at step 2. On LIBERO-GOAL, our approach maintained rates from 69 .0% ± 3.0% to 90 .0% ± 5.0% , peaking at step 2 from an 80 .0% ± 9.0% start, whereas M2Distill fell from 93 .0% ± 5.0% to 55 .0% ± 1.0% by step 10, hitting 
+
+47 .0% ±3.0% at step 8. These results highlight our method’s superior consistency and knowledge retention over M2Distill in continual learning. 
+
+FWT Analysis. We assess the Forward Transfer (FWT) of our subspace representation distillation strategy and the M2Distill baseline across 10 incremental steps on the LIBERO-OBJECT and LIBERO-GOAL datasets to evaluate their ability to utilize prior knowledge for new tasks in continual learning. Results are illustrated in Fig. 4. FWT quantifies performance improvement on new tasks from prior learning, with our method achieving robust FWT values of 63 .0% ± 5.0% to 83 .0% ± 2.0% on LIBERO-OBJECT, peaking at step 6 with standard errors of 1.0% to 5.0% ,compared to M2Distill’s 60 .0% ± 9.0% to 75 .0% ± 3.0% ,peaking at step 10 with higher variability up to 9.0% .On LIBERO-GOAL, our approach maintained stable FWT values of 73 .0% ± 1.0% to 83 .0% ± 1.0% , peaking at step 1 with errors of 1.0% to 3.0% , while M2Distill ranged from 
+
+72 .0% ±1.0% to 80 .0% ±1.0% , peaking at step 3 with errors up to 4.0% . These findings highlight our strategy’s consistent superiority over M2Distill in knowledge transfer, enhancing continual learning performance in LIL. 
+
+NBT Analysis. We assess the Negative Backward Transfer (NBT) of our subspace representation distillation strategy and the M2Distill baseline across ten incremental steps on the LIBERO-GOAL dataset to evaluate forgetting in continual learning. Results are depicted in Fig. 5. NBT measures per-formance decline on prior tasks with new task introduction. 1 2 3 4 5 6 7 8 9 10           
+
+> Incremental Steps
+> 50
+> 60
+> 70
+> 80
+> 90
+> 100
+> Success Rate
+> Ours
+> M2Distill (a) LIBERO-OBJECT 12345678910
+> Incremental Steps
+> 40
+> 50
+> 60
+> 70
+> 80
+> 90
+> 100
+> Success Rate
+> Ours
+> M2Distill (b) LIBERO-GOAL
+
+Fig. 3: Average success rate across incremental tasks on (a) LIBERO-OBJECT and (b) LIBERO-GOAL (Higher numbers are better). 1 2 3 4 5 6 7 8 9 10           
+
+> Incremental Steps
+> 50
+> 55
+> 60
+> 65
+> 70
+> 75
+> 80
+> 85
+> 90
+> 95
+> FWT
+> Ours
+> M2Distill
+> (a) LIBERO-OBJECT 12345678910
+> Incremental Steps
+> 65
+> 70
+> 75
+> 80
+> 85
+> 90
+> FWT
+> Ours
+> M2Distill (b) LIBERO-GOAL
+
+Fig. 4: Forward Transfer (FWT) across incremental tasks on (a) LIBERO-OBJECT and (b) LIBERO-GOAL (Higher numbers are better). 1 2 3 4 5 6 7 8 9 10 
+
+> Incremental Steps
+> −5
+> 0
+> 5
+> 10
+> 15
+> 20
+> 25
+> NBT
+> Ours
+> M2Distill
+
+Fig. 5: Negative Backward Transfer (NBT) across incremental tasks on LIBERO-GOAL (lower is better). 
+
+Our method shows NBT values from −4.0 ± 3.0 at step 2 to 12 .0 ± 2.0 at step 6, featuring modest positive values (1.0 to 12.0) and errors of 2.0% to 5.0%, indicating minimal forgetting and a gain at step 2. Conversely, M2Distill dis-played higher NBT values, ranging from 3.0±2.0 at step 3 to 
+
+23 .0±2.0 at step 9, with errors up to 6.0%, reflecting greater forgetting and a peak at step 9. These findings highlight our strategy’s superior stability in reducing forgetting compared to M2Distill on the LIBERO-GOAL dataset. 
+
+Drift Analysis. We evaluate representation drift, defined as the change in learned feature embeddings between two con-secutive tasks, measured as the mean distance between their representations. The evaluation is performed across language, wrist-mounted camera (HandEye), and overhead camera (AgentView) embedding spaces over successive incremental learning steps on the LIBERO-OBJECT task suite with a fixed random seed of 100. Overall, we observe that lan-guage embeddings remain the most stable across incremental steps, while hand-eye and agent-view embeddings exhibit higher drift. As shown in Fig. 6, our proposed subspace representation distillation method significantly outperforms M2Distill in preserving feature stability across all modalities by maintaining similar subspaces. In the language embedding space, SP READ reduces drift by more than 75%, demon-strating strong preservation of semantic representations. In the visual modalities, it effectively suppresses the large drift spikes observed in M2Distill, keeping drift in the HandEye embedding space below 0.5 compared to the baseline peak of over 2.7. For AgentView, SP READ again outperforms with a mean drift of 0.095 against 0.356 for M2Distill. Overall, these results demonstrate that subspace representation distil-lation effectively reduces drift across modalities, mitigating catastrophic forgetting in lifelong imitation learning. 1 
+
+> 2
+> 3
+> 4
+> 56
+> 7
+> 8
+> 9
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> HandEye Drift
+> 1
+> 2
+> 3
+> 4
+> 56
+> 7
+> 8
+> 9
+> 0.1
+> 0.2
+> 0.3
+> AgentView Drift
+> 1
+> 2
+> 3
+> 4
+> 56
+> 7
+> 8
+> 9
+> .01
+> .02
+> .03
+> Language Drift
+> M2Distill Ours
+
+Fig. 6: Drift analysis across incremental tasks for different modal-ities on LIBERO-OBJECT. The radial axes (1-9) indicate the incremental steps in LIL. Lower representation drift indicates better preservation of previously learned knowledge across tasks in lifelong imitation learning. 
+
+VI. A BLATION STUDY 
+
+Influence of each loss component. We further investigate the contribution of individual loss components through an ablation study on the LIBERO-GOAL task suite, with results summarized in Table II. The removal of the text loss Ltext 
+
+yields a slight reduction in AUC (0.72 → 0.69), indicating that language alignment provides auxiliary benefits but is not the dominant factor. In contrast, excluding the image loss 
+
+Limage leads to a substantial degradation in performance, with AUC dropping from 0.72 to 0.57 and NBT increasing from 0.09 to 0.20, thereby underscoring the critical role of visual representation preservation in mitigating forgetting. Elimi-nating the action loss Lpolicy results in decreased forward transfer (0.78 → 0.70), despite a marginal improvement in NBT, suggesting that action alignment is essential for retain-ing transferable policies across tasks. Finally, the exclusion of the extra-modality loss Lextra produces a minor decline in both FWT and AUC, confirming its complementary role in enhancing representational consistency. Collectively, these findings demonstrate that while all components contribute to the robustness of the proposed framework, image feature alignment emerges as the most influential factor for effective lifelong imitation learning. 
+
+Dimensionality of Subspace Representation Distillation. 
+
+We investigate the impact of subspace dimensionality in 
+
+SP READ by varying the projection rank r on the LIBERO-GOAL task suite (Table III). The results demonstrate that the choice of rank has a significant effect on both knowledge transfer and forgetting. Although the full-rank ( r = 64 )baseline attains competitive FWT, it suffers from higher forgetting and a lower AUC. In contrast, the 75% -rank 
+
+TABLE II: Ablation studies on the contribution of each component in our method. Experiments were performed on the LIBERO-GOAL task suite. Reported results are the mean across three different seed values. 
+
+Ltext Limage Laction Lextra LIBERO-GOAL FWT ↑ NBT ↓ AUC ↑
+
+✓ ✓ ✓ ✓ 0.78 0.09 0.72 
+
+✗ ✓ ✓ ✓ 0.78 0.11 0.69 
+
+✓ ✗ ✓ ✓ 0.67 0.20 0.57 
+
+✓ ✓ ✗ ✓ 0.70 0.02 0.70 
+
+✓ ✓ ✓ ✗ 0.74 0.03 0.71 KL Div. (100%)       
+
+> Ours (90%)
+> Ours (80%)
+> 0
+> 10
+> 20
+> 30
+> 40
+> 50
+> 60
+> 70
+> 80
+> 90
+> Performance (%)
+> 76.0 78.0 76.0
+> 66.0
+> 71.0 68.0
+> 16.0
+> 9.0 12.0
+> FWT AUC NBT
+
+Fig. 7: Ablation study on policy distillation strategies using LIBERO-GOAL task suite. Bar represents mean across three ran-dom seeds while standard error is represented with darker color. Our top-M confidence-weighted approach outperforms baselines in FWT, NBT and AUC. TABLE III: Ablation study on the dimensionality/rank of subspace representation distillation strategies using LIBERO-GOAL task suite. Our proposed SP READ loss with 75% -rank performs best in FWT, NBT and AUC.                                   
+
+> Rank of Subspace FWT ( ↑)BWT ( ↓)AUC ( ↑)
+> SP READ (Full-Rank) 76.0 ( ±1.0) 16.0 ( ±8.0) 66.0 ( ±5.0)
+> SP READ (Rank = 48 )78.0 ( ±1.0) 9.0 ( ±5.0) 72.0 ( ±1.0)
+> SP READ (Rank = 32 )74.0 ( ±1.0) 6.0 ( ±4.0) 71.0 ( ±2.0)
+> SP READ (Rank = 16 )76.0 ( ±3.0) 9.0 ( ±4.0) 69.0 ( ±2.0)
+
+configuration ( r = 48 ) achieves the best overall performance, with the highest AUC (71.0% ± 1.0) and FWT (78.0% ±
+
+1.0), outperforming the full-rank SP READ by 5% in AUC and 7% in NBT. This suggests that a moderately compressed subspace effectively retains transferable information while mitigating redundancy. However, further reducing the rank (r = 32 , 16 ) causes noticeable information loss, leading to degraded FWT and AUC. Following these results, we set the 
+
+75% -rank as the default in all subsequent experiments. 
+
+Policy Distillation with Top-M Confident Samples. We evaluate the effectiveness of our confidence-based policy distillation strategy, which selects the top M samples with the highest log-probability scores under the previous policy 
+
+πk−1. Experiments are conducted on the LIBERO-GOAL suite, comprising 10 consecutive robotic manipulation tasks. The policy distillation loss, Lpolicy , complements subspace representation distillation by enforcing alignment of action distributions. As shown in Fig. 7, our method—combining low-rank subspace projection with top-M = ⌊0.9B⌋ confi-dent samples—achieves the best results, with an AUC of 71.0% ± 1.0, FWT of 78.0% ± 1.0, and NBT of 9.0% 
+
+± 5.0. This outperforms standard KL divergence using all samples by 5% in AUC and 7% in NBT. In contrast, a variant with M = ⌊0.8B⌋ samples shows reduced performance (AUC: 68.0% ± 2.0, NBT: 12.0% ± 5.0), suggesting that 
+
+M = ⌊0.9B⌋ provides a good balance between sample diversity and confidence. Overall, this confidence-based top-
+
+M selection enhances robustness by prioritizing reliable action distributions, complementing geometric preservation in feature distillation, and improving both stability and generalization across sequential tasks. VII. C ONCLUSION 
+
+This work presented SP READ , a modality-aware frame-work for lifelong imitation learning that explicitly leverages subspace geometry to mitigate catastrophic forgetting. By aligning features of two consecutive policies through low-rank projections derived via singular value decomposition, 
+
+SP READ preserves the intrinsic low-dimensional structure of multimodal task embeddings more effectively than con-ventional feature-space distillation. Complementary to this, the proposed confidence-guided policy distillation selectively emphasizes high-confidence action samples, yielding a more stable and reliable transfer of behavioral priors. On the LIBERO benchmark, SP READ achieves AUC scores of 73.0%, 72.0%, and 66.0% on LIBERO-OBJECT, LIBERO-GOAL, and LIBERO-SPATIAL, outperforming state-of-the-art M2Distill by 4–15% in AUC and reducing negative backward transfer by 12%. These findings highlight both the empirical benefits and the theoretical advantages of subspace-level alignment for continual representation learn-ing. Future research will explore SP READ ’s application to long-horizon incremental task learning and addressing extended task sequences for real-world adaptability. REFERENCES [1] A. Hussein, M. M. Gaber et al. , “Imitation learning: A survey of learning methods,” ACM Computing Surveys (CSUR) , vol. 50, no. 2, pp. 1–35, 2017. [2] S. Schaal, “Learning from demonstration,” Advances in neural infor-mation processing systems , vol. 9, 1996. [3] A. G. Billard, S. Calinon, and R. Dillmann, “Learning from humans,” 
+
+Springer handbook of robotics , pp. 1995–2014, 2016. [4] S. Stepputtis, J. Campbell et al. , “Language-conditioned imitation learning for robot manipulation tasks,” Advances in Neural Informa-tion Processing Systems , vol. 33, pp. 13 139–13 150, 2020. [5] A. Xie, L. Lee et al. , “Decomposing the generalization gap in imitation learning for visual robotic manipulation,” in 2024 IEEE International Conference on Robotics and Automation (ICRA) . IEEE, 2024, pp. 3153–3160. [6] J. Kirkpatrick, R. Pascanu et al. , “Overcoming catastrophic forgetting in neural networks,” Proceedings of the National Academy of Sciences ,vol. 114, no. 13, pp. 3521–3526, 2017. [7] R. M. French, “Catastrophic forgetting in connectionist networks,” 
+
+Trends in cognitive sciences , vol. 3, no. 4, pp. 128–135, 1999. [8] A. Chaudhry, M. Rohrbach et al. , “On tiny episodic memories in continual learning,” arXiv preprint arXiv:1902.10486 , 2019. [9] W. Wan, Y. Zhu et al. , “Lotus: Continual imitation learning for robot manipulation through unsupervised skill discovery,” in 2024 IEEE International Conference on Robotics and Automation (ICRA) . IEEE, 2024, pp. 537–544. [10] K. Roy, A. Dissanayake et al. , “M2Distill: Multi-modal distillation for lifelong imitation learning,” in 2025 IEEE International Conference on Robotics and Automation (ICRA) , 2025, pp. 1429–1435. [11] K. Roy, C. Simon et al. , “Subspace distillation for continual learning,” 
+
+Neural Networks , vol. 167, pp. 65–79, 2023. [12] S. Cheng, Y. Wang et al. , “Nbnet: Noise basis learning for image denoising with subspace projection,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2021, pp. 4896–4906. [13] S. Kullback and R. A. Leibler, “On information and sufficiency,” The annals of mathematical statistics , vol. 22, no. 1, pp. 79–86, 1951. [14] E. Jang, A. Irpan et al. , “Bc-z: Zero-shot task generalization with robotic imitation learning,” in Conference on Robot Learning . PMLR, 2022, pp. 991–1002. [15] K. Shmelkov, C. Schmid, and K. Alahari, “Incremental learning of object detectors without catastrophic forgetting,” in Proceedings of the IEEE international conference on computer vision , 2017, pp. 3400– 3409. [16] L. Mahmoodi, P. Moghadam et al. , “Flashbacks to harmonize stability and plasticity in continual learning,” Neural Networks , vol. 190, p. 107616, 2025. [17] K. Huang, P. Li et al. , “Knowledge transfer in incremental learning for multilingual neural machine translation,” in Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics) ,2023, pp. 15 286–15 304. [18] H. Ahn, S. Cha et al. , “Uncertainty-based continual learning with adaptive regularization,” Advances in neural information processing systems , vol. 32, 2019. [19] K. Roy, P. Moghadam, and M. Harandi, “L3DMC: Lifelong learn-ing using distillation via mixed-curvature space,” in International Conference on Medical Image Computing and Computer-Assisted Intervention , 2023, pp. 123–133. [20] S.-A. Rebuffi, A. Kolesnikov et al. , “icarl: Incremental classifier and representation learning,” in Proceedings of the IEEE conference on Computer Vision and Pattern Recognition , 2017, pp. 2001–2010. [21] D. Rolnick, A. Ahuja et al. , “Experience replay for continual learning,” 
+
+Advances in neural information processing systems , vol. 32, 2019. [22] C. Gao, H. Gao et al. , “CRIL: Continual robot imitation learning via generative and prediction model,” in 2021 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , 2021, pp. 6747– 5754. [23] J. Yoon, E. Yang et al. , “Lifelong learning with dynamically expand-able networks,” in International Conference on Learning Representa-tions (ICLR) , 2018. [24] A. Douillard, A. Ram´ e et al. , “Dytox: Transformers for contin-ual learning with dynamic token expansion,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2022, pp. 9285–9295. [25] H. Shin, J. K. Lee et al. , “Continual learning with deep generative replay,” Advances in neural information processing systems , vol. 30, 2017. [26] Y. Zhu, P. Stone, and Y. Zhu, “Bottom-up skill discovery from unsegmented demonstrations for long-horizon robot manipulation,” 
+
+IEEE Robotics and Automation Letters , vol. 7, no. 2, pp. 4126–4133, 2022. [27] H. Zhang, J. Gong et al. , “T2S: Tokenized skill scaling for lifelong imitation learning,” arXiv preprint arXiv:2508.01167 , 2025. [28] J. Xu and X. Nie, “SPECI: Skill prompts based hierarchical con-tinual imitation learning for robot manipulation,” arXiv preprint arXiv:2504.15561 , 2025. [29] S. Haldar and L. Pinto, “Polytask: Learning unified policies through behavior distillation,” arXiv preprint arXiv:2310.08573 , 2023. [30] M. Bain and C. Sammut, “A framework for behavioural cloning.” in 
+
+Machine Intelligence 15 , 1995, pp. 103–129. [31] M. E. Wall, A. Rechtsteiner, and L. M. Rocha, “Singular value de-composition and principal component analysis,” A practical approach to microarray data analysis , pp. 91–109, 2003. [32] G. Hinton, O. Vinyals et al. , “Distilling the knowledge in a neural network,” arXiv preprint arXiv:1503.02531 , vol. 2, no. 7, 2015. [33] C. Eckart and G. Young, “The approximation of one matrix by another of lower rank,” Psychometrika , vol. 1, no. 3, pp. 211–218, 1936. [34] K. He, X. Zhang et al. , “Deep residual learning for image recognition,” in Proceedings of the IEEE conference on computer vision and pattern recognition , 2016, pp. 770–778. [35] A. Radford, J. W. Kim et al. , “Learning transferable visual models from natural language supervision,” in International conference on machine learning . PmLR, 2021, pp. 8748–8763. [36] J. R. Hershey and P. A. Olsen, “Approximating the Kullback Leibler divergence between Gaussian mixture models,” in 2007 IEEE In-ternational Conference on Acoustics, Speech and Signal Processing-ICASSP’07 , vol. 4. IEEE, 2007, pp. IV–317. [37] B. Liu, Y. Zhu et al. , “Libero: Benchmarking knowledge transfer for lifelong robot learning,” Advances in Neural Information Processing Systems , vol. 36, 2024.

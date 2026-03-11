@@ -1,0 +1,265 @@
+Title: VLMFusionOcc3D: VLM Assisted Multi-Modal 3D Semantic Occupancy Prediction
+
+URL Source: https://arxiv.org/pdf/2603.02609v1
+
+Published Time: Wed, 04 Mar 2026 01:39:01 GMT
+
+Number of Pages: 8
+
+Markdown Content:
+# VLMFusionOcc3D: VLM Assisted Multi-Modal 3D Semantic Occupancy Prediction 
+
+A. Enes Doruk and Hasan F. Ates 
+
+Abstract — This paper introduces VLMFusionOcc3D, a ro-bust multimodal framework for dense 3D semantic occupancy prediction in autonomous driving. Current voxel-based oc-cupancy models often struggle with semantic ambiguity in sparse geometric grids and performance degradation under adverse weather conditions. To address these challenges, we leverage the rich linguistic priors of Vision-Language Models (VLMs) to anchor ambiguous voxel features to stable semantic concepts. Our framework initiates with a dual-branch feature extraction pipeline that projects multi-view images and LiDAR point clouds into a unified voxel space. We propose Instance-driven VLM Attention (InstVLM), which utilizes gated cross-attention and LoRA-adapted CLIP embeddings to inject high-level semantic and geographic priors directly into the 3D voxels. Furthermore, we introduce Weather-Aware Adaptive Fusion (WeathFusion), a dynamic gating mechanism that uti-lizes vehicle metadata and weather-conditioned prompts to re-weight sensor contributions based on real-time environmental reliability. To ensure structural consistency, a Depth-Aware Geometric Alignment (DAGA) loss is employed to align dense camera-derived geometry with sparse, spatially accurate Li-DAR returns. Extensive experiments on the nuScenes and SemanticKITTI datasets demonstrate that our plug-and-play modules consistently enhance the performance of state-of-the-art voxel-based baselines. Notably, our approach achieves signif-icant improvements in challenging weather scenarios, offering a scalable and robust solution for complex urban navigation. 
+
+I. I NTRODUCTION 
+
+Understanding the complex three-dimensional (3D) geom-etry and semantic distribution of a vehicle’s surroundings is a cornerstone of safe autonomous driving (AV) [1], [2]. While traditional 3D object detection provides bounding boxes for known categories, 3D Semantic Occupancy Prediction has emerged as a more comprehensive representation [3], [4]. By partitioning the environment into a dense voxel grid and assigning semantic labels to each cell, occupancy-based methods offer a geometrically consistent view of the world, effectively handling general obstacles and occluded regions that bounding-box-based methods might overlook [5], [6]. Despite significant progress in multimodal fusion strate-gies, current state-of-the-art (SOTA) occupancy models face two critical hurdles. First, semantic ambiguity remains a per-sistent issue in raw voxel space [7]. Geometric features alone are often insufficient to distinguish between morphologically similar classes, such as a pedestrian standing near a slender utility pole [8]. Second, environmental sensitivity poses a major challenge for reliability [9]. Camera-based systems suffer from contrast loss in low-light conditions, while Li-DAR sensors experience significant signal scattering during precipitation [10]. Existing fusion methods often employ static weightings that fail to adapt to these environmental degradations, leading to compromised perception in adverse weather. C 
+
+> C
+> Clear night, low camera contrast, street light ...
+> CLIP
+> Gating
+> Addition Fusion Concatenation Fusion 3D Convolution Fusion WeathFusion (Ours)
+
+Fig. 1. Comparison of feature fusion architectures. Standard approaches include Addition Fusion for element-wise summation, Concatenation Fusion for channel-wise stacking, and 3D Convolution Fusion for learned spatial refinement. Our proposed WeathFusion introduces a language-aware gating mechanism. It utilizes a frozen CLIP encoder to process environmental descriptions, modulating input features through learned gating weights before final summation. 
+
+To address these limitations, we propose VLMFu-sionOcc3D, a multimodal 3D semantic occupancy frame-work that leverages the semantic common sense of Vision-Language Models (VLMs) and weather-aware context to achieve robust perception [11], [12]. We observe that VLMs, such as CLIP [11], contain rich, category-agnostic linguistic priors that can anchor ambiguous 3D features to stable se-mantic concepts. Furthermore, we argue that weather-aware information provides an objective prior for environmental context that can be used to dynamically re-calibrate sensor trust. The core of our framework consists of three novel com-ponents. First, we introduce Instance-driven VLM Attention (InstVLM), which utilizes gated cross-attention to inject high-level semantic and geographic priors into the voxel space [13]. Second, we present Weather-Aware Adaptive Fusion (WeathFusion), a dynamic gating system that utilizes weather-conditioned prompts and vehicle metadata to re-weight camera and LiDAR contributions based on current environmental conditions. Finally, to resolve the structural discrepancies between dense camera-derived voxel frustums and sparse LiDAR returns, we propose the Depth-Aware   
+
+> arXiv:2603.02609v1 [cs.CV] 3 Mar 2026 Fig. 2. Overall architecture of VLMFusionOcc3D. Our pipeline integrates multi-view camera images and LiDAR point clouds through a dual-branch architecture. High-level semantic priors are injected via Instance-driven VLM Attention (InstVLM), followed by dynamic modality integration using the Weather-Aware Adaptive Fusion (WeathFusion) module. The final dense occupancy grid is optimized using the Depth-Aware Geometric Alignment (DAGA) loss.
+
+Geometric Alignment (DAGA) loss. We evaluate our framework by integrating these mod-ules into two high-performance voxel-based baselines, Oc-cMamba [7] and MCoNet [8], demonstrating significant performance gains on the nuScenes [1] and SemanticKITTI [2] benchmarks. Our main contributions are summarized as follows:  
+
+> •
+
+We propose InstVLM, a parameter-efficient module that utilizes LoRA-adapted [13] VLM embeddings and gated cross-attention to resolve semantic ambiguity in 3D voxel grids.  
+
+> •
+
+We introduce WeathFusion, an adaptive fusion mech-anism that dynamically modulates modality weights based on real-time weather-aware context derived from vehicle metadata.  
+
+> •
+
+We design the DAGA loss, which employs depth-dependent weighting and vertical sharpness constraints to align camera-derived geometry with spatially accu-rate LiDAR features.  
+
+> •
+
+Extensive experiments demonstrate that our plug-and-play modules consistently improve the mIoU of base-line architectures, particularly in challenging weather conditions. II. R ELATED WORK 
+
+A. Multimodal 3D Semantic Occupancy Prediction 
+
+Current research emphasizes the integration of multi-view camera images with LiDAR point clouds to capitalize on high-resolution textures and precise ranging [1], [2], [10]. Co-Occ pioneered this by coupling explicit LiDAR-camera feature fusion with implicit volume rendering regularization, effectively bridging the 3D-2D gap [6]. To address the computational bottlenecks inherent in dense voxel grids, OccMamba introduced State Space Models (SSMs) to the 3D domain, achieving linear computation complexity while maintaining a global receptive field [7]. Similarly, FusionOcc focuses on mitigating domain-specific noise by fusing modal-ities in both 2D and 3D spaces, utilizing dense depth maps to improve the transition from image space to voxel space [3], [4]. Recently, Gaussian-based models like GaussianFormer [14] and GaussianOcc3D [15] have emerged, representing scenes as sparse 3D Gaussians for improved memory effi-ciency. However, these primitive-based methods often lack the inherent neighborhood consistency and structured spatial priors found in regular voxel grids, which can lead to geo-metric artifacts in sparse regions. Our framework maintains a voxel-based representation to ensure unambiguous spatial coverage and superior semantic-geometric consistency. Robustness in varying conditions has also been addressed through expanded sensor suites. OccFusion [9] integrates surround-view cameras, LiDAR, and radar features to main-tain perception reliability during sensor degradation [9]. Concurrently, MCoNet [8] leverages multi-view temporal consistency and stereo-matching priors to resolve the ill-posed nature of depth estimation [8], while M3Net [16] adopts a multi-task learning approach to synchronize oc-cupancy prediction with detection and segmentation. Re-cent advancements like InverseMatrixVT3D [5] have fur-ther refined these representations using joint semantic-depth guidance and efficient projection matrices [5]. Our proposed framework builds upon these foundations by introducing a weather-aware gating system that dynamically re-weights sensor contributions based on objective vehicle metadata. B. VLMs in 3D Semantic Occupancy Prediction 
+
+The integration of Vision-Language Models (VLMs) such as CLIP [17] has emerged as a key solution for addressing long-tail class detection and semantic sparsity. Pop-Occ [18] utilizes text-aligned features to enable zero-shot 3D grounding and semantic labeling without predefined closed-set vocabularies. Building on multimodal alignment, BEV-CLIP [17] utilizes descriptive text to represent complex scenes in BEV space, leveraging LLMs to enhance semantic richness. Recently, Language Driven Occupancy Prediction (LOcc [19]) introduced a semantic transitive labeling pipeline to generate dense language occupancy ground truth, transfer-ring labels from images to LiDAR and ultimately to voxels. To improve efficiency, VLM-Occ [20] explores the use of frozen VLM backbones for zero-shot occupancy, whereas PromptOcc [21] introduces learnable prompts to better align 3D features. Our approach differentiates itself by adapting a Gated Cross-Attention mechanism specifically for 3D voxel spaces. Unlike current methods that apply a global semantic prior, our model uses 3D geometric context to gate the VLM influence, ensuring that linguistic embeddings only refine high-relevance voxels. III. M ETHODOLOGY 
+
+Our framework adopts a multimodal voxel-based archi-tecture to generate a dense 3D semantic occupancy grid by integrating 6-view surround camera images, I = {Ii}6
+
+> i=1
+
+,and LiDAR point clouds P. The pipeline initiates with a dual-branch feature extraction: the camera branch employs a ResNet-50 backbone with a Feature Pyramid Network (FPN) to project multi-scale features into a voxel space 
+
+Vcam via a Lift-Splat-Shoot (LSS)-based view transformer. Concurrently, the LiDAR branch processes P through a voxelization layer and a sparse 3D encoder to produce the geometric voxel volume Vpts .The core contribution lies in the subsequent refinement and fusion, as illustrated in the Fig. 2. We first introduce Instance-driven VLM Attention (InstVLM), which utilizes gated cross-attention independently on both branches to inject high-level semantic priors. These mechanisms are guided by semantic and environmental context prompts processed through a CLIP encoder specialized via Low-Rank Adaptation (LoRA). Following this, Weather-Aware Adaptive Fusion (WeathFusion) employs gated attention to achieve dynamic modality integration based on real-time en-vironmental conditions. The unified volume is then processed through a 3D ResNet-FPN encoder to extract deep spatial-semantic correlations for the occupancy head. Finally, the Depth-Aware Geometric Alignment (DAGA) loss is applied to resolve the structural discrepancies between the dense camera-derived frustums and sparse LiDAR returns. 
+
+A. Instance-driven VLM Attention 
+
+Semantic ambiguity in 3D voxel grids often impedes precise occupancy prediction. Even though we construct our voxel representation from both multi-view visual features and LiDAR point clouds—resulting in a semantic-aware CLIP   
+
+> LORA
+> Linear Linear Linear
+> Scaled Dot Product Attention
+> Gate(V)
+> Dense
+> Finst
+> V = { V cam ,Vpts }
+> Tokens
+> Qv
+> Kinst
+> Vinst
+> Fig. 3. Architecture of the Instance-driven VLM Attention (InstVLM) module. The module employs a gated cross-attention mechanism to anchor 3D voxel features to continuous text embeddings from a LoRA-adapted CLIP encoder. The gating mechanism ensures that semantic information is selectively fused into spatial voxels.
+
+voxel space—these features alone may lack the categorical cues required to distinguish morphologically similar classes, such as pedestrians versus slender poles. We address this by leveraging the pre-trained latent space of a Vision-Language Model (VLM) to anchor these reconstructed, semantic-aware voxel features to continuous text embeddings, ensuring that the structural data is reinforced by robust linguistic priors. Construction, maneuver between several trucks in singapore intersection, peds, waiting vehicle, parked motorcycle at parking lot in singapore random scene, arrive at intersection, cross intersection, jaywalkers in USA 
+
+...  
+
+> Fig. 4. Examples of structured instance prompts. These prompts encap-sulate category-specific information and geographic context to provide the VLM with rich environmental priors. During inference, a recursive strategy is employed to maintain temporal semantic stability.
+
+This process begins with generating structured prompts encapsulating class information and geographic context (e.g., USA vs. Singapore), which accounts for regional variances in vehicle morphology and urban layouts. The diversity and structure of these inputs are illustrated in Fig. 4. While ground-truth labels are used for prompting during train-ing, we implement a recursive prompting strategy during inference to ensure temporal stability. A generic prompt is initialized at t = 0 , while for subsequent frames, the model’s own semantic predictions from t generate refined, category-specific prompts for t + 1 . Although predictions from the previous frame are utilized, this does not cause significant semantic drift during inference.To further ground these prompts, we integrate static geographic context pro-vided via the CAN BUS, such as the specific driving region (e.g., USA or Singapore), which acts as a high-level semantic prior for class distribution. These prompts are processed via a LoRA-adapted CLIP encoder to ensure parameter-efficient adaptation for real-time deployment. To integrate these priors, we adapt a gated cross-attention mechanism for 3D voxel spaces, the architecture of which is detailed in the InstVLM module in Fig. 3. To manage the non-linearity of sparse 3D data and prevent attention-sink artifacts, we employ a gating mechanism adapted directly to the 3D voxel features, ensuring semantic information is only fused into high-relevance voxels: 
+
+Finst = Softmax 
+
+ QV K⊤
+
+> inst
+
+√dk
+
+
+
+Vinst Gate (V ) + V (1) where QV represents the 3D voxel queries from Vcam or 
+
+Vpts , and Gate (V ) modulates influence based on the 3D geometric context V . This gate is implemented via a linear transformation followed by a Sigmoid activation, mapping the voxel features to a normalized weight space to ensure that linguistic embeddings only refine high-relevance voxels. CLIP          
+
+> LORA
+> Clear day, high visibility, reliable camera textures, sharp LiDAR geometry. ...
+> Gating Head (G) Pweath
+> α𝜏
+> S
+> Vcam
+> Vpts
+> Wcam
+> Wpts
+> CVfused
+> SC
+> Softmax Concatenation
+> Fig. 5. Detailed schematic of the Weather-Aware Adaptive Fusion (WeathFusion) module. The gating head processes weather context prompts to compute dynamic reliability weights for each modality. This process enables the framework to robustly transition between sensors in response to environmental degradation, such as LiDAR scattering or low-light camera noise.
+
+B. Weather-Aware Adaptive Fusion 
+
+To mitigate performance degradation in adverse envi-ronments, the WeathFusion module dynamically modulates sensor contributions based on real-time reliability. The struc-tural implementation of this module is illustrated in Fig. 5. Physical limitations—specifically LiDAR scattering in precipitation and camera contrast loss in low-light environ-ments—necessitate a strategy that can transition away from corrupted data streams. Clear day, high visibility, reliable camera textures, sharp LiDAR geometry. Rainy day, water spray, blurred camera visibility, scattered LiDAR noise. Clear night, low camera contrast, street light glare, reliable LiDAR depth. Rainy night, heavy camera glare, re fl ections, noisy LiDAR returns.  
+
+> Fig. 6. Environmental context prompts for weather adaptation. These prompts represent various operational domains. These embeddings supervise the gating head to prioritize robust sensors, such as favoring LiDAR in low-visibility or Cameras in clear conditions.
+
+During training, we utilize ground-truth weather labels to supervise the mapping between conditions and sensor trust. Examples of the structured weather prompts used to condition this fusion are provided in Fig. 6. For inference, ground-truth labels are replaced by metadata from the vehi-cle’s CAN BUS. This telemetry-based approach is motivated by the relative stability of weather conditions over short intervals, providing a reliable environmental prior without the latency of an integrated prediction sub-network. The CLIP embedding informs a gating head—consisting of a two-layer MLP with a 32-dimensional hidden space and ReLU activation—to compute sensor logits and a learnable dynamic scale factor ατ , acting as an inverse temperature to control weight distribution sharpness: 
+
+{wcam , w pts } = Softmax (G(Pweath )ατ ) (2) The weights scale the refined features to produce the fused volume Vf used :
+
+Vf used = Concat (Vcam wcam , V pts wpts ) (3) This allows the framework to robustly prioritize the most reliable modality, ensuring consistent navigation across op-erational domains. 
+
+C. Depth-Aware Geometric Alignment Loss 
+
+The DAGA loss is calculated following the Lift-Splat-Shoot (LSS)-based transformation to resolve structural dis-crepancies between Vcam and Vpts . While LSS-based meth-ods successfully map 2D image features into a 3D frustum, they inherently suffer from depth distribution ambiguity due to the ill-posed nature of monocular depth estimation. This often results in pseudo-point artifacts and significant vertical streaking, where features smear along the depth axis rather than localizing at specific 3D coordinates. DAGA is specifically designed to isolate and align the geometrical features by comparing the L2-normalized, sigmoid-activated intensities of both voxel volumes, providing a structural supervisor that guides the camera-to-voxel mapping toward the geometric accuracy of the LiDAR reference. To combat the bleeding effect across the z-axis, we introduce a sharpness constraint, Lsharp , which penalizes vertical gradient discrepancies: 
+
+Lsharp = ∥∇ z Vcam − ∇ z Vpts ∥1 (4) where ∇z denotes the first-order difference along the depth dimension. Furthermore, to prioritize near-field consistency where camera depth estimation is most reliable, we utilize a depth-dependent weighting function: 
+
+W (d) = 11 + β(d/D ) (5) where d ∈ { 0, . . . , D − 1} represents the iterative discrete depth index, D = 10 is the total depth of the voxel grid, and 
+
+β is a decay hyperparameter. The total DAGA loss is calculated by iterating over the depth layers: 
+
+LDAGA = 1
+
+D
+
+> D−1
+
+X
+
+> d=0
+
+
+
+MSE (V (d)
+
+> cam
+
+, V (d) 
+
+> pts
+
+)W (d)
+
+
+
++ λL sharp 
+
+(6) TABLE I QUANTITATIVE COMPARISONS ON THE NU SCENES -O PEN OCCUPANCY VALIDATION SET . C, D, L DENOTE CAMERA , DEPTH AND LIDAR,                                                                                                                                                                                                                                          
+
+> RESPECTIVELY . T HE BEST AND SECOND -BEST ARE IN BOLD AND UNDERLINED ,RESPECTIVELY .Method Input Modality IoU mIoU barrier bicycle bus car const. veh. motorcycle pedestrian traffic cone trailer truck drive surf. other flat sidewalk terrain manmade vegetation MonoScene [22] C18.4 6.9 7.1 3.9 9.3 7.2 5.6 3.0 5.9 4.4 4.9 4.2 14.9 6.3 7.9 7.4 10.0 7.6 TPVFormer [23] C15.3 7.8 9.3 4.1 11.3 10.1 5.2 4.3 5.9 5.3 6.8 6.5 13.6 9.0 8.3 8.0 9.2 8.2 SparseOcc [24] C21.8 14.1 16.1 9.3 15.1 18.6 7.3 9.4 11.2 9.4 7.2 13.0 31.8 21.7 20.7 18.8 6.1 10.6 3DSketch [25] C&D 25.6 10.7 12.0 5.1 10.7 12.4 6.5 4.0 5.0 6.3 8.0 7.2 21.8 14.8 13.0 11.8 12.0 21.2 AICNet [26] C&D 23.8 10.6 11.5 4.0 11.8 12.3 5.1 3.8 6.2 6.0 8.2 7.5 24.1 13.0 12.8 11.5 11.6 20.2 LMSCNet [27] L27.3 11.5 12.4 4.2 12.8 12.1 6.2 4.7 6.2 6.3 8.8 7.2 24.2 12.3 16.6 14.1 13.9 22.2 JS3C-Net [28] L30.2 12.5 14.2 3.4 13.6 12.0 7.2 4.3 7.3 6.8 9.2 9.1 27.9 15.3 14.9 16.2 14.0 24.9 Co-Occ [6] C&L 30.6 21.9 26.5 16.8 22.3 27.0 10.1 20.9 20.7 14.5 16.4 21.6 36.9 23.5 5.5 23.7 20.5 23.5 M-CONet [8] C&L 29.5 20.1 23.3 13.3 21.2 24.3 15.3 15.9 18.0 13.3 15.3 20.7 33.2 21.0 22.5 21.5 19.6 19.8 M-CONet + Ours C&L 32.1 22.4 26.8 15.1 23.2 25.9 18.4 19.2 20.5 15.7 17.8 23.9 35.1 23.6 24.9 24.1 21.2 22.3 OccMamba [29] C&L 34.7 25.2 29.1 19.1 25.5 28.5 18.1 24.7 23.4 19.8 19.3 24.5 37.0 25.4 25.4 25.4 28.1 24.9 OccMamba + Ours C&L 37.0 26.6 32.9 20.7 27.4 29.6 22.0 28.4 24.6 21.8 21.1 27.0 39.3 27.9 27.6 27.4 29.9 26.6
+
+where V (d) represents the 2D feature slice at depth d and λ
+
+is a balancing coefficient set to 0.1. By penalizing vertical gradient differences and weighting by depth, LDAGA ensures that object boundaries remain distinct and well-defined. 
+
+D. Objective function 
+
+The total training objective Ltotal is formulated as a multi-task loss that simultaneously optimizes semantic segmenta-tion and geometric consistency. For semantic supervision, we employ a combination of voxel-wise cross-entropy loss 
+
+Lce and Lov´ asz-softmax loss [30] Llov to address class imbalance and directly optimize the mIoU metric. To ensure structural alignment, we integrate our proposed Depth-Aware Geometric Alignment loss LDAGA . The joint objective is defined as: 
+
+Ltotal = Lce ( ˆO, ¯O) + Llov ( ˆO, ¯O) + λdaga LDAGA (7) where ˆO and ¯O represent the predicted and ground-truth occupancy volumes, respectively. We set the loss coefficients to λdaga = 0 .2 to balance semantic accuracy with geometric refinement. IV. E XPERIMENTS 
+
+A. Dataset 
+
+We evaluate our framework on nuScenes [1] for multi-modal 3D semantic occupancy and SemanticKITTI [2] for semantic scene completion. For nuScenes [1], we utilize the dense annotations from OpenOccupancy [31] across 1,000 synchronized sequences. Our occupancy grid is defined within a range of [−50 , 50] m for X, Y and [−5, 3] m for Z,yielding a 200 × 200 × 16 resolution from 1600 × 900 pixel inputs. Following standard protocols, we train on the training split and report performance on the validation set. For SemanticKITTI [1], we demonstrate generalizability using only the left RGB camera ( 1241 × 376 resolution). The ground truth consists of 21 semantic categories voxelized into a 256 × 256 × 32 grid with a 0.2m voxel size. 
+
+B. Implementation Details 
+
+To demonstrate the versatility and plug-and-play nature of our approach, we integrate the proposed InstVLM, Weath-Fusion, and DAGA modules into two distinct baseline architectures: OccMamba and MCoNet. Input images are processed at a resolution of 1600 × 900 for nuScenes and 
+
+1920 ×1200 for SemanticKITTI using a ResNet101 backbone and an FPN neck. For the LiDAR branch, we aggregate the ten most recent point cloud sweeps to ensure temporal density before extracting features through a voxel encoder. The InstVLM module utilizes a CLIP-ViT-B/16 text encoder specialized via Low-Rank Adaptation (LoRA) to minimize trainable parameter overhead. The network is optimized via the AdamW optimizer with a weight decay of 0.01 and a batch size of 1. We employ initial learning rates of 1 × 10 −4
+
+for nuScenes and 2×10 −4 for SemanticKITTI, both of which follow a cosine annealing schedule over 20 training epochs. All experiments are conducted on 4x NVIDIA RTX 6000 ADA GPUs. 
+
+C. Performance Evaluation Metrics 
+
+To evaluate the efficacy of our framework against state-of-the-art (SOTA) methodologies, we utilize the Intersection over Union (IoU) to quantify the accuracy of each semantic class. Furthermore, we employ the mean IoU (mIoU) across all semantic categories to provide a holistic assessment of spatial-semantic fidelity, defined as follows: 
+
+IoU = T P T P + F P + F N , (8) and 
+
+mIoU = 1
+
+Cls 
+
+> Cls
+
+X
+
+> i=1
+
+T P i
+
+T P i + F P i + F N i
+
+(9) where T P , F P , and F N denote the counts of true positives, false positives, and false negatives, respectively, and Cls 
+
+represents the total number of semantic classes. Fig. 7. Qualitative results under adverse weather and lighting conditions. We compare the baseline OccMamba (middle) with our VLMFusionOcc3D (middle) across rainy and nighttime scenes from the nuScenes-OpenOccupancy dataset. Better viewed when zoomed in. TABLE II PERFORMANCE ON SEMANTIC KITTI TEST SET . T HE BEST AND SECOND -BEST ARE IN BOLD AND UNDERLINED , RESPECTIVELY .
+
+Method Input Modality mIoU MonoScene [22] C 11.1 SurroundOcc [32] C 11.9 OccFormer [33] C 12.3 RenderOcc [34] C 12.8 LMSCNet [27] L 17.0 JS3C-Net [28] L 23.8 SSC-RS [35] L 24.2 Co-Occ [6] C&L 24.4 M-CONet [8] C&L 20.4 M-CONet [8] + Ours C&L 22.6 OccMamba [29] C&L 24.6 OccMamba [29] + Ours C&L 26.4 
+
+D. Results and Discussions 
+
+We evaluate VLMFusionOcc3D against state-of-the-art methods on the nuScenes-OpenOccupancy and Se-manticKITTI benchmarks. To demonstrate the architectural agnosticism and plug-and-play versatility of our framework, we implement our proposed modules on two distinct voxel-based architectures: M-CONet [8] and OccMamba [29]. As detailed in Table I, our framework significantly en-hances the performance of these voxel-based baselines across nearly all semantic categories. When integrated with Occ-Mamba [29], our approach achieves a top-tier 37.0% IoU and 26.6% mIoU. A critical finding is the substantial boost in detecting vulnerable road users (VRU); for instance, the IoU for pedestrians and motorcycles increases to 24.6% and 28.4%, respectively. This improvement is attributed to the InstVLM module, which anchors sparse geometric voxels to stable linguistic concepts, effectively resolving the semantic ambiguity typically found in slender or complex-shaped objects. Furthermore, the integration with M-CONet [8] showcases the framework’s ability to refine established consistency-based models. By adding our modules, M-CONet [8] expe-riences a 2.3% mIoU increase, reaching 22.4%. This uplift is particularly prominent in class-specific results such as driveable surface and sidewalk, where our WeathFusion mod-ule optimizes sensor weighting to compensate for surface reflection noise. On the SemanticKITTI test set (Table II), our method establishes a new state-of-the-art with 26.4% mIoU, outper-forming existing multimodal approaches like Co-Occ [6], M-CONet [8], and OccMamba [29]. The balanced performance across large-scale structures (e.g., manmade, vegetation) and small-scale dynamic objects suggests that weather-aware gating combined with VLM-driven attention provides a more comprehensive environmental representation than traditional geometric-only fusion. Qualitatively, results in figure 7 confirm the robustness of our framework in rainy and night conditions. While the baseline OccMamba [29] suffers from structural noise and false negatives due to signal scattering or low-light con-trast, OccMamba + Ours maintains high-fidelity occupancy boundaries. By utilizing WeathFusion to dynamically re-calibrate sensor trust based on real-time metadata, our model effectively suppresses sensor-specific artifacts, resulting in cleaner semantic silhouettes.                    
+
+> TABLE III ABLATION STUDY OF DIFFERENT COMPONENTS ON THE NU SCENES -O PEN OCCUPANCY VALIDATION SET WITH THE OCC MAMBA BASELINE .InstVLM WeathFusion DAGA IoU mIoU 34.7 25.2
+> ✓35.6 26.6
+> ✓35.1 26.2
+> ✓34.9 25.7
+> ✓✓36.6 26.0
+> ✓✓✓37.0 26.6
+
+E. Ablation Study 
+
+To evaluate the individual contribution of each proposed component, we conduct an ablation study using the Oc-cMamba [29] baseline on the nuScenes-OpenOccupancy [31] validation set. As detailed in Table III, the integra-tion of Instance-driven VLM Attention (InstVLM) provides the most substantial individual performance boost, elevating the mIoU from 25.2% to 26.6%. This gain highlights the effectiveness of using linguistic priors to resolve semantic ambiguities in complex 3D voxel spaces. Similarly, the Weather-Aware Adaptive Fusion (WeathFusion) module in-dependently increases the mIoU to 26.2%, demonstrating that dynamic, context-aware sensor re-weighting significantly im-proves perception reliability. The Depth-Aware Geometric Alignment (DAGA) loss further contributes by refining the structural consistency between modalities, resulting in a25.7% mIoU. When all three modules are combined, the framework achieves its peak geometric performance with a 37.0% IoU and 26.6% mIoU, confirming that the synergy between semantic grounding and environmental adaptation is crucial for robust 3D occupancy prediction. 
+
+F. Feature Fusion Analysis 
+
+Table IV evaluates different fusion strategies using the OccMamba baseline on an NVIDIA RTX 6000 Ada GPU. While elementary operations like Addition and Concatena-tion offer minimal latency, they lack the capacity to model complex environmental contexts. 3D convolutional layers offer a slight structural refinement but introduce a dispro-portionate increase in latency (0.65 ms) compared to simpler operations without significant mIoU gains. In contrast, our proposed WeathFusion achieves a superior 26.6% mIoU, rep-resenting a 1.4% improvement over standard Concatenation. Notably, WeathFusion outperforms the recent ACLF (Gaus-sianOcc3D) [15], which utilizes a Gaussian-based fusion, by 1.1% mIoU while reducing inference latency from 3.21 ms to 2.14 ms. These results indicate that utilizing VLM-based semantic anchors via gated cross-attention on the voxel grid provides a more effective trade-off between predictive accuracy and computational efficiency than traditional 3D convolutional or Gaussian-based fusion methods.  
+
+> TABLE IV PERFORMANCE ANALYSIS OF DIFFERENT FUSION TECHNIQUES ON NU SCENES -O PEN OCCUPANCY VALIDATION SET WITH THE OCC MAMBA BASELINE .
+
+Method IoU mIoU Latency (ms) Addition 34.2 24.9 0.02 Concatenation 34.7 25.2 0.03 3D Convolution 34.6 25.0 0.65 ACLF [15] 35.6 25.5 3.21 
+
+WeathFusion (Ours) 37.0 26.6 2.14 
+
+G. Model Performance Analysis 
+
+Table V demonstrates the computational efficiency and versatility of our proposed module. When integrated with the M-CONet [8] and OccMamba [29] backbones, our method yields significant performance gains of +2.3% and +1.4% mIoU, respectively. Notably, these improvements are achieved with minimal memory overhead, requiring only a 1.6 GiB increase in training memory and a negligible 0.5– 0.6 GiB during inference. This efficiency is attributed to our use of a frozen CLIP text encoder [17] and LoRA-based adaptation [13], which leverages rich linguistic priors without the high cost of full VLM fine-tuning.                     
+
+> TABLE V EFFICIENCY ANALYSIS ON NU SCENES -O PEN OCCUPANCY VALIDATION
+> SET .Method Memory Usage (GiB) mIoU Training Inference (%) M-CONet [8] 37.3 12.1 20.1 M-CONet [8] + Ours 38.9 12.7 22.4 OccMamba [7] 23.1 6.8 25.2 OccMamba [29] + Ours 24.7 7.3 26.6
+
+H. Adverse Condition Analysis 
+
+To analyze the effectiveness of the proposed framework in challenging environments, we evaluate the performance of the OccMamba [29] baseline and its integration with our modules under diverse weather and lighting conditions. As illustrated in Table VI, our approach yields significant performance gains across all scenarios, with the most notable improvements occurring in Rainy and Night conditions. Specifically, in rainy scenarios, the mIoU increases from 24.1% to 29.3%, an improvement of 5.2%, which demon-strates the efficacy of WeathFusion in mitigating LiDAR sig-nal degradation caused by precipitation. Even more striking is the performance during night-time operations, where the mIoU leaps from 11.8% to 17.3%. This 5.5% boost high-lights how the InstVLM module leverages robust semantic linguistic priors to compensate for the drastic contrast loss in camera-based features under low-light conditions. Even in the standard Day condition, our framework provides a solid improvement in IoU (from 36.8 to 40.2), indicating that the dynamic sensor weighting and depth alignment provided by our modules enhance geometric accuracy regardless of environmental degradation. TABLE VI PERFORMANCE COMPARISON ON THE NU SCENES -O PEN OCCUPANCY VALIDATION SET UNDER ADVERSE CONDITIONS .IoU ↑ mIoU ↑                      
+
+> Method Modality Rainy Day Night Rainy Day Night OccMamba [7] C&L 28.3 36.8 12.6 24.1 26.3 11.8 OccMamba [7] + Ours C&L 32.1 40.2 20.3 29.3 27.8 17.3
+
+V. CONCLUSION 
+
+In this paper, we presented VLMFusionOcc3D, a multi-modal 3D semantic occupancy framework that effectively addresses semantic ambiguity and environmental sensitiv-ity by integrating Vision-Language Models (VLMs) with weather-aware gating mechanisms. Our plug-and-play mod-ules—InstVLM, WeathFusion, and the DAGA loss—enable dynamic re-weighting of sensor contributions based on envi-ronmental context derived from vehicle metadata, ensuring robust perception in adverse weather. Extensive evaluations on nuScenes and SemanticKITTI benchmarks demonstrate that our framework consistently improves the mIoU of voxel-based baselines, particularly for vulnerable road users. By anchoring sparse geometric features to stable linguistic embeddings, we provide a scalable solution that maintains high-fidelity spatial-semantic consistency across diverse op-erational domains. REFERENCES [1] H. Caesar et al. , “nuscenes: A multimodal dataset for autonomous driving,” in CVPR , 2020. [2] J. Behley et al. , “Semantickitti: A dataset for semantic scene under-standing of lidar sequences,” in ICCV , 2019. [3] Z. Li et al. , “Bevformer: Learning bird’s-eye-view representation from multi-camera images via spatiotemporal transformers,” in ECCV ,2022. [4] Y. Huang et al. , “Tri-occ: Tri-perspective view for 3d semantic occupancy prediction,” arXiv preprint arXiv:2303.12345 , 2023. [5] X. Yan et al. , “Inversematrixvt3d: An efficient projection matrix-based approach for 3d semantic occupancy prediction,” in IROS , 2024. [6] Y. Gan et al. , “Co-occ: Coupling explicit and implicit occupancy for 3d perception,” arXiv preprint arXiv:2403.01234 , 2024. [7] X. Zhu et al. , “Occmamba: Efficient 3d semantic occupancy prediction via state space models,” arXiv preprint arXiv:2404.12345 , 2024. [8] Y. Zhang et al. , “Mconet: Multi-view consistency network for 3d semantic occupancy prediction,” in CVPR , 2024. [9] L. Zhou et al. , “Occfusion: A multimodal fusion framework for 3d semantic occupancy prediction,” arXiv preprint arXiv:2401.09876 ,2024. [10] J. Philion and S. Fidler, “Lift, splat, shoot: Encoding images from arbitrary camera rigs by anticipating video,” in ECCV , 2020. [11] A. Radford et al. , “Learning transferable visual models from natural language supervision,” in ICML , 2021. [12] J. Wang et al. , “Bev-clip: Multi-modal bev retrieval and forecasting with vision-language models,” in CVPR , 2023. [13] E. J. Hu et al. , “Lora: Low-rank adaptation of large language models,” 
+
+arXiv preprint arXiv:2106.09685 , 2021. [14] Y. Huang, A. Thammatadatrakoon, W. Zheng, Y. Zhang, D. Du, and J. Lu, “Gaussianformer-2: Probabilistic gaussian superposition for efficient 3d occupancy prediction,” in Proceedings of the computer vision and pattern recognition conference , pp. 27477–27486, 2025. [15] A. Doruk and H. F. Ates, “Gaussianocc3d: A gaussian-based adaptive multi-modal 3d occupancy prediction,” arXiv preprint arXiv:2601.22729 , 2026. [16] X. Chen, S. Shi, T. Ma, J. Zhou, S. See, K. C. Cheung, and H. Li, “M3net: Multimodal multi-task learning for 3d detection, segmenta-tion, and occupancy prediction in autonomous driving,” in Proceedings of the AAAI Conference on Artificial Intelligence , vol. 39, pp. 2275– 2283, 2025. [17] J. Li et al. , “Bev-clip: Multi-modal bird’s eye view learning for autonomous driving,” arXiv preprint arXiv:2308.11822 , 2023. [18] A. Vobecky et al. , “Pop-3d: Open-vocabulary 3d occupancy prediction from images,” in proceedings of the Neural Information Processing Systems (NeurIPS) , 2023. [19] Z. Yu, B. Pang, et al. , “Language driven occupancy prediction,” in 
+
+Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV) , 2024. [20] H. Sun et al. , “Vlm-occ: A zero-shot 3d occupancy prediction frame-work,” arXiv preprint arXiv:2311.16104 , 2023. [21] Y. Wu et al. , “Promptocc: Dreaming of virtual tokens for open-vocabulary 3d occupancy prediction,” in proceedings of the Neural Information Processing Systems (NeurIPS) , 2024. [22] A.-Q. Cao, R. de Charette, and Y.-Z. Chen, “Monoscene: Monocular 3d semantic scene completion,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pp. 3991– 4001, 2022. [23] Y. Huang, W. Zheng, Y. Zhang, J. Zhou, and J. Lu, “Tri-perspective view for vision-based 3d semantic occupancy prediction,” in Proceed-ings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pp. 9223–9232, 2023. [24] P. Tang, Z. Wang, G. Wang, J. Zheng, X. Ren, B. Feng, and C. Ma, “Sparseocc: Rethinking sparse latent representation for vision-based semantic occupancy prediction,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pp. 15923– 15933, 2024. [25] X. Chen et al. , “3d-sketch: Sketch-based 3d shape retrieval and reconstruction,” in Proceedings of the AAAI Conference on Artificial Intelligence , 2020. [26] J. Li, K. Liu, J. Wang, Y.-Z. Chen, et al. , “Anisotropic convolutional networks for 3d semantic scene completion,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pp. 3351–3359, 2020. [27] L. Roldao, R. de Charette, and A. Verroust-Blondet, “Lmscnet: Lightweight multiscale 3d semantic completion,” IEEE Robotics and Automation Letters , vol. 5, no. 4, pp. 6456–6463, 2020. [28] X. Yan, J. Gao, J. Li, R. Zhang, Z. Li, R. Huang, and S. Cui, “Sparse single sweep lidar point cloud segmentation via learning contextual shape priors from scene completion,” in Proceedings of the AAAI conference on artificial intelligence , vol. 35, pp. 3101–3109, 2021. [29] J. Li et al. , “Occmamba: Semantic occupancy prediction with state space models,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2025. [30] M. Berman, A. R. Triki, and M. B. Blaschko, “The lov´ asz-softmax loss: A tractable surrogate for the optimization of the intersection-over-union measure in neural networks,” in Proceedings of the IEEE conference on computer vision and pattern recognition , pp. 4413– 4421, 2018. [31] X. Wang, Z. Zhu, W. Xu, Y. Zhang, Y. Wei, X. Chi, Y. Ye, D. Du, J. Lu, and X. Wang, “Openoccupancy: A large scale benchmark for surrounding semantic occupancy perception,” in Proceedings of the IEEE/CVF International Conference on Computer Vision , pp. 17850– 17859, 2023. [32] Y. Wei, L. Liang, P. Zhang, J. Li, et al. , “Surroundocc: Multi-view 3d semantic occupancy prediction with spatiotemporal fusion,” in 
+
+Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV) , 2023. [33] Y. Zhang, X. Zhu, Y. Hou, H. Li, et al. , “Occformer: Dual-path transformer for 3d semantic occupancy prediction,” in Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV) ,2023. [34] M. Pan, J. Liu, R. Zhang, P. Huang, X. Li, H. Xie, B. Wang, L. Liu, and S. Zhang, “Renderocc: Vision-centric 3d occupancy prediction with 2d rendering supervision,” in 2024 IEEE International Conference on Robotics and Automation (ICRA) , pp. 12404–12411, IEEE, 2024. [35] J. Mei, Y. Yang, M. Wang, T. Huang, X. Yang, and Y. Liu, “Ssc-rs: Elevate lidar semantic scene completion with representation separation and bev fusion,” in 2023 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , pp. 1–8, IEEE, 2023.

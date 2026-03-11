@@ -1,0 +1,295 @@
+Title: 3PoinTr: 3D Point Tracks for Robot Manipulation Pretraining from Casual Videos
+
+URL Source: https://arxiv.org/pdf/2603.08485v1
+
+Published Time: Tue, 10 Mar 2026 02:40:10 GMT
+
+Number of Pages: 10
+
+Markdown Content:
+# 3PoinTr: 3D Point Tracks for Robot Manipulation Pretraining from Casual Videos 
+
+Adam Hung 
+
+Carnegie Mellon University Pittsburgh, Pennsylvania Email: adamhung@andrew.cmu.edu 
+
+Bardienus Pieter Duisterhof 
+
+Carnegie Mellon University Pittsburgh, Pennsylvania Email: bduister@andrew.cmu.edu 
+
+Jeffrey Ichnowski 
+
+Carnegie Mellon University Pittsburgh, Pennsylvania Email: jeffi@andrew.cmu.edu 0
+
+20 
+
+40 
+
+60 
+
+80 
+
+100 
+
+Casual Human Videos 
+
+20 Robot Demos 
+
+> 3PoinTr
+> Baselines
+
+91% 
+
+Success 
+
+3PoinTr 
+
+3D Point Track Prediction 
+
+47% 
+
+Success 
+
+Behavior Cloning 
+
+Data Collection 
+
+Fig. 1. 3PoinTr is a general and scalable method for pretraining manipulation policies with casual human videos. Given an observed point cloud, 3PoinTr answers: how will the scene evolve when completing the task? We contribute a state-of-the-art 3D point track prediction transformer, and use a Perceiver IO architecture and Diffusion Policy to enable state-of-the-art imitation learning. 
+
+Abstract —Data-efficient training of robust robot policies is the key to unlocking automation in a wide array of novel tasks. Current systems require large volumes of demonstrations to achieve robustness, which is impractical in many applications. Learning policies directly from human videos is a promising alternative that removes teleoperation costs, but it shifts the challenge toward overcoming the embodiment gap (differences in kinematics and strategies between robots and humans), of-ten requiring restrictive and carefully choreographed human motions. We propose 3PoinTr, a method for pretraining robot policies from casual and unconstrained human videos, enabling learning from motions natural for humans. 3PoinTr uses atransformer architecture to predict 3D point tracks as an in-termediate embodiment-agnostic representation. 3D point tracks encode goal specifications, scene geometry, and spatiotemporal relationships. We use a Perceiver IO architecture to extract a compact representation for sample-efficient behavior cloning, even when point tracks violate downstream embodiment-specific constraints. We conduct thorough evaluation on simulated and real-world tasks, and find that 3PoinTr achieves robust spatial generalization on diverse categories of manipulation tasks with only 20 action-labeled robot demonstrations. 3PoinTr outper-forms the baselines, including behavior cloning methods, as well as prior methods for pretraining from human videos. We also provide evaluations of 3PoinTr’s 3D point track predictions compared to an existing point track prediction baseline. We find that 3PoinTr produces more accurate and higher quality point tracks due to a lightweight yet expressive architecture built on a single transformer, in addition to a training formulation that preserves supervision of partially occluded points. Project page: https://adamhung60.github.io/3PoinTr/. 
+
+I. I NTRODUCTION 
+
+Robust generalist robots could take on dangerous, tedious, or high-value tasks, but doing so requires generalization across diverse tasks, objects, and interaction dynamics. As a result, existing methods for training generalist robots rely on huge amounts of expensive action-labeled robot data [1, 21]. Learn-ing from the manipulation skills demonstrated in videos could greatly help to scale generalist robot training, but existing methods can typically only utilize human videos that are curated in a specific manner [12]. This motivates approaches that can extract more transferable and sample-efficient priors from readily available video data. The choice of representation plays a crucial role during video pretraining. In this context, we refer to video pretraining 
+
+> arXiv:2603.08485v1 [cs.RO] 9 Mar 2026
+
+as learning transferable priors from videos before using any robot action-labeled data. Many robot learning approaches [7, 21, 1] rely entirely on 2D representations throughout training, introducing 3D structure only at the final action prediction step. However, studies have shown that using 3D state repre-sentations can improve sample efficiency compared to 2D state representations [32, 36]. 3D state representations can better en-code task-critical geometric features and spatial relationships, and also provide a more straightforward mapping to 3D robot actions. Prior work has also explored using representations based on point trajectories (also known as point tracks, flow, or scene flow) [28, 24, 8, 3, 9, 4, 12, 13, 17, 30, 29, 34, 11], which encode motion with explicit temporal structure. Like 3D point clouds, 3D point tracks also align with the robot action space. With recent computer vision foundation models [16] enabling autonomous point-tracking, point tracks have become a scalable and efficient representation for learning priors from videos [13]. Still, most approaches that use point tracks for robot learning from videos remain in 2D. Although a few works extend to 3D [12, 30, 4], these methods are limited in scalability and autonomous deployment, and cannot learn from casual videos. In addition to selecting an appropriate representation, a central challenge is ensuring that priors learned from videos can transfer across the embodiment gap between humans and robots. Prior work has sought to overcome this gap by formulating mappings between human kinematics and robot kinematics [12, 24]. However, these mappings do not typically hold for casual videos, because humans often employ manip-ulation strategies and motions that are infeasible, inefficient, or even risky for robots. We propose 3PoinTr (Figure 1), a method for general and sample-efficient policy learning. 3PoinTr takes in a point cloud, and answers the question: how will the 3D scene evolve when completing this task? We predict these 3D point tracks with a lightweight single-transformer decoder. Next, 3PoinTr uses a Perceiver IO architecture to compress the point tracks into a compact yet rich representation. Our key insight is to avoid imposing inductive biases such as keypoints or object-centric masks. Instead, learned queries autonomously discover task-relevant features, enabling robot policies to be learned from as few as 20 demonstrations. This paper contributes: 1) A scalable approach for learning dense, embodiment-agnostic 3D point track priors from human videos, achiev-ing state-of-the-art 3D point track prediction under two 3D displacement-based metrics. 2) A policy learning framework that conditions embodiment-specific robot policies on embodiment-agnostic 3D point track predictions. The policy framework learns to extract rich features from 3D point tracks with only 20 demon-strations. 3) Experiments in simulation and the real-world suggesting that 3PoinTr can learn 3D point track priors from casual human videos and use them to inform robot policies, with results showing substantially improved performance compared to state-of-the-art video pretraining and behavior cloning baselines. 3PoinTr obtains a 43.8% higher average success rate than the best baseline across real and simulated tasks when trained on 20 robot demonstrations .II. R ELATED WORK 
+
+3PoinTr builds on prior work on behavior cloning and learning from videos. 
+
+A. Behavior Cloning 
+
+Imitation learning aims to learn policies from expert demon-strations. Behavior cloning is one type of imitation learning that employs supervised learning to train a policy which mim-ics expert demonstrations. Recent innovations have enabled behavior cloning policies to achieve success across a wide variety of real-world tasks [7, 33]. However, many prior works rely on image representations, which make generalization across visual, geometric, and spatial conditions difficult. Some approaches observe efficiency gains from alternative representations such as point clouds [32], keypoints [26], or affordance masks [2]. However, without any priors, these methods still require a significant amount of teleoperated data, because they must simultaneously learn the task specification and task-level planning from scratch while also solving the robot control problem. Conversely, 3PoinTr decouples the two problems by first predicting point tracks, and then learning the much simpler mapping from point tracks to robot motion. 
+
+B. Learning from videos 
+
+In contrast to robot data, actionless videos (videos without associated labeled actions) of manipulation tasks are widely available and easy to record, and capture both scene dynamics and the semantic structure of tasks. A large body of prior work has explored how to extract useful features from videos to improve sample efficiency and generalization in imitation learning. Existing approaches include visual pretraining [20], learning reward functions [31] for reinforcement learning, and extracting object affordances [2, 6]. More recently, video-generation-based approaches have proposed using learned video dynamics to condition robot policies [18, 22]. However, none of these methods are robust to visual perturbations, and they typically learn human-centric features from human videos which do not necessarily transfer well to learning robot policies. We propose a point-based representation that is agnostic to both changes in appearance and changes in embodiment. 
+
+a) Flow representations for learning from videos: Recent work has gravitated towards using point tracks as a bridge between actionless videos and robot policies. Point tracks are: (1) applicable across diverse scenarios, due to their ability to encode arbitrary scene dynamics with sufficient point density, (2) grounded in physically meaningful metric space, (3) agnostic to visual perturbations such as lighting and color, 3D Point Track Prediction 
+
+Input Point Cloud 
+
+P ∈ ℝN×3Self 
+
+Attention 
+
+L Times ×
+
+Point Tokenizer 
+
+(MLP) 
+
+P1
+
+PN
+
+X1
+
+XN
+
+Predicted Point Tracks 
+
+X ∈ ℝN×T×3
+
+Behavior Cloning 
+
+Action Trajectory 
+
+A ∈ ℝT×da
+
+> Diffusion Policy
+
+Learnable Query 
+
+Tokens 
+
+Track Tokens 
+
+(Keys/Values) Cross 
+
+Attention 
+
+> Perceiver IO
+
+K Times ×Fig. 2. Diagram of the 3PoinTr network architecture. We first encode an initial point cloud, pass through a transformer decoder, and project each point token to a 3D point trajectory. This yields dense 3D point tracks that encode goal specifications, scene geometry, and spatiotemporal relationships. We then aggregate the per-point trajectory features using a Perceiver IO-style cross-attention module. A small set of learned query tokens attends to the full set of point track tokens, producing a compact global representation of the task. This representation is used as conditioning input to a Diffusion Policy, which generates an open-loop sequence of robot actions. 
+
+(4) capable of being extracted deterministically from videos, and (5) visually interpretable. Prior works have explored several approaches for transfer-ring flow-based priors to robotic manipulation. Some works directly retarget predicted human hand keypoint trajectories to robot end-effectors [24, 12] without any learned robot policy, and rely on carefully collected videos where the human demonstrator arm must closely mimic robot kinematics. This often involves forming a claw shape with their hands to imitate a parallel-jaw robot gripper. Other works learn to predict dense flow of all points in the scene and then learn a flow-conditioned policy [8, 28], but these approaches rely on embodiment point flow predictions and thus require that human motion closely aligns with robot motion. In order to avoid making assumptions about embodiments, some works have proposed predicting only the flow of points that lie on task-relevant objects [29, 30]. Im2Flow2Act [29] learns to predict 2D object flow from human videos, and then learns a flow-conditioned policy trained on simulated robot play data to map the generated object flow to robot actions. Although its approach is fully embodiment agnostic, it remains 2D, and introduces a sim-to-real gap. It also requires a digital twin simulation environment and a large dataset of robot play data. In contrast, 3PoinTr does not require segmentation masks of specific objects; instead, we track all non-embodiment points. 
+
+b) 3D Flow: While most of the aforementioned flow-based methods for learning from videos are 2D [28, 29, 24], a few extend to 3D [30, 4, 12] and find that this leads to improved sample efficiency and generalization. However, these 3D flow-based methods all require manual annotations or hand-tuned heuristics, limiting scalability. General Flow [30] predicts 3D point tracks in a similar manner to 3PoinTr, but uses a heuristic policy that assumes a pre-defined object-grasping location. General Flow achieves great zero-shot human-to-robot results following 3D trajecto-ries, but it is unable to perform tasks with changing contact points, learn embodiment-specific behaviors, or perform any tasks without manual positioning. Several other methods also predict 3D point tracks, but have similar limitations due to their reliance on model-based planning for robot execu-tion [13, 17, 9, 34]. Point Policy [12] uses a hand tracking model to retarget predicted human keypoint trajectories directly to the robot, making it impossible to learn from casual videos. COIL [4] conditions a policy on a “Correspondence-Oriented Task Representation,” which encodes embodiment-agnostic 3D keypoint tracks similar to 3PoinTr. However, COIL assumes that these keypoints and their trajectories are externally provided and also relies on precise keypoint tracking at inference time. III. M ETHOD 
+
+3PoinTr (Figure 2) consists of two stages: (1) learning a model that predicts dense future 3D point trajectories from a single scene observation, and (2) learning a behavior cloning policy conditioned on these predicted point tracks. 
+
+a) 3D point track prediction: First, given an initial point cloud P ∈ RN ×3 expressed in the camera coordinate frame with all embodiment points removed, the goal is to predict 3D point tracks: the future 3D positions of each initial point over a fixed horizon of T timesteps. Formally, we learn a function parameterized by θfθ : P 7 → X ∈ RN ×T ×3,
+
+where X = {Xit |i ∈ [0 , N ), t ∈ [0 , T )}, with each Xi ∈
+
+RT ×3 corresponding to a prediction for a point in P i over T
+
+time steps. Simulation Tasks    
+
+> Stack
+> Blocks
+> Open
+> Microwave
+> Right
+> Glass
+> Random Initial
+> Configurations
+> Real World Tasks
+> Open
+> Drawer
+> Right
+> Glass
+> Throw
+> Away
+> Paper
+> Fold
+> Sock
+> Casual Human Demonstration Videos 3D Point Tracks Teleoperated Robot Demonstrations Fig. 3. Visualizations of the simulation and real-world tasks we evaluate 3PoinTr on. The upper-left section shows renderings of simulation environments, where robot trajectories are procedurally generated, and the resulting data is used for both video pretraining as well as behavior cloning. The right section shows images from real-world data collection, where video pretraining trains on casual human demonstration videos, and behavior cloning trains on teleoperated robot demonstration data. We display 2D projections of the 3D point tracks extracted from the videos in green, representing the training targets for our point track prediction networks. The bottom-left section shows a few examples of the random initial configurations we use for evaluation, demonstrating the spatial generalization required for policies to succeed.
+
+b) Flow-conditioned policy learning: Given the 3D point track prediction model, we train a behavior cloning policy to predict open-loop action sequences conditioned solely on the predicted point tracks. Formally, we learn a policy parameter-ized by ϕπϕ : X 7 → A ∈ RT ×da .T is the shared temporal horizon of both the predicted point tracks and the action sequence, and da is the action-space dimension. 
+
+A. Network architecture and training a) 3D Point track prediction: We employ a transformer architecture for dense 3D point track prediction. The trans-former takes in the visible 3D points in the scene, excluding embodiment points. The transformer uses self-attention with queries Q, keys K and value tokens V , each of dimension 
+
+DT . We compute the tokens by feeding the observed points into MLPs. MLP (P ) : RN ×3 7 → RN ×DT
+
+The attention mechanism uses the inner product to compute the attention matrix: 
+
+SA( Q, K, V ) = softmax 
+
+ QK ⊤
+
+√dh
+
+
+
+V
+
+After the transformer, a linear prediction head outputs the future 3D trajectory for each point over the full prediction horizon, finally yielding point tracks X ∈ RN ×T ×3.During training, we subsample a random set of input points from the initial point cloud, and apply per-sample unit-sphere normalization. We assume access to visibility values mit ∈{0, 1}, indicating whether point i is visible at timestep t. We mask losses by mit, and use an L1 loss on 3D position error for all visible point-timestep pairs. 
+
+b) Flow-conditioned policy learning: The policy net-work input is solely the 3D point track predictions. The track prediction network is frozen during policy training. Note that because we predict an open-loop sequence of actions, conditioning on the initial robot configuration is not required. We extract compact yet informative flow tokens using a Perceiver IO architecture [14]. Inside the network, we first embed each predicted point trajectory Xi into 3D point track tokens F ∈ RN ×DA . A learnable query token ˜Q ∈ RDA
+
+attends to the 3D point track tokens via cross-attention, which is equivalent to self-attention except with learned query tokens. We feed the output of the Perceiver IO architecture into a diffusion policy with a 1D U-Net [25] diffusion architecture from Chi et al. [7], and denoise the end-effector position, end-effector orientation, and gripper value. All actions are expressed in the camera coordinate frame. IV. E XPERIMENTS 
+
+We implement and evaluate 3PoinTr in simulation and on a real robot. 
+
+A. Experimental Setup a) Simulation: In simulation, we collect demonstrations using a UFactory xArm 7 equipped with a UFactory parallel jaw gripper. We procedurally generate demonstrations by executing end effector waypoints derived heuristically from randomly generated initial configurations. We evaluate on three simulation tasks (Fig. 3): (1) Stacking Blocks , where the task is to stack the small blue block on top of the larger green block, (2) Open Microwave , where the task is to open the microwave, and (3) Right Glass , where the task is to right a fallen glass. We vary the position and orientation of the objects across trials. 
+
+b) Real-world: For real-world robot demonstrations and evaluation, we use an Xbox controller to teleoperate the same UFactory xArm 7 and parallel jaw gripper as in simulation. For casual video demonstration collection, a human performs the manipulation tasks. We calibrate a ZED Mini camera to the scene using eye-to-hand calibration, and keep the camera static throughout data collection and testing. We evaluate on four real-world tasks (Fig. 3): (1) Open Drawer , where the task is to pull on a handle to open a drawer, (2) Right Glass , where the task is to right a fallen glass, (3) Throw Away Paper , where the task is to put a crumpled paper in the trash, and (4) Fold Sock , where the task is to fold a sock in half. The position and orientation of the objects are varied across trials. Note that although the human demonstrations and robot demonstrations share similar initial and goal states, the robot gripper and human hand do not need to have the same orientations and trajectories throughout the task. Instead of trying to mimic the intended downstream robot motion, the human demonstrator may perform the tasks in the manner they choose (e.g., what they find most natural and efficient). For example, for the Right Glass task, the human can grasp the glass by the stem, which leads to singular configurations if the robot attempts to mimic—instead, the robot inserts its gripper into the glass and lifts the rim such that the glass pivots about its base (Fig. 5). Although the general strategies for the other tasks are more similar between human and robot, the angles of approach, grasp points, and trajectories taken differ between the two embodiments. 
+
+B. Implementation Details a) Data collection: For training data, we first collect casual videos demonstrating manipulation tasks. Then, we ex-tract 3D point trajectories for a dense grid of points initialized at the first image frame of each demonstration. This process differs between simulation and real-world setups, as detailed below. In simulation , we have access to ground-truth flow labels during 3D point track prediction training. We obtain these labels by tracking the poses of all rigid bodies throughout each trial, and applying the corresponding transformations to each point in the initial frame. Robot points are excluded. To ensure sufficiently diverse initial configurations with minimal demonstrations, we use furthest point sampling to sample 20 initial configurations for each simulation task, and include these 20 demonstrations in the training data for all simulation experiments and methods. For real-world videos, several steps are required to extract 3D flow. First, we obtain 2D point trajectories and visibility masks from stereo video using a 2D point tracking model [15]. Then, we use a stereo-to-depth model [27] to obtain depth maps, and lift the 2D tracks to 3D using depth. We also segment all embodiment points using SAM3 [5], and mark all such points as invisible. For both simulation and real-world datasets, we then have a set of 3D point trajectories, where the real-world data additionally includes per-frame visibility masks. We remove all embodiment points to avoid encoding information that may not be actionable for downstream embodiments. Given demonstrations of varying duration, we then reparameterize each trajectory by normalized time and resample it at uniform intervals, resulting in fixed-length discretized 3D point trajec-tories. In real-world experiments, we train flow prediction networks solely on human videos (without using the additional limited robot videos), as we find that this provides consistent condi-tioning for the policies. 
+
+b) Point track prediction network: We use a 3-layer MLP with output dimension 256 and GELU activations to tokenize input points. We use two decoder blocks with 4 attention heads with head dimension 64. In between the blocks we use a feed-forward network with expansion ratio 4 and GELU activation. After the decoder, a linear head predicts per-point 3D trajectories over the full prediction horizon. At both training and test times, we randomly subsample N = 2048 
+
+points from the initial point cloud for each sample. We add Gaussian noise with σ = 0 .01 to input point clouds as data augmentation. 
+
+c) Flow-conditioned policy network: Each predicted point trajectory is projected to a 128-D track token. We use the Perceiver IO architecture to retrieve a single point track token, and project to dimension 256 to use as the diffusion policy conditioning vector. The diffusion model predicts open-loop action sequences A ∈ RT ×10 consisting of end-effector position, 6-D orientation representation [35], and a scalar gripper command. 
+
+d) Robot Trajectory Discretization: We run 3PoinTr policies open-loop on a sparse ( ∼9–16, depending on the granularity of the task) set of subsampled position setpoints from the dense recorded trajectories. We also run DP3 and Diffusion Policy open-loop for a direct comparison of the three representations. We run ATM and AMPLIFY closed-loop on a denser set of ∼50 setpoints per sample, which is consistent with their original implementations. 
+
+C. Baselines a) 3D Point Track Prediction Baseline: We compare against General Flow [30], the state-of-the-art 3D flow pre-diction method which trains a language-conditioned 3D flow prediction network using RGBD human video datasets [19]. We retrain the General Flow network from scratch on each of the tasks. For a fair comparison, we remove all embodiment points from the dataset for both 3PoinTr and General Flow. TABLE I AVERAGE DISTANCE ERROR (ADE) AND ADE OF THE 5 % OF POINTS THAT MOVE THE MOST (5 % ADE) FOR 3P OIN TR AND GENERAL                                          
+
+> FLOW [30] ON SIMULATION AND REAL -WORLD TASKS (IN MILLIMETERS ).
+> Task Method ADE ( ↓)5 % ADE ( ↓)
+> Simulation Tasks (100 training samples)
+> Block Stack General Flow 0.47 3.75
+> 3PoinTr 0.20 1.60
+> Open Microwave General Flow 3.29 21 .37
+> 3PoinTr 1.32 5.22
+> Glass General Flow 3.17 38 .30
+> 3PoinTr 0.78 6.03 Real–World Tasks (50 training samples)
+> Open Drawer General Flow 2.43 19 .17
+> 3PoinTr 1.90 11.36
+> Right Glass General Flow 2.78 25 .84
+> 3PoinTr 1.95 15.40
+> Throw Away Paper General Flow 1.78 17 .58
+> 3PoinTr 1.35 7.46
+> Fold Sock General Flow 9.65 89 .53
+> 3PoinTr 2.38 20.82
+
+b) Policy Learning Baselines and Ablations: We com-pare with two behavior cloning baselines that do not use any pretraining, and two point flow-based methods which utilize flow prediction networks pretrained on actionless videos: 1) Diffusion Policy [7] is a behavior cloning method that denoises random noise into action chunks, conditioned on RGB images and robot poses. 2) DP3 [32] extends Diffusion Policy by conditioning the diffusion model on 3D point clouds, which improves gen-eralization and sample efficiency. 3) ATM [28] first predicts future 2D point trajectories in a video frame and then uses these trajectories to guide policy learning. Following their paper, we train their track transformer (point track prediction network) on both robot and human demonstrations for real-world tasks, whereas 3PoinTr only trains on human demonstrations during pre-training. 4) AMPLIFY [8] is a related 2D flow-based method that demonstrated improved performance compared to prior 2D pretraining methods including ATM [28] and UniPi [10]. AMPLIFY first trains a forward dynamics model from actionless videos in a compressed latent space, and then learns an inverse dynamics model from a limited set of action-labeled demonstrations. We also report results in simulation for a 2D ablation ,which uses the same 3D flow prediction network, but projects the 3D trajectories to 2D before using them to condition the policy. We evaluate all four baselines in simulation, and then select the best performing baseline from each class (DP3 for behavior cloning, and ATM for flow-based video pretraining) for evaluation on real-world tasks. 
+
+D. Results: 3D Point Track Prediction 
+
+We evaluate the quality of 3PoinTr’s 3D point track predic-tions on each simulation and real-world task. We report the 3D Average Displacement Error (ADE [30]) in millimeters for all points (total ADE), as well as the 5% of points that moved the most (5 % ADE). While total ADE is skewed towards the many static background points, 5 % ADE provides more insight into prediction performance on task-critical object motion during manipulation. We compute results over 100 unseen samples for simulation tasks, and 20 unseen samples for real-world tasks. We note that each method predicts full trajectories for every input point, but errors are computed only for point-timestep pairs (i, t ) that are visible in the ground-truth trajectories. Table I shows that 3PoinTr outperforms General Flow in both metrics on every task in our experiments. We show visualizations for some flow prediction examples in Fig. 1. Across all tasks, 3PoinTr achieves average error reductions of 
+
+49.1 % and 61.8 % compared to General Flow. One advantage of 3PoinTr on real-world tasks is that it can train on data that General Flow ignores. In real-world tasks, points are often invisible at certain timesteps; during dataset preprocessing, General Flow removes all trajectories that contain invisible point-timestep pairs. In contrast, 3PoinTr retains all trajectories, but masks losses for individual point-timestep pairs that are invisible. Therefore, 3PoinTr is able to receive valuable additional supervision that General Flow does not. For example, in the Throw Away Paper task, since every single paper point ends up invisible by the end of the task, General Flow does not receive any supervision over the motion of the paper. It is very common for object points to be temporarily occluded during manipulation, and these points tend to be the most critical for the task specification. As a result, 3PoinTr is able to generate point track predictions from realistic manipulation videos that are much more informative and effective as task specifications. In simulation, all points are visible at every timestep, and the two methods share the exact same training data. Therefore, we attribute the superior performance of 3PoinTr in simu-lation primarily to its model architecture. This suggests that 3PoinTr’s single-transformer decoder architecture is sufficient for accurate 3D flow prediction, and can even outperform General Flow’s more complicated architecture, which utilizes a PointNeXt [23] encoder-decoder to generate conditioning for a conditional VAE. 
+
+E. Results: Sample-Efficient Policy Learning 
+
+Next, we evaluate the performance of 3PoinTr’s policy-learning framework, which conditions on 3D point track predictions. We display the results for every simulation and real-world task in Tables II and III, respectively. We evaluate simulation tasks with 20, 50, and 100 robot demonstrations. We evaluate real-world tasks with 20 robot demonstrations. 3PoinTr achieves the highest success rate across all tasks given 20 robot demonstrations, as well as the highest average success rate given the higher numbers (50 and 100) of demonstrations in simulation, as shown in Fig. 4. Outperforming state-of-the-art behavior cloning baselines suggests that 3PoinTr’s 3D point track conditioning encodes TABLE II SIMULATION SUCCESS RATES (%) EVALUATED OVER 1000 ROLLOUTS . R ESULTS ARE REPORTED FOR POLICIES TRAINED WITH 20, 50, AND 100 
+
+> DEMONSTRATIONS
+
+.
+
+Task AMPLIFY [8] ATM [28] Diffusion Policy [7] DP3 [32] 2D Ablation 3PoinTr # Demonstrations 20 50 100 20 50 100 20 50 100 20 50 100 20 50 100 20 50 100 Block Stack 22.9 30.9 41.7 40.0 67.6 91.9 45.4 45.5 87.4 44.4 85.0 87.4 67.9 93.2 98.4 90.9 99.5 99.9 
+
+Open Microwave 13.0 6.8 10.8 30.4 93.4 99.4 32.0 61.4 74.4 31.4 66.5 85.5 18.0 12.0 9.2 80.8 84.3 97.5 Glass 7.9 21.4 24.5 3.9 35.7 58.6 57.5 78.1 99.5 74.9 98.4 99.8 71.3 88.7 90.9 95.2 97.5 98.3 20 50 100     
+
+> Number of Demonstrations
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100
+> Success Rate (%)
+> 14.6 19.7
+> 25.7 24.8
+> 65.6
+> 83.3
+> 45.0
+> 61.7
+> 87.1
+> 50.2
+> 83.3
+> 90.9
+> 52.4
+> 64.6 66.1
+> 89.0 93.8 98.6
+> AMPLIFY
+> ATM
+> Diffusion Policy
+> DP3
+> 2D Ablation
+> 3PoinTr
+
+Fig. 4. Simulation task success rate vs. number of robot demonstrations. The plot shows how success rate changes when we vary the number of action-labeled robot demonstrations. Results are averaged across the three simulation tasks. 
+
+useful priors that can greatly improve sample efficiency, pre-cision, and spatial generalization. Outperforming ATM and AMPLIFY suggests that encoding embodiment-specific points is not necessary for transferring priors from videos to robot action prediction. In fact, because the robot points occupy a large portion of the scene, it is likely that ATM and AMPLIFY become reliant on robot point track predictions, and end up encoding less information about the underlying scene and task. Removing these biases becomes additionally advantageous in real-world experiments: while the performance of ATM de-grades due to the distribution shift between human videos and robot demonstrations, 3PoinTr maintains near-perfect success rates. We visualize some examples of the distribution shift between human and robot demonstrations in Fig. 5. 3PoinTr also outperforms the 2D ablation in simulation, pointing to the efficacy of 3D representations. Even in simulation experiments, where there is no distri-bution shift between video pretraining and test-time condi-tions, ATM and AMPLIFY perform worse despite training on the additional robot-specific point tracks. This is likely due to covariate shift—distribution shift between training and rollouts—causing compounding errors during closed-loop roll-outs. Our open-loop policy formulation eliminates covariate shift. Open-loop rollouts also avoid issues with occlusion during manipulation—while closed-loop methods may lack understanding of the scene during portions of the task where objects are occluded, 3PoinTr’s one-shot predictions jointly 
+
+TABLE III REAL –WORLD SUCCESS RATES EVALUATED OVER 10 ROLLOUTS .
+
+Task ATM [28] DP3 [32] 3PoinTr 
+
+Open Drawer 3/10 7/10 9/10 
+
+Right Glass 3/10 8/10 10/10 
+
+Throw Away Paper 0/10 1/10 9/10 
+
+Fold Sock 0/10 2/10 9/10 : Object Motion : Embodiment Motion 
+
+Fig. 5. We visualize a few examples of how we learn from casual videos. The left column shows the human and object motion in the casual human videos, while the right column shows the robot and object motion in the robot demonstrations. 3PoinTr first learns to predict object motions from human videos (red arrows on the left), and then learns to map those motions to robot actions (blue arrows on the right). As shown in these examples, neither the embodiment motions nor the object motions need to closely match between the two datasets. 
+
+model the entire temporal sequence. As a result, while 3PoinTr produces temporally consistent trajectories, we find that ATM sometimes gets stuck in one phase of the task or skips a phase entirely. Overall, these results suggest that 3PoinTr’s conditioning representation and policy-learning framework achieves sub-stantially stronger performance while making fewer assump-tions about embodiment appearances and action spaces. By avoiding reliance on robot-specific point tracks, 3PoinTr learns a more general task representation that transfers robustly from human videos to robot execution. V. C ONCLUSION 
+
+We introduced 3PoinTr, a framework for learning manipula-tion policies from casual human videos by pretraining dense, embodiment-agnostic 3D point track priors and transferring them to behavior cloning with a small number of action-labeled robot demonstrations. Across both simulation and real-world tasks, 3PoinTr produces higher-quality 3D point tracks than a strong 3D flow baseline, and these high-quality tracks translate into robust policies that outperform several robot learning baselines. We show that 3PoinTr’s 3D point track representation is an effective task specification: it encodes the scene dynamics and goal state in metric space, remains robust to appearance variation, and avoids brittle assumptions about matching human and robot kinematics. By avoiding dependencies on model-based planning and cross-embodiment retargeting, 3PoinTr introduces a flexible framework which can accommodate arbitrary hand-object interaction dynamics. This makes 3PoinTr a promising representation for efficiently scaling manipulation to more complex tasks. By contributing an approach to pretrain rich 3D point track priors from casual videos, 3PoinTr takes a step towards future work in making effective use of internet-scale, in-the-wild human interaction data for learning generalist robot policies. VI. L IMITATIONS 
+
+In this work, our aim is to study the representations and learning frameworks which can most effectively exploit human videos for skill acquisition. To this end, our experiments focus on discovering the maximum sample efficiency of a general method which uses pretrained priors from casual videos for learning manipulation policies. To isolate this objective, we train our models on a single task at a time, and do not vary the objects, background, or camera views. Future work will extend our method to train a generalist policy that can handle multiple tasks, camera viewpoints, and environments. Furthermore, future generalist frameworks should aim to har-ness in-the-wild internet videos—although 3PoinTr enables learning from casual videos, it still relies on videos produced under consistent conditions in a laboratory setting in order to maximize sample efficiency. Another limitation is that while our open-loop policy formulation enables strong sample efficiency and mitigates occlusion-related issues (as discussed in IV-E), open-loop policies are also unable to use visual feedback to recover from errors or unpredictably dynamic environments. Future work might reintroduce closed-loop control, supported by larger-scale datasets and continued advances in occlusion-robust point tracking and 3D reconstruction. For our experiments, we find that the 3D point tracks can fully represent the state and task specification, so we forgo conditioning policies on additional modalities such as images and text prompts. However, we acknowledge that these features may be necessary for certain tasks, especially when extending to multi-task policies. 3PoinTr currently subsamples a fixed number of state-action pairs for behavior cloning training spaced uniformly throughout time. Future work could explore adaptive selection strategies that allocate temporal resolution to periods of dy-namic contacts or motions. 3PoinTr also relies on accurate 2D point tracking at data collection time, which is currently prone to errors and noise, particularly when tracking transparent objects, occluded objects, or objects with reflections, and shadows. ACKNOWLEDGMENTS 
+
+This material is based upon work supported by the National Science Foundation Graduate Research Fellowship Program under Grant No DGE2140739. Any opinions, findings, and conclusions or recommendations expressed in this material are those of the author(s) and do not necessarily reflect the views of the National Science Foundation. REFERENCES 
+
+[1] Ali Amin, Raichelle Aniceto, Ashwin Balakrishna, Kevin Black, Ken Conley, Grace Connors, James Darpinian, Karan Dhabalia, Jared DiCarlo, Danny Driess, Michael Equi, Adnan Esmail, Yunhao Fang, Chelsea Finn, Cather-ine Glossop, Thomas Godden, Ivan Goryachev, Lachy Groom, Hunter Hancock, Karol Hausman, Gashon Hus-sein, Brian Ichter, Szymon Jakubczak, Rowan Jen, Tim Jones, Ben Katz, Liyiming Ke, Chandra Kuchi, Marinda Lamb, Devin LeBlanc, Sergey Levine, Adrian Li-Bell, Yao Lu, Vishnu Mano, Mohith Mothukuri, Suraj Nair, Karl Pertsch, Allen Z Ren, Charvi Sharma, Lucy Xi-aoyang Shi, Laura Smith, Jost Tobias Springenberg, Kyle Stachowicz, Will Stoeckle, Alex Swerdlow, James Tanner, Marcel Torne, Quan Vuong, Anna Walling, Hao-huan Wang, Blake Williams, Sukwon Yoo, Lili Yu, Ury Zhilinsky, and Zhiyuan Zhou. π0*.6: a VLA That Learns From Experience. [2] Shikhar Bahl, Russell Mendonca, Lili Chen, Unnat Jain, and Deepak Pathak. Affordances from Human Videos as a Versatile Representation for Robotics, April 2023. URL http://arxiv.org/abs/2304.08488. arXiv:2304.08488 [cs]. [3] Homanga Bharadhwaj, Roozbeh Mottaghi, Abhinav Gupta, and Shubham Tulsiani. Track2Act: Predicting Point Tracks from Internet Videos enables Generalizable Robot Manipulation, August 2024. URL http://arxiv.org/ abs/2405.01527. arXiv:2405.01527 [cs]. [4] Yunhao Cao, Zubin Bhaumik, Jessie Jia, Xingyi He, and Kuan Fang. Correspondence-Oriented Imitation Learn-ing: Flexible Visuomotor Control with 3D Conditioning, December 2025. URL http://arxiv.org/abs/2512.05953. arXiv:2512.05953 [cs]. [5] Nicolas Carion, Laura Gustafson, Yuan-Ting Hu, Shoub-hik Debnath, Ronghang Hu, Didac Suris, Chaitanya Ryali, Kalyan Vasudev Alwala, Haitham Khedr, An-drew Huang, Jie Lei, Tengyu Ma, Arpit Kalla, Markus Marks, Joseph Greer, Meng Wang, Peize Sun, Roman R¨ adle, Effrosyni Mavroudi, Katherine Xu, Tsung-Han Wu, Yu Zhou, Liliane Momeni, Rishi Hazra, Shuangrui Ding, Sagar Vaze, Francois Porcher, Feng Li, Siyuan Li, Aishwarya Kamath, Ho Kei, Piotr Doll´ ar, Nikhila Ravi, Kate Saenko, Pengchuan Zhang, and Christoph Feicht-enhofer. SAM 3: Segment Anything with Concepts. [6] Hanzhi Chen, Boyang Sun, Anran Zhang, Marc Polle-feys, and Stefan Leutenegger. VidBot: Learning Gener-alizable 3D Actions from In-the-Wild 2D Human Videos for Zero-Shot Robotic Manipulation, March 2025. URL http://arxiv.org/abs/2503.07135. arXiv:2503.07135 [cs]. [7] Cheng Chi, Zhenjia Xu, Siyuan Feng, Eric Cousineau, Yilun Du, Benjamin Burchfiel, Russ Tedrake, and Shuran Song. Diffusion Policy: Visuomotor Policy Learning via Action Diffusion, March 2024. URL http://arxiv.org/abs/ 2303.04137. arXiv:2303.04137 [cs]. [8] Jeremy A. Collins, Lor´ and Cheng, Kunal Aneja, Albert Wilcox, Benjamin Joffe, and Animesh Garg. AM-PLIFY: Actionless Motion Priors for Robot Learning from Videos, June 2025. URL http://arxiv.org/abs/2506. 14198. arXiv:2506.14198 [cs]. [9] Karthik Dharmarajan, Wenlong Huang, Jiajun Wu, Li Fei-Fei, and Ruohan Zhang. Dream2Flow: Bridging Video Generation and Open-World Manipulation with 3D Object Flow, December 2025. URL http://arxiv.org/abs/ 2512.24766. arXiv:2512.24766 [cs]. [10] Yilun Du, Mengjiao Yang, Bo Dai, Hanjun Dai, Ofir Nachum, Joshua B. Tenenbaum, Dale Schuurmans, and Pieter Abbeel. Learning Universal Policies via Text-Guided Video Generation, November 2023. URL http: //arxiv.org/abs/2302.00111. arXiv:2302.00111 [cs]. [11] Ben Eisner, Harry Zhang, and David Held. FlowBot3D: Learning 3D Articulation Flow to Manipulate Articu-lated Objects, May 2024. URL http://arxiv.org/abs/2205. 04382. arXiv:2205.04382 [cs]. [12] Siddhant Haldar and Lerrel Pinto. Point Policy: Unifying Observations and Actions with Key Points for Robot Manipulation. [13] Wenlong Huang, Yu-Wei Chao, Arsalan Mousavian, Ming-Yu Liu, Dieter Fox, Kaichun Mo, and Li Fei-Fei. PointWorld: Scaling 3D World Models for In-The-Wild Robotic Manipulation, January 2026. URL http://arxiv.org/abs/2601.03782. arXiv:2601.03782 [cs]. [14] Andrew Jaegle, Sebastian Borgeaud, Jean-Baptiste Alayrac, Carl Doersch, Catalin Ionescu, David Ding, Skanda Koppula, Daniel Zoran, Andrew Brock, Evan Shelhamer, Olivier H´ enaff, Matthew M. Botvinick, An-drew Zisserman, Oriol Vinyals, and Jo¯ ao Carreira. Per-ceiver IO: A General Architecture for Structured Inputs & Outputs, March 2022. URL http://arxiv.org/abs/2107. 14795. arXiv:2107.14795 [cs]. [15] Nikita Karaev, Iurii Makarov, Jianyuan Wang, Natalia Neverova, Andrea Vedaldi, and Christian Rupprecht. Co-Tracker3: Simpler and Better Point Tracking by Pseudo-Labelling Real Videos, October 2024. URL http://arxiv. org/abs/2410.11831. arXiv:2410.11831 [cs]. [16] Nikita Karaev, Ignacio Rocco, Benjamin Graham, Natalia Neverova, Andrea Vedaldi, and Christian Rupprecht. CoTracker: It is Better to Track Together, October 2024. URL http://arxiv.org/abs/2307.07635. arXiv:2307.07635 [cs]. [17] Hongyu Li, Lingfeng Sun, Yafei Hu, Duy Ta, Jennifer Barry, George Konidaris, and Jiahui Fu. NovaFlow: Zero-Shot Manipulation via Actionable Flow from Generated Videos, October 2025. URL http://arxiv.org/abs/2510. 08568. arXiv:2510.08568 [cs]. [18] Junbang Liang, Pavel Tokmakov, Ruoshi Liu, Sruthi Sud-hakar, Paarth Shah, Rares Ambrus, and Carl Vondrick. Video Generators are Robot Policies, August 2025. URL http://arxiv.org/abs/2508.00795. arXiv:2508.00795 [cs]. [19] Yunze Liu, Yun Liu, Che Jiang, Kangbo Lyu, Weikang Wan, Hao Shen, Boqiang Liang, Zhoujie Fu, He Wang, and Li Yi. HOI4D: A 4D Egocentric Dataset for Category-Level Human-Object Interaction, January 2024. URL http://arxiv.org/abs/2203.01577. arXiv:2203.01577 [cs]. [20] Suraj Nair, Aravind Rajeswaran, Vikash Kumar, Chelsea Finn, and Abhinav Gupta. R3M: A Universal Visual Representation for Robot Manipulation, November 2022. URL http://arxiv.org/abs/2203.12601. arXiv:2203.12601 [cs]. [21] Abby O’Neill, Abdul Rehman, Abhiram Maddukuri, Abhishek Gupta, Abhishek Padalkar, and Abraham Lee. Open X-Embodiment: Robotic Learning Datasets and RT-X Models, May 2025. URL http://arxiv.org/abs/2310. 08864. arXiv:2310.08864 [cs]. [22] Jonas Pai, Liam Achenbach, Victoriano Montesinos, Benedek Forrai, Oier Mees, and Elvis Nava. mimic-video: Video-Action Models for Generalizable Robot Control Beyond VLAs, December 2025. URL http: //arxiv.org/abs/2512.15692. arXiv:2512.15692 [cs]. [23] Guocheng Qian, Yuchen Li, Houwen Peng, Jinjie Mai, Hasan Abed Al Kader Hammoud, Mohamed Elhoseiny, and Bernard Ghanem. PointNeXt: Revisiting Point-Net++ with Improved Training and Scaling Strategies, October 2022. URL http://arxiv.org/abs/2206.04670. arXiv:2206.04670 [cs]. [24] Juntao Ren, Priya Sundaresan, Dorsa Sadigh, Sanjiban Choudhury, and Jeannette Bohg. Motion Tracks: A Unified Representation for Human-Robot Transfer in Few-Shot Imitation Learning, October 2025. URL http: //arxiv.org/abs/2501.06994. arXiv:2501.06994 [cs]. [25] Olaf Ronneberger, Philipp Fischer, and Thomas Brox. U-Net: Convolutional Networks for Biomedical Image Segmentation, May 2015. URL http://arxiv.org/abs/1505. 04597. arXiv:1505.04597 [cs]. [26] Mel Vecerik, Carl Doersch, Yi Yang, Todor Davchev, Yusuf Aytar, Guangyao Zhou, Raia Hadsell, Lourdes Agapito, and Jon Scholz. RoboTAP: Tracking Arbitrary Points for Few-Shot Visual Imitation, August 2023. URL http://arxiv.org/abs/2308.15975. arXiv:2308.15975 [cs]. [27] Bowen Wen, Matthew Trepte, Joseph Aribido, Jan Kautz, Orazio Gallo, and Stan Birchfield. FoundationStereo: Zero-Shot Stereo Matching, April 2025. URL http: //arxiv.org/abs/2501.09898. arXiv:2501.09898 [cs]. [28] Chuan Wen, Xingyu Lin, John So, Kai Chen, Qi Dou, Yang Gao, and Pieter Abbeel. Any-point Trajectory Modeling for Policy Learning, July 2024. URL http: //arxiv.org/abs/2401.00025. arXiv:2401.00025 [cs]. [29] Mengda Xu, Zhenjia Xu, Yinghao Xu, Cheng Chi, Gordon Wetzstein, Manuela Veloso, and Shuran Song. Flow as the Cross-Domain Manipulation Interface, October 2024. URL http://arxiv.org/abs/2407.15208. arXiv:2407.15208 [cs]. [30] Chengbo Yuan, Chuan Wen, Tong Zhang, and Yang Gao. General Flow as Foundation Affordance for Scalable Robot Learning. [31] Kevin Zakka, Andy Zeng, Pete Florence, Jonathan Tomp-son, Jeannette Bohg, and Debidatta Dwibedi. XIRL: Cross-embodiment Inverse Reinforcement Learning, De-cember 2021. URL http://arxiv.org/abs/2106.03911. arXiv:2106.03911 [cs]. [32] Yanjie Ze, Gu Zhang, Kangning Zhang, Chenyuan Hu, Muhan Wang, and Huazhe Xu. 3D Diffusion Policy: Generalizable Visuomotor Policy Learning via Simple 3D Representations, September 2024. URL http://arxiv. org/abs/2403.03954. arXiv:2403.03954 [cs]. [33] Tony Z. Zhao, Vikash Kumar, Sergey Levine, and Chelsea Finn. Learning Fine-Grained Bimanual Ma-nipulation with Low-Cost Hardware, April 2023. URL http://arxiv.org/abs/2304.13705. arXiv:2304.13705 [cs]. [34] Hongyan Zhi, Peihao Chen, Siyuan Zhou, Yubo Dong, Quanxi Wu, Lei Han, and Mingkui Tan. 3DFlowAc-tion: Learning Cross-Embodiment Manipulation from 3D Flow World Model, June 2025. URL http://arxiv.org/abs/ 2506.06199. arXiv:2506.06199 [cs]. [35] Yi Zhou, Connelly Barnes, Jingwan Lu, Jimei Yang, and Hao Li. On the Continuity of Rotation Representations in Neural Networks, June 2020. URL http://arxiv.org/ abs/1812.07035. arXiv:1812.07035 [cs]. [36] Haoyi Zhu, Yating Wang, Di Huang, Weicai Ye, Wanli Ouyang, and Tong He. Point Cloud Matters: Rethinking the Impact of Different Observation Spaces on Robot Learning, October 2024. URL http://arxiv.org/abs/2402. 02500. arXiv:2402.02500 [cs].

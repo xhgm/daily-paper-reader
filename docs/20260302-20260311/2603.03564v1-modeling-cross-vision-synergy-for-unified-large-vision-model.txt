@@ -1,0 +1,807 @@
+Title: Modeling Cross-vision Synergy for Unified Large Vision Model
+
+URL Source: https://arxiv.org/pdf/2603.03564v1
+
+Published Time: Thu, 05 Mar 2026 01:17:18 GMT
+
+Number of Pages: 21
+
+Markdown Content:
+# Modeling Cross-vision Synergy for Unified Large Vision Model 
+
+## Shengqiong Wu 1*, Lanhu Wu 1, Mingyang Bao 1, Wenhao Xu 1,Hanwang Zhang 2, Shuicheng Yan 1, Hao Fei 1,B , Tat-Seng Chua 11National University of Singapore, 2Nanyang Technological University, 
+
+## Abstract 
+
+Recent advances in large vision models (LVMs) have shifted from modality-specific designs toward unified architectures that jointly process images, videos, and 3D data. How-ever, existing unified LVMs primarily pursue functional in-tegration, while overlooking the deeper goal of cross-vision synergy: the ability to reason over complementary pri-ors across visual modalities. To address this, we present 
+
+PolyV , a unified LVM that achieves cross-vision synergy at both the architectural and training levels. Architecturally, PolyV adopts a sparse Mixture-of-Experts LVM coordinated by a dynamic modality router, allowing each expert to specialize in modality-specific priors while enabling bidi-rectional interaction and mutual refinement across modal-ities. Training-wise, a synergy-aware paradigm com-bines modality-specific pretraining with coarse-to-fine syn-ergy tuning via knowledge distillation and object-/relation-level alignment. Extensive experiments on 10 benchmarks spanning image, video, and 3D understanding, including synergy-focused datasets requiring spatial or temporal pri-ors, demonstrate that PolyV consistently outperforms exist-ing models, achieving over 10% average improvement over its backbone. Overall, PolyV establishes a unified frame-work for synesthetic visual reasoning, advancing toward truly synergistic LVMs. Project page: PolyV.io. 
+
+## 1. Introduction 
+
+Large vision models (LVMs) [6, 13, 25, 41] have demon-strated impressive progress, with a growing trend toward vision unification, building a single model that integrates multiple modalities through unified modeling [24, 52]. Ex-tensive research attention has been gathered, leading to nu-merous efforts that integrate vision data in different modal-ities within a shared framework [27, 76]. Researchers have gradually realized, however, that the goal of unification ex-tends beyond functional integration: the essential aim is to enable a synergetic learning across modalities, as images, 
+
+> *
+
+Email: swu@u.nus.edu 
+
+> B
+
+Corresponding Author. Absolute Distance                 
+
+> Summarize the camera trajectory …?
+> (Seeing →Spatial)
+> If the golf ball is hit, where will it stop?
+> (Spatial →
+> Temporal)
+> What will happen?
+> Seeing
+> Color, Texture, Layout, posture …
+> Measuring from the closest point of each object, what is the distance between the man and the golf ball in meters ?A: 1.45m
+> Static-to-Dynamic Reasoning
+> A: the person is mid-setup for a golf shot, and the expected outcome is the golf ball being hit and launched forward.
+> 3D-to-Temporal Reasoning Trajectory Description
+> A: The camera remains largely stationary at first, then pans upward and slightly rightward to follow the motion of the golf club and the ...
+> A: The golf ball will roll forward and come to rest somewhere along the central fairway in front of the golfer.
+> Spatial Understanding
+> Position, Distance, Geometry, …
+> Temporal Dynamics
+> Motion, Cause, Future Prediction,...
+> (a) The Synesthete's Visual World
+> (Seeing →
+> Temporal)
+> (Seeing →Spatial)
+> (b) Examples that need synesthete's capability to answer the questions
+
+Figure 1. (a) Human perception integrates visual, spatial, and tem-poral cues synergistically, enabling reasoning across modalities. (b) Examples illustrate such synergy, inferring motion from static images and transferring 3D priors to improve video understanding. 
+
+videos, and 3D scenes are inherently different hierarchi-cal forms of the same visual signal and should thus share fundamental visual features. Recent works [58, 79, 81] explore this idea by transferring video knowledge to 3D scene understanding. Yet, as illustrated in Fig. 1, exist-ing unified LVMs still fall short of achieving true cross-vision synergy , that is, synesthetic reasoning across visual modalities , analogous to the human synesthetic visual sys-tem [7, 50, 54]. For instance, temporal and motion pri-ors from videos could inform dynamic inference in static images, while 3D geometric priors could enhance spatial reasoning in videos. Unfortunately, current research re-mains biased toward transferring information from lower- to higher-order modalities [58, 79, 81], neglecting the bidirec-tional and interactive nature of such synergy. Consequently, two critical challenges remain underexplored: (i) the lack of synergy-oriented architectural design and (ii) the absence of training strategies that foster cross-vision interaction .From an architectural perspective, current unified LVMs lack designs that explicitly facilitate cross-vision synergy. 
+
+> arXiv:2603.03564v1 [cs.CV] 3 Mar 2026
+
+Early studies primarily pursued straightforward modality unification, where each modality employed a separate en-coder, as seen in [1, 27, 61, 64, 71]. More recent ef-forts [6, 75] have begun to explore shared encoders to pro-cess different visual modalities by adopting a single im-age encoder backbone for both image and video inputs, while other works [58, 79] extend video-encoder architec-tures to support 3D representations. However, these frame-works still lack mechanisms for genuine inter-modal syn-ergtic modeling: they simply rely on shared encoders or feature concatenation rather than explicit cross-modality interaction modules. Consequently, features from differ-ent modalities remain isolated, preventing the dynamic ex-change of priors during inference. A truly synergistic archi-tecture should instead disentangle and coordinate modality-shared and modality-specific features, allowing information to flow freely across modalities and establishing the foun-dation for authentic cross-vision reasoning. From the training perspective, current LVMs lack synergy-aware learning. Most existing approaches rely solely on supervised fine-tuning [37, 75]: either training each modality-specific module independently, thereby pre-venting any feature sharing, or incrementally fine-tuning across modalities [58, 79], which largely results in catas-trophic forgetting and weak cross-modal generalization. Achieving true synergy-aware training requires joint mul-timodal learning, where the model simultaneously observes and aligns data from multiple visual modalities to maintain a coherent, shared-specific dual representation space rather than only fragmented, modality-specific ones. Further-more, enabling deeper synergy demands moving beyond coarse, instance-level alignment toward fine-grained cor-respondence modeling, i.e., object-level attributes, spatial relations, and event consistency. Incorporating such fine-grained alignment mechanisms can substantially strengthen cross-modal reasoning, allowing the model to generalize “by analogy” across visual modalities. To bridge the aforementioned gaps, we propose a unified framework, named PolyV , for building a cross-vision syn-ergistic LVM. As illustrated in Fig. 2, our design adopts a sparse Mixture-of-Experts (MoE) architecture, where a dy-namic router coordinates multiple experts to enable each expert to refine its domain knowledge while preserving complementary priors learned by others, thereby prevent-ing knowledge degradation and fostering bidirectional syn-ergy across modalities. On top of this architecture, we fur-ther introduce a synergy-aware training strategy compris-ing two stages: (1) Modality-specific pretraining , where each expert independently learns modality-specific repre-sentations to establish strong foundational knowledge; and 
+
+(2) Synergy-aware fine-tuning , which includes coarse-grained synergy tuning (i.e., distilling instance-level knowl-edge from external teacher models to the target experts), and fine-grained synergy tuning, aligning object- and relation-level representations across modalities to enable precise and holistic cross-modal synergetic reasoning. After training, PolyV can take input from a single visual modality while implicitly leveraging modality-specific priors learned by all experts through synesthetic reasoning, thus extending be-yond the information of the observed modality and achiev-ing robust cross-vision understanding. We conduct extensive experiments across ten represen-tative benchmarks covering diverse visual modalities, in-cluding standard image, video, and 3D understanding tasks, as well as synergy-oriented benchmarks that require strong spatial or temporal priors. Experimental results show that our proposed PolyV consistently outperforms prior mod-els across all settings, achieving an average improvement of over 10% compared with its backbone VLM. Com-prehensive ablation studies further validate the effective-ness of our MoE architecture and synergy-aware training strategy, demonstrating their essential roles in enhancing cross-vision reasoning. Moreover, analysis of expert rout-ing distributions reveals that PolyV adaptively leverages modality-specific priors and dynamically allocates experts across tasks, achieving efficient and interpretable path rout-ing. Overall, this work presents the first unified large vision model explicitly designed for cross-vision synergy, provid-ing a general and extensible framework for structured mul-timodal reasoning across image, video, and 3D domains. 
+
+## 2. Related Work 
+
+Large Vision Model for Vision Unification. Recent ad-vances in LVMs [41, 72] have sparked significant progress by integrating vision modalities into a large language model (LLM) through a projection layer. Early studies focused on single-modality modeling, such as image [41], video [37, 75], and 3D [13, 25, 65]. Subsequently, researchers began incorporating multiple modalities into a unified framework by employing separate encoders for each modality and com-bining their representations through straightforward feature concatenation [61, 64]. While this approach achieved func-tional unification, allowing a single system to handle het-erogeneous inputs, it failed to capture the deeper interde-pendence among visual modalities. Later studies recog-nized that these modalities are not only complementary but also intrinsically correlated, prompting attempts to leverage cross-modal priors, such as adapting image-based models for video understanding or transferring video-based knowl-edge to 3D scene modeling [58, 79, 81]. Nevertheless, these approaches remain limited: architecturally, existing models lack mechanisms to facilitate effective feature sharing and interaction across modalities; moreover, simple supervised fine-tuning or incremental training fails to achieve robust knowledge preservation and alignment among modalities. Mixture-of-Expert Structure. The MoE architecture consists of multiple expert networks, each responsible for modeling a distinct subspace of knowledge. By adap-tively activating only a subset of experts during inference, MoE architectures significantly reduce computational over-head while improving representational capacity and reason-ing efficiency [26]. MoE has been successfully applied across a variety of domains. In natural language process-ing, MoE has been applied for multilingual language mod-els [32], and large-scale multi-task settings [19]. In the visual domain, MoE-based structures have been explored in unimodal understanding, including image understand-ing [36, 51, 63, 84], video perception [48, 69], and 3D scene understanding [76]. Later, multimodal MoE [34] further validates the effectiveness of expert modularization in en-hancing generalization and cross-modal reasoning. Collec-tively, prior research underscores MoE’s versatility in scal-ability and efficacy. In this work, we extend the MoE to develop a unified LVM that enables cross-vision synergy across image, video, and 3D modalities. 
+
+## 3. Method 
+
+3.1. Overview 
+
+Motivated by the goal of achieving cross-vision synergis-tic learning, that is, fully exploiting the complementary and distinctive information across visual modalities, we design 
+
+PolyV , as illustrated in Fig. 2. The model comprises a uni-versal vision encoder, a word embedding layer, a projec-tion layer, and multiple stacked LLM blocks integrated with MoE blocks. Following, we describe the model architecture in Section 3.2 and the training strategy in Section 3.3. 
+
+3.2. Architecture of PolyV 
+
+Universal Vision Encoder. Given an arbitrary visual in-put I = {I1, · · · , I K }, where an image corresponds to a single frame, a video represents a sequence of frames, and 3D data consists of multiple rendered views, a universal vi-sion encoder [18] is employed to extract a visual token se-quence V ∈ Rp×c. While sharing a common architecture, the encoder is adapted slightly for different visual modal-ities. For video inputs, we treat the video as a temporally ordered sequence of frames. A dynamic frame sampling strategy is applied to select representative key frames, and temporal positional embeddings are added to capture tem-poral dynamics and maintain motion coherence. Follow-ing [58, 81], for 3D inputs, the additional per-pixel 3D co-ordinates using a positional encoding function are encoded and injected into the visual features to enhance geometric awareness. The resulting visual representations are then projected through a visual projector that maps V ∈ RP ×C
+
+to H ∈ RP ×D, where D denotes the hidden dimension-ality of the LLM. Similarly, textual inputs are embedded Vision Encoder         
+
+> Projector Word Embedding
+> Router
+> FFN (Expert 1) FFN (Expert 2) FFN (Expert M)
+> Self-Attention Layer
+> …
+> Output Response
+> Video Image Multi-views Text
+> ×𝑁𝑁
+> MoE
+> Figure 2. An illustration of PolyV , where an MoE architecture is designed to enable synergistic learning across image, video, and 3D modalities. Fire denotes the trainable parameters.
+
+through a word embedding layer, yielding textual tokens 
+
+T ∈ RN ×D , where N is the text sequence length. 
+
+MoE Structure. We concatenate the visual token se-quence and text token sequence, and feed the combined rep-resentation into an LLM composed of stacked multi-head self-attention (MSA) and feed-forward network (FFN) lay-ers. To implement the MoE architecture, each standard FFN layer is expanded into multiple parallel expert networks, forming an ensemble of experts E = {E1, · · · , E M }, where 
+
+M is the number of experts. The computation across L lay-ers can be formulated as: 
+
+X0 = [ H, T ], (1) 
+
+X′ 
+
+> ℓ
+
+= MSA(LN( Xℓ−1)) + Xℓ−1, ℓ = 1 , . . . , L, (2) 
+
+Xℓ = MoE(LN( X′
+
+> ℓ
+
+)) + X′
+
+> ℓ
+
+, ℓ = 1 , . . . , L, (3) 
+
+Y = LN( XL). (4) In each MoE layer, a sparse router determines which ex-perts should process each token. Specifically, the router is a linear projection that predicts the probability of assigning a token to each expert. For computational efficiency, only the top-k experts with the highest routing probabilities are acti-vated for each token, and their outputs are combined using a weighted sum based on the normalized routing scores: 
+
+P(Xℓ)i = ef (Xℓ)i
+
+PMj ef (Xsℓ )j
+
+, (5) 
+
+MoE( Xℓ) = 
+
+> k
+
+X
+
+> i=1
+
+P(Xℓ)i · E (Xℓ)i. (6) 
+
+3.3. Training Process 
+
+Stage-1: Modality-specific pretraining. This stage aims to enable the model to understand each specific visual modality. First , we establish an initial vision-language connection by optimizing the projector, which maps multi-modal inputs into soft tokens within the language space. Vision Encoder                     
+
+> Projector Word Embedding
+> Self-Attention Layer
+> CE Loss
+> Video Image Multi-views Text
+> ×𝑁𝑁
+> FFN
+> Stage-1: Alignment Pre-training Stage
+> Vision Encoder
+> Projector
+> Self-Attention Layer
+> CE Loss
+> ×𝑁𝑁
+> FFN
+> Stage-1: Instruction-Following Pre-training Stage
+> FFN FFN
+> Video Image Multi-views
+> CE Loss
+> Vision Encoder
+> Projector
+> Self-Attention Layer
+> ×𝑁𝑁
+> FFN
+> Stage-2: Coarse-grained Synesthetic Learning
+> FFN FFN
+> Video
+> Image
+> Multi-views
+> Output Response
+> Router
+> Video
+> FM
+> 3D
+> FM
+> MLP MLP
+> CE Loss
+> Word Embedding
+> Text
+> MSE Loss MSE Loss
+> Trainable Parameters Weights Copy
+> Self-Attention Layer
+> FFN (Expert) FFN (Expert) FFN (Expert)
+> Router
+> Vision Encoder
+> Projector Word Embedding
+> Video Image Multi-views Text
+> CE Loss
+> Stage-2: Fine-grained Synesthetic Learning
+> Vid
+> Stage-2-1: Coarse-grained Synesthetic Learning
+> …
+> Stage-1-1: Alignment Pre-training Stage Stage-1-2: Instruction-Following Pre-training Stage
+> Synergy Token
+
+Figure 3. Illustration of detailed training stages. Stage-1(-1/2) focuses on enabling model understanding of each vision modality. Stage-2(-1): introduces coarse-grained synergistic learning, where a video and 3D foundation model distill temporal and geometric priors into the MoE-LLM. During this process, the model generates latent synergy tokens wrapped in <synergy> , which are optimized via MSE loss to align with the knowledge extracted from foundation models, thereby fostering cross-modality reasoning. 
+
+The model is trained on captioning tasks using the cross-entropy loss Lce , as shown in Fig. 3(a). After acquir-ing a preliminary understanding of visual content, each expert specializes in modality-specific properties, such as temporal dynamics in videos and spatial geometry in 3D scenes, using more complex vision–language instruction data (Fig. 3(b)). While Lce remains the primary objective, the FFN layers are further adapted to align with the intrinsic characteristics of each modality. 
+
+Stage-2: Synergy-aware Training. This stage aims to endow the model with cross-vision synergy, i.e., the ability to perform synesthetic reasoning across visual modalities. The modality-specific FFNs from Stage 1 are integrated into MoE layers, where a dynamic router enables mutual complementation among experts. Beyond this implicit ar-chitectural synergy, we introduce explicit <synergy> to-kens that act as cognitive mediators, encouraging the model to form an intermediate “mental-state” representation be-fore producing the final response. We conceptualize visual synergy at two complementary levels: (i) coarse-grained, instance-level understanding of global scene context; and 
+
+(ii) fine-grained alignment of object- and relation-level cor-respondences across modalities. Accordingly, our synergy-aware training consists of two components: coarse-grained synergy tuning and fine-grained synergy tuning. 
+
+▶ Coarse-Grained Synergy Tuning Relying solely on text supervision restricts the model to abstract semantic alignment and prevents learning rich modality-specific pri-ors. Inspired by [16, 81], we adopt a knowledge-distillation framework that transfers temporal and spatial knowledge from strong single-modality foundation models into our unified model. Specifically, a video foundation model (e.g., V-JEPA 2 [4]) provides low-dimensional temporal priors, while a 3D foundation model (e.g., VGGT [59]) encodes geometric and spatial structures. As illustrated in Fig. 3(b), we design two distillation pathways, i.e., video →image and 3D →image, to guide the learning. Given an input im-age with a corresponding video or 3D textual description, we extract the hidden representations of the <synergy> 
+
+tokens from the last layer of the MoE-LLM, denoted as 
+
+Fsyn . From the teacher models, we obtain the temporal fea-ture Ftemporal = fVFM (V ) from the final aggregator of the video foundation model, and the spatial feature Ftemporal =
+
+f3DFM (3 D) from the 3D foundation model. To ensure di-mensional consistency, two projectors are employed to map the synergy latent into aligned feature spaces: 
+
+F v = f t
+
+> mlp
+
+(Fsyn ), F g = f g
+
+> mlp
+
+(Fsyn ) (7) The training objective minimizes the discrepancy be-tween the projected synergy features and the corresponding teacher features: 
+
+Lcoarse = Ltemporal + Lspatial 
+
+= || Ftemporal − F v || 2 + || Fspatial − F g || 2 (8) Additionally, we incorporate a differentiable load-balancing loss [20] into each MoE layer to encourage balanced token distribution among experts: 
+
+Laux = M ·
+
+> M
+
+X
+
+> i=1
+
+Fi · G i, (9) where F represents the fraction of tokens processed by each expert Ei, and G represents the average routing probability of Ei, which can be expressed by the following formulas: 
+
+F = 1
+
+K
+
+> M
+
+X
+
+> i=1
+
+1{arg max P(X) = i}, G = 1
+
+K
+
+> K
+
+X
+
+> i=1
+
+P(X)i.
+
+(10) This distillation process encourages the synergy token to in-ternalize both temporal motion cues and spatial geometry, forming a unified latent representation that supports down-stream cross-vision reasoning: 
+
+L = Lcoarse + αLaux . (11) Question: Is the relation between the baby and the toy the same in the video as in the image?              
+
+> Yes, both show the baby pushing the toy walker in front of the sofa.
+> Video Scene Graph
+> Question: What is the child doing in the video compared to the image?
+> The baby continues pushing the toy walker, later bends and interacts with it.
+> child toy
+> push
+> child
+> toy
+> sofa
+> sofa
+> in front of
+> push
+> beside
+> bend in front of
+> toy
+> child
+> adult
+> adult
+> lift
+> toy bend
+> child sofa
+> beside
+> kneels beside
+> child toy
+> child
+> hold
+> sofa ball
+> in front of
+> toy
+> child
+> child ball
+> sofa
+> hold
+> push
+> in front of
+> Object-level Question Relation-level Question
+> Image Scene Graph
+> toilet
+> toilet paper
+> towel
+> floor
+> sink
+> bathtub door
+> wall
+> hanging on  build in left of
+> attached to
+> standing on
+> standing on
+> wall
+> toilet counter
+> bin towel
+> in front of
+> right of
+> 3D Scene Graph Image Scene Graph
+> Question: Does the toilet in the image appear in the 3D scene??
+> Yes, it is located in the same position near the wall.
+> Object-level Question
+> Question: Which object is newly visible in 3D but occluded in the image?
+> The bathtub on the left side of the room.
+> Relation-level Question
+> Question: Which objects are standing on the floor in both modalities?
+> The toilet, counter, and trash bin.
+> Question: In 3D, what object is attached to the wall above the toilet in image?
+> A toilet paper dispenser.
+> toilet paper Dispenser
+
+Figure 4. Illustration of cross-vision synergy question-answer pairs. Inspired by [62], we leverage the universal scene graph constructed from image-video and image-3D (multi-view) to construct the object-/relation-level cross-synergy question-answer pairs, which are then utilized to enable the model to achieve fine-grained cross-vision synergy. 
+
+It is worth noting that, in practice, content rarely exists si-multaneously across all three modalities (image, video, and 3D). Therefore, our training follows a progressive strategy: each modality is first pretrained independently, followed by partial joint training on paired video–image subsets. Further implementation details are provided in Appendix B.3. 
+
+▶ Fine-grained Synergy Training. While the coarse-grained stage fosters general cross-vision synergy, it re-mains insufficient for modeling fine-grained synergy, par-ticularly how objects and relations evolve across image, video, and 3D modalities. To address this, we draw inspira-tion from [62], which represents object- and relation-level structures using scene graphs across modalities and de-sign a fine-grained synergy training scheme that explicitly grounds reasoning at both the object level (e.g., spatial con-sistency, motion continuity) and the relation level (e.g., in-teraction dynamics and viewpoint-dependent changes). As illustrated in Fig. 3(c), we construct a Cross-Vision Syn-ergy Question–Answer ( CSQA ) dataset using GPT-4o [29], which automatically generates multimodal questions [23] based on scene graphs to encourage reasoning about static structures and dynamic variations across modalities jointly, such as temporal consistency (image ↔video) or spatial cor-respondence (image ↔3D). In total, we curate 20K fine-grained QA pairs, with construction details provided in Appendix B.1. During training, multi-modal inputs and the corresponding synergy question are jointly fed into the model to generate a textual response, optimized using a combination of cross-entropy loss Lce over textual outputs and the expert load-balancing loss Laux introduced earlier. 
+
+## 4. Experiments 
+
+4.1. Experimental Setups 
+
+Datasets. Our model is trained in multiple stages, each utilizing datasets tailored to the learning objectives of that stage, and detailed configurations are provided in Ap-pendix B. In brief, the primary data sources include im-age datasets, i.e., LLaVA 1.5-558K and LLaVA 1.5-Mix-665K [41]; video datasets, i.e., LLaVA-Video-178K [75] and ShareGPT4Video [12]; and 3D datasets, i.e., LLaVA-3D-Instruct-860K [81]. During the fine-grained synergy training stage, we further incorporate 20K QA pairs con-structed from the dataset in [62]. 
+
+Model Details. We initialize the LLM backbone with Qwen2.5-VL-7B [6], which supports both image and video inputs. Following [79], we further incorporate 3D posi-tional embeddings to enhance the model’s spatial under-standing. In the second training stage, MoE and dense lay-ers are interleaved at four-layer intervals (i.e., layers 0, 4, 8, 12, 16, 20, 24, and 28) to balance efficiency and capacity. Each MoE layer consists of 4 experts, and the top-2 experts Model Image Understanding Video Understanding MMStar [11] 3DSRBench real [45] MMSI-Bench [68] VSI-Bench [67] CVBench [83] VideoMME w/o sub. [21] GPT-4o [30] 64.7 44.2 30.3 34.0 69.1 71.9 Gemini-2.0-Flash [56] - 49.8 69.4 45.4 - -LLaVA-OV-7B [33] 61.7 54.4 24.5 32.4 52.6 58.2 LLaVA-OV-1.5-8B [2] 67.7 57.8 29.6 46.3 21.7 56.3 InternVL2.5-8B [15] 62.8 50.9 28.7 41.6 59.4 64.2 InternVL3-8B [82] 68.2 58.1 25.7 50.7 - 66.3 Qwen2.5-VL-7B [6] 62.5 48.4 24.7 33.0 51.3 65.1 Qwen3-VL-8B [6] 55.0 59.9 29.0 34.8 50.2 52.1 Spatial-MLLM-4B [60] 49.1 47.8 25.7 48.4 38.2 44.1 SpaceR [49] 53.6 57.4 27.2 24.9 50.4 56.9 LLaVA-3D [81] 31.7 39.3 20.8 9.36 33.2 26.5 PolyV(Ours) 71.4 ↑8.9 63.4 ↑15 .0 31.7 ↑7.0 52.7 ↑19 .7 59.1 ↑7.8 69.6 ↑4.5
+
+Table 1. Comparison of PolyV with existing MLLMs on image and video understanding benchmarks. All models are evaluated under the official benchmark metrics, and average scores are reported. Improvements over the backbone Qwen2.5-VL-7B [6] are marked in red.                                                                                                            
+
+> Model ScanQA val [5] SQA3D test [46] Open-EQA HM3D [47] BLEU-1 BLEU-4 METEOR ROUGE-L CIDEr EM-1 EM-R1 Qwen2.5-VL-7B [6] 27.8 3.0 11.4 29.3 53.9 46.5 49.8 56.6 LLaVA-Video-7B [75] 39.7 3.1 17.7 44.6 88.7 48.5 -Spatial-MLLM [60] 44.4 14.8 18.4 45.0 91.8 55.9 58.7 -Scene-LLM [22] -11.7 15.8 35.9 80.0 53.6 --LL3DA [13] --15.9 37.3 76.8 ---LEO [27] -11.5 16.2 39.3 80.0 50.0 52.4 -LLaVA-3D [81] -14.5 20.7 50.1 91.7 55.6 57.6 53.2 Video-3D-LLM [79] -16.4 20.0 49.3 102.1 58.6 –-ROSS3D [58] -17.9 20.9 50.7 107.0 63.0 65.7 -3DRS [28] 48.4 17.2 20.5 49.8 104.8 ---Uni3D-MoE [76] 43.7 17.5 19.0 47.1 97.6 57.2 --PolyV(Ours) 50.2 ↑22 .418.6 ↑15 .323.1 ↑11 .751.9 ↑22 .6105.6 ↑51 .764.8 ↑18 .367.5 ↑17 .763.4 ↑6.8
+
+Table 2. Evaluation of 3D question-answering. General 2D VLMs [6, 75] are evaluated in a zero-shot setting. 
+
+are dynamically activated per token during inference. 
+
+Training Details. We adopt a two-stage training strategy as described in Sec. 3.3. Across all stages, the models are optimized using the AdamW optimizer [43] in conjunction with a cosine learning rate scheduler. A warm-up schedule with a warm-up ratio of 0.03 followed by cosine decay is applied independently for each stage. The learning rate is set to 2 × 10 −5. More details are provided in Appendix B.3. 
+
+4.2. Main Results 
+
+Image Understanding. We evaluate PolyV on image un-derstanding tasks to assess its capability for both general and spatial reasoning from static inputs. Specifically, we compare it with state-of-the-art VLMs on three bench-marks: MMStar [11] for general understanding, and 3DSR-Bench [45] and MMSI-Bench [68] for spatial reasoning. As shown in Table 1, PolyV consistently achieves the best overall performance across all benchmarks, outperforming its backbone Qwen2.5-VL-7B by about 10% on average. It also surpasses spatially specialized models (e.g., Spatial-MLLM [60], SpaceR [49], LLaVA-3D [81]), achieving no-table gains in spatial accuracy. Notably, compared with SpaceR, PolyV under the same backbone exhibits clear gains in both spatial and general image understanding (53.6 vs. 71.4). These results demonstrate that PolyV effectively captures synesthetic visual representations, enhancing spa-tial reasoning and generalization within the image modality. 
+
+Video Understanding. We further evaluate PolyV on video-based benchmarks to examine its capability for tem-poral reasoning and cross-frame spatial understanding, in-cluding VideoMME [21] for general understanding, as well as on VSI-Bench [67] and CVBench [83] for spatially grounded reasoning. As shown in Table 1, PolyV achieves the best performance across all datasets. In particular, on CVBench, which emphasizes spatial consistency and rela-tional reasoning across frames, PolyV exhibits substantial gains over all baselines, underscoring its ability to transfer spatial and temporal priors across modalities effectively. 
+
+3D Understanding. We evaluate PolyV on 3D scene un-derstanding tasks using three representative benchmarks: ScanQA [5], SQA3D [46], and Open-EQA [47]. Follow-ing [28, 76], we report CIDEr, BLEU-1, BLEU-4, ME-TEOR, and ROUGE-L for ScanQA, adopt Exact Match (EM) and Refined Exact Match (EM-R) for the SQA3D test set, and LLM-Match score [47] for Open-EQA. As shown in Table 2, PolyV consistently outperforms its backbone and prior 3D reasoning models, including video-based VLMs Setting MMStar [11] Open-EQA [47] VSI-Bench [67] Video-MME [21] w/o expert 68.9 60.3 45.8 66.4 w/ expert 71.4 63.4 52.7 69.6 
+
+• Expert Numbers 
+
+2 69.5 61.2 48.3 67.5 3 70.1 62.7 50.6 68.4 4 71.4 63.4 52.7 69.6 
+
+• MoE layers 
+
+First Half 69.7 61.0 49.4 67.6 Last Half 70.5 62.0 50.8 68.3 Interval(4) 71.4 63.4 52.7 69.6 Full 70.2 61.8 53.5 68.1 
+
+Table 3. Ablation Studies on the MoE design in PolyV, examining its necessity, expert number, and architectural placement. 
+
+Setting Open-EQA 3DSRBench real VSI-Bench Video-MME PolyV(Full) 63.4 63.4 52.7 69.6 
+
+• Training Strategy 
+
+only Coarse-grained 61.9 61.0 51.6 68.2 only Fine-grained 62.5 59.8 50.2 68.9 
+
+• Foundation Model 
+
+w/ VideoFM 62.8 61.4 52.1 69.3 w/ 3DFM 63.0 62.7 51.5 68.8 
+
+Table 4. Comparison studies on the training strategies and foun-dation model utilization in PolyV. 
+
+and 3DRS [28]. Such observation indicates that the cross-vision synergy learned from image and video modalities effectively transfers to 3D, enhancing geometric reasoning and holistic spatial understanding. 
+
+4.3. In-Depth Analyses and Discussion 
+
+Comparative Analysis of Uni-MoE and Dense Models. 
+
+We compare dense models (without experts) and PolyV (with expert-based Uni-MoE architecture) under identical training settings, differing only in architectural design. As shown in Table 3, PolyV yields superior results over the dense variant on all benchmarks, demonstrating the MoE framework’s superiority in enabling more efficient special-ization and cross-modal knowledge sharing than uniform dense parameterization, to enhance representational capac-ity and adaptive reasoning. 
+
+Effect of the Number of Experts. We investigate the im-pact of varying the number of experts within MoE layers while keeping the number of activated experts the same, as detailed in Table 3. Increasing the total number of experts consistently improves performance, with sparse configura-tions surpassing the single-expert dense model by 2.5% on MMStar, 3.1% on Open-EQA, 6.9% on VSI-Bench, and 3.2% on VideoMME. To balance efficacy and efficiency, we choose 4 experts in our setting. 
+
+Analyzing the Architectures of PolyV. Table 3 compares four MoE configurations: “First-Half” applies MoE layers to the lower half of the network, “Second-Half” to the upper half, “Interval(4)” interleaves MoE and dense layers every 0 4 8 12 16 20 24 28 0% 25% 50% 75% 100% Percentage  MMStar                                                                   
+
+> 04812 16 20 24 28
+> 3DSRBench
+> 04812 16 20 24 28 0% 25% 50% 75% 100% Percentage  MuCR
+> 04812 16 20 24 28
+> VSI
+> 04812 16 20 24 28 0% 25% 50% 75% 100% Percentage  MMSI-Bench
+> 04812 16 20 24 28
+> CVBench
+> 04812 16 20 24 28 0% 25% 50% 75% 100% Percentage  VideoMME
+> 04812 16 20 24 28
+> ScanQA
+> 04812 16 20 24 28 MoE layer idx 0% 25% 50% 75% 100% Percentage
+> SQA3D
+> 04812 16 20 24 28 MoE layer idx
+> Open-EQA
+> Expert 1 Expert 2 Expert 3 Expert 4
+
+Figure 5. Token distribution across experts on different bench-marks, illustrating load balance and routing diversity that reflect PolyV’s adaptive expert specialization. 
+
+four layers, and the “Full” converts all layers to sparse MoE layers. We observe that the “Full” setup yields no clear per-formance gain while increasing training cost, whereas “In-terval(4)” achieves the best balance between efficiency and representational specialization. 
+
+Effect of Training Strategy. We compare three train-ing configurations: the coarse-grained strategy, the fine-grained strategy, and their combination. As shown in Ta-ble 4, coarse-grained tuning excels on 3D benchmarks (e.g., 3DSRBench), highlighting its strength in capturing global structural representations. Fine-grained tuning, in contrast, focuses on detailed reasoning and performs better on video-related tasks (e.g., VSI-Bench, VideoMME), though with slightly weaker spatial performance. Combining both yields the best overall results, confirming that coarse structural alignment and fine object-/relation-level reasoning are com-plementary for achieving robust cross-vision synergy. 
+
+Effect of Foundation Model Strategy. We evaluate the impact of integrating video and 3D foundation models into PolyV. As shown in Table 4, integrating VideoFM notably improves performance on video benchmarks (VSI-Bench 0 4 8 12 16 20 24 28 MoE layer idx 0% 25% 50% 75% 100% Percentage  3D 
+
+0 4 8 12 16 20 24 28 MoE layer idx 
+
+Image 
+
+0 4 8 12 16 20 24 28 MoE layer idx 
+
+Text 
+
+0 4 8 12 16 20 24 28 MoE layer idx 
+
+Video 
+
+Expert 1 Expert 2 Expert 3 Expert 4 Figure 6. Token distribution across experts by modality. “Percentage” denotes the token fraction per expert across all MoE layers. When you are taking consecutive photos on the stairs, where is the green plant on the table located relative to you when you take photo 2?                 
+
+> A: front left, B: back right, C: back left, D: front right
+> SpaceR : C SpatialMLLM : D Qwen3-VL : B PolyV(Ours) : C
+> In this video clip, how is the car's location moving in the 3D scene relative to his/her/its starting orientation and location?
+> (A) Moving forward-right (B) Moving forward (C) Moving backward (D) Basically unchanged
+> What can I do to increase the speed of the ceiling fan?
+> Gold Answer: Turn the dial on the switch panel next to the front door What will be the first-time appearance order of the following categories in the video: keyboard, window, telephone, door?
+> A. telephone, door, keyboard, window
+> B. window, telephone, door, keyboard
+> C. keyboard, window, telephone, door
+> D. telephone, door, window, keyboard
+> SpaceR : C Internvl-2.5 : C Qwen3-VL : C PolyV(Ours) : D
+> SpatialMLLM : B Qwen3-VL : B Qwen2.5-VL : D PolyV(Ours) : D
+> Qwen3-VL : The video does not show a ceiling fan, so there is no way to increase its speed.
+> Qwen2.5-VL : To increase the speed of the ceiling fan, you would need to adjust the settings on the control panel or remote that is typically located near the fan. If there is no visible control panel in the video, it might be controlled by a wall switch or a timer. Check the instructions provided with your ceiling fan for specific guidance on how to adjust its speed.
+> PolyV(Ours) : Turn the fan’s speed control to a higher setting on the wall.
+> 1
+> 2
+> 3
+> 4
+
+Figure 7. Qualitative comparisons between PolyV and existing models. Case 1 is from MMSI-Bench [68], Case 2 from DSI-Bench [77], Case 3 from VSI-Bench [67], and Case 4 from Open-EQA (HM3D) [47]. 
+
+and VideoMME), reflecting stronger temporal reasoning, while 3DFM improves results on spatial tasks (3DSR-Bench), indicating better geometric understanding. These results show that temporal and spatial priors distilled from strong single-modality foundation models provide comple-mentary guidance for achieving robust cross-vision synergy. 
+
+Routing Distributions. Fig. 5 illustrates the routing dis-tributions of the four experts across different benchmarks. Expert 1 is primarily activated in general image under-standing (e.g., MMStar), while Expert 2 dominates spa-tial reasoning (3DSRBench, SQA3D). Expert 3 is pri-marily triggered in temporal and motion-focused datasets (MuCR, VideoMME), and Expert 4 shows balanced ac-tivation across mixed or reasoning tasks (MMSI-Bench, CVBench). These patterns confirm that PolyV adaptively allocates experts according to task priors, enabling effective cross-vision synergy. Furthermore, we also visualize the to-ken distribution of the four experts across different modali-ties, as demonstrated in Fig. 6. 
+
+Case Study. Fig. 7 presents qualitative examples across diverse visual reasoning tasks. In Cases 1 and 3, PolyV accurately interprets object orientation and viewpoint rela-tions in image-based and multi-view spatial reasoning. In Case 2, focusing on video temporal and spatial understand-ing, it correctly infers that no spatial state changes occur. Fi-nally, in Case 4, PolyV effectively identifies key spatial cues in 3D environments, producing coherent responses. These examples collectively highlight PolyV’s ability to dynami-cally leverage multimodal representations for contextually adaptive and fine-grained visual reasoning. 
+
+## 5. Conclusion 
+
+In this work, we introduced PolyV , a unified LVM de-signed to achieve synergy across image, video, and 3D modalities. Technically, we proposed a MoE architec-ture coordinated by a dynamic router to enable adaptive modal-specific&sharing feature interaction. We further de-velop a synergy-aware training framework that integrates coarse-grained cross-modal knowledge distillation and fine-grained cross-vision alignment, enabling PolyV to cap-ture both global and object/relation-level correspondences across modalities. Extensive experiments on diverse bench-marks demonstrate that PolyV surpasses existing LVMs in spatial, temporal, and cross-modal reasoning, paving the way toward human-like cross-vision synergy learning. References 
+
+[1] Abdelrahman Abouelenin, Atabak Ashfaq, Adam Atkinson, Hany Awadalla, Nguyen Bach, Jianmin Bao, Alon Ben-haim, Martin Cai, Vishrav Chaudhary, Congcong Chen, et al. Phi-4-mini technical report: Compact yet powerful multi-modal language models via mixture-of-loras. arXiv preprint arXiv:2503.01743 , 2025. 2 [2] Xiang An, Yin Xie, Kaicheng Yang, Wenkang Zhang, Xiuwei Zhao, Zheng Cheng, Yirui Wang, Songcen Xu, Changrui Chen, Chunsheng Wu, et al. Llava-onevision-1.5: Fully open framework for democratized multimodal training. 
+
+arXiv preprint arXiv:2509.23661 , 2025. 6, 17, 18, 19, 20, 21 [3] Iro Armeni, Zhi-Yang He, JunYoung Gwak, Amir R Zamir, Martin Fischer, Jitendra Malik, and Silvio Savarese. 3d scene graph: A structure for unified semantics, 3d space, and cam-era. In Proceedings of the ICCV , pages 5664–5673, 2019. 14 [4] Mido Assran, Adrien Bardes, David Fan, Quentin Garrido, Russell Howes, Matthew Muckley, Ammar Rizvi, Claire Roberts, Koustuv Sinha, Artem Zholus, et al. V-jepa 2: Self-supervised video models enable understanding, prediction and planning. arXiv preprint arXiv:2506.09985 , 2025. 4, 13 [5] Daichi Azuma, Taiki Miyanishi, Shuhei Kurita, and Motoaki Kawanabe. Scanqa: 3d question answering for spatial scene understanding. In proceedings of the CVPR , pages 19129– 19139, 2022. 6, 18 [6] Shuai Bai, Keqin Chen, Xuejing Liu, Jialin Wang, Wenbin Ge, Sibo Song, Kai Dang, Peng Wang, Shijie Wang, Jun Tang, et al. Qwen2. 5-vl technical report. arXiv preprint arXiv:2502.13923 , 2025. 1, 2, 5, 6, 13, 14, 15, 17, 18, 19, 20, 21 [7] Kylie J Barnett, John J Foxe, Sophie Molholm, Simon P Kelly, Shani Shalgi, Kevin J Mitchell, and Fiona N Newell. Differences in early sensory-perceptual processing in synes-thesia: a visual evoked potential study. Neuroimage , 43(3): 605–613, 2008. 1 [8] Gilad Baruch, Zhuoyuan Chen, Afshin Dehghan, Tal Dimry, Yuri Feigin, Peter Fu, Thomas Gebauer, Brandon Joffe, Daniel Kurz, Arik Schwartz, et al. Arkitscenes: A diverse real-world dataset for 3d indoor scene understanding using mobile rgb-d data. arXiv preprint arXiv:2111.08897 , 2021. 17 [9] Garrick Brazil, Abhinav Kumar, Julian Straub, Nikhila Ravi, Justin Johnson, and Georgia Gkioxari. Omni3d: A large benchmark and model for 3d object detection in the wild. In Proceedings of the CVPR , pages 13154–13164, 2023. 17 [10] Dave Zhenyu Chen, Angel X Chang, and Matthias Nießner. Scanrefer: 3d object localization in rgb-d scans using natu-ral language. In Proceedings of the ECCV , pages 202–221, 2020. 18 [11] Lin Chen, Jinsong Li, Xiaoyi Dong, Pan Zhang, Yuhang Zang, Zehui Chen, Haodong Duan, Jiaqi Wang, Yu Qiao, Dahua Lin, et al. Are we on the right way for evaluating large vision-language models? Proceedings of the NeuraIPS , 37: 27056–27087, 2024. 6, 7, 17, 18 [12] Lin Chen, Xilin Wei, Jinsong Li, Xiaoyi Dong, Pan Zhang, Yuhang Zang, Zehui Chen, Haodong Duan, Zhenyu Tang, Li Yuan, et al. Sharegpt4video: Improving video understand-ing and generation with better captions. Proceedings of the NeuraIPS , 37:19472–19495, 2024. 5 [13] Sijin Chen, Xin Chen, Chi Zhang, Mingsheng Li, Gang Yu, Hao Fei, Hongyuan Zhu, Jiayuan Fan, and Tao Chen. Ll3da: Visual interactive instruction tuning for omni-3d understand-ing reasoning and planning. In Proceedings of the CVPR ,pages 26428–26438, 2024. 1, 2, 6 [14] Zhenyu Chen, Ali Gholami, Matthias Nießner, and Angel X Chang. Scan2cap: Context-aware dense captioning in rgb-d scans. In Proceedings of the CVPR , pages 3193–3203, 2021. 18 [15] Zhe Chen, Weiyun Wang, Yue Cao, Yangzhou Liu, Zhang-wei Gao, Erfei Cui, Jinguo Zhu, Shenglong Ye, Hao Tian, Zhaoyang Liu, Lixin Gu, Xuehui Wang, Qingyun Li, Yim-ing Ren, Zixuan Chen, Jiapeng Luo, Jiahao Wang, Tan Jiang, Bo Wang, Conghui He, Botian Shi, Xingcheng Zhang, Han Lv, Yi Wang, Wenqi Shao, Pei Chu, Zhongying Tu, Tong He, Zhiyong Wu, Huipeng Deng, Jiaye Ge, Kai Chen, Kaipeng Zhang, Limin Wang, Min Dou, Lewei Lu, Xizhou Zhu, Tong Lu, Dahua Lin, Yu Qiao, Jifeng Dai, and Wenhai Wang. Ex-panding performance boundaries of open-source multimodal models with model, data, and test-time scaling, 2025. 6, 17, 18, 19, 20, 21 [16] Zhangquan Chen, Manyuan Zhang, Xinlei Yu, Xufang Luo, Mingze Sun, Zihao Pan, Yan Feng, Peng Pei, Xunliang Cai, and Ruqi Huang. Think with 3d: Geometric imagina-tion grounded spatial reasoning from limited views. arXiv preprint arXiv:2510.18632 , 2025. 4, 13 [17] Angela Dai, Angel X Chang, Manolis Savva, Maciej Hal-ber, Thomas Funkhouser, and Matthias Nießner. Scannet: Richly-annotated 3d reconstructions of indoor scenes. In 
+
+Proceedings of the CVPR , pages 5828–5839, 2017. 17 [18] Alexey Dosovitskiy. An image is worth 16x16 words: Transformers for image recognition at scale. arXiv preprint arXiv:2010.11929 , 2020. 3 [19] Nan Du, Yanping Huang, Andrew M Dai, Simon Tong, Dmitry Lepikhin, Yuanzhong Xu, Maxim Krikun, Yanqi Zhou, Adams Wei Yu, Orhan Firat, et al. Glam: Efficient scaling of language models with mixture-of-experts. In Pro-ceedings of the ICML , pages 5547–5569. PMLR, 2022. 3 [20] William Fedus, Barret Zoph, and Noam Shazeer. Switch transformers: Scaling to trillion parameter models with sim-ple and efficient sparsity. Journal of Machine Learning Re-search , 23(120):1–39, 2022. 4 [21] Chaoyou Fu, Yuhan Dai, Yongdong Luo, Lei Li, Shuhuai Ren, Renrui Zhang, Zihan Wang, Chenyu Zhou, Yunhang Shen, Mengdan Zhang, et al. Video-mme: The first-ever comprehensive evaluation benchmark of multi-modal llms in video analysis. In Proceedings of the CVPR , pages 24108– 24118, 2025. 6, 7, 17, 20 [22] Rao Fu, Jingyu Liu, Xilun Chen, Yixin Nie, and Wen-han Xiong. Scene-llm: Extending language model for 3d visual understanding and reasoning. arXiv preprint arXiv:2403.11401 , 2024. 6 [23] Ziqi Gao, Weikai Huang, Jieyu Zhang, Aniruddha Kemb-havi, and Ranjay Krishna. Generate any scene: Evaluat-ing and improving text-to-vision generation with scene graph programming. arXiv preprint arXiv:2412.08221 , 2024. 5 [24] Jiaming Han, Renrui Zhang, Wenqi Shao, Peng Gao, Peng Xu, Han Xiao, Kaipeng Zhang, Chris Liu, Song Wen, Ziyu Guo, et al. Imagebind-llm: Multi-modality instruction tun-ing. arXiv preprint arXiv:2309.03905 , 2023. 1 [25] Yining Hong, Haoyu Zhen, Peihao Chen, Shuhong Zheng, Yilun Du, Zhenfang Chen, and Chuang Gan. 3d-llm: Inject-ing the 3d world into large language models. Proceedings of the NeuraIPS , 36:20482–20494, 2023. 1, 2 [26] Haiyang Huang, Newsha Ardalani, Anna Sun, Liu Ke, Hsien-Hsin S Lee, Shruti Bhosale, Carole-Jean Wu, and Benjamin Lee. Toward efficient inference for mixture of ex-perts. Proceedings of the NeuraIPS , 37:84033–84059, 2024. 3[27] Jiangyong Huang, Silong Yong, Xiaojian Ma, Xiongkun Linghu, Puhao Li, Yan Wang, Qing Li, Song-Chun Zhu, Baoxiong Jia, and Siyuan Huang. An embodied generalist agent in 3d world. arXiv preprint arXiv:2311.12871 , 2023. 1, 2, 6 [28] Xiaohu Huang, Jingjing Wu, Qunyi Xie, and Kai Han. Mllms need 3d-aware representation supervision for scene under-standing. arXiv preprint arXiv:2506.01946 , 2025. 6, 7 [29] Aaron Hurst, Adam Lerer, Adam P Goucher, Adam Perel-man, Aditya Ramesh, Aidan Clark, AJ Ostrow, Akila Weli-hinda, Alan Hayes, Alec Radford, et al. Gpt-4o system card. 
+
+arXiv preprint arXiv:2410.21276 , 2024. 5, 14 [30] Aaron Hurst, Adam Lerer, Adam P Goucher, Adam Perel-man, Aditya Ramesh, Aidan Clark, AJ Ostrow, Akila Weli-hinda, Alan Hayes, Alec Radford, et al. Gpt-4o system card. 
+
+arXiv preprint arXiv:2410.21276 , 2024. 6 [31] Jingwei Ji, Ranjay Krishna, Li Fei-Fei, and Juan Carlos Niebles. Action genome: Actions as compositions of spatio-temporal scene graphs. In Proceedings of the CVPR , pages 10236–10247, 2020. 14 [32] Dmitry Lepikhin, HyoukJoong Lee, Yuanzhong Xu, Dehao Chen, Orhan Firat, Yanping Huang, Maxim Krikun, Noam Shazeer, and Zhifeng Chen. Gshard: Scaling giant models with conditional computation and automatic sharding. arXiv preprint arXiv:2006.16668 , 2020. 3 [33] Bo Li, Yuanhan Zhang, Dong Guo, Renrui Zhang, Feng Li, Hao Zhang, Kaichen Zhang, Peiyuan Zhang, Yanwei Li, Zi-wei Liu, et al. Llava-onevision: Easy visual task transfer. 
+
+arXiv preprint arXiv:2408.03326 , 2024. 6, 17, 18, 19, 20, 21 [34] Yunxin Li, Shenyuan Jiang, Baotian Hu, Longyue Wang, Wanqi Zhong, Wenhan Luo, Lin Ma, and Min Zhang. Uni-moe: Scaling unified multimodal llms with mixture of ex-perts. IEEE Transactions on Pattern Analysis and Machine Intelligence , 2025. 3 [35] Yun Li, Yiming Zhang, Tao Lin, XiangRui Liu, Wenxiao Cai, Zheng Liu, and Bo Zhao. Sti-bench: Are mllms ready for precise spatial-temporal world understanding? arXiv preprint arXiv:2503.23765 , 2025. 17, 18, 20, 21 [36] Bin Lin, Zhenyu Tang, Yang Ye, Jiaxi Cui, Bin Zhu, Peng Jin, Jinfa Huang, Junwu Zhang, Yatian Pang, Munan Ning, et al. Moe-llava: Mixture of experts for large vision-language models. arXiv preprint arXiv:2401.15947 , 2024. 3[37] Bin Lin, Yang Ye, Bin Zhu, Jiaxi Cui, Munan Ning, Peng Jin, and Li Yuan. Video-llava: Learning united visual repre-sentation by alignment before projection. In Proceedings of the EMNLP , pages 5971–5984, 2024. 2 [38] Tao Lin, Gen Li, Yilei Zhong, Yanwen Zou, Yuxin Du, Jiting Liu, Encheng Gu, and Bo Zhao. Evo-0: Vision-language-action model with implicit spatial understanding. arXiv preprint arXiv:2507.00416 , 2025. 13 [39] Tsung-Yi Lin, Michael Maire, Serge Belongie, James Hays, Pietro Perona, Deva Ramanan, Piotr Doll´ ar, and C Lawrence Zitnick. Microsoft coco: Common objects in context. In 
+
+Proceedings of the ECCV , pages 740–755, 2014. 17 [40] Zhiqiu Lin, Siyuan Cen, Daniel Jiang, Jay Karhade, Hewei Wang, Chancharik Mitra, Tiffany Ling, Yuhan Huang, Sifan Liu, Mingyu Chen, et al. Towards understanding camera mo-tions in any video. arXiv preprint arXiv:2504.15376 , 2025. 21 [41] Haotian Liu, Chunyuan Li, Yuheng Li, and Yong Jae Lee. Improved baselines with visual instruction tuning. In Pro-ceedings of the CVPR , pages 26296–26306, 2024. 1, 2, 5, 17, 18 [42] Haotian Liu, Chunyuan Li, Yuheng Li, and Yong Jae Lee. Improved baselines with visual instruction tuning. In Pro-ceedings of the CVPR , pages 26296–26306, 2024. 19 [43] Ilya Loshchilov and Frank Hutter. Decoupled weight decay regularization. arXiv preprint arXiv:1711.05101 , 2017. 6, 16 [44] Ruiyuan Lyu, Jingli Lin, Tai Wang, Shuai Yang, Xiao-han Mao, Yilun Chen, Runsen Xu, Haifeng Huang, Chen-ming Zhu, Dahua Lin, et al. Mmscan: A multi-modal 3d scene dataset with hierarchical grounded language annota-tions. Proceedings of the NeurIPS , 37:50898–50924, 2024. 18 [45] Wufei Ma, Haoyu Chen, Guofeng Zhang, Yu-Cheng Chou, Jieneng Chen, Celso de Melo, and Alan Yuille. 3dsrbench: A comprehensive 3d spatial reasoning benchmark. In Pro-ceedings of the ICCV , pages 6924–6934, 2025. 6, 17, 18, 20 [46] Xiaojian Ma, Silong Yong, Zilong Zheng, Qing Li, Yi-tao Liang, Song-Chun Zhu, and Siyuan Huang. Sqa3d: Situated question answering in 3d scenes. arXiv preprint arXiv:2210.07474 , 2022. 6, 18 [47] Arjun Majumdar, Anurag Ajay, Xiaohan Zhang, Pranav Putta, Sriram Yenamandra, Mikael Henaff, Sneha Silwal, Paul Mcvay, Oleksandr Maksymets, Sergio Arnaud, et al. Openeqa: Embodied question answering in the era of foun-dation models. In Proceedings of the CVPR , pages 16488– 16498, 2024. 6, 7, 8, 17, 20 [48] Thong Nguyen, Zhiyuan Hu, Xu Lin, Cong-Duy Nguyen, See-Kiong Ng, and Luu Anh Tuan. Temporal-oriented recipe for transferring large vision-language model to video under-standing. arXiv preprint arXiv:2505.12605 , 2025. 3 [49] Kun Ouyang, Yuanxin Liu, Haoning Wu, Yi Liu, Hao Zhou, Jie Zhou, Fandong Meng, and Xu Sun. Spacer: Rein-forcing mllms in video spatial reasoning. arXiv preprint arXiv:2504.01805 , 2025. 6, 18, 19, 20, 21 [50] Thomas J Palmeri, Randolph Blake, Ren´ e Marois, Marci A Flanery, and William Whetsell Jr. The perceptual reality of synesthetic colors. Proceedings of the National Academy of Sciences , 99(6):4127–4131, 2002. 1 [51] Leyang Shen, Gongwei Chen, Rui Shao, Weili Guan, and Liqiang Nie. Mome: Mixture of multimodal experts for gen-eralist multimodal large language models. Proceedings of the NeuraIPS , 37:42048–42070, 2024. 3 [52] Yongliang Shen, Kaitao Song, Xu Tan, Dongsheng Li, Weiming Lu, and Yueting Zhuang. Hugginggpt: Solving ai tasks with chatgpt and its friends in hugging face. Proceed-ings of the NeuraIPS , 36:38154–38180, 2023. 1 [53] Xincheng Shuai, Henghui Ding, Zhenyuan Qin, Hao Luo, Xingjun Ma, and Dacheng Tao. Free-form motion control: A synthetic video generation dataset with controllable camera and object motions. arXiv preprint arXiv:2501.01425 , 2025. 21 [54] Julia Simner, Catherine Mulvenna, Noam Sagiv, Elias Tsakanikos, Sarah A Witherby, Christine Fraser, Kirsten Scott, and Jamie Ward. Synaesthesia: The prevalence of atypical cross-modal experiences. Perception , 35(8):1024– 1033, 2006. 1 [55] Lucas Smaira, Jo˜ ao Carreira, Eric Noland, Ellen Clancy, Amy Wu, and Andrew Zisserman. A short note on the kinetics-700-2020 human action dataset. arXiv preprint arXiv:2010.10864 , 2020. 21 [56] Gemini Team, Petko Georgiev, Ving Ian Lei, Ryan Burnell, Libin Bai, Anmol Gulati, Garrett Tanzer, Damien Vincent, Zhufeng Pan, Shibo Wang, et al. Gemini 1.5: Unlocking multimodal understanding across millions of tokens of con-text. arXiv preprint arXiv:2403.05530 , 2024. 6 [57] Peter Tong, Ellis Brown, Penghao Wu, Sanghyun Woo, Adithya Jairam Vedagiri IYER, Sai Charitha Akula, Shusheng Yang, Jihan Yang, Manoj Middepogu, Ziteng Wang, et al. Cambrian-1: A fully open, vision-centric ex-ploration of multimodal llms. Proceedings of the NeurIPS ,37:87310–87356, 2024. 17, 18, 20 [58] Haochen Wang, Yucheng Zhao, Tiancai Wang, Haoqiang Fan, Xiangyu Zhang, and Zhaoxiang Zhang. Ross3d: Recon-structive visual instruction tuning with 3d-awareness. arXiv preprint arXiv:2504.01901 , 2025. 1, 2, 3, 6, 13, 18, 19, 20, 21 [59] Jianyuan Wang, Minghao Chen, Nikita Karaev, Andrea Vedaldi, Christian Rupprecht, and David Novotny. Vggt: Vi-sual geometry grounded transformer. In Proceedings of the CVPR , pages 5294–5306, 2025. 4, 13, 18 [60] Diankun Wu, Fangfu Liu, Yi-Hsin Hung, and Yueqi Duan. Spatial-mllm: Boosting mllm capabilities in visual-based spatial intelligence. arXiv preprint arXiv:2505.23747 , 2025. 6, 18, 19, 20, 21 [61] Shengqiong Wu, Hao Fei, Leigang Qu, Wei Ji, and Tat-Seng Chua. Next-gpt: Any-to-any multimodal llm. In Proceedings of the ICLR , 2024. 2 [62] Shengqiong Wu, Hao Fei, and Tat-Seng Chua. Universal scene graph generation. In Proceedings of the CVPR , pages 14158–14168, 2025. 5, 14 [63] Jiayi Xin, Sukwon Yun, Jie Peng, Inyoung Choi, Jenna L Ballard, Tianlong Chen, and Qi Long. I2moe: Inter-pretable multimodal interaction-aware mixture-of-experts. 
+
+arXiv preprint arXiv:2505.19190 , 2025. 3 [64] Jin Xu, Zhifang Guo, Jinzheng He, Hangrui Hu, Ting He, Shuai Bai, Keqin Chen, Jialin Wang, Yang Fan, Kai Dang, et al. Qwen2. 5-omni technical report. arXiv preprint arXiv:2503.20215 , 2025. 2 [65] Runsen Xu, Xiaolong Wang, Tai Wang, Yilun Chen, Jiang-miao Pang, and Dahua Lin. Pointllm: Empowering large language models to understand point clouds. In Proceedings of the ECCV , pages 131–147, 2024. 2 [66] Jingkang Yang, Yi Zhe Ang, Zujin Guo, Kaiyang Zhou, Wayne Zhang, and Ziwei Liu. Panoptic scene graph gen-eration. In Proceedings of the ECCV , pages 178–196, 2022. 14 [67] Jihan Yang, Shusheng Yang, Anjali W Gupta, Rilyn Han, Li Fei-Fei, and Saining Xie. Thinking in space: How mul-timodal large language models see, remember, and recall spaces. In Proceedings of the CVPR , pages 10632–10643, 2025. 6, 7, 8, 17, 18, 19 [68] Sihan Yang, Runsen Xu, Yiman Xie, Sizhe Yang, Mo Li, Jingli Lin, Chenming Zhu, Xiaochen Chen, Haodong Duan, Xiangyu Yue, et al. Mmsi-bench: A benchmark for multi-image spatial intelligence. arXiv preprint arXiv:2505.23764 ,2025. 6, 8, 17, 19 [69] Xiaoda Yang, JunYu Lu, Hongshun Qiu, Sijing Li, Hao Li, Shengpeng Ji, Xudong Tang, Jiayang Xu, Jiaqi Duan, Ziyue Jiang, et al. Astrea: A moe-based visual under-standing model with progressive alignment. arXiv preprint arXiv:2503.09445 , 2025. 3 [70] Chandan Yeshwanth, Yueh-Cheng Liu, Matthias Nießner, and Angela Dai. Scannet++: A high-fidelity dataset of 3d indoor scenes. In Proceedings of the ICCV , pages 12–22, 2023. 17 [71] Jun Zhan, Junqi Dai, Jiasheng Ye, Yunhua Zhou, Dong Zhang, Zhigeng Liu, Xin Zhang, Ruibin Yuan, Ge Zhang, Linyang Li, et al. Anygpt: Unified multimodal llm with dis-crete sequence modeling. In Proceedings of the ACL , pages 9637–9662, 2024. 2 [72] Ao Zhang, Yuan Yao, Wei Ji, Zhiyuan Liu, and Tat-Seng Chua. Next-chat: An lmm for chat, detection and segmenta-tion. arXiv preprint arXiv:2311.04498 , 2023. 2 [73] Yiming Zhang, ZeMing Gong, and Angel X Chang. Multi3drefer: Grounding text description to multiple 3d ob-jects. In Proceedings of the ICCV , pages 15225–15236, 2023. 18 [74] Yuanhan Zhang, Bo Li, haotian Liu, Yong jae Lee, Liangke Gui, Di Fu, Jiashi Feng, Ziwei Liu, and Chunyuan Li. Llava-next: A strong zero-shot video understanding model, 2024. 17, 18, 19, 20, 21 [75] Yuanhan Zhang, Jinming Wu, Wei Li, Bo Li, Zejun Ma, Zi-wei Liu, and Chunyuan Li. Video instruction tuning with synthetic data. arXiv preprint arXiv:2410.02713 , 2024. 2, 5, 6, 17, 18, 19, 21 [76] Yue Zhang, Yingzhao Jian, Hehe Fan, Yi Yang, and Roger Zimmermann. Uni3d-moe: Scalable multimodal 3d scene understanding via mixture of experts. arXiv preprint arXiv:2505.21079 , 2025. 1, 3, 6 [77] Ziang Zhang, Zehan Wang, Guanghao Zhang, Weilong Dai, Yan Xia, Ziang Yan, Minjie Hong, and Zhou Zhao. Dsi-bench: A benchmark for dynamic spatial intelligence. arXiv preprint arXiv:2510.18873 , 2025. 8, 17, 18, 20, 21 [78] Duo Zheng, Shijia Huang, Yanyang Li, and Liwei Wang. Learning from videos for 3d world: Enhancing mllms with 3d vision geometry priors. arXiv preprint arXiv:2505.24625 ,2025. 13 [79] Duo Zheng, Shijia Huang, and Liwei Wang. Video-3d llm: Learning position-aware video representation for 3d scene understanding. In Proceedings of the CVPR , pages 8995– 9006, 2025. 1, 2, 5, 6, 13, 15, 18, 19, 20, 21 [80] Bolei Zhou, Hang Zhao, Xavier Puig, Sanja Fidler, Adela Barriuso, and Antonio Torralba. Scene parsing through ade20k dataset. In Proceedings of the CVPR , pages 633– 641, 2017. 17 [81] Chenming Zhu, Tai Wang, Wenwei Zhang, Jiangmiao Pang, and Xihui Liu. Llava-3d: A simple yet effective pathway to empowering lmms with 3d capabilities. In Proceedings of the ICCV , pages 4295–4305, 2025. 1, 2, 3, 4, 5, 6, 18, 19, 20 [82] Jinguo Zhu, Weiyun Wang, Zhe Chen, Zhaoyang Liu, Shen-glong Ye, Lixin Gu, Hao Tian, Yuchen Duan, Weijie Su, Jie Shao, et al. Internvl3: Exploring advanced training and test-time recipes for open-source multimodal models. arXiv preprint arXiv:2504.10479 , 2025. 6, 17, 18, 19 [83] Nannan Zhu, Yonghao Dong, Teng Wang, Xueqian Li, Shengjun Deng, Yijia Wang, Zheng Hong, Tiantian Geng, Guo Niu, Hanyan Huang, et al. Cvbench: Evaluating cross-video synergies for complex multimodal understanding and reasoning. arXiv preprint arXiv:2508.19542 , 2025. 6, 17, 19 [84] Xun Zhu, Ying Hu, Fanbin Mo, Miao Li, and Ji Wu. Uni-med: a unified medical generalist foundation model for multi-task learning via connector-moe. Proceedings of the NeuraIPS , 37:81225–81256, 2024. 3 Contents 
+
+A. Extended Model Architecture 13 B. More Implementation Details 14 
+
+B.1. CSQA Data Construction . . . . . . . . . . 14 B.2. Model Details. . . . . . . . . . . . . . . . . 15 B.3. Training Details . . . . . . . . . . . . . . . 15 B.4. Benchmarks . . . . . . . . . . . . . . . . . 16 B.5. Baselines . . . . . . . . . . . . . . . . . . . 17 
+
+C. More Experimental Results 18 
+
+C.1. Detailed Benchmark Results . . . . . . . . . 18 C.2. Mitigating Catastrophic Forgetting Across Modalities . . . . . . . . . . . . . . . . . . 18 C.3. More Quantitation Results . . . . . . . . . . 20 
+
+D. Limitation and Future Work 20 
+
+## A. Extended Model Architecture 
+
+Vision Encoder The universal vision encoder is built upon the architecture proposed in [6], which adopts a re-designed Vision Transformer (ViT) backbone. Specifically, the height and width of the input images are resized to mul-tiples of 28 before being fed into the ViT. Then, the im-ages are split into patches with a stride of 14. For video data, every two consecutive frames are grouped into a sin-gle unit to reduce the number of visual tokens and allevi-ate computational overhead. To address the quadratic com-plexity of standard self-attention when processing images of varying resolutions, a windowed attention with a maximum window size of 112×112 (corresponding to 8×8 patches) is introduced in most layers, ensuring that computational cost scales linearly with the number of patches rather than quadratically. Additionally, the positional encoding scheme is extended from 2D to 3D patch partitioning, enabling the encoder to jointly model both spatial and temporal dimen-sions for unified image and video understanding. To inject 3D information into conventional 2D video frames, follow-ing [58, 79], we first calculate a set of global coordinates 
+
+(x, y, z ) of each pixel at the position: 
+
+[x y z 1] = [ Di,j · [j i 1] · (K−1)⊤ 1] · B⊤, (12) where D ∈ RH×W denotes the depth maps, B ∈ R4×4 the extrinsic matrix, and K ∈ R3×3 the camera intrinsic matrix. A sinusoidal positional encoding is then applied to these 3D coordinates to obtain coordinate embeddings, which are subsequently added to the visual token embeddings, form-ing position-aware representations that effectively capture spatial and temporal structure. 
+
+MoE Layer. Each MoE layers consists of 4 parallel ex-pert modules, implmented as the FFN-styled architecture in the LLM. These experts expand the feature dimension from 3584 to an intermediate dimension of 18944 via par-allel gated projections (gate proj and up proj), followed by SiLU activations and dimensional reduction back to 3584 (down proj). Tokens are dynamically routed to these ex-perts using a learnable Top-K gating network (i.e., a linear layer), which adaptively selects the most suitable experts based on token-level semantic characteristics. In our imple-mentation, we set K to 2. 
+
+Video Foundation Model In our work, we employ V-JEPA 2 [4] as the video foundation Model. Architecturally, the model is parameterized as a vision transformer [] with a tubelet size of 2 × 16 × 16 (T × H × W ) to patchify the input video frames. A 3D-RoPE is adopted to encode relative position information in the vision transformer. V-JEPA 2 has been pre-trained on more than 1 million hours of video via a self-supervised manner to comprehensively cap-ture the broad temporal motion and action within the video. 
+
+3D Foundation Model This work employs the VGGT [59] as the 3D foundation teacher model to distill 3D geometric information, such as inter-frame correspondences within input frames. The VGGT is built based on a fairly standard large transformer, with an alternating-attention design. Specifically, the frame-wise self-attention attends to the tokens within each frame separately, and global self-attention attends to the tokens across all frames jointly. The alternating attention is devised to make the transformer focus within each frame and globally alternately. During training, the VGGT is optimized to predict a full set of 3D attributes, including camera parameters, depth maps, point maps, and 3D point tracks. Recent works [16, 38, 59, 78] have shown that the VGGT can serve as a 3D genmetric feature extractor to enhance the downstream tasks. 
+
+Alignment Layer for Coarse-grained Synergtic Learn-ing. To ensure dimensional compatibility between the generated synergistic latent features and the modality-specific priors extracted from video and 3D foundation models, we introduce dedicated alignment layers that project the synergy representations into the corresponding feature spaces. These alignment modules are intentionally designed with slight architectural differences, reflecting the distinct dimension nature of temporal features in videos and geometric features in 3D scenes. B. More Implementation Details 
+
+B.1. CSQA Data Construction 
+
+Here, we show the detailed cross-vision synergy question-answer (CSQA) pair construction pipeline. 
+
+Data Source. We construct the CSQA dataset using paired scene-graph annotations from image–video and im-age–3D sources, derived from two established multimodal SG datasets [62]: • Image-Video Scene Graph is constructed based on PVSG [66], AG [31], where the first frame of each video serves as the image view and non-adjacent clips provide the corresponding video segments. Cross-modal object associations are directly taken from the existing annotations, as follows. • Image-3D Scene Graph is derived from 3DSG [3] by sampling 2D views linked to 3D scenes. Furthermore, the 3D objects are ground-annotated into the sampled images, and relationship annotations are inherited to form complete paired SGs. 
+
+QA Generation. To capture fine-grained cross-vision synergy, we design two categories of questions: object-level (e.g., spatial consistency, motion continuity) and 
+
+relation-level (e.g., interaction dynamics, viewpoint-dependent changes), as illustrated in Fig. 8. Given the paired scene graphs, we prompt GPT-4o [29] to generate QA pairs targeting these specific aspects. For quality con-trol, each generated question is validated using Qwen25-VL-72B [6], which answers the question based on both the scene graph and the corresponding visual inputs. Only QA pairs whose predicted answers match the gold responses are retained; mismatched samples are discarded to ensure relia-bility of the final CSQA dataset. Finally, we obtain the 20K CSQAs, which contain diversified questions and a focus. Prompt for Object-level CSQA 
+
+Instruction : You are given paired scene graphs, one from an image and one from a video. Your task is to generate object-level, cross-vision question–answer pairs that ex-plicitly compare or link the image to the video. Your gen-erated QAs must rely only on the information encoded in the scene graphs. Each QA should: • (1) Be object-focused: Ask about a specific object (e.g., child, toy, sofa, ball); Not general high-level scene understanding; Not reasoning beyond objects & relations • (2) Be cross-vision: Questions must compare the image with the video appearance or disappearance of an object; change of position; object motion; ob-ject interaction; new objects entering the scene; ob-ject state change. • (3) Be explicitly grounded. The question must be 
+
+answerable only using the provided scene graph in-formation. • (4) Be natural, concise, human-like Important Constraints: • Do NOT hallucinate objects, attributes, or relations not found in the scene graphs. • Avoid global reasoning (e.g., “What happens in the scene?”). • Do NOT describe entire events; stay object-focused. • Each question must be answerable and concise. • Each answer must be grounded strictly in the paired SG content. • Output QAs must be in JSON format. ==================== Examples (DO NOT COPY; FOLLOW SIMILAR STYLE): 
+
+{”question”: ”What is the child doing in the video com-pared to the image?”, ”answer”: ”The baby continues pushing the toy walker, later tends and interacts with it.” },
+
+{”question”: ”How does the toy in the image move in the video?”, ”answer”: ”The toy moves from the left side of the frame to the right as the baby pushes it.” }{”question”: ”Does any new object appear in the video that is not in the image?”, ”answer”: ”Yes, another adult and a ball appear in the later frames. ” }
+
+================== 
+
+Input Data : [ paired image-3D scene graph ]
+
+Output QAs :
+
+Prompt for Relation-level CSQA 
+
+Instruction : You are given a paired Image Scene Graph (ISG) and Video Scene Graph (VSG). Your task is to gen-erate relation-level, cross-vision, synergy-focused ques-tion–answer pairs, comparing relational changes between the image and the video. Each QA must: • be relation-centered, i.e., focusing on pairwise or ternary relations • Connect image and video explicitly. Questions must compare: whether a relation persists or changes; when a relation appears / disappears; how a rela-tion evolves over time; whether a relation becomes stronger/weaker or switches type; whether a new re-lation emerges only in the video. • Stay grounded in the scene graphs, no hallucinated objects or relations. • Produce natural, human-like questions Important Constraints: • Only use relations that appear explicitly in the scene graphs. • No event hallucination. • Keep questions short, clear, and relation-focused. • Answers must be concise and grounded (no specu-lation). • Avoid high-level reasoning beyond relations. • Output Q&As must be in JSON format. ==================== Examples (DO NOT COPY; FOLLOW SIMILAR STYLE): Video Scene Graph 
+
+Question: What is the child doing in the video compared to the image? 
+
+> The baby continues pushing the toy walker, later bends and interacts with it.
+
+child  toy 
+
+push 
+
+child 
+
+toy 
+
+sofa 
+
+sofa 
+
+in front of 
+
+push 
+
+beside 
+
+bend  in front of 
+
+toy 
+
+child 
+
+adult 
+
+adult 
+
+lift 
+
+toy bend 
+
+child  sofa 
+
+beside 
+
+kneels beside 
+
+child  toy 
+
+child 
+
+hold 
+
+sofa  ball 
+
+in front of 
+
+toy 
+
+child 
+
+child ball 
+
+sofa 
+
+hold 
+
+push 
+
+in front of 
+
+Object-level Question 
+
+Question: How does the toy move in the video? 
+
+> The toy moves from the left side of the frame to the right as the baby pushes it.
+
+Question: Does any new object appear in the video that is not in the image? 
+
+> Yes, another child, an adult and a ball appear in the later frames.
+
+Relation-level Question 
+
+Question: Is the relation between the baby and the toy the same in the video as in the image? 
+
+> Yes, both show the baby pushing the toy walker in front of the sofa.
+
+Question: When does the “baby pushes toy” relation occur in the video? 
+
+> It happens in the first half of the video (frames 1–3).
+
+Image Scene Graph 
+
+toilet 
+
+toilet paper 
+
+towel 
+
+floor 
+
+sink 
+
+bathtub door 
+
+wall 
+
+> hanging on
+
+build in left of 
+
+attached to 
+
+> standing on
+
+standing on 
+
+wall 
+
+toilet  counter 
+
+bin  towel 
+
+> in front of
+
+right of 
+
+3D Scene Graph Image Scene Graph 
+
+Question: Does the toilet in the image appear in the 3D scene?? 
+
+> Yes, it is located in the same position near the wall.
+
+Object-level Question 
+
+Question: Does the counter in the image have the same position in 3D? 
+
+> Yes, the counter is to the right of the toilet in both image and 3D.
+
+Question: Which object is newly visible in 3D but occluded in the image? 
+
+> The bathtub on the left side of the room.
+
+Relation-level Question 
+
+Question: Which objects are standing on the floor in both modalities? 
+
+> The toilet, counter, and trash bin.
+
+Question: Which wall-related relations appear only in 3D but not in the image? 
+
+> The left wall includes a towel rack and bathtub relation.
+
+Question: In 3D, what object is attached to the wall above the toilet in image? 
+
+> A toilet paper dispenser.
+> toilet paper Dispenser
+
+Figure 8. Illustration of CSQA examples, which is constructed based on a paired Image-Video scene graph and Image-3D scene graph. 
+
+{”question”: ”Is the relation between the baby and the toy the same in the video as in the image?”, ”answer”: ”Yes, both show the baby pushing the toy walker in front of the sofa.” },
+
+{”question”: ”Does any new relation appear in the video that is not present in the image?”, ”answer”: ”Yes. The man and another child appear in front of the sofa.” }
+
+==================== 
+
+Input Data : textual captions 
+
+Output QAs :
+
+B.2. Model Details. 
+
+We initialize the LLM backbone with Qwen2.5-VL-7B [6], which supports both image and video inputs. Follow-ing [79], we further incorporate 3D positional embeddings to enhance the model’s spatial understanding. In the sec-ond training stage, MoE and dense layers are interleaved at four-layer intervals (i.e., layers 0, 4, 8, 12, 16, 20, 24, and 28) to balance efficiency and capacity. Each MoE layer consists of 4 experts, and the top-2 experts with the high-est routing probabilities are dynamically activated for each token during inference. We show the detailed architecture and parameters number in Table 5. 
+
+B.3. Training Details 
+
+We provide additional details of the full training pipeline in this section. The complete set of hyperparameter configura-tions and training settings is summarized in Table 6. 
+
+Stage-1-1: Alignment Pre-training In this stage, we establish the initial alignment between the vision encoder and the backbone LLM. Since our model is initialized from Qwen2.5-VL-7B, which already supports image and video understanding, we focus exclusively on optimizing the model with 3D data to equip it with an initial capability Table 5. Detailed Architecture of PolyV and Qwen2.5-VL(Base). “Width” represents the dimension of the hidden states. “FFN” denotes the dimension of the feed-forward network’s intermediate layer. “FFN Factor” represents the quantity of linear layers in the FFN. “Activated” or “Total Param” refers to the activated or total number of parameters. We highlight the architecture of PolyV in blue . Name Experts Top-k MoE Layers Embedding Width Layers FFN FFN Factor Heads Activated Param. Total Param. Base - - - 152064 3584 28 18944 3 28 7.0B 7.0B First Half 4 2 7 152064 3584 28 18944 3 28 8.4B 11.3B Last Half 4 2 7 152064 3584 28 18944 3 28 8.4B 11.3B Interval(4) 4 2 7 152064 3584 28 18944 3 28 8.4B 11.3B Full 4 2 14 152064 3584 28 18944 3 28 9.9B 15.6B Table 6. The hyperparameter settings in each stage. Parameters Stage-1-1 Stage-1-2 Stage-2-1 Stage-2-2 Optimizer AdamW AdamW AdamW AdamW Scheduler Cosine Cosine Cosine Constant Learning rate 2e-5 2e-6 1e-4 1e-5 Weight Decay 0.05 0.05 0.05 0.1 Warmup Ratio 0.03 0.03 0.05 0.05 Updated Module Projector FFN Router FFN (Experts) Alignment Router FFN (Experts) Data Num. 40K 45K 50K 40K Data Source LLaVA-3D-Instruct-860K LLaVA 1.5-558K LLaVA-Video-178K LLaVA-3D-Instruct-860K ShareGPT4Video 3RScan Scan2Cap CSQA LLaVA 1.5-Mix-665K LLaVA-Video-178K LLaVA-3D-Instruct-860K 
+
+for 3D comprehension. During this process, only the pa-rameters of the projector are updated, while all other com-ponents remain frozen. 
+
+Stage-1-2: Instruction-Following Pre-training In this stage, we train separate model variants on modality-specific data, allowing the model to acquire specialized capabilities, such as temporal dynamics for videos and spatial geometry for 3D scenes, using richer vision–language instruction cor-pora. During this process, only the feed-forward network (FFN) parameters are updated, while all other components remain frozen. This design allows modality-specific exper-tise to be acquired efficiently without interfering with the shared cross-modal representations established in the previ-ous stage. 
+
+Stage-2-1: Coarse-grained Synesthetic Learning This stage aims to equip the model with cross-vision synergy, en-abling synesthetic reasoning across different visual modal-ities. Architecturally, the modality-specialized FFNs ob-tained from Stage-1-2 are used to initialize the MoE lay-ers. During training, we first freeze all experts and up-date only the router and alignment layers to stabilize cross-modal routing behavior. Once the routing becomes stable, we subsequently unfreeze the experts and jointly optimize the experts, router, and alignment layers to achieve coarse-grained synesthetic fusion across modalities. 
+
+Stage-2-2: Fine-grained Synesthetic Learning In this stage, the model is further fine-tuned using the constructed CSQA dataset to enhance its fine-grained cross-vision synesthetic reasoning capabilities. To maintain the model’s generality, we interleave a proportion of the modality-specific instruction data used in Stage 1-2 during training. Consequently, this stage primarily updates the MoE layers, enabling more precise and discriminative synergistic inter-actions across modalities. 
+
+Overall Parameters settings. Across all stages, the mod-els are optimized using the AdamW optimizer [43] in con-junction with a cosine learning rate scheduler. A warm-up schedule with a warm-up ratio of 0.03 followed by cosine/-constant decay is applied independently for each stage. To enhance computational efficiency and reduce memory us-age, we employ BF16 mixed-precision training. For video and 3D multi-view inputs, the maximum number of frames is set to 32 with 640 ×480 resolution. 
+
+B.4. Benchmarks 
+
+We detail the benchmarks we employed in our evaluation. MMStar [11]. MMStar is a large-scale benchmark de-signed to evaluate truly vision-indispensable capabilities of multimodal models. The dataset contains 1,500 carefully curated human-verified samples across six core abilities and eighteen sub-dimensions. It mitigates two major issues in existing benchmarks—visual redundancy and potential data leakage, by ensuring that each question fundamentally re-quires visual understanding. 
+
+3DSRBench [45]. 3DSRBench focuses on 3D spatial reasoning, assessing whether models can understand ob-ject height, orientation, position, inter-object relations, and multi-view consistency under both common and uncommon viewpoints. The benchmark consists of 2,772 manually an-notated VQA samples, including approximately 2,100 real-world images and 672 synthetic multi-view images. 
+
+MMSI-Bench [68]. MMSI-Bench evaluates multi-image spatial intelligence, requiring models to integrate informa-tion across multiple views rather than reasoning from a single image. The benchmark comprises 1,000 carefully constructed multiple-choice questions sourced from over 120,000 candidate images, each accompanied by human-designed step-by-step reasoning. The benchmark includes a taxonomy that covers grounding, scene reconstruction, con-textual transformation, and spatial logic failures. 
+
+CV-Bench [57]. CV-Bench offers a vision-centric evalu-ation suite designed for 2D and 3D understanding in mul-timodal models. It contains 2,638 human-validated sam-ples built upon datasets such as ADE20K [80], COCO [39], and Omni3D [9]. The benchmark focuses on determining whether LVLMs truly rely on visual information rather than linguistic priors, emphasizing core perception capabilities such as localization, recognition, and spatial reasoning. 
+
+VSI-Bench [67]. VSI-Bench evaluates visual spatial in-telligence from videos, extending spatial understanding be-yond static imagery. It includes over 5,000 QA pairs de-rived from 288 real videos. These videos are sourced from the validation sets of the public indoor 3D scene recon-struction datasets ScanNet [17], ScanNet++ [70], and ARK-itScenes [8]. Tasks encompass configurational reasoning, metric estimation, and spatiotemporal reasoning, enabling a comprehensive assessment of spatial understanding. 
+
+Video-MME [21]. Video-MME is the first comprehen-sive full-spectrum video evaluation suite designed for multi-modal LLMs, covering 900 videos ( ≈254 hours) and 2,700 manually aligned QA pairs across 6 domains and 30 fine-grained tasks. The benchmark integrates multimodal video inputs, including frames, audio, and subtitles, and spans a diverse range of durations from short clips to hour-long content. It is designed to evaluate a model’s holistic video understanding, including temporal grounding, auditory rea-soning, and long-range visual dependency modeling. 
+
+CVBench [83]. CVBench is a benchmark targeting cross-video relational reasoning, where multimodal models must jointly analyze multiple video streams to infer object asso-ciations, temporal relationships, and event-level dependen-cies. It contains approximately 1,000 carefully annotated QA pairs spanning object-level association, event match-ing, cross-video correspondence, and higher-order reason-ing. The benchmark specifically evaluates a model’s ability to integrate visual evidence across disjoint videos, an ability that current MLLMs often lack due to their limited temporal relation modeling capability. 
+
+STI-Bench [35]. STI-Bench focuses on fine-grained spatial-temporal intelligence in real-world scenarios such as robot manipulation or vehicle operation. It evaluates whether models can accurately reason about object appear-ance, pose, displacement, and dynamic state changes across desktop, indoor, and outdoor videos. The benchmark em-phasizes physically grounded prediction, challenging mod-els to infer where objects were, are, and will be and reveal-ing substantial limitations in spatial-temporal consistency of current VLMs. 
+
+DSI-Bench [77] DSI-Bench is designed to systematically measure dynamic spatial intelligence by decomposing 3D spatial reasoning into independent motion factors. It con-tains nearly 1,000 dynamic videos and over 1,700 expert-verified QA pairs, covering nine fundamental motion pat-terns involving both moving observers and moving objects. By isolating each motion factor, such as ego-motion, object translation, rotation, and coordinated interaction, the bench-mark provides a principled way to diagnose which dimen-sions of spatial reasoning current models fail to capture. 
+
+OpenEQA [47] OpenEQA is a large-scale benchmark de-signed for embodied question answering (EQA) in the era of foundation models, aiming to measure how well agents can perceive, navigate, and reason within 3D embodied envi-ronments. It provides more than 1,000 expert-verified EQA samples across diverse scenes and question types, cover-ing perception, spatial reasoning, object grounding, action planning, and commonsense reasoning. 
+
+B.5. Baselines 
+
+Besides, the general VLM baselines (e.g., LLaVA-v1.5 [41], LLaVA-NeXT-Video [74], LLaVA-Video [75], LLaVA-Onevision [2, 33], InternVL [15, 82], Qwen2.5/3-VL [6]), we also compared our methods with baselines that Table 7. Detailed evaluation results on MMStar [11]. Best results are marked in bold .Model Coarse Perception Fine-grained Perception Instance Reasoning Logical Reasoning Math Science Technology Average LLaVA-NeXT-Video-7B [74] 52.4 25.6 41.6 28.0 29.2 25.2 33.7 LLaVA-OneVision-7B [33] 65.2 51.2 64.8 58.0 53.2 44.4 56.1 LLaVA-OneVision1.5-8B [2] 68.4 53.6 70.0 70.8 77.6 59.2 66.6 InternVL3-8B [15] 74.0 59.2 72.0 65.6 64.4 54.4 64.9 Qwen3-VL-7B [6] 75.2 58.0 69.2 51.2 34.8 41.6 55.0 SpaceR [49] 66.0 48.4 68.0 56.0 44.8 38.4 53.6 SpatialMLLM [60] 63.6 43.2 55.6 47.6 54.0 30.8 49.1 LLaVA3D [81] 54.8 22.8 41.6 28.0 19.2 24.0 31.7 Video3D-LLM [79] 23.6 3.2 18.8 11.6 14.8 18.0 15.0 Ross3D [58] 41.2 10.0 30.8 20.0 12.0 16.0 21.7 PloyV (Ours) 82.0 70.0 78.0 74.0 68.0 57.0 71.4                                                                       
+
+> Table 8. Detailed evaluation results on 3DSRBench real [45]. ‘Loc.’ denotes location, ‘Orient.’ means orientation, and ‘Multi.’ is multi-object. Model Overall Height Loc. Orient. Multi. LLaVA-v1.5-7B [41] 38.1 39.1 46.9 28.7 34.7 LLaVA-NeXT-Video-7B [74] 49.4 52.6 55.3 42.6 48.5 LLaVA-OneVision-7B [33] 54.4 56.8 61.3 46.1 50.3 LLaVA-OneVision1.5-8B [2] 57.8 57.4 66.5 49.9 53.4 InternVL2.5-8B [15] 50.9 45.9 68.1 38.7 43.3 InternVL3-8B [82] 58.1 61.3 67.6 48.3 53.8 QWen2.5-VL-7B [6] 48.4 44.1 62.7 40.6 40.5 Qwen3-VL-8B [6] 60.0 53.8 74.0 51.5 53.6 LLaVA3D [81] 39.3 49.1 36.8 25.0 46.3 Ross3D [58] 39.6 36.5 40.2 35.9 42.4 SpaceR [49] 57.4 51.5 69.7 50.1 51.9 SpatialMLLM [60] 47.8 49.6 49.0 42.4 49.0 PloyV (Ours) 63.4 60.0 78.0 57.0 58.0
+
+have been fine-tuned on the spatial-focused datasets, includ-ing • LLaVA3D [81] is built upon the LLaVA-Video-7B [75], where the vision encoder is extended with a 3D-aware adapter that fuses RGB frames with 3D geometric cues. It is fine-tuned on large-scale 3D-annotated datasets such as LLaVA-3D-Instruct-86K [81], and MMScan QA [44]. • SpaceR [49] employs a Qwen-2.5-VL-7B-Instruct [6] as the backbone. The model is fine-tuned on a care-fully cured dataset, i.e., SpaceR-151k. • SpatialMLLM [60] adopts the Qwen2.5-VL-3B [6] as backbone and VGGT [59] as the spatial encoder. It is trained on the Spatial-MLLM-120k. • Video3D-LLM [79] builds on the LLaVA-Video-7B [75]. The model is fine-tuned on 3D-awared datasets, including ScanRefer [10], Multi3DRefer [73], Scan2Cap [14], ScanQA [5] and SQA3D [46]. • Ross3D [58] is developed based on LLaVA-Video-7B [75], with cross-view and global-view reconstruc-tions, enabling accurate spatial relationship modeling and comprehensive scene layout comprehension. It is fine-tuned on the combination of training sets of SQA3D [46], ScanQA [5], Scan2Cap [14], ScanRe-fer [10], and Multi3DRefer [73] datasets. 
+
+## C. More Experimental Results 
+
+C.1. Detailed Benchmark Results 
+
+We provide more detailed results on the existing benchmark in Table 7, 8, 9, 10, 11, 13, and 12. Moreover, we also conduct experiments on more focus on cross-vision synergy benchmark, including CV-Bench [57], STI-Bench [35], and DSI-Bench [77]. As results demonstrated in Table 14, 16, and 15, the proposed PolyV consistently achieves superior average performance compared with all baselines, demon-strating its strong cross-vision synergistic reasoning capa-bility. 
+
+C.2. Mitigating Catastrophic Forgetting Across Modalities 
+
+Our experiments reveal that models fine-tuned solely on spatial-centric data tend to suffer from catastrophic for-getting of previously acquired visual knowledge. For ex-ample, although SpaceR and Qwen2.5-VL-7B share the same backbone, SpaceR exhibits noticeably degraded per-formance on most benchmarks after training, indicating that its incremental learning strategy inadvertently erodes the image- and video-based competencies learned during pre-training. Similar degradation is observed for LLaVA-Video and other 3D-aware models when evaluated on VSI-Bench (cf. Table [67]), suggesting that current approaches strug-gle to balance the acquisition of new spatial capabilities with the retention of prior modality knowledge. In con-trast, our proposed PolyV effectively avoids such forgetting. Table 9. Detailed evaluation results on MMSI-Bench [68]. ‘Cam.’ denotes the camera, ‘Obj.’ means the object, ‘Reg.’ is the region, ‘Meas.’ is the measurement, and ‘Appr.’ is the appearance. Model Positional Relationship Attribute Motion MSR Average Cam.–Cam. Obj.–Obj. Reg.–Reg. Cam.–Obj. Obj.–Reg. Cam.–Reg. Meas. Appr. Cam. Obj. LLaVA-v1.5-7B [42] 33.3 31.9 22.2 29.1 22.3 20.5 25.0 22.7 14.9 21.0 22.2 24.2 LLaVA-NeXT-Video-7B [74] 21.5 22.3 24.7 26.7 23.5 22.9 32.8 27.3 16.2 26.3 27.8 24.9 Qwen2.5-VL-7B [6] 24.7 24.5 24.7 25.6 29.4 26.5 25.0 18.2 20.3 39.5 25.8 25.9 Qwen3-VL-8B [6] 31.2 27.7 28.4 24.4 28.2 34.9 35.9 15.1 27.0 38.2 28.3 29.0 InternVL2.5-8B [15] 32.3 27.7 29.6 32.6 24.7 32.5 26.6 27.3 16.2 31.6 30.3 28.7 InternVL3-8B [82] 25.8 31.9 37.0 25.6 35.3 28.9 23.4 24.2 16.2 32.9 14.6 25.7 LLaVA-OneVision-7B [33] 20.4 33.0 29.6 29.1 25.9 30.1 29.7 25.8 18.9 34.2 11.6 24.5 LLaVA-OneVision1.5-8B [2] 34.4 26.6 33.3 33.7 34.1 25.3 25.0 28.8 22.9 30.3 29.3 29.6 LLaVA3D [81] 18.3 18.1 16.0 15.1 21.2 22.9 29.7 24.2 24.3 27.6 18.7 20.8 Ross3D [58] 12.9 12.8 13.6 11.6 23.5 25.3 31.2 6.06 5.4 23.7 16.2 16.4 SpaceR [49] 29.0 26.6 24.7 30.2 30.6 27.7 23.4 21.2 20.3 34.2 27.8 27.2 SpatialMLLM [60] 25.8 25.5 28.4 34.9 24.7 25.3 18.7 33.3 12.2 23.7 26.8 25.7 Video3D-LLM [79] 15.0 4.3 6.2 1.2 9.4 2.4 1.6 3.0 1.3 9.2 7.1 5.9 PolyV (Ours) 33.0 30.0 36.0 33.0 34.0 30.0 28.0 30.0 26.0 38.0 30.0 31.7 
+
+Table 10. Detailed evaluation results on VSI-Bench [67]. object count (Obj. Count), absolute distance (Abs. Dist.), object size (Obj. Size), room size, relative distance (Rel. Dist.), relative direction (Rel. Dir.), route plan, appearance order (Appr. Order) Model Average Obj. Count Abs. Dist. Obj. Size Room Size Rel. Dist. Rel. Dir. Route Plan Appr. Order LLaVA-Video-7B [75] 35.6 48.5 14.0 47.8 24.2 43.5 42.4 34.0 30.6 LLaVA-NeXT-Video-7B [74] 29.9 53.6 30.6 21.6 38.8 27.7 33.9 31.4 16.1 LLaVA-OneVision-7B [33] 32.4 47.7 20.2 47.4 12.3 42.5 35.2 29.4 24.4 LLaVA-OneVision1.5-8B [2] 46.3 71.2 35.1 69.3 60.6 38.3 39.1 29.9 25.2 InternVL3-8B [82] 50.7 75.8 52.2 65.2 70.4 36.8 36.4 37.3 37.2 
+
+Video3d-LLM [79] 15.8 17.5 0.0 0.0 0.0 29.6 33.4 26.3 24.8 SpaceR [49] 24.5 33.1 0.0 2.5 0.0 41.7 44.7 32.0 46.4 LLaVA3D [81] 9.4 2.5 0.0 0.1 0.0 31.8 6.1 27.8 18.9 PolyV (Ours) 52.7 74.6 56.0 65.0 70.0 45.0 42.0 40.0 29.0 Table 11. Detailed evaluation results on CVBench [83]. The tasks include: multi-view scene understanding (M. SU), multi-video temporal reasoning (M. TR), joint-video spatial navigation (J. SN), video difference captioning (VDC), cross-video counterfactual reasoning (C. CR), joint-video summarization (J.S), and cross-video procedural transfer (C. PT). Model Average M. SU M. TR J. SN VDC C.CR J.S C.PT LLaVA-NeXT-Video-7B [74] 30.9 5.3 14.6 14.6 20.0 17.3 5.8 7.8 Qwen2.5-VL-7B [6] 51.3 80.0 22.7 26.2 50.9 55.8 69.2 60.8 InternVL2.5-8B [15] 59.4 83.6 26.7 50.0 60.0 69.2 67.3 68.6 
+
+Qwen2.5-VL-8B [6] 51.1 80.0 31.1 47.6 71.1 66.7 71.1 68.0 LLaVA-OneVision-7B [33] 52.6 83.6 40.0 38.1 45.5 42.3 61.5 52.9 LLaVA-OneVision1.5-8B [2] 43.3 7.5 23.4 23.4 28.8 27.7 8.7 12.5 Video3D-LLM [79] 44.6 61.5 32.9 25.0 44.0 42.9 56.9 70.0 Spatial-MLLM [60] 38.2 74.5 29.7 33.3 41.8 46.0 57.7 46.0 SpaceR [49] 50.4 83.6 31.1 26.2 49.1 54.9 76.9 58.0 Ross3D [58] 42.1 73.7 30.4 35.9 41.2 62.5 72.4 48.0 PolyV (Ours) 59.1 86.0 38.0 52.0 58.0 63.0 68.0 49.0 
+
+After learning from diverse modality-specific data, PolyV not only maintains strong performance on original image-and video-based benchmarks but also successfully incorpo-rates additional spatial understanding. This demonstrates its ability to achieve truly synergistic multi-modality learning without sacrificing previously learned capabilities. Table 12. Detailed evaluation results on OpenEQA HM3D [47]. ‘Obj. Rec.’ denotes object recognition, ‘Attr. Rec.’ is attribute recognition, ‘Spatial Und.’ is the spatial understanding, ‘Obj. State Rec.’ is the object state recognition, ‘Func. Rea.’ is the function reasoning, ‘World Know.’ is the world knowledge, ‘ Obj. Loc.’ is the object localization. Model Obj. Rec. Attr. Rec. Spatial Und. Obj. State Rec. Func. Rea. World Know. Obj. Loc. Average LLaVA-NeXT-Video-7B [74] 31.5 34.1 35.0 31.2 51.0 31.7 30.2 34.9 LLaVA-OneVision-7B [33] 35.1 42.5 33.8 35.0 53.7 35.9 34.6 38.7 LLaVA-OneVision1.5-8B [2] 37.5 45.6 36.8 37.2 58.9 38.0 36.4 41.2 InternVL2.5-8B [15] 42.3 51.0 40.0 41.3 68.0 41.5 40.5 46.7 InternVL3-8B [15] 44.4 51.1 42.5 43.5 68.7 43.6 42.5 48.0 Qwen2.5-VL-7B [6] 50.4 62.1 49.3 66.4 61.4 60.3 47.6 56.6 Spatial-MLLM [60] 33.7 9.7 15.5 1.7 31.2 21.2 17.0 18.0 Video3d-LLM [79] 33.2 41.2 47.0 60.0 45.5 43.7 35.7 43.7 Ross3D [58] 41.7 59.5 52.5 64.2 57.5 55.5 39.7 52.5 PolyV (Ours) 60.8 66.7 57.9 70.4 68.6 61.8 58.2 63.4 Consider the real-world 3D locations of the objects. Which object has a higher location?                    
+
+> A: train B: street lights in the back
+> Video3DLLM : A SpaceR : A
+> SpatialMLLM : A PolyV(Ours) : B
+> In this video clip, how is the character's location moving in the 3D scene relative to his/her/its starting orientation and location?
+> (A) Moving forward and turning right
+> (B) Moving forward and turning left
+> (C) Moving backward and turning left
+> (D) Moving backward and turning right
+> What is the positional relationship of the red suitcase relative to the teddy bear?
+> (A) Left (B) Right (C) Front (D) Back
+> Which object is closer to the camera taking this photo, the books (highlighted by a red box) or the chair (highlighted by a blue box)?
+> A: books B: chair
+> Video3DLLM : B SpaceR : A
+> Qwen2.5-VL : A PolyV(Ours) : A
+> Video3DLLM : backward SpaceR : A SpatiallMLLM : A PolyV(Ours) : D
+> SpaceR : A Video3DLLM: BSpatialMLLM : B Qwen3-VL : A
+> PolyV(Ours) :C
+> 1
+> 2
+> 3
+> 4
+> 4
+
+Figure 9. Qualitative comparisons between PolyV and existing models. Case 1 is from 3DSRBench [45], Case 2 from DSI-Bench [77], Case 3 from CV-Bench [57], and Case 4 from STI-Bench [35]. Table 13. Detailed evaluation results on VideoMME w/o sub [21]. Model Short Mid Long Average LLaVA-NeXT-Video-34B [74] 61.7 50.1 44.3 52.0 Qwen3-VL-8B [6] 58.1 49.2 49.1 52.1 LLaVA-3D [81] 27.1 27.0 25.4 26.5 SpaceR [49] 67.0 55.4 48.2 56.9 Spatial-MLLM [60] 54.4 42.0 35.8 44.1 Video3d-LLM [79] 47.7 42.0 37.1 41.9 Ross3D [58] 44.1 39.9 38.9 40.9 PolyV (Ours) 75.2 70.1 63.5 69.6 
+
+C.3. More Quantitation Results 
+
+We provide more quantitation results in Fig. 9. 
+
+Table 14. Detailed evaluation results on CV-Bench [57]. Model 2D 3D Average Relation Count Depth Distance Qwen2.5-VL-7B [6] 77.4 63.2 74.2 44.0 64.8 Qwen3-VL-8B [6] 92.5 71.7 95.0 58.7 79.1 SpaceR [49] 83.7 65.1 78.5 66.0 72.9 Spatial-MLLM [60] 62.3 53.7 60.5 65.7 60.1 Video3d-LLM [79] 53.2 18.4 56.2 60.5 45.1 Ross3D [58] 13.8 6.3 33.2 24.2 18.3 PolyV (Ours) 96.0 82.0 98.0 58.0 83.5 
+
+## D. Limitation and Future Work 
+
+Although we believe that synesthetic, cross-vision syn-ergy is a fundamental capability that future vision–language models must possess—especially for downstream applica-Table 15. Detailed evaluation results on DSI-Bench [77] across different video sources. Model CamerBench [40] SynFMC [53] internet k700 [55] llava178k [75] Average LLaVA-NeXT-Video-7B [74] 36.0 28.4 36.9 33.6 35.8 35.6 LLaVA-OneVision-7B [33] 46.0 33.0 48.1 47.5 45.3 46.4 LLaVA-OneVision1.5-8B [2] 50.4 48.6 50.3 57.0 49.6 51.1 InternVL2.5-8B [15] 47.6 48.6 50.4 57.4 46.8 50.4 InternVL3-8B [15] 52.8 43.1 45.9 47.5 47.6 47.2 Qwen2.5-VL-7B [6] 40.0 38.5 39.4 41.2 48.1 40.5 Qwen3-VL-8B [6] 38.3 37.6 39.5 37.4 40.3 39.0 SpaceR [49] 39.4 41.3 39.5 43.1 43.6 40.7 Spatial-MLLM [60] 27.5 24.8 30.7 29.8 31.2 29.8 Video3d-LLM [79] 39.9 34.8 38.9 49.6 38.2 40.0 Ross3D [58] 37.1 32.3 34.3 37.3 30.8 34.5 PolyV (Ours) 60.8 57.4 59.3 67.9 48.1 58.7 
+
+Table 16. Detailed evaluation results on STI-Bench [35]. ‘Dim. Meas’ is the Dimensional Measurement, ‘Disp. & P.L.’ means Displace-ment & Path Length, ‘Speed & Acc.’ denotes Speed & Acceleration, ‘Ego Orient.’ indicates Ego-Centric Orientation, ‘Traj. Desc.’ is Trajectory Description, and ‘Pose Est.’ is Pose Estimation.                                                                                                       
+
+> Model Static Understanding Dynamic Understanding Average Dim. Meas Spatial Relation 3D Video Grounding Disp. & P.L. Speed & Acc. Ego Orient. Traj. Desc. Pose Est. LLaVA-NeXT-Video-7B [74] 22.1 42.5 19.9 21.5 21.1 27.0 42.3 18.9 23.6 LLaVA-OneVision-7B [33] 25.6 30.8 24.6 25.1 30.8 41.6 51.3 55.8 34.2 LLaVA-OneVision1.5-8B [2] 34.3 29.4 33.1 24.9 35.0 63.8 44.9 55.6 39.0 InternVL2.5-8B [15] 26.3 50.7 31.5 20.9 29.3 66.5 46.1 56.7 38.0 InternVL3-8B [15] 26.3 52.0 27.1 21.5 33.2 0.2 25.6 40.6 30.4 Qwen2.5-VL-7B [6] 24.5 46.6 32.8 24.6 30.6 17.8 43.6 47.2 32.4 Qwen3-VL-8B [6] 25.9 50.7 37.8 19.6 26.7 55.7 39.7 56.1 37.0 SpaceR [49] 21.4 47.3 30.3 23.0 29.4 26.5 47.4 49.2 32.4 Spatial-MLLM [60] 23.5 42.5 17.0 17.9 12.1 51.3 28.2 26.9 24.3 Video3d-LLM [79] 22.5 42.5 20.5 19.3 23.9 13.5 39.7 17.2 22.2 PolyV (Ours) 33.4 55.8 40.1 26.3 34.7 59.2 48.6 36.3 46.8
+
+tions such as robotics and autonomous driving—our cur-rent approach still faces several limitations. First, despite the use of a MoE architecture, which reduces computa-tional cost during deployment by activating only a subset of experts, the overall model remains resource-intensive. Efficient scaling and lightweight deployment thus remain open challenges. Second, video and 3D processing inher-ently require handling large numbers of frames or point-cloud tokens. Current input-length constraints limit the model’s ability to fully capture long-term dynamics or fine-grained spatial structures. Furthermore, our model acquires synesthetic ability primarily through supervised fine-tuning. While effective, this approach may not fully exploit the model’s potential for self-thinking. For future work, we plan to explore reinforcement learn-ing–based cross-vision synergy. By encouraging the model to explicitly reason about spatial structure during its think-ing process, e.g., inferring 3D geometry from 2D images or predicting spatial evolution from video cues, the model may develop more robust, self-refining synesthetic abilities. Such advances are expected to yield stronger performance across a wide spectrum of vision-centric downstream tasks.

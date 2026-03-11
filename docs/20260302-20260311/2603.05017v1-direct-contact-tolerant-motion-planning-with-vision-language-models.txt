@@ -1,0 +1,827 @@
+Title: Direct Contact-Tolerant Motion Planning With Vision Language Models
+
+URL Source: https://arxiv.org/pdf/2603.05017v1
+
+Published Time: Fri, 06 Mar 2026 01:48:43 GMT
+
+Number of Pages: 8
+
+Markdown Content:
+# Direct Contact-Tolerant Motion Planning With Vision Language Models 
+
+He Li 1, Jian Sun 1, Chengyang Li 3, Guoliang Li 1, Qiyu Ruan 1, Shuai Wang 2,†, and Chengzhong Xu 1,†
+
+Abstract — Navigation in cluttered environments often re-quires robots to tolerate contact with movable or deformable objects to maintain efficiency. Existing contact-tolerant motion planning (CTMP) methods rely on indirect spatial representa-tions (e.g., prebuilt map, obstacle set), resulting in inaccuracies and a lack of adaptiveness to environmental uncertainties. To address this issue, we propose a direct contact-tolerant (DCT) planner, which integrates vision–language models (VLMs) into direct point perception and navigation, including two key com-ponents. The first one is VLM point cloud partitioner (VPP), which performs contact-tolerance reasoning in image space using VLM, caches inference masks, propagates them across frames using odometry, and projects them onto the current scan to generate a contact-aware point cloud. The second innovation is VPP guided navigation (VGN), which formulates CTMP as a perception-to-control optimization problem under direct contact-aware point cloud constraints, which is further solved by a specialized deep neural network (DNN). We implement DCT in Isaac Sim and a real car-like robot, demonstrating that DCT achieves robust and efficient navigation in cluttered environments with movable obstacles, outperforming represen-tative baselines across diverse metrics. The code is available at: 
+
+https://github.com/ChrisLeeUM/DCT .
+
+I. I NTRODUCTION 
+
+Navigation in complex environments is a fundamental task for autonomous mobile robots. Traditional navigation algorithms assume strict collision avoidance, treating each obstacle as a rigid body that must be completely avoided [1]–[3]. However, they can fail in cases when no collision-free paths exist, especially in highly cluttered scenarios. In practice, many obstacles (e.g., curtains, empty boxes) are movable or deformable and can be safely contacted. Therefore, by allowing controlled contact with such objects, a robot can navigate through spaces otherwise blocked, achieving higher efficiency [4], [5]. This navigation problem, known as contact-tolerant motion planning (CTMP), centers on reasoning whether obstacles can be safely contacted [6], [7] and planning paths among such obstacles [8], [9]. Existing CTMP methods can be classified into three paradigms: search-based, reinforcement learning (RL) based, 
+
+This work was jointly funded by MOST and The Science and Technology Development Fund (FDCT), Macau SAR (File no. 0074/2025/AMJ), National Natural Science Foundation of China (Grant No. 62371444), Shenzhen Science and Technology Program (Grant No. RCYX20231211090206005), TUBITAK-CAS Bilateral Cooperation Pro-gram (Grant No. 321GJHZ2025118MI), and Shenzhen Institutes of Ad-vanced Technology Original Exploration Program. 
+
+> 1
+
+He Li, Jian Sun, Guoliang Li, Qiyu Ruan, and Chengzhong Xu are with the State Key Laboratory of Internet of Things for Smart City (SKL-IOTSC), University of Macau, Macau, China. 
+
+> 2
+
+Shuai Wang is with the Shenzhen Institutes of Advanced Technology (SIAT), Chinese Academy of Sciences, Shenzhen, China. 
+
+> 3
+
+Chengyang Li is with the Department of Electrical and Computer Engineering, The University of Hong Kong, Hong Kong, China. Corresponding author: Chengzhong Xu (czxu@um.edu.mo ) and Shuai Wang ( s.wang@siat.ac.cn ). I need to navigate to the room, but  two                                
+
+> boxes are blocking me.
+> Don’t worry .The first box is small .It
+> should be lightweight, and you can push
+> it .The second box is large, try to avoid it .
+> Great! What should I do when I
+> push the first box?
+> Slow down .You can also reduce the
+> obstacle avoidance distance .
+> Ref Path
+> Goal
+> Obstacle
+> Robot
+
+(a) Contact-tolerance reasoning with VLM. Contact -Intolerant Contact -Tolerant (Ours) 
+
+> Pass!
+> Stuck!
+
+(b) Contact-tolerant vs. contact-intolerant. 
+
+Fig. 1: DCT motion planning with VLM. and hybrid planning approaches. Search-based methods [10]– [12] formulate CTMP as a combinatorial search over obstacle positions and movability cases under all possible interaction sequences prior to execution. These approaches require prior environmental knowledge and scale poorly as the number of obstacles increases. RL-based methods [7], [13], [14] formulate CTMP as a policy-learning problem, where neu-ral networks optimize action selection through interactions with fixed and movable obstacles. These approaches are sensitive to training distribution and often face challenges in real-world deployment. Furthermore, how to set appropriate penalty functions for various movable obstacles remains challenging. Hybrid planning approaches address these limi-tations by integrating global search with local perception and planning. In this paradigm, movable obstacles are typically treated as free or low-cost regions during global search, with their movability assessed dynamically at runtime using visual models [6], robot-obstacle contacts [15], or receding-horizon optimization [9]. These strategies reduce exhaustive global search and improve flexibility in uncertain environments. Despite these advancements in the development of CTMP, existing approaches often rely on indirect spatial representa-tions (e.g., prebuilt map, obstacle set). This would inevitably introduce errors (e.g., a convex set cannot match an arbitrary shape) to the planner, leading to conservative policies, or increasing the risk of collisions. Using a map may also 
+
+> arXiv:2603.05017v1 [cs.RO] 5 Mar 2026
+
+result in a lack of adaptiveness to environmental changes. In addition, existing methods struggle with movability rea-soning, which is jointly dependent on robot capabilities, obstacle properties, and task-specific requirements. These issues reduce their robustness and generalizability under real-world uncertainties. To fill the gap, we propose DCT, a direct contact-tolerant (DCT) motion planning system that lever-ages vision–language models (VLMs) for contact-tolerant point-to-action navigation, as shown in Fig. 1. The DCT consists of two key modules: the VLM point cloud partitioner (VPP) and VPP guided navigation (VGN) .The VPP module identifies candidate movable obstacles from RGB images using an open-set detector guided by language prompts, and applies a task-conditioned VLM for mask filtering. Since such VLM reasoning cannot be triggered for each point frame due to its inference latency, we propose to cache the (prompt, caption, mask) pair, together with the robot pose obtained using lidar-inertial odometry, into a temporal memory list. When the subsequent scan arrives, VPP will retrieve the mask by calling memory from previous VLM executions, propagate the mask across frames through planar homography, and associate the mask with the current lidar scans. This VLM temporal memory design enables the robot to partition each scan into contact-tolerant and contact-intolerant point sets at high frequency. The VGN module will adopt the contact-partitioned point cloud to formulate the direct point distance constraints .This is in contrast to existing CTMP that adopts indirect distance constraints. However, this would result in a large-scale model predictive control (LMPC) problem with thou-sands of constraints, which cannot be solved by commercial solvers in real time. Therefore, we propose a specialized deep neural network (DNN), which trains an agent to solve this LMPC by imitating the optimization process, such that time-consuming iterative computations are converted into real-time feed-forward inference. In addition, VGN also includes a correcting mode: when pushing fails, contact points will be relabeled as contact-intolerant, and the robot reverses to a safe state for replanning. Our contributions are summarized as follows:  
+
+> •
+
+We propose VPP, a real-time point partitioner that identifies movable objects using VLM contact-tolerance reasoning and memory-based mask propagation.  
+
+> •
+
+We propose VGN, a fast learned planner that directly operates on contact-partitioned point cloud and supports real-time robot planning and control.  
+
+> •
+
+We implement DCT in both Isaac Sim and real-world environments, with extensive evaluations showing supe-rior navigation performance compared to various base-lines in cluttered scenarios. II. R ELATED WORK 
+
+Search-based CTMP treats the problem as a global search task. The planner explicitly reasons over the positions and movability of obstacles to construct a full interaction se-quence before execution. Such formulations typically require deciding which obstacles to move, in what order, and how far, yielding an NP-hard combinatorial problem [16]. To solve this problem, existing search-based CTMP methods mostly focus on how to reduce the search or sample complexity. For instance, by constraining each object to a single interaction, it is possible to employ a reverse-order search to reduce the search space [10]–[12]. Moreover, large language models can be adopted to guide non-uniform sampling [12], enabling robots to efficiently decide which obstacles to move and in what order to push. However, these methods often rely on a fully observable environment (e.g., map), which may limit their applicability in real-world settings. 
+
+RL-based CTMP formulates CTMP as a policy-learning problem, where the neural network learns a policy through interactions with contact-tolerant and contact-intolerant ob-stacles. Given designed reward functions, the neural network aims to maximize cumulative action rewards of the CTMP task [7], [14], [17]. For instance, a curriculum RL framework is utilized to gradually learn from simple collision avoidance tasks to more complex CTMP tasks [7]. The designed reward functions enable the policy to make contact with movable obstacles when necessary, while discouraging indiscriminate contact. Moreover, domain randomization enhances policy robustness, enabling effective adaptation to the uncertain-ties in real-world scenarios [14]. Recently, a hierarchical RL framework has been proposed [13], which enables a mobile manipulator to realize CTMP by combining high-level pushing strategy generation with low-level whole-body control. Nonetheless, RL-based CTMP approaches suffer from reward sparsity issues and the difficulty of training in real-world environments. 
+
+Hybrid CTMP integrates offline global search with online local planning. In this paradigm, movable obstacles are treated as free space or low-cost regions, and their movability is determined during execution. As such, hybrid CTMP alleviates the computational overhead of exhaustive global search [6], [9], [15]. For instance, extended path planning with pushing interactions has been developed in [6], by combining object localization and movability reasoning. A directed visibility graph (DV-graph) is introduced [15], where edges encode both traversability and obstacle manipulation costs, and interaction planning updates obstacle affordances for future use. In [9], an optimization framework is proposed, which models movable objects as interactive elements and incorporates contact dynamics into trajectory optimization, allowing robots to generate smooth, feasible, and predictable paths in cluttered environments. Nonetheless, existing hybrid methods often rely on indirect spatial representations, which would inevitably introduce errors to the robot actions. III. P ROBLEM STATEMENT 
+
+A. Task Description 
+
+We consider a CTMP system, which consists of 1 au-tonomous robot, contact-intolerant fixed obstacles Mfix , and contact-tolerant obstacles Mmov . Given a target s⋆, and robot sensor inputs {P , C, I} , where P, C, and I denote lidar point clouds, camera images, and inertial measurements, respectively, the objective of CTMP is to generate a sequence Image        
+
+> VLM
+> 1) VLM -Driven Obstacle Filter
+> Grounding Obs.
+> 2) Memory -Driven Mask Generation
+> Filtered Points
+> 1) DNN -Driven Motion Planning
+> 2) Point Correcting Movable
+> Learnable Nav.
+> Ref.
+> Path
+> VPP
+> VLM Point cloud Partitioner VPP Guided Navigation
+> ENV
+> Points
+> Outputs
+> Trajectory
+> Actions
+
+Fig. 2: System architecture of DCT, which consists of VPP and VGN modules. of robot states S and executable actions U reaching the target. This can be realized with a repeated receding-horizon planning, where the system only plans a finite sequence of 
+
+H discretized future steps Ht ≜ {t, · · · , t + H}, where 
+
+∆t is the time length between two states. Specifically, at time t, the robot state is denoted as st = ( xt, y t, θ t), where 
+
+(xt, y t) and θt are position and orientation. The robot action is ut = ( vt, ψ t), where vt and ψt are the linear and angular velocities. The CTMP task at the current horizon needs to generate state sequence St = {st, . . . , st+H } and control sequence Ut = {ut, . . . , ut+H } under kinetic constraints 
+
+{S t, Ut} ∈ F t, with Ft detailed in Section IV-C. 
+
+B. Contact-Tolerant Collision Avoidance 
+
+In CTMP, we need to handle distinct obstacles Mfix 
+
+and Mmov , and collision avoidance becomes different from conventional motion planning. Particularly, given the current point set Pt = {p1 
+
+> t
+
+, . . . , pMt } obtained from lidar scans, where pit ∈ R3 denotes the position of the i-th point and 
+
+M is the total number of obstacle points, we partition Pt
+
+as Pt = Pmov  
+
+> t
+
+∪ Pfix  
+
+> t
+
+, where Pmov  
+
+> t
+
+denotes contactable points and Pfix  
+
+> t
+
+denotes contact-intolerant points. For CTMP, contact with contactable points Pmov  
+
+> t
+
+is permitted. Therefore, hard collision avoidance should only be applied to Pfix  
+
+> t
+
+=
+
+Pt \ Pmov  
+
+> t
+
+:
+
+dist  Gt(st), Pfix 
+
+> t
+
+ ≥ dmin , t ∈ H t, (1) where Gt denotes the robot set and dmin is a predefined safety margin. To determine the distance dist , it is equivalent to compute the distances between any two points within Gt
+
+and Pfix  
+
+> t
+
+, and then take the minimum: 
+
+dist  Gt(st), Pfix 
+
+> t
+
+ = min {∥ x − y∥| x ∈ Gt, y ∈ Pfix  
+
+> t
+
+}. (2) IV. D IRECT CONTACT -T OLERANT MOTION PLANNING 
+
+A. System Overview 
+
+The challenges in tackling CTMP constraint (1) are two-fold. First, the point partition process will rely on other sensor inputs {C , I} , and fusing different data modalities with distinct frequencies is non-trivial. Second, the number of points in Pfix  
+
+> t
+
+is large, making direct computation of (1) computationally intensive. Existing indirect approaches convert Pfix  
+
+> t
+
+to sets, but this would lead to degradation of solution accuracy. To address the above challenges, we propose DCT illus-trated in Fig. 2, which consists of VPP and VGN modules. The VPP module identifies movable objects using VLM contact-tolerance reasoning and memory-based mask prop-agation. It processes raw visual and point cloud inputs, grounds object detections, figures out movable elements, and publishes filtered point representations Pfix  
+
+> t
+
+for downstream planner. The VGN module leverages a fast learned planner to map filtered point sets Pfix  
+
+> t
+
+into control signals ut. It also consists of a point correction block that updates obstacle movability properties upon pushing failure. 
+
+B. Movable Obstacle Grounding with VPP 
+
+The goal of VPP is to identify lidar points correspond-ing to movable obstacles. VLM inference is slow, whereas point cloud filtering requires real-time updates. To address this challenge, we introduce two complementary strategies: VLM-driven filtering, which leverages the reasoning capabil-ity of VLMs to accurately categorize obstacles, and real-time mask generation, which enables efficient, high-frequency filtering of lidar data. 
+
+1) VLM-Driven Obstacle Filter : At time t, given agrounding prompt Lg and the image It, we use a grounding model [18] GRD to localize candidate obstacle regions Ot =
+
+{oit}N 0
+
+> t
+> i=1
+
+, where N 0 
+
+> t
+
+is the number of detected objects. GRD is an open-set detector that couples vision and language to find objects specified by Lg . Since “movable” depends on task and context (obstacle type, environment, material, and robot capability), we introduce a VLM Vfilt to filter candidates. Conditioned on a task prompt Lfilt together with I, {oN0 
+
+> t
+
+},the VLM returns a movable-obstacle mask list 
+
+ˆOt = {ˆojt }N 1 
+
+> t
+> j=1
+
+= Vfilt (Lfilt , I, Ot), (3) where N 1 
+
+> t
+
+is the number of obstacles after filtering. Then we record time t as refresh time τ , the obstacle list ˆOτ , and the corresponding robot position as sτ .
+
+2) Memory-Driven Mask Generation : Due to limited onboard compute, VLM cannot always be triggered for each point frame. In DCT, VLM detection is triggered only when the moving distance exceeds dthres or the time since the last detection exceeds tthres . Between two visual inferences, we therefore reuse and propagate the last trusted masks and reconcile them when a new detection arrives. This design will bring challenges to multi-modal data alignment due to Mask    
+
+> Match
+> Phase 1
+> Viewpoint
+> Warping
+> Points
+> Filter
+> Phase 3 Phase 2 Scan Points
+> Image Grounding Model
+> Masks
+> Publish Points
+> 3D
+> Euclidean
+> Clustering
+
+Fig. 3: Memory-driven mask generation. the movement of the robot. We address it with a three-phase procedure shown in Fig. 3: (i) viewpoint warping; (ii) detection-driven reconciliation; and (iii) point-level refine-ment and publishing. 
+
+a) Phase I: Viewpoint warping: Given the robot state at time t and calibrated intrinsics/extrinsics obtained from lidar-inertial odometry, we compute the inter-frame homography 
+
+Hτ →t and warp each mask: 
+
+ˆo nt = W(ˆ o nτ , Hτ →t) , ˆOt = {ˆo jt }N 1
+
+> τ
+> j=1
+
+, (4) where W(·) applies homogeneous projection to every pixel 
+
+(x, y ) ∈ ˆo nτ . Because of inevitable state-estimation error, ˆOt
+
+may still be misaligned with the current scene. 
+
+b) Phase II: Detection-driven reconciliation: Given the new image It, the grounding model yields candidate movable regions Ot = {o it }N 0
+
+> t
+> i=1
+
+. We match these to the propagated set 
+
+ˆOt using the intersection-over-union 
+
+IoU (A, B) = |A ∩ B||A ∪ B| . (5) For each ˆo jt in ˆOt, define i⋆(j) = arg max i IoU  ˆo jt , o it
+
+,where i⋆(j) denotes the index of the detection in Ot that attains the highest IoU with the propagated mask ˆo jt . If 
+
+IoU  ˆo jt , o i⋆(j)
+
+> t
+
+ ≥ σIoU (e.g., σIoU = 0 .90 ), we regard the pair as a successful match and update the trusted mask geom-etry ˆo jt ← o i⋆(j) 
+
+> t
+
+. Propagated masks without a valid match are discarded for safety. Conversely, unmatched detections in Ot are inserted as new trusted masks. The result is the reconciled set ˆOt.
+
+c) Phase III: Point-level refinement and publishing: 
+
+Let the lidar scan at time t be 
+
+Pt = {p mt }Mm=1 , p mt = [ x mt , y mt , z mt ]⊤ ∈ R3. (6) Each point is augmented to ˜p mt = [ x mt , y mt , z mt , 1] ⊤ and projected to the image as 
+
+ξ mt = π(K T L→C(t) ˜ p mt ) , π ([ a, b, c ]⊤) = [ a/c, b/c ]⊤,
+
+(7) with ξ mt ∈ R2 the pixel coordinates. Using the reconciled masks ˆOt (let ˆUt = S ˆo it ), the scan is partitioned as 
+
+Pmov  
+
+> t
+
+= p mt ∈ Pt ξ mt ∈ ˆUt , (8) 
+
+Pfix  
+
+> t
+
+= Pt \ Pmov  
+
+> t
+
+. (9) While mask gating is effective, image-level decisions ignore 3D continuity and may include isolated speckles or miss nearby returns from the same object. We therefore perform 3D Euclidean clustering (e.g., DBSCAN with radius 
+
+εcluster and minimum size Nmin ) on Pmov  
+
+> t
+
+to obtain clusters 
+
+Cmov  
+
+> t
+
+= {Ck}. We then apply two symmetric corrections: 1) Outlier suppression: points selected by the mask but not belonging to any cluster Ck with |Ck| ≥ Nmin are 
+
+removed from movable: Pmov  
+
+> t
+
+← S   
+
+> k:|Ck|≥ Nmin
+
+Ck.
+
+2) Cluster completion: points in Pfix  
+
+> t
+
+that lie within distance εcluster of some movable cluster Ck (i.e., 
+
+dist (p, Ck) ≤ εcluster ) are added to movable: Pmov  
+
+> t
+
+←
+
+Pmov  
+
+> t
+
+∪ p ∈ Pfix  
+
+> t
+
+dist (p, Ck) ≤ εcluster , ∃ k .
+
+Finally, we publish the refined streams (Pmov  
+
+> t
+
+, Pfix  
+
+> t
+
+) at the lidar rate. This pipeline preserves temporal consistency under sparse visual updates while producing spatially coherent point sets for downstream planning and control. 
+
+C. Fast Motion Planning with VGN 1) Learned Distance : Given Pfix  
+
+> t
+
+generated by VPP, the computation of distance dist is a convex optimization problem given by [1]: 
+
+∀pit ∈ Pfix  
+
+> t
+
+: min  
+
+> x
+
+Rt(st)x + tt(st) − pit
+
+> 22
+
+s.t. Gx ⪯g,
+
+(10) where Rt(st) is the rotation matrix representing the orienta-tion of the robot, tt(st) is the translation vector denoting the position of the robot, and matrices (G, g) define the robot edges. However, the complexity is high when the number of points in Pfix  
+
+> t
+
+is large, resulting in unacceptable latency. To address this issue, we propose a DNN method for faster distance computation following [19]. The DNN trains an agent to solve (10) by imitating the optimal algorithm, such that time-consuming iterative computations are converted into real-time feed-forward inference. The system architec-ture of DNN is shown in Fig. 4, which consists of three phases. 
+
+a) Phase I: Dual Transformation.: We first transform problem (10) to its dual formulation under the strong duality property [3], [20]: 
+
+∀pit ∈ Pfix  
+
+> t
+
+: max 
+
+> λit,μit
+
+μit
+
+> ⊤
+
+(GR t(st)⊤[pit − tt(st)] − g)
+
+s.t. μit ⪰ 0, λit ⪯ 1, μit
+
+> ⊤
+
+G + λit
+
+> ⊤
+
+R(st) = 0,
+
+(11) where {μit, λit} are dual variables. 
+
+b) Phase II: Demonstration Data Generation.: We solve the dual problem (11) to generate the demonstration dataset D = {A (j)}Jj=1 . The j-th sample is given by A(j) =
+
+{X (j), Y(j)}, where the input tuple is given by 
+
+X (j) =
+
+n
+
+G, g, s(j) 
+
+> t
+
+, p(j)
+
+> t
+
+o
+
+,
+
+and the output tuple Y(j) = {μ(j) 
+
+> t
+
+, λ(j) 
+
+> t
+
+}.
+
+c) Phase III: DNN Training and Inference.: The DNN consists of 6 fully connected layers with 32 units, with ReLU, normalization, and tanh activation functions. For model training, we use the mean squared error as the loss function and optimize the network parameters using stochastic gradient descent. The pre-trained DNN model is deployed at the robot to make real-time inference. Output Distances   
+
+> Distances
+> Dual Variables
+> DNN Training Deploy
+> Input Measurements
+> Robot Shape
+> Robot State
+> PDual
+> DNN Inference Points
+> D
+
+Fig. 4: Deep unfolded neural network. With DNN, the optimal solution of {λit, μit} to (11) is obtained in microseconds. The distance in (2) is thus 
+
+dist  Gh(sh), Pfix 
+
+> h
+
+ = DNN (G, g, sh, Pfix  
+
+> h
+
+), where DNN (·)
+
+takes the minimum of the objective of (11) for all pih ∈ Pfix  
+
+> h
+
+.
+
+2) Motion Planning : the VGN problem can be cast as an optimization problem. 
+
+Pt : min 
+
+> Ut,St
+
+Ct(St) (12a) s.t. sh+1 = sh + f (sh, uh)∆ t, , h ∈ H t (12b) 
+
+umin ⪯ uh ⪯ umax , , h ∈ H t (12c) 
+
+DNN (G, g, sh, Pfix  
+
+> h
+
+) ≥ dmin , h ∈ H t, (12d) where Ct(St) is the system utility encouraging the robot to approach target s⋆. It measures the distance deviation from a given reference path: 
+
+Ct(St) = X
+
+> h∈H t
+
+sh+1 − s⋄ 
+
+> h+1
+> 22
+
+, (13) where s⋄ 
+
+> h+1
+
+= {s⋄
+
+> t+1
+
+, · · · , s⋄ 
+
+> t+H
+
+} is the waypoints that are computed using a global path planner (e.g., A*) and s⋆.Note that the kinetic set Ft in Section III now explicitly becomes Ft = {(12b) , (12c) , (12d) }, where (12b) represents the state evolution (f (·) defines vehicle dynamics) and (12c) represents the physical constraint [1] ( umin , umax are control limits). We collectively define these time-invariant parameters as P = {f, umin , umax , d min , G, g}.This problem can be solved by alternately optimizing 
+
+{U t, St} and executing DNN, as shown in [19]. The entire DCT procedure is summarized in Algorithm 1. 
+
+3) Point Correcting : VGN enters correcting mode when the robot fails to push through or cross an object. We also treat the robot as stuck if the linear speed is not zero but the pose change between two time steps is very small. Let 
+
+∆dt = ∥st − st−1∥2. If vt ≥ vmin and ∆dt ≤ dstuck for 
+
+τstuck consecutive steps, the correction is triggered. First, we update the point labels. We find the points that belong to obstacles that did not move during the failed push and denote them by Pfail  
+
+> t
+
+. These points are re-labeled as non-movable. The point sets are then updated as 
+
+Pmov  
+
+> t
+
+← Pmov  
+
+> t
+
+\ Pfail  
+
+> t
+
+, Pfix  
+
+> t
+
+← Pfix  
+
+> t
+
+∪ Pfail  
+
+> t
+
+. (14) Next, the robot moves backward to a previous safe pose. We keep a short history of states S∗ = {st, . . . , st−F }, where F
+
+is the number of traceback steps and st−F is the last feasible checkpoint. We temporarily replace the reference path with 
+
+S∗ (traversed in reverse) and execute reverse navigation with speed limits vt ∈ [−vrev , 0] , v rev > 0. The robot reverses along the historical states until it reaches st−F . Finally, the global planner computes a new reference path Snew that avoids the newly fixed points, and the robot resumes normal navigation along this path. 
+
+Algorithm 1: DCT Motion Planner 
+
+Input: RGB images {I t}, point clouds {Pt}, robot poses {st}, target s⋆, grounding model GRD ,task prompt Lfilt , model Vfilt , thresholds 
+
+dthres , t thres , σ IoU , parameters P
+
+Output: Planned trajectory st, control sequence ut 
+
+> 1
+
+Memory list ˆOτ ; last refresh (τ, sτ ); 
+
+> 2
+
+for each time step t do 
+
+// VLM-Driven Obstacle Filter  
+
+> 3
+
+if dist( st, sτ ) > d thres or (t − τ ) > t thres or 
+
+ˆOτ = ∅ then  
+
+> 4
+
+Ot ← GRD (It); 
+
+> 5
+
+ˆOt ← V filt (Lfilt , It, Ot); 
+
+> 6
+
+(τ, sτ ) ← (t, st), ˆOτ ← ˆOt;
+
+// Mem-Driven Mask Generation  
+
+> 7
+
+Warp ˆOτ to t using pose change;  
+
+> 8
+
+Fresh detection Ot ← GRD (It); 
+
+> 9
+
+Reconcile masks by IoU (≥ σIoU );  
+
+> 10
+
+Drop unmatched, obtain ˆOt, and update: 
+
+Pmov  
+
+> t
+
+← PointsInside( ˆOt), Pfix  
+
+> t
+
+← Pt \ Pmov  
+
+> t
+
+; 
+
+> 11
+
+Refine Pmov  
+
+> t
+
+, Pfix  
+
+> t
+
+via clustering;  
+
+> 12
+
+Publish Pmov  
+
+> t
+
+, Pfix  
+
+> t
+
+;
+
+// VPP guided navigation  
+
+> 13
+
+(St, Ut) ← VGN (st, Pfix  
+
+> t
+
+; s⋆, DNN , P);V. E XPERIMENTS 
+
+We implemented the proposed DCT in Python using ROS Noetic and ROS2. We used Isaac Sim [21], a high-fidelity simulation platform that provides accurate physical modeling and realistic visual simulation for robot testing and training. The simulation experiment is based on Nova Carter equipped with a simulated lidar and an RGB camera, as shown in Fig. 5. The simulation and ROS packages are implemented on a Linux workstation with an Intel i9-11900 CPU and an NVIDIA RTX 4090 GPU. We also deployed DCT on a real robot in Fig. 6a, with its length, width, longitudinal wheelbase, and lateral wheelbase being 32.2 cm, 22.0 cm, 20.0 cm, and 17.5 cm, respectively. The robot is equipped with a Livox LiDAR, an RGB-D camera, and an onboard Intel NUC computer, and operates in differential-drive mode. 
+
+A. Validation of VPP Under Different VLMs 
+
+In this experiment, we assess the effectiveness of VPP. We construct an evaluation dataset, which consists of image samples annotated with grounding information. The VPP is required to identify all movable or passable obstacles. We selected four state-of-the-art language models for evaluation: GPT-5 [22], Gemini 2.5 [23], Qwen-vl [24], and Llama 4 [25], and evaluated their performance in terms of Precision, Recall, F1-score, and Accuracy. The experimental results of different VLMs are sum-marized in Fig. 7. First, GPT-5 achieved perfect Precision 3D  Lidar 
+
+> 2D Lidar
+> Camera
+
+(a) Nova Cater.  (b) Camera and lidar data. 
+
+Fig. 5: Simulation setup. Intel NUC 
+
+> 3D Lidar
+> Screen Wheel
+> Camera
+
+(a) Robot. Obstacles  
+
+> Robot
+> Curtain
+
+(b) Case 1. Robot  
+
+> Box
+> Obstacles
+
+(c) Case 2. 
+
+Fig. 6: Experimental setup. 
+
+Fig. 7: Evaluation of VPP with various VLMs. (100%), demonstrating that all identified pushable obstacles were correct. The remaining three models achieved a Pre-cision of about 75%, which introduces a potential risk of collision when robots attempt to push incorrectly identified obstacles. This indicates that GPT-5 offers a more reliable choice for robots operating under strict safety requirements. Second, Gemini 2.5 exhibited the highest Recall (95.24%), more than 10% higher than the other models. This suggests that Gemini 2.5 adopts a more aggressive selection strategy, achieving higher recall at the cost of lower precision. This may benefit exploration-oriented scenarios where occasional failures are acceptable. Third, GPT-5 demonstrated the most balanced overall performance. Its F1-score (90.32%) and Accuracy (90.00%) significantly exceeded those of Gemini 2.5 (85.11%, 80.56%), Qwen-vl (77.78%, 73.33%), and Llama 4 (78.94%, 74.19%). These results confirm that GPT-5 achieves a balanced trade-off across all metrics, delivering both safety and coverage with high reliability. Thus, GPT-5 was selected for the subsequent experiments. 
+
+B. Evaluation in Different Obstacle Scenarios 
+
+To verify the performance gain brought by DCT, we construct three typical obstacle scenarios in Isaac Sim:  
+
+> •
+
+Case 1: Movable obstacle with wide side path;  
+
+> •
+
+Case 2: Movable obstacle with narrow side path;  
+
+> •
+
+Case 3: Fixed obstacle with wide side path. The robot is expected to navigate to the given destination ACT  Goal 
+
+> M
+
+(a) Case 1 DCT Goal  
+
+> M
+> Ellis22
+
+(b) Case 1 Ellis22 ACT  Goal 
+
+> F
+
+(c) Case 3 DCT F 
+
+> Goal Ellis22
+
+(d) Case 3 Ellis22 
+
+Fig. 8: Evaluation across different obstacle scenarios. F
+
+(a) F1M3 F 
+
+> F
+
+(b) F2M2 F
+
+> F
+> F
+
+(c) F3M1 F 
+
+> F
+> F
+> F
+
+(d) F4M0 
+
+Fig. 9: Evaluation in mixed cluttered environments. with the obstacle along the route. The target speed is set as 1 m/s for all schemes. We compare the proposed DCT with two representative approaches: NeuPAN [19] and Ellis22 [6]. NeuPAN represents a state-of-the-art direct point navigation method that utilizes lidar measurements to generate a local planned path and accurate control actions. Ellis22 is a CTMP approach, which incorporates object localization, movability reasoning, and path planning into a unified framework. Notably, Ellis22 requires an occupancy grid map and a clear obstacle set. The experiment results are shown in Table I. In case 1, all three methods successfully reached the goal. DCT achieved the lowest navigation time (4.22s) and the highest average speed (0.915 m/s). In contrast, Ellis22 took the longest navigation time (4.917s) and the lowest average speed (0.793 m/s). This is because Ellis22 adopts the Pure Pursuit for robot control, which prioritizes geometric stability and smooth path tracking, leading to conservative speed control. In contrast, DCT and NeuPAN are trained with efficiency objectives, enabling faster navigation. This can be seen in Fig. 8a, where the speed of DCT remains almost constant at 1 m/s, whereas the speed of Ellis22 exhibits a noticeable decrease before reaching the goal position. In case 2, the side path was intentionally designed to be too narrow to pass without contact. Both DCT and Ellis22 successfully complete the task, while NeuPAN failed to complete the task, as it modeled the movable obstacle as hard constraints and thus could not generate a feasible trajectory. These results underscore the importance of controllable con-tact in constrained environments and highlight the efficiency advantage of DCT. In case 3, when facing a contact-intolerant obstacle, “seq_1.png": { 
+
+> "1": " pushable ",
+> "2": " not_pushable "
+> }
+> “seq_4.png": {
+> "1": " not_pushable ",
+> "2": " not_pushable ",
+> "3": " not_pushable ",
+> "4": " not_pushable "
+> }
+> Movable Obstacle
+> Fixed Obstacle
+> Fixed
+> Obstacle
+
+(b) 
+
+(g)  (f) 
+
+(c) 
+
+(a)
+
+(h) 
+
+> ab
+
+(e) 
+
+(d) Fig. 10: Contact-tolerance reasoning and trajectory-control profiles of DCT in Isaac Sim. TABLE I: Evaluations in Different Obstacle Scenarios 
+
+Success Navigation Time (s) Average Speed (m/s) Navigation Distance (m) DCT NeuPAN Ellis22 DCT NeuPAN Ellis22 DCT NeuPAN Ellis22 DCT NeuPAN Ellis22 Case 1 ✓ ✓ ✓ 4.22 4.37 4.917 0.915 0.889 0.793 3.86 3.89 3.90 Case 2 ✓ ✗ ✓ 3.54 - 4.42 0.938 - 0.77 3.22 - 3.40 Case 3 ✓ ✓ ✓ 5.72 5.62 15.42 0.933 0.950 0.749 5.33 5.34 11.24 
+
+TABLE II: Results in Mixed Cluttered Environments                    
+
+> SR Nav. Time (s) Avg. Speed (m/s) Nav. Dist. (m) F4M0 0.7 8.87 0.82 7.27 F3M1 0.9 8.53 0.83 7.08 F2M2 1.0 7.99 0.87 6.95 F1M3 1.0 7.69 0.90 6.92
+
+DCT, NeuPAN, and Ellis22 showed significantly distinct performance. Ellis22 planned a longer route to avoid the obstacle, resulting in the longest navigation time (15.42s) and distance (11.24m). This can be seen in Fig. 8d, where the robot first turns around from 0 to 4.2 s, and then goes around the shelf to reach the end point from 4.2 s to 16 s. This is because the occupancy grid maps of Ellis22 require conservative obstacle inflation, thereby reducing accuracy and limiting applicability in high-precision tasks. In contrast, DCT accomplished the navigation task with significantly shorter navigation time (5.72 s) and distance (5.33 m), as shown in Fig. 8c. These results confirm that DCT adapts well even when obstacles cannot be pushed, maintaining efficiency while being more robust across diverse scenarios. 
+
+C. Evaluation in Mixed Cluttered Environments 
+
+To further assess the navigation performance of DCT under mixed cluttered environments, we design scenarios with varying numbers of fixed and movable obstacles. The experiment results are presented in Table II. The results reveal that in highly cluttered environments composed only of fixed obstacles (F4M0), navigation be-comes challenging, with the success rate reduced to 70% and both navigation time and distance increased. Changing one obstacle to movable (F3M1) yields a substantial performance gain, achieving a 90% success rate while lowering navigation cost. When two or more movable obstacles are available (F2M2 and F1M3), the robot consistently achieves 100% success while also attaining shorter navigation times, higher average speeds, and reduced path lengths. In particular, F1M3 reaches the best performance, with the shortest nav-igation time (7.69 s), highest average speed (0.90 m/s), and shortest path length (6.92 m). The results are corroborated by Fig. 9. When all obstacles are fixed, DCT avoids each one, producing the longest trajectory (Fig. 9d). Allowing contact with movable obstacles reduces avoidance maneuvers and shortens the navigation distance. In particular, when three obstacles are designated as movable, the navigation distance is markedly reduced, as shown in Fig. 9a. Finally, an illustration of DCT in Isaac Sim is shown in Fig. 10. The result demonstrates that the ability to detect and exploit movable obstacles is crucial in dense environments, as controlled contact improves goal reachability and lowers navigation cost. 
+
+D. Verification of DCT on Real Mobile Robot 
+
+In this experiment, we evaluate the real-world performance of DCT by deploying it on a ground mobile robot in two representative scenarios: (i) traversing a curtain (shown in Fig. 6b) and (ii) navigating among movable boxes (shown in Fig. 6c). As shown in Fig. 11, in the curtain scenario, DCT identifies the curtain as passable, projects the predicted mask into the scan data, maintains this memory throughout the run, and passes through the curtain to reach the goal position. As shown in Fig. 12, in the box scenario, DCT classifies a small box as movable and navigates to the goal position with harmless contact with the small box (Fig. 12), while maintaining hard collision constraints for all other obstacles. Interestingly, the robot passes under a chair and avoids the chair legs with agility, which demonstrates its capability to handle arbitrary-shape obstacles under the direct point paradigm. Across both experiments, DCT restricts physical interaction strictly to obstacles recognized as movable and enforces strict collision avoidance elsewhere, showing its excellent balance between navigation efficiency and safety. { "index": 1, 
+
+> "label": "curtain",
+> "reason": "Lightweight flexible curtain, intended for
+> the small Limo robot to safely pass through in the
+> scaled experiment.",
+> "decision": " pushable “ }
+
+a b c d
+
+e f
+
+g
+
+h iFig. 11: Navigation with deformable obstacle. {"index": 1, 
+
+> "label": "small box",
+> "reason": "Lightweight box on the floor; safe for the small Limo robot to nudge aside
+> in scaled environment.",
+> "decision": " pushable "}
+
+a b c d
+
+e
+
+f
+
+g
+
+h i Fig. 12: Navigation with movable obstacle. VI. C ONCLUSION 
+
+This paper proposed DCT, a direct contact-tolerant plan-ner for robot navigation among movable obstacles in clut-tered environments. Through integration of VPP for contact-tolerant reasoning and VGN for contact-tolerant execution, DCT enables the robot to recall short-term memory, make informed contact decisions, act with high accuracy, and maintain efficiency under uncertainty. Extensive simulation and real-world evaluations confirm its robustness and superi-ority over representative baselines. Future work will extend DCT toward richer multi-modal reasoning and large-scale real-world deployments. REFERENCES [1] X. Zhang, A. Liniger, and F. Borrelli, “Optimization-based colli-sion avoidance,” IEEE Transactions on Control Systems Technology ,vol. 29, no. 3, pp. 972–983, 2020. [2] S. Kousik, B. Zhang, P. Zhao, and R. Vasudevan, “Safe, optimal, real-time trajectory planning with a parallel constrained bernstein algorithm,” IEEE Transactions on Robotics , vol. 37, no. 3, pp. 815– 830, 2020. [3] R. Han, S. Wang, S. Wang, Z. Zhang, Q. Zhang, Y. C. Eldar, Q. Hao, and J. Pan, “Rda: An accelerated collision free motion planner for autonomous navigation in cluttered environments,” IEEE Robotics and Automation Letters , vol. 8, no. 3, pp. 1715–1722, 2023. [4] B. Frank, C. Stachniss, R. Schmedding, M. Teschner, and W. Bur-gard, “Real-world robot navigation amongst deformable obstacles,” in 2009 IEEE International Conference on Robotics and Automation ,pp. 1649–1654, IEEE, 2009. [5] M. Stilman and J. J. Kuffner, “Navigation among movable obstacles: Real-time reasoning in complex environments,” International Journal of Humanoid Robotics , vol. 2, no. 04, pp. 479–503, 2005. [6] K. Ellis, H. Zhang, D. Stoyanov, and D. Kanoulas, “Navigation among movable obstacles with object localization using photorealistic simulation,” in 2022 IEEE/RSJ International Conference on Intelligent Robots and Systems , pp. 1711–1716, IEEE, 2022. [7] H.-C. Wang, S.-C. Huang, P.-J. Huang, K.-L. Wang, Y.-C. Teng, Y.-T. Ko, D. Jeon, and I.-C. Wu, “Curriculum reinforcement learning from avoiding collisions to navigating among movable obstacles in diverse environments,” IEEE Robotics and Automation Letters , vol. 8, no. 5, pp. 2740–2747, 2023. [8] B. Frank, C. Stachniss, R. Schmedding, M. Teschner, and W. Burgard, “Learning object deformation models for robot motion planning,” 
+
+Robotics and Autonomous Systems , vol. 62, no. 8, pp. 1153–1174, 2014. [9] H. Wang, Q. Wang, F. Gao, and S. Shen, “Contact-aware motion planning among movable objects,” arXiv preprint arXiv:2502.03317 ,2025. [10] M. Stilman and J. J. Kuffner, Planning Among Movable Obstacles with Artificial Constraints , pp. 119–135. Berlin, Heidelberg: Springer Berlin Heidelberg, 2008. [11] M. Stilman and J. Kuffner, “Planning among movable obstacles with artificial constraints,” The International Journal of Robotics Research ,vol. 27, no. 11-12, pp. 1295–1307, 2008. [12] Y. Zhang and Y. Kantaros, “Namo-llm: Efficient navigation among movable obstacles with large language model guidance,” IEEE Robotics and Automation Letters , vol. 10, no. 12, pp. 13026–13033, 2025. [13] T. Yang, J. Hwang, J. Jeong, M. Yoon, and S.-E. Yoon, “Efficient navigation among movable obstacles using a mobile manipulator via hierarchical policy learning,” arXiv preprint arXiv:2506.15380 , 2025. [14] L. Yao, V. Modugno, A. M. Delfaki, Y. Liu, D. Stoyanov, and D. Kanoulas, “Local path planning among pushable objects based on reinforcement learning,” in 2024 IEEE/RSJ International Conference on Intelligent Robots and Systems , pp. 3062–3068, IEEE, 2024. [15] B. He, G. Chen, W. Wang, J. Zhang, C. Fermuller, and Y. Aloimonos, “Interactive-far:interactive, fast and adaptable routing for navigation among movable obstacles in complex unknown environments,” in 2024 IEEE/RSJ International Conference on Intelligent Robots and Systems ,pp. 5402–5409, 2024. [16] G. Wilfong, “Motion planning in the presence of movable obstacles,” in Proceedings of the Fourth Annual Symposium on Computational Geometry , SCG ’88, (New York, NY, USA), p. 279–288, Association for Computing Machinery, 1988. [17] C. Li, F. Xia, R. Martin-Martin, and S. Savarese, “Hrl4in: Hierarchical reinforcement learning for interactive navigation with mobile manipu-lators,” in Conference on Robot Learning , pp. 603–616, PMLR, 2020. [18] S. Liu, Z. Zeng, T. Ren, F. Li, H. Zhang, J. Yang, Q. Jiang, C. Li, J. Yang, H. Su, et al. , “Grounding dino: Marrying dino with grounded pre-training for open-set object detection,” in European Conference on Computer Vision , pp. 38–55, Springer, 2024. [19] R. Han, S. Wang, S. Wang, Z. Zhang, J. Chen, S. Lin, C. Li, C. Xu, Y. C. Eldar, Q. Hao, and J. Pan, “Neupan: Direct point robot navigation with end-to-end model-based learning,” IEEE Transactions on Robotics , vol. 41, pp. 2804–2824, 2025. [20] Z. Zhang, Y. Zhang, R. Han, L. Zhang, and J. Pan, “A generalized continuous collision detection framework of polynomial trajectory for mobile robots in cluttered environments,” IEEE Robotics and Automation Letters , vol. 7, no. 4, pp. 9810–9817, 2022. [21] NVIDIA, “Nvidia isaac sim.” https://developer.nvidia. com/isaac/sim . Version 4.5, robotics simulation platform. [22] OpenAI, “Gpt-5.” https://platform.openai.com , 2025. Ac-cessed via API, 2025. [23] Google, “Gemini.” https://ai.google.dev , 2025. Accessed via API, 2025. [24] J. Bai et al. , “Qwen-vl: A versatile vision-language model for un-derstanding, localization, text reading, and beyond,” arXiv preprint arXiv:2308.12966 , 2023. [25] H. Touvron et al. , “Llama: Open and efficient foundation language models,” arXiv preprint arXiv:2302.13971 , 2023.

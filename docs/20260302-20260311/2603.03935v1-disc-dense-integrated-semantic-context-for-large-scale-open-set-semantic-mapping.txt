@@ -1,0 +1,284 @@
+Title: DISC: Dense Integrated Semantic Context for Large-Scale Open-Set Semantic Mapping
+
+URL Source: https://arxiv.org/pdf/2603.03935v1
+
+Published Time: Thu, 05 Mar 2026 01:52:16 GMT
+
+Number of Pages: 8
+
+Markdown Content:
+# DISC: Dense Integrated Semantic Context for Large-Scale Open-Set Semantic Mapping 
+
+Felix Igelbrink 1 and Lennart Niecksch 2,1 and Martin Atzmueller 2,1 and Joachim Hertzberg 2,1
+
+Abstract — Open-set semantic mapping enables language-driven robotic perception, but current instance-centric ap-proaches are bottlenecked by context-depriving and compu-tationally expensive crop-based feature extraction. To over-come this fundamental limitation, we introduce DISC (Dense Integrated Semantic Context), featuring a novel single-pass, distance-weighted extraction mechanism. By deriving high-fidelity CLIP embeddings directly from the vision transformer’s intermediate layers, our approach eliminates the latency and domain-shift artifacts of traditional image cropping, yielding pure, mask-aligned semantic representations. To fully lever-age these features in large-scale continuous mapping, DISC is built upon a fully GPU-accelerated architecture that re-places periodic offline processing with precise, on-the-fly voxel-level instance refinement. We evaluate our approach on stan-dard benchmarks (Replica, ScanNet) and a newly generated large-scale-mapping dataset based on Habitat-Matterport 3D (HM3DSEM) to assess scalability across complex scenes in multi-story buildings. Extensive evaluations demonstrate that DISC significantly surpasses current state-of-the-art zero-shot methods in both semantic accuracy and query retrieval, pro-viding a robust, real-time capable framework for robotic de-ployment. The full source code, data generation and evaluation pipelines will be made available at https://github.com/ DFKI-NI/DISC .
+
+I. INTRODUCTION Semantic mapping has long been a foundational com-ponent for autonomous mobile robots, enabling them to understand and interact with complex environments [1], [2]. While classical approaches relied on rigid, predefined, closed-set vocabularies, the recent integration of Vision-Language Foundation Models (VLFMs), most notably CLIP [3], has boosted the paradigm towards open-set embedding spaces [4]. By anchoring these open-vocabulary features into 3D spatial representations, robots are enabled to perform complex, language-driven tasks, ground textual concepts into geometry, and answer free-form queries. Early integrations of VLFMs primarily utilized implicit representations (e. g., NeRFs) or dense point clouds. While these approaches allow for natural language querying on a geometric basis, they often lack an explicit object-level ab-straction. Consequently, instance-based, object-centric map-ping and 3D Semantic Scene Graphs (3DSSGs) have emerged as the preferred representation for high-level rea-soning. However, for utilization on an actual mobile agent  
+
+> 1Felix Igelbrink, Lennart Niecksch and Martin Atzmueller are with the German Research Center for Artificial Intelligence (DFKI), Osnabr¨ uck, Germany
+
+<firstname>.<lastname>@dfki.de  
+
+> 2Lennart Niecksch, Martin Atzmueller and Joachim Hertzberg are with the Department of Computer Sciene, Osnabr¨ uck University, Osnabr¨ uck, Ger-many
+
+<firstname>.<lastname>@uni-osnabrueck.de 
+
+Fig. 1: Example mapping results on a HM3DSEM scene. Top: The tracked instances of the map, randomly colored. Bottom: The resulting semantic segmentation with the top k
+
+semantic classes. instead of being restricted to offline processing, this mapping process must be incremental, fast, and capable of scaling to large environments during continuous operation. Despite significant recent advancements, deploying object-centric open-set systems at scale remains challenging. Most existing works are constrained to small, single-room environments due to the high computational overhead associated with map generation and feature extraction. Recent state-of-the-art approaches [5], [6], [7], [8] have achieved impressive results, but typically encounter two primary bottlenecks. First, to maintain sufficient performance, they rely on fast, but im-precise heuristics, e.g., bounding-box-based overlaps for data association and require periodic, computationally expensive, offline refinement stages to resolve over-segmentation arti-facts. Second, and more importantly, their reliance on crop-based image extraction for obtaining instance-level CLIP fea-
+
+> arXiv:2603.03935v1 [cs.CV] 4 Mar 2026
+
+tures introduces fundamental representational flaws. Foun-dation models such as CLIP are pre-trained on complete, natural images. When these are aggressively cropped or their backgrounds are artificially masked out, the resulting inputs deviate significantly from the model’s training distribution. This severe domain shift actively degrades the model’s zero-shot classification capabilities [9]. Furthermore, the crop-and-recompute pipeline removes the global image context, which is crucial for CLIP to correctly resolve semantic ambiguities and spatial relationships [10]. To address these limitations in semantic mapping, we introduce DISC (Dense Integrated Semantic Context), a fully GPU-accelerated mapping architecture designed for large-scale, open-set semantic mapping. DISC eliminates the need for periodic offline refinement by directly utilizing accurate voxel-level overlap metrics for immediate, per-frame local refinement. This allows the system to efficiently merge instances on-the-fly when sufficient geometric evidence is present. Furthermore, we present a single-pass feature ex-traction mechanism inspired by MaskCLIP [11]. We extract dense patch-level features directly from the intermediate transformer layers of the CLIP model, circumventing the need for costly and noise-prone instance cropping entirely. Finally, to rigorously evaluate open-set semantic mapping across extensive, multi-story indoor environments, we in-troduce a new benchmark dataset derived from Habitat-Matterport 3D Semantics Dataset (HM3DSEM) [12]. Fig-ure 1 shows an example mapping result on this dataset. In summary, our main contributions are:  
+
+> •
+
+A fully GPU-accelerated 3D semantic mapping pipeline that leverages direct voxel-overlap for fast, incremental, and continuous instance refinement in large-scale envi-ronments.  
+
+> •
+
+A method to derive and integrate high-fidelity CLIP features directly from the model without cropping. This utilizes an incremental, geometry-based quality fusion mechanism to ground open-vocabulary queries efficiently.  
+
+> •
+
+A new HM3D-based evaluation protocol and dataset to benchmark semantic mapping in large, multi-room in-door environments, alongside competitive performance on established benchmarks. II. RELATED WORK 
+
+A. Open-Set Semantic Mapping 
+
+Recent advancements in open-set semantic mapping can be broadly categorized into implicit, geometry-dense repre-sentations and explicit, object-centric approaches. Early approaches focused on integrating open-vocabulary features directly into continuous or dense map representa-tions. For instance, LERF [13] embeds language features into Neural Radiance Fields (NeRFs), while approaches like OpenScene [14] and ConceptFusion [15] project dense pixel-level multi-modal features onto 3D point clouds and meshes. While these methods successfully enable natural language querying, they treat the environment as a monolithic volume or a raw collection of points. The resulting lack of an explicit object-level abstraction limits downstream reasoning tasks, such as task planning or dynamic scene graph generation. To bridge this gap, more recent works have focused on instance-based, object-centric mapping. Approaches like ConceptGraphs [6], Beyond Bare Queries (BBQ) [7], Core3D [8], and HOV-SG [5] construct explicit object maps and 3D Semantic Scene Graphs (3DSSGs) that support com-plex queries and task-dependent clustering natively [16]. Our work builds upon this object-centric philosophy. However, while existing methods rely heavily on CPU-bound spatial heuristics and offline processing steps, limiting their applica-bility, we fundamentally redesign the underlying architecture. By shifting the entire pipeline to the GPU, DISC is capable of mapping prodigious multi-story buildings incrementally and efficiently, resolving spatial associations on-the-fly, overcom-ing the computational bottlenecks of current state-of-the-art pipelines. 
+
+B. Scalability and Instance Refinement 
+
+A major challenge in instance-based mapping is the ro-bust association of 2D object-agnostic segmentation masks obtained from Segment Anything Models (SAM) [17] (e. g., FastSAM [18] or MobileSAM [19]) to 3D object nodes across frames. To maintain acceptable frame rates, many state-of-the-art systems rely on fast but coarse spatial heuris-tics, such as Axis-Aligned Bounding Box (AABB) over-laps, for greedy data association [6], [7]. Because this fast matching inevitably leads to over-segmentation and temporal inconsistencies, these systems typically require a compu-tationally expensive, periodic offline refinement stage to resolve conflicts and merge fragments. In contrast, our architecture aims to break the reliance on this offline post-processing to obtain a usable map. Instead of using coarse AABB-metrics. our system computes precise voxel-based intersections utilizing GPU-based sparse matrix algorithms. This enables a highly efficient, per-frame refinement stage that merges instances in active regions on-the-fly as soon as sufficient geometric evidence is accumu-lated, drastically improving map consistency during online exploration without sacrificing mapping speed. 
+
+C. Vision-Language Feature Integration 
+
+Extracting instance-level semantic embeddings from VLFMs is a major computational bottleneck. The prevailing strategy in open-set mapping involves cropping the RGB image using the 2D bounding boxes or instance masks, and then passing each crop independently through the CLIP encoder [6], [15], [20]. Recently, the approach in [8] ex-tended this to a coarse-to-fine mask generation approach, increasing the number of required CLIP inferences even more. While generally working well, the approach is not only prohibitively sumptuous for real-time mapping, especially with dozens of instances per frame, but it also discards the global image context, focusing only on a single, potentially small crop of the original frame. Additionally, as these crops often contain pixels from surrounding instances, the resulting feature vectors tend to contain information about nearby objects as well, e. g., a wall with a picture on it usually also has a high similarity with a query for just picture . This additionally limits the accuracy when using the CLIP features to associate new segments with existing ones as well [10]. To circumvent this, recent works like BBQ [7] utilize DINOv2 [21] patch features for robust instance tracking but still rely on computationally heavy offline feature extraction for the final semantic CLIP representations. Inspired by this work as well as the MaskCLIP [11] approach, we aim at directly extracting dense patch-level features from the intermediate transformer layers on a single CLIP forward pass. III. METHOD Our proposed architecture, DISC (Dense Integrated Se-mantic Context), establishes a fully GPU-accelerated 3D Se-mantic Scene Graph (3DSSG) as the foundational representa-tion for the mapping life-cycle. Unlike conventional pipelines that separate fast spatial tracking from computationally heavy offline semantic refinement, DISC is designed to be strictly incremental. It integrates high-fidelity visual features and precise geometric associations immediately during the online mapping process, ensuring the scene representation remains topologically and semantically valid at every time step. The backend data structure is an instance-based, object-centric map implemented as a multi-layered graph. By following a GPU-first principle and keeping the entire pipeline resident on the GPU, we eliminate the need for simplified bounding-box heuristics, enabling dense, voxel-level operations for every incoming frame. 
+
+A. Segmentation and Feature Extraction 
+
+For each incoming RGB-D frame, we extract a set of 2D instance segmentation masks. While our pipeline is fundamentally agnostic to the specific Segment Anything Model (SAM) architecture, we employ FastSAM [18] for our experiments to achieve an optimal trade-off between segmentation quality and real-time inference speed. To filter out noise, masks with low confidence, extreme aspect ratios, or insufficient size are immediately discarded. Simultaneously, following [7], we extract dense visual fea-ture vectors from the RGB image using the DINOv2 model [21]. Because DINOv2 strongly emphasizes local visual structure, it provides robust features for instance tracking. By extracting patch-level features from the intermediate layers, we only need to execute the heavy feature encoder once per frame. The depth data corresponding to each valid segment is then projected into a 3D point cloud, filtered using a custom, parallelized CUDA implementation of the DBSCAN algorithm [22] to remove noise, and subsequently voxelized. 
+
+B. Data Association and Scene Integration 
+
+The core advantage of our GPU-accelerated pipeline lies in how local segments are integrated into the global map. Traditional approaches rely on a tandem of fast, greedy  
+
+> (a) (b)
+
+Fig. 2: Visualization of our single-pass dense feature extrac-tion. (a) The original RGB input frame. (b) Weighted dense cosine similarity heatmap weighted for the open-vocabulary query "an image of a chair" . The extracted patch features provide precise semantic grounding without requir-ing image crops. AABB matching followed by periodic, expensive offline re-finement passes over the entire map to fix over-segmentation. We replace this paradigm with a single per-frame active refinement stage based directly on 3D voxel overlap. When a new frame is processed, locally detected seg-ments are matched against the global scene. We employ an efficient broad-phase Bounding Volume Hierarchy (BVH) collision detection to identify an active set of candidate instances—existing map segments that potentially overlap with newly detected instances or their immediate neighbor-hood. Subsequently, we compute the exact geometric voxel intersection among all candidates. This ensures that at each refinement step, newly detected instances and nearby existing instances are merged if sufficient geometric evidence (voxel overlap) and visual similarity (cosine similarity) are met. By relying on robust DINO features to govern these structural merges, we prevent the catastrophic fusion of semantically distinct but spatially close objects. At the very end of the mapping trajectory, a final, lightweight post-processing step iterates over the map to merge remaining orphaned candidates and filter out residual noisy instances, such as segments containing fewer than a minimum threshold of voxels. 
+
+C. Vision-Language Feature Integration 
+
+To facilitate open-vocabulary queries, we anchor CLIP [3] embeddings into the 3D instances. The standard approach of cropping images based on instance masks is computationally prohibitive, strips away critical global context [10], and often leads to misclassifications due to feature bleeding and domain-shift [9]. Instead, we introduce a single-pass feature extraction mechanism. Inspired by MaskCLIP [11], we extract dense, patch-level features directly from the penultimate transformer layer of a standard CLIP model during a single forward pass. Because CLIP patches are relatively large (e. g., 14 × 14 
+
+pixels for ViT-L/14), simply averaging patches within a 2D SAM mask often results in diluted features, as flat background surfaces might dominate the representation. To mitigate this and focus on structurally relevant parts, we compute a spatial distinctiveness map D instead of a naive average. For each patch feature fi,j and the spatial mean of TABLE I: 3D open-set semantic segmentation benchmark results on subsets of the Replica [24] and ScanNet [25] datasets.                                                   
+
+> Replica ScanNet Methods mAcc mIoU fmIoU mAcc mIoU fmIoU
+> Privileged
+> OpenFusion [26] 0.41 0.30 0.58 0.67 0.53 0.64
+> Zero-Shot  ConceptFusion [15] 0.29 0.11 0.14 0.49 0.26 0.31 OpenMask3D [27] ---0.34 0.18 0.20 ConceptGraphs [6] 0.36 0.18 0.15 0.52 0.26 0.29 BBQ [7] 0.38 0.27 0.48 0.56 0.34 0.36 CORE-3D [8] 0.38 0.29 0.56 0.61 0.36 0.46 DISC (Ours) 0.47 0.29 0.54 0.71 0.43 0.49
+
+all patches ¯f , we compute the normalized residual norm as 
+
+Di,j = ∥fi,j − ¯f ∥21
+
+> HW
+
+P 
+
+> i,j
+
+∥fi,j − ¯f ∥2 + ϵ (1) This formulation naturally assigns higher weights to patches containing unique, high-frequency information (e. g., texture-rich parts) while down-weighting homogeneous backgrounds (see Figure 2). The final instance feature is obtained by aggregating the patch features within the segmentation mask, weighted by D.During active refinement across frames, it is crucial that the semantic representation is not degraded by poor view-points. We implement an incremental view-quality fusion mechanism that assesses each observation using a combined quality score Q:
+
+Q = Sgeo · Ssem · Sdist (2) The geometric component Sgeo = Ssize · Sangle de-termines the physical observation quality. Ssize =min( λ|M |/(Himg Wimg ), 1.0) favors objects that occupy a significant portion of the frame area |M |, with λ = 3 .3
+
+establishing a plateau to avoid overvaluing camera-at-the-wall scenarios. Furthermore, 
+
+Sangle = 1
+
+|V |
+
+X
+
+> v∈V
+
+max(0 , −⃗r v ·⃗n v ) (3) ensures that the 3D voxel normals ⃗n v of the detection’s voxel set V face the camera viewing direction ⃗r v .The semantic score Ssem acts as a contextual gate, filtering out segments that contradict the global scene context by calculating the clamped ReLU-activated cosine similarity be-tween local patch features and the global image embedding. Finally, Sdist = 0 .5 + 0 .5 · ¯Dmask serves as a confidence multiplier derived from the average structural distinctiveness of the mask region ¯Dmask .When two instances are fused, a node’s feature is replaced with an observed feature if it possesses a higher quality Q.This ensures that each object instance is always represented by the best available local observation while being protected from dilution caused by erroneous merges [23]. IV. EVALUATION To rigorously evaluate the capabilities of our DISC map-ping pipeline, we conduct experiments across multiple di-mensions. We benchmark our approach against state-of-the-art methods on established datasets (Replica and Scan-Net) for dense segmentation, and on a subset of Habitat-Matterport 3D (HM3DSEM) for instance retrieval. Further-more, to assess real-time scalability and robustness in large multi-story environments, we introduce a new large-scale continuous trajectory dataset based on HM3DSEM. 
+
+A. Experimental Setup and Metrics 
+
+All VLFMs evaluated in our study are instantiated using the OpenCLIP framework [28] to ensure reproducibility and leverage large-scale open-source pre-training. Specifically, we utilize the following architectures and checkpoints:  
+
+> •
+
+ViT-{B/16, L/14, H/14 }: LAION-2B [29] pre-trained checkpoints ( laion2b s34b b88k , laion2b s32b b82k , and 
+
+laion2b s32b b79k , respectively).  
+
+> •
+
+ConvNeXt-Large (convnext large d 320 ): Utilizing the 
+
+laion2b s29b b131k ft soup weights.  
+
+> •
+
+EVA02-L/14 (EVA02-L-14-336 ): Initialized with the 
+
+merged2b s6b b61k checkpoint. Unless otherwise specified, all default mapping experiments and our pipeline operate using the ViT-L/14 model. For the DINOv2 model used for segment tracking, we utilize the 
+
+dinov2 vits14 reg snapshot. We evaluate our system along two primary performance axes across our experiments: 1) Dense Semantic Segmentation: To measure strict geo-metric classification quality, we compute the mean Ac-curacy (mAcc), mean Intersection over Union (mIoU), and frequency-weighted mIoU (fmIoU) metrics following standard open-vocabulary segmentation benchmarks. 2) Open-Vocabulary Retrieval: To assess object-level se-mantic ranking, we compute the accuracy of the correct ground-truth semantic class appearing within the top-k
+
+cosine-similarity predictions (Acc@ K) and the Area Un-der the Curve ( AU C top  
+
+> k
+
+) for these top-k ranks, following the protocol established in [5]. 
+
+B. 3D Open-Set Semantic Segmentation 
+
+We first quantitatively evaluate the zero-shot semantic mapping capabilities of DISC on the Replica [24] and Scan-Net [25] datasets. We follow the benchmark methodology in [7] to ensure a fair comparison. For Replica, we evaluate on 8 standard scenes ( room0 , room1 , room2 , office0 , office1 ,
+
+office2 , office3 and office4 ), and similarly on 8 scenes for ScanNet ( 0011 00 , 0030 00 , 0046 00 , 0086 00 , 0222 00 ,
+
+0378 00 , 0389 00 and 0435 00 ). By associating each 3D point in the ground truth to its closest CLIP feature vector in our mapped scene, we obtain a point cloud with dense class labels that is directly compared against the ground truth annotations. The quantitative results are presented in Table I. Our mapping pipeline surpasses all other evaluated zero-shot Method Acc@5 Acc@10 Acc@25 Acc@100 Acc@250 Acc@500 AUC top                             
+
+> k
+> VLMaps [31] 0.05 0.17 0.54 15.32 26.01 40.02 56.20 ConceptGraphs [6] 18.11 24.01 33.00 55.17 70.85 81.55 84.07 HOV-SG [5] 18.43 25.73 36.41 56.46 69.95 80.86 84.88 DISC (Ours) 22.22 33.76 45.18 59.85 71.76 81.86 85.15
+
+TABLE II: AU C top −k results on the subset of HM3DSEM used by HOV-SG [5]. HOV-SG states to only consider hungarian matches with IoU > 0.5, which we found differs in their implementation, which evaluates on all pairs after hungarian matching. approaches and even approaches or exceeds the privileged OpenFusion [26] method, which uses the supervised SEEM Model [30] to extract dense feature masks directly. This demonstrates that our lightweight zero-shot pipeline achieves a mask-aligned feature quality comparable to specialized, supervised models. Specifically, the high mAcc achieved by DISC proves that our dense patch-feature extraction strategy effectively solves the noise problems inherent in crop-based procedures. By extracting patch-level features directly from the vision transformer, our system obtains object-local dense feature vectors that retain sufficient global context to remain aligned with the scene without background interference or domain-shift artifacts. 
+
+C. Object Level Semantics on HM3DSEM 
+
+While Replica and ScanNet provide excellent dense met-rics, they are predominantly limited to small, single-room scenes. To evaluate object-level retrieval, we leverage the HM3DSEM dataset [32]. We first benchmark our approach on the identical 10-scene subset and trajectories used by HOV-SG [5]. We evaluate the open-vocabulary query perfor-mance using our established retrieval metrics (Acc@ k and 
+
+AU C top  
+
+> k
+
+). The authors of HOV-SG state that they only consider predicted objects with an IoU > 0.5 against the ground truth. However, their official implementation evaluates all pairs after Hungarian matching without this strict threshold. For a fair comparison, we adopted this exact matching protocol. As shown in Table II, DISC outperforms HOV-SG and ConceptGraphs across all values of k, achieving a slight improvement in overall AU C top  
+
+> k
+
+(0.27% ). Notably, we obtain substantial improvements of 3.79% and 13 .63% in the strict Acc@ 5 and Acc@ 10 metrics, which are the most relevant bounds for practical downstream robotic tasks. 
+
+D. Large-Scale Dataset Generation 
+
+HOV-SG uses manually recorded random walks for 10 out of 36 scenes in the validation split of HM3DSEM. To the best of our knowledge, there is no publicly available set of trajectories that covers all scenes, the train and validation split of HM3DSEM. The underlying Habitat simulator [33] automatically computes navigation meshes for an agent’s configuration space, given a 3D scene. This serves as a realistic proxy for a well-conditioned continuous robotic exploration, which we utilize to generate continuous RGB-D trajectories that naturally cover most of the simulated environments. 
+
+Fig. 3: Generated trajectory from HM3DSEM scene 00800 .Red: navigation mesh. Blue lines: generated trajectory. Teal points: coverage analysis from ray tracing as down sampled voxel grid. We first extract the largest connected component of the navigation mesh, apply a Voronoi decomposition [34], [5] and the brushfire algorithm to extract local basins (places). By computing the geodesic distance via A* between adjacent places on the medial axis, we build a graph. The exploration trajectory is then efficiently derived by solving the Chinese Postman Problem, guaranteeing optimal edge traversal (see Figure 3). Finally, Habitat’s builtin pathfinder and greedy follower generate smooth trajectories via B´ ezier curves. 
+
+1) Dataset: Configuration and Evaluation: For dataset generation, we use an agent with a sensor height of 1.2 m and a discrete action space consisting of move forward 0.25 m 
+
+and turn left/turn right 15 ◦ to sample discrete keyframes along a simple exploration strategy where the agent looks straight ahead. We use Habitat’s standard configuration for navigation mesh generation and apply the approach detailed in sec. IV-D to generate trajectories for the train (145) and val (36) splits of HM3DSEM. Instance Coverage 
+
+> (Covered>0.5 of SA)
+> Surface
+> Coverage
+> Largest Island /
+> Total Area
+> 20
+> 40
+> 60
+> 80
+> 100
+> Coverage / Ratio [%]
+
+(a) 100 200 300 400  
+
+> Largest Island Area (m²)
+> 100
+> 200
+> 300
+> 400
+> 500
+> 600
+> 700
+> Path Length (m)
+> 500
+> 1000
+> 2000
+> 3000
+> 5000
+> # Poses / # Images
+
+(b) 
+
+Fig. 4: (a) Ratio of covered objects ( Area > 50% of surface covered) and ratio of covered surface for our generated tra-jectories for HM3DSEM. High variance is explained by the fact that the largest connected component of the navigation mesh from Habitat only covers the scene partially (Largest Island/Total Area). (b) Tour length plotted in relation to the navigable area, with color encoding the resulting dataset size (= simulation steps required). 4        
+
+> 6
+> 8
+> 10
+> 12
+> FPS
+> Raw FPS
+> Global Trend (Slope: 0.0002)
+> 0
+> 2000
+> 4000
+> VRAM (MB)
+> Peak VRAM
+> Current VRAM
+> 0500 1000 1500 2000 2500 3000 3500 4000
+> Frame ID
+> 0
+> 500
+> 1000
+> 1500
+> 2000
+> Instances
+
+Fig. 5: Performance of the mapping pipeline on the exem-plary HM3DSEM scene 00849 .To evaluate the quality of generated datasets and assess how well a generated trajectory covers the underlying scene we evaluate the coverage of our resulting trajectories. We estimate a local voxel grid for all poses from the full resolu-tion semantic meshes using ray tracing [35] and compute the per instance and surface coverage by comparing these local grids against the full voxel map (See Table III). This helps to identify objects that can never be observed along the trajectory and establish a lower bounding on the overall visibility of each instance. As Figure 4a shows, the resulting coverage varies significantly over the whole dataset. We envision several potential uses: as a measure of quality for trajectories, for determining fair ceilings for agent or system performance, and/or for evaluating the quality of the underlying scenes themselves.                                                   
+
+> ID Category Region Model Voxels Covered Voxels Coverage (%)
+> 113 chair 29773 8340 85.34 114 table 223818 22922 96.24 115 flower vase 22656 2599 97.85 116 ceiling 3317994 239945 75.46 117 wall 322406 15816 70.59 118 wall 310972 10237 93.30 119 door 317056 17038 99.89 120 calendar 31555 1555 100.00 121 kitchen shelf 313980 8382 59.96
+
+TABLE III: An excerpt of the surface coverage analysis details how well regions and object instances have been covered for 00891 .
+
+E. Mapping in Large-Scale Environments 
+
+To demonstrate the robustness and scalability of our approach in expansive, visually complex environments, we evaluate our pipeline on our generated HM3DSEM trajec-tories. Unlike single-room datasets, these multi-room and multi-story facilities test a system’s ability to maintain se-mantic consistency over long horizons without succumbing to feature dilution or catastrophic forgetting if objects are re-observed from very different view poses.                         
+
+> Split mAcc mIoU fmIoU Acc@5 Acc@10 AUC top
+> k
+> val 0.34 0.20 0.45 21.45 31.63 85.93 train 0.33 0.17 0.42 18.87 28.61 84.10 combined 0.33 0.18 0.42 19.09 29.64 84.41
+
+TABLE IV: Comparison of dense zero-shot segmentation and open-vocabulary retrieval metrics across the large scale HM3DSEM dataset. Table IV reports the dense zero-shot segmentation and open-vocabulary retrieval metrics across the val and train 
+
+splits. Since these specific dense mapping trajectories estab-lish a novel benchmark setup, we report the absolute metrics to provide a comprehensive baseline for future research. The results demonstrate good semantic stability at scale: across the combined splits, our approach achieves an mAcc of 0.33 
+
+and an fmIoU of 0.42 , consistent with the smaller validation subset (mAcc 0.34 , fmIoU 0.45 ). Similarly, the retrieval performance remains robust, maintaining an AU C top  
+
+> k
+
+of 0.84 
+
+across all scenes. This confirms that our view-quality gating (Q) successfully protects the semantic representations from deteriorating, ensuring that aggregated object features remain sharp even in very large environments where the same object instance is observed many times. Beyond semantic accuracy, the extensive nature of the HM3DSEM dataset also highlights the system’s operational efficiency. To evaluate the run-time behavior of our approach, we mapped a 4000-frame trajectory of a single scene on a desktop system equipped with an Intel Core i7-13700K CPU, 64 GB of RAM, and an NVIDIA RTX 5080 GPU (see Figure 5). As illustrated, the number of tracked 3D instances grows continuously as the camera explores new areas of the scene. Despite this accumulating map complexity, our pipeline maintains a consistent frame processing rate (top plot). While the immediate FPS fluctuates naturally depending on complexity of the current view (e. g., the number of visible segments), on larger scales it remains nearly constant. This confirms that the computational cost of our active voxel-based refinement and single-pass feature extraction remains strictly bounded and do not degrade over time. Furthermore, the GPU memory profiling (middle plot) demonstrates an efficient and predictable VRAM footprint as well. Unlike conventional systems that require the mapping process to pause for heavy offline refinement as the number of instances in the map grows large, our active voxel-based update mechanism seamlessly scales to thousands of instances. This verifies that our architecture is not only se-mantically robust but highly viable for continuous, real-time operation on mobile robots exploring large-scale facilities. 
+
+F. Comparison of Vision-Language Backbones 
+
+To identify the optimal foundation model and validate our single-pass feature integration, we conduct a comparative analysis of different CLIP backbone architectures on our HM3DSEM-based dataset (val split). We adapt each model to follow our single-pass patch feature extraction approach and compare them against the classical crop-based baseline Method mAcc mIoU fmIoU Acc@5 Acc@10                                                   
+
+> patch features  ViT-B/16 0.30 0.20 0.41 25.78 35.13
+> ViT-L/14 0.34 0.20 0.45 21.96 33.87
+> ViT-H/14 0.34 0.22 0.39 16.32 24.64 ConvNeXt-L 0.30 0.33 0.17 13.06 18.93 EVA02-L/14 0.25 0.15 0.33 13.60 20.62
+> crop features  ViT-B/16 0.28 0.15 0.36 16.11 23.00 ViT-L/14 0.34 0.17 0.39 16.84 25.15 ViT-H/14 0.31 0.17 0.38 16.46 24.17 ConvNeXt-L 0.38 0.18 0.40 15.96 24.66 EVA02-L/14 0.41 0.23 0.46 20.25 29.37
+
+TABLE V: Comparison of dense zero-shot segmentation and open-vocabulary retrieval metrics across various CLIP back-bone architectures using crop-based and single-pass patch feature extraction. (Table V). We report dense 3D segmentation metrics (mAcc, mIoU, fmIoU) alongside open-vocabulary retrieval metrics (Acc@5, Acc@10), measuring whether the correct semantic class for matched objects ranks within the top-k predictions. Our results yield three key insights: 
+
+(1) For standard Vision Transformers (ViT-B, ViT-L, ViT-H), our single-pass patch extraction consistently outperforms or matches the crop-based approach in dense geometric met-rics. For instance, using ViT-L/14, patch extraction increases the fmIoU from 0.39 to 0.45 while maintaining the same mAcc of 0.34. This demonstrates that avoiding artificial crops prevents domain-shift artifacts and feature bleeding, causing the features to align much better with the physical boundaries of the objects. Conversely, models that rely upon final global average pooling to align visual features with the text space—such as the CNN-based ConvNeXt or EVA02 [36]—struggle significantly with intermediate patch extrac-tion. Extracting spatial maps from ConvNeXt-L drastically drops its semantic retrieval (Acc@5 falls from 0.16 to 0.13) and dense classification capabilities (fmIoU drops from 0.40 to 0.17). This highlights that our zero-shot approach works best with standard contrastive ViT architectures, where inter-mediate tokens maintain stronger semantic text-alignment. 
+
+(2) The shallower ViT-B/16 model achieves the highest soft-retrieval scores (Acc@5 of 0.26) but gets outperformed by the deeper ViT-L/14 model on dense tasks (mAcc 0.34 vs. 0.30, and fmIoU 0.45 vs. 0.41). We hypothesize that due to its fewer transformer layers, ViT-B/16 retains less spatially smoothed, more localized signatures that are advantageous for instance retrieval. However, it appears to lack the deeper semantic discriminative capacity of larger models, which becomes crucial for strict dense classification. 
+
+(3) Consequently, we selected ViT-L/14 as the default foundation model for the DISC pipeline. In our evaluations, it offered the highest dense semantic performance (fmIoU 0.45) while maintaining highly competitive open-vocabulary retrieval capabilities. Additionally, it is a robust, well-tested architecture proven to work reliably with the MaskCLIP-style patch extraction, in contrast to alternative architectures where bypassing the global pooling layer might result in unstable semantic representations. V. CONCLUSIONS In this paper, we presented DISC (Dense Integrated Se-mantic Context), a fully GPU-accelerated mapping architec-ture designed to bridge the scalability gap in open-set 3D semantic mapping. By transitioning from fast but impre-cise bounding-box heuristics to dense, voxel-based overlap calculations, our system eliminates the need for computa-tionally prohibitive offline refinement stages, robustly fusing instances on-the-fly during exploration. Furthermore, we addressed a significant bottleneck in Vision-Language feature extraction by integrating a single-pass, distance-weighted feature extraction approach. Guided by DINOv2 tracking and a geometric view-quality scoring mechanism, DISC anchors high-fidelity, open-vocabulary embeddings directly into the 3D map without the context loss and latency associated with traditional image cropping. We demonstrated the efficacy and scalability of our approach on standard benchmarks and a novel, large-scale HM3D-based dataset tailored for continuous multi-story mapping. 
+
+A. Limitations 
+
+Despite its strong performance, our approach has certain limitations. First, the pipeline fundamentally relies on the quality of the underlying 2D class-agnostic segmentation model (e. g., FastSAM). Consistent under-segmentation or failure to detect highly occluded objects in 2D naturally propagates to the 3D map. Second, the spatial resolution of the semantic embeddings is bounded by the patch size of the underlying Vision Transformer (e. g., 14 × 14 pixels for ViT-L/14). While our distinctiveness map D effectively mitigates background bleeding, extracting pure semantic representa-tions for extremely small or thin structures (e. g., cables or thin poles) remains challenging from distant viewpoints. Finally, the current voxel-integration mechanism implicitly assumes a predominantly static environment. 
+
+B. Future Work 
+
+In future work, we aim to extend the DISC architecture by shifting to active, language-driven robotic exploration as outlined in [ Ref. suppressed for anonymity ]. By utilizing the fast, incremental nature of DISC, we aim for robots to actively search for open-vocabulary targets in massive environments, deciding on-the-fly which unexplored areas are semantically most promising and automatically select appropriate exploration poses for any object. Other promising directions are the utilization of the dense semantic features for downstream tasks like localization, embodied question answering and planning & acting. ACKNOWLEDGMENTS This work is supported by the ExPrIS and LIEREx projects through grants from the German Federal Ministry of Re-search, Technology and Space (BMFTR) with grant num-bers 16IW23001 and 16IW24004. The DFKI Niedersachsen (DFKI NI) is sponsored by the Ministry of Science and Culture of Lower Saxony and the Volkswagen Foundation. REFERENCES [1] A. N¨ uchter and J. Hertzberg, “Towards semantic maps for mobile robots,” Robot Auton Syst , vol. 56, no. 11, pp. 915–926, 2008. [2] I. Kostavelis and A. Gasteratos, “Semantic mapping for mobile robotics tasks: A survey,” Robotics and Autonomous Systems , vol. 66, pp. 86–103, 2015. [3] A. Radford, J. W. Kim, C. Hallacy, A. Ramesh, G. Goh, S. Agarwal, G. Sastry, A. Askell, P. Mishkin, J. Clark, et al. , “Learning transferable visual models from natural language supervision,” in International Conference on Machine Learning (ICML) . PMLR, 2021, pp. 8748– 8763. [4] F. Igelbrink, M. Renz, M. G¨ unther, P. Powell, L. Niecksch, O. Lima, M. Atzmueller, and J. Hertzberg, “Online knowledge integration for 3D semantic mapping: A survey,” arXiv preprint arXiv:2411.18147 ,2024. [5] A. Werby, C. Huang, M. B¨ uchner, A. Valada, and W. Burgard, “Hi-erarchical open-vocabulary 3D scene graphs for language-grounded robot navigation,” in First Workshop on Vision-Language Models for Navigation and Manipulation at ICRA 2024 , 2024. [6] Q. Gu, A. Kuwajerwala, S. Morin, K. M. Jatavallabhula, B. Sen, A. Agarwal, C. Rivera, W. Paul, K. Ellis, R. Chellappa, C. Gan, C. M. de Melo, J. B. Tenenbaum, A. Torralba, F. Shkurti, and L. Paull, “ConceptGraphs: Open-vocabulary 3D scene graphs for perception and planning,” in ICRA , May 2024, pp. 5021–5028. [7] S. Linok, T. Zemskova, S. Ladanova, R. Titkov, D. Yudin, M. Monastyrny, and A. Valenkov, “Beyond bare queries: Open-vocabulary object grounding with 3D scene graph,” in IEEE Inter-national Conference on Robotics and Automation (ICRA) . IEEE, 2025, pp. 13 582–13 589. [8] M. A. Mirzaei, P. Amoie, A. Ekhterachian, M. Mirzababaei, and B. Khalaj, “Core-3d: Context-aware open-vocabulary retrieval by embeddings in 3d,” arXiv preprint arXiv:2509.24528 , 2025. [9] F. Liang, B. Wu, X. Dai, K. Li, Y. Zhao, H. Zhang, P. Zhang, P. Vajda, and D. Marculescu, “Open-vocabulary semantic segmentation with mask-adapted clip,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , 2023, pp. 7061– 7070. [10] S. Yu, P. H. Seo, and J. Son, “Zero-shot referring image segmentation with global-local context features,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , June 2023, pp. 19 456–19 465. [11] X. Dong, J. Bao, Y. Zheng, T. Zhang, D. Chen, H. Yang, M. Zeng, W. Zhang, L. Yuan, D. Chen, F. Wen, and N. Yu, “MaskCLIP: Masked self-distillation advances contrastive language-image pretraining,” in 
+
+CVPR . IEEE, 2023, pp. 10 995–11 005. [12] S. K. Ramakrishnan, A. Gokaslan, E. Wijmans, O. Maksymets, A. Clegg, J. Turner, E. Undersander, W. Galuba, A. Westbury, A. X. Chang, et al. , “Habitat-Matterport 3D dataset (HM3D): 1000 large-scale 3D environments for embodied AI,” arXiv preprint arXiv:2109.08238 , 2021. [13] J. Kerr, C. M. Kim, K. Goldberg, A. Kanazawa, and M. Tancik, “LERF: language embedded radiance fields,” in IEEE/CVF Interna-tional Conference on Computer Vision (ICCV 2023) . IEEE, 2023, pp. 19 672–19 682. [14] S. Peng and K. Genova, “OpenScene: 3D Scene Understanding With Open Vocabularies,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2023, pp. 815–824. [15] K. M. Jatavallabhula, A. Kuwajerwala, Q. Gu, M. Omama, G. Iyer, S. Saryazdi, T. Chen, A. Maalouf, S. Li, N. V. Keetha, A. Tewari, J. B. Tenenbaum, C. M. de Melo, K. M. Krishna, L. Paull, F. Shkurti, and A. Torralba, “ConceptFusion: Open-set multimodal 3D mapping,” in 
+
+Robotics: Science and Systems (RSS) , 2023. [16] D. Maggio, Y. Chang, N. Hughes, M. Trang, D. Griffith, C. Dougherty, E. Cristofalo, L. Schmid, and L. Carlone, “Clio: Real-time task-driven open-set 3D scene graphs,” IEEE Robotics Autom. Lett. , vol. 9, no. 10, pp. 8921–8928, 2024. [17] A. Kirillov, E. Mintun, N. Ravi, H. Mao, C. Rolland, L. Gustafson, T. Xiao, S. Whitehead, A. C. Berg, W.-Y. Lo, et al. , “Segment Anything,” in Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV) , 2023, pp. 4015–4026. [18] X. Zhao, W. Ding, Y. An, Y. Du, T. Yu, M. Li, M. Tang, and J. Wang, “Fast Segment Anything,” arXiv preprint arXiv:2306.12156 , 2023. [19] C. Zhang, D. Han, Y. Qiao, J. U. Kim, S.-H. Bae, S. Lee, and C. S. Hong, “Faster Segment Anything: Towards lightweight SAM for mobile applications,” arXiv preprint arXiv:2306.14289 , 2023. [20] L. Schmid, M. Abate, Y. Chang, and L. Carlone, “Khronos: A Unified Approach for Spatio-Temporal Metric-Semantic SLAM in Dynamic Environments,” in Proceedings of Robotics: Science and Systems ,Delft, Netherlands, July 2024. [21] M. Oquab, T. Darcet, T. Moutakanni, H. V. Vo, M. Szafraniec, V. Khalidov, P. Fernandez, D. Haziza, F. Massa, A. El-Nouby, M. As-sran, N. Ballas, W. Galuba, R. Howes, P. Huang, S. Li, I. Misra, M. Rabbat, V. Sharma, G. Synnaeve, H. Xu, H. J´ egou, J. Mairal, P. Labatut, A. Joulin, and P. Bojanowski, “DINOv2: Learning robust visual features without supervision,” Trans. Mach. Learn. Res. , vol. 2024, 2024. [22] M. Macklin, “Warp: A High-performance Python Framework for GPU Simulation and Graphics,” 3 2022, nVIDIA GPU Technology Conference (GTC). [Online]. Available: https://github.com/NVIDIA/ warp [23] C. Kassab, M. Mattamala, S. Morin, M. B¨ uchner, A. Valada, L. Paull, and M. F. Fallon, “The bare necessities: Designing simple, effective open-vocabulary scene graphs,” arXiv preprint arXiv:2412.01539 ,2024. [24] J. Straub, T. Whelan, L. Ma, Y. Chen, E. Wijmans, S. Green, J. J. Engel, R. Mur-Artal, C. Ren, S. Verma, et al. , “The replica dataset: A digital replica of indoor spaces,” arXiv preprint arXiv:1906.05797 ,2019. [25] A. Dai, A. X. Chang, M. Savva, M. Halber, T. Funkhouser, and M. Nießner, “Scannet: Richly-annotated 3d reconstructions of indoor scenes,” in Proc. Computer Vision and Pattern Recognition (CVPR), IEEE , 2017. [26] K. Yamazaki, T. Hanyu, K. Vo, T. Pham, M. Tran, G. Doretto, A. Nguyen, and N. Le, “Open-Fusion: Real-time open-vocabulary 3D mapping and queryable scene representation,” in 2024 IEEE International Conference on Robotics and Automation (ICRA) . IEEE, 2024, pp. 9411–9417. [27] A. Takmaz, E. Fedele, R. W. Sumner, M. Pollefeys, F. Tombari, and F. Engelmann, “Openmask3d: open-vocabulary 3d instance segmenta-tion,” in Proceedings of the 37th International Conference on Neural Information Processing Systems , 2023, pp. 68 367–68 390. [28] G. Ilharco, M. Wortsman, N. Carlini, R. Taori, A. Dave, V. Shankar, H. Namkoong, J. Miller, H. Hajishirzi, A. Farhadi, and L. Schmidt, “OpenCLIP,” https://doi.org/10.5281/zenodo.5143773, 2021. [Online]. Available: https://github.com/mlfoundations/open clip [29] C. Schuhmann, R. Beaumont, R. Vencu, C. Gordon, R. Wightman, M. Cherti, T. Coombes, A. Katta, C. Mullis, M. Wortsman, et al. ,“LAION-5B: An open large-scale dataset for training next generation image-text models,” Advances in Neural Information Processing Sys-tems , vol. 35, pp. 25 278–25 294, 2022. [30] X. Zou, J. Yang, H. Zhang, F. Li, L. Li, J. Wang, L. Wang, J. Gao, and Y. J. Lee, “Segment everything everywhere all at once,” Advances in neural information processing systems , vol. 36, pp. 19 769–19 782, 2023. [31] C. Huang, O. Mees, A. Zeng, and W. Burgard, “Visual language maps for robot navigation,” in 2023 IEEE International Conference on Robotics and Automation (ICRA) . IEEE, 2023, pp. 10 608–10 615. [32] K. Yadav, R. Ramrakhya, S. K. Ramakrishnan, T. Gervet, J. Turner, A. Gokaslan, N. Maestre, A. X. Chang, D. Batra, M. Savva, A. W. Clegg, and D. S. Chaplot, “Habitat-matterport 3d semantics dataset,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , June 2023, pp. 4927–4936. [33] M. Savva, A. Kadian, O. Maksymets, Y. Zhao, E. Wijmans, B. Jain, J. Straub, J. Liu, V. Koltun, J. Malik, et al. , “Habitat: A platform for embodied AI research,” in Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV) , 2019, pp. 9339–9347. [34] N. Hughes, Y. Chang, and L. Carlone, “Hydra: A real-time spatial perception system for 3D scene graph construction and optimization,” in Robotics: Science and Systems (RSS) , 2022, p. Article 50. [35] A. Mock, T. Wiemann, and J. Hertzberg, “Rmagine: 3d range sensor simulation in polygonal maps via ray tracing for embedded hardware on mobile robots,” in IEEE International Conference on Robotics and Automation (ICRA) , 2023. [36] Y. Fang, Q. Sun, X. Wang, T. Huang, X. Wang, and Y. Cao, “Eva-02: A visual representation for neon genesis,” Image and Vision Computing ,vol. 149, p. 105171, 2024.

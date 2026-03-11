@@ -1,0 +1,972 @@
+Title: Crab$^{+}$: A Scalable and Unified Audio-Visual Scene Understanding Model with Explicit Cooperation
+
+URL Source: https://arxiv.org/pdf/2603.04128v1
+
+Published Time: Thu, 05 Mar 2026 02:18:34 GMT
+
+Number of Pages: 17
+
+Markdown Content:
+2026-03-05 
+
+# Crab +: A Scalable and Unified Audio-Visual Scene Understanding Model with Explicit Cooperation 
+
+Dongnuan Cai 1,2,∗, Henghui Du 1,3,∗, Chang Zhou 3, Xi Chen 3, Dan Guo 4,
+
+Hongyuan Zhang 5, Xuelong Li 2, Di Hu 1,B
+
+> 1
+
+Gaoling School of Artificial Intelligence, Renmin University of China , 2Institute of Artificial Intelligence of China Telecom (TeleAI) , 3AI Technology Center, Online Video Business Unit, Tencent PCG , 4Hefei University of Technology , 5The University of Hong Kong 
+
+> ∗
+
+Equal Contributions , B Corresponding author 
+
+Abstract 
+
+Developing Audio-Visual Large Language Models (AV-LLMs) for unified scene understanding is a pivotal pursuit in multimodal intelligence. While instruction tuning enables pre-trained models with multi-task abilities, we observe that conventional multi-task unification methods often suffer from severe negative transfer, where nearly 55% of tasks degrade compared to single-task training. We attribute this phenomenon to audio-visual task heterogeneity, characterized by disparate task granularity and divergent capability demands, which lead to negative interference under joint training. To tackle this, we present Crab +, a scalable and unified audio-visual scene understanding model that addresses task heterogeneity through 
+
+explicit cooperation from both data and model perspectives. From the data perspective , we introduce AV-UIE v2, a comprehensive Audio-Visual Unified Instruction-tuning dataset with Explicit reasoning processes. It contains approximately 222K samples spanning 17 datasets and 7 tasks, enabling the model to uncover task-specific interactions and capture cross-task relationships at different levels of granularity. From the model perspective , we design a unified input-output interface to align heterogeneous task formulations. To resolve divergent capability demands, we propose Interaction-aware LoRA (I-LoRA), which explicitly models inter-task relationships via dynamic routing to coordinate distinct audio-visual interaction patterns, thereby mitigating parameter interference. Extensive experiments demonstrate that Crab + covers a broader range of tasks than existing unified models while outperforming specialized models on various benchmarks. We successfully reverse the negative transfer trend, achieving positive transfer where multi-task learning surpasses single-task baselines in nearly 88% of tasks. These results are consistently observed across diverse AV-LLM paradigms and validated through in-depth visualization, suggesting Crab + serves as a robust step towards holistic audio-visual scene understanding.  
+
+> Email:
+
+Dongnuan Cai at dongnuancai@ruc.edu.com , Di Hu at dihu@ruc.edu.com  
+
+> Code:
+
+https://github.com/GeWu-Lab/Crab_Plus 
+
+1 Introduction 
+
+Humans possess an inherent ability to use visual and au-ditory information to perform daily activities in a unified manner. For instance, humans can identify actions by integrating visual and auditory cues, localize events in space and time by fusing these modalities, and perform reasoning over complex audio-visual information to an-swer specific questions. From a cognitive science per-spective, this unified capability facilitates transfer across related tasks, thereby promoting inter-task cooperation [ 1]. Equipping machines with similar capabilities to process audio-visual data is thus crucial to the development of multimodal intelligence. 1  
+
+> arXiv:2603.04128v1 [cs.CV] 4 Mar 2026 CREMA-D
+> AVQA
+> MUSIC
+> UCF51
+> MAFW
+> MELD
+> KS S4
+> AVVP
+> MS3
+> ARIG
+> DFEW
+> A2V
+> AVE
+> Seen
+> Unseen
+> V2A
+> Difference (Multi - Single)  LLaMA2-based: Multi vs. Single-Task Difference
+> 53% 47%
+> Proportions
+> Worse
+> Better
+> MUSIC
+> AVVP
+> MAFW
+> AVQA
+> CREMA-D
+> V2A
+> KS
+> AVE
+> MS3
+> UCF51
+> MELD S4
+> A2V
+> ARIG
+> DFEW
+> Unseen
+> Seen
+> Difference (Multi - Single)  Qwen2.5-Omni: Multi vs. Single-Task Difference
+> 59%
+> 41%
+> Proportions
+> Worse
+> Better Figure 1
+
+Multi-task vs. single-task LoRA on customized LLaMA2 and Qwen2.5-Omni. Green and red cells highlight tasks with performance gains and drops, respectively, under multi-task learning. 
+
+Recent advancements in foundation models have shifted the paradigm from task-specific systems to general-purpose architectures. In Natural Language Processing (NLP), Large Language Models (LLMs) unify diverse tex-tual tasks under a single architectural framework. Inspired by the multimodal nature of the real world, Audio-Visual Large Language Models (AV-LLMs) extend the LLM framework to perform a wide range of complex audio-visual scene understanding tasks within a unified architec-ture. Building such models typically involves a two-stage training strategy: pre-training to align multimodal features with the LLM’s semantic space, followed by instruction tuning to equip the model with multi-task capabilities. In the second stage, most existing approaches [ 2 , 3] apply direct instruction tuning to enable AV-LLMs to perform a variety of audio-visual tasks. However, given the inher-ent complexity of audio-visual tasks, it remains unclear whether such straightforward instruction tuning is suffi-cient to realize the potential of unified learning. To investigate this, we follow prior work [ 2, 3] and bench-mark two representative AV-LLMs (a LLaMA2-based model [ 4 ] and Qwen2.5-Omni [ 5 ]) via LoRA fine-tuning on standard instruction–response supervision, which con-sists of independently annotated instruction–output pairs, covering 7 diverse audio-visual tasks across 17 datasets. While multi-task learning aims to leverage inter-task syn-ergies, our empirical results reveal a counter-intuitive phe-nomenon: naïve task unification performs worse than single-task training in nearly 56% of the evaluated settings (Figure 1). We attribute this performance degradation to two fundamental bottlenecks arising from inherent task heterogeneity. First , disparate granularity of audio-visual tasks hinders effective cooperation under unified learning. These tasks operate at different levels of task granularity. For example, low-level grounding tasks involve aligning and modeling audio-visual information across temporal and spatial dimensions. Conversely, high-level reason-ing tasks require a causal understanding of semantics, affect, and action based on spatio-temporal inputs. Di-rect instruction tuning fails to bridge these differences without intermediate representations. Consequently, this gap impedes effective cooperation between tasks. Sec-ond , divergent audio-visual capability demands may lead to parameter interference during optimization. Different tasks impose distinct requirements on the models. Tem-poral localization tasks demand perception and alignment capabilities over time. Spatial localization tasks necessi-tate modeling the correspondence between audio signals and visual information at both the region and pixel levels. Furthermore, spatio-temporal reasoning tasks require the model to handle semantic reasoning within complex con-texts. Existing parameter-efficient adaptation methods [ 6]typically rely on static and shared adaptation schemes, which lack the flexibility to accommodate such divergent interaction patterns, often resulting in negative transfer under joint optimization. To address these limitations, we introduce Crab +, a scal-able and unified audio-visual scene understanding model that tackles task heterogeneity through explicit coopera-tion from both data and model perspectives. From the data perspective , we construct AV-UIE v2, a large-scale Audio-
+
+> V
+
+isual Unified Instruction tuning dataset with Explicit rea-soning processes, scaled up to approximately 222K sam-ples spanning 7 tasks and 17 datasets. Instead of naïvely aggregating data, we use explicit reasoning processes as an intermediate supervision-level representation to reduce semantic inconsistency arising from differences in task granularity. From the model perspective , we develop a unified input-output interface by formulating all task targets as sequences, mapping diverse task-specific out-puts into a unified sequence representation. To alleviate parameter interference induced by divergent capability demands, we further propose Interaction-aware LoRA (I-LoRA). This module extends conventional static adap-tation by employing a dynamic routing mechanism to explicitly model complex inter-task relationships. By us-ing a learnable router to adaptively route input tokens to appropriate LoRA heads, I-LoRA decouples conflict-ing audio-visual interaction patterns, thereby satisfying distinct task requirements and enabling effective unified learning. As illustrated in Fig. 2, Crab + supports the exe-cution of diverse audio-visual scene understanding tasks within a single unified model, while effectively captures 2Audio -visual scene understanding task: 
+
+AVQA /AVE /AVVP /AVS /ARIG /Ref -AVS /ER /AR /A2V /V2A ... 
+
+Crab + Audio -Visual Question Answering:  Is the instrument                                      
+
+> on the left louder than the instrument on the right?
+> There are three people ... The man on the left is playing the piano ... From the
+> beginning to the end of the video , they all played ... So the answer is no.
+> In the audio ... sound of chopping wood. In the two videos , a
+> person ... in the first video and a person ... in the second video ...
+> Audio -Visual Cross -modal Matching: Please listen to the audio
+> and indicate which of the two videos matches what you hear.
+> Audio -Visual Event Localization and Parsing: Please
+> describe the events and time range that occurred in the video.
+> The video shows a church . .. the bell ringing can be heard ... from 0 to 10 seconds .
+> In the video, a young child ... pushes a toy lawnmower across a lawn ...
+> Audio -Visual Action Recognition: Please identify the action taking place in the video.
+> Audio -Visual Emotion Recognition: Please judge the person's emotion at the moment.
+> In the video, a man ... with a relaxed, open expression. A gentle smile plays on
+> his lips, and his eyes are bright and engaged ... he feels happy at this moment ...
+> Audio -Visual Captioning: Please describe this video and audio.
+> In the video , a man is sitting ... pleasant sound of his performance can be heard.
+> Audio -Visual Localization: Please identify the category of the object
+> producing the sound in the video frame. Then, provide the bounding box and
+> three pixel points of the object that is making the sound within the frame.
+> The object ... Its bounding box is [85,26,151,222]. The three
+> pixel points ... are [118,135], [115, 105] and [112,167].
+
+(a)  (b) Figure 2 Overview of Crab +. (a) Scalable and unified architecture capable of addressing diverse audio-visual scene understanding tasks. (b) Explicit cooperation that captures complex cross-task dependencies to improve overall performance. 
+
+the inter-task dependencies to foster cooperation. Overall, this work substantially extends our preliminary conference version [ 7] in terms of data construction, model architecture, and experiment analysis. From a data perspective, we have significantly expanded the cover-age of audio-visual scene understanding by upgrading AV-UIE to AV-UIE v2. This upgrade scales the number of source datasets from 8 to 17 and broadens the scope of tasks from 4 to 7, incorporating new tasks such as audio-visual emotion recognition, action recognition, and cross-modal matching. These additions allow the model to accommodate a wider spectrum of complex audio-visual scenarios. From the model perspective, we refine the unified input-output interface to incorporate pixel-level perception alongside semantic understanding. This design obviates the need for disjoint optimization of separate modules, establishing a streamlined and unified single-stage training pipeline. In terms of experiment analy-sis, we not only benchmark the performance of Crab +
+
+but also apply our method across three representative AV-LLM construction paradigms to assess its generaliz-ability: LLMs equipped with visual and audio branches (LLM+V+A), Vision-LLMs enriched with audio capabil-ities (V-LLM+A), and native AV-LLMs. Extensive visu-alization and empirical analysis further substantiate the effectiveness of our approach in fostering inter-task syn-ergy. Our main contributions are summarized as follows: • We propose Crab +, a scalable and unified audio-visual scene understanding model that tackles task heterogeneity through explicit coopera-tion, thereby facilitating positive transfer across heterogeneous tasks. • We introduce AV-UIE v2, a large-scale dataset comprising nearly 222K samples spanning 7 tasks and 17 datasets. It uses explicit reasoning processes as an intermediate supervision-level representation to reduce semantic inconsistency arising from differences in task granularity. • We design a unified input-output interface to standardize task execution, coupled with Interaction-aware LoRA (I-LoRA) to alleviate parameter interference. Using dynamic routing, I-LoRA decouples conflicting audio-visual interaction patterns to satisfy distinct task requirements. 
+
+2 Related Works 
+
+2.1 Audio-Visual Scene Understanding 
+
+Audio-visual scene understanding achieves a comprehen-sive perception of the environment by integrating audi-tory and visual modalities [ 8– 10 ]. This field encom-passes diverse tasks, including basic recognition such as audio-visual action recognition [ 11 ], fine-grained per-ception including temporal localization [ 12 , 13 ] and seg-mentation [ 14 , 15 ], as well as complex reasoning like 3audio-visual question answering [ 16 , 17 ]. Traditional research has predominantly relied on task-specific archi-tectures. Specialized modules, such as audio-guided at-tention mechanisms [ 12 ] and hierarchical spatio-temporal networks [ 17 ], are designed to model cross-modal corre-lations for task-specific objectives. While effective within specific task boundaries, these models exhibit limited generalization across tasks. Recently, the emergence of AV-LLMs [ 3 , 18 ] has marked a significant transition from specialized experts to unified generalists. By leveraging the rich semantic priors of LLMs and aligning multimodal features into a unified semantic space, these models en-able more general-purpose audio-visual understanding within a single framework. However, equipping AV-LLMs with multi-task capabilities via instruction tuning intro-duces significant challenges, particularly the bottleneck of negative transfer stemming from audio-visual task het-erogeneity. Distinct from existing methods that overlook such interference, our work investigates the root causes of task heterogeneity and mitigates this bottleneck through explicit cooperation between data and model perspectives. 
+
+2.2 Unified Learning Paradigm 
+
+The pursuit of Artificial General Intelligence (AGI) has driven a shift in machine learning from specialized mod-els toward unified frameworks. Rather than tailoring ar-chitectures to specific tasks, recent research increasingly emphasizes foundation models with broad generalization capabilities. This section reviews the evolution of this paradigm from the perspectives of architectural unifica-tion and multimodal integration. 
+
+> Unified Architecture
+
+. Historically, neural architectures were designed with strong inductive biases tailored to spe-cific data structures: CNNs for grid-structured data and RNNs for sequential dependencies. The emergence of the Transformer [ 19 ] marked a shift toward architectural unification by introducing a shared attention-based mech-anism. By representing diverse inputs as token sequences, this architecture largely decouples network design from task-specific constraints. Building on this, recent advance-ments have adopted this framework, often initialized from LLMs, as a general-purpose backbone [ 20 ]. This univer-sality facilitates a scalable approach to general-purpose modeling, allowing a single architecture to adapt to di-verse downstream tasks. 
+
+> Unified Modality
+
+. Parallel to architectural convergence, machine perception has evolved from isolated unimodal analysis toward integrated multimodal understanding. A pivotal advancement occurred with vision-language pre-training, where contrastive frameworks like CLIP [ 21 ] and ALIGN [ 22 ] aligned visual and textual representations into a shared semantic space. Building on these founda-tions, Multimodal Large Language Models (MLLMs) [ 23 ,24 ] have further integrated visual information into LLMs, equipping models with comprehensive multimodal un-derstanding capabilities. Current research is extending beyond the vision-language boundary to encompass au-ditory signals. Through the simultaneous integration of audio, visual, and linguistic modalities, these approaches endeavor to construct unified interfaces capable of seam-lessly perceiving and analyzing complex environments. While the unified learning paradigm provides a promising foundation for general-purpose intelligence, its applica-tion to audio-visual scenarios is challenged by negative interference induced by task heterogeneity. Motivated by this, we focus on mitigating such interference within a unified framework by explicitly addressing heterogeneity at both the data and model levels, enabling more robust audio-visual scene understanding. 
+
+3 The AV-UIE v2 Dataset 
+
+As analyzed in Section 1, diverse audio-visual tasks vary significantly in granularity. Existing audio-visual datasets mostly lack a suitable intermediate representation to bridge these tasks, which limits their ability to facilitate inter-task synergy under unified learning effectively. To alleviate this, we introduce AV-UIE v2, an Audio-Visual Unified Instruction-tuning dataset with Explicit reason-ing processes. AV-UIE is an instruction tuning dataset covering diverse audio-visual scene understanding tasks and scenarios. By utilizing explicit reasoning processes as intermediate representations, AV-UIE establishes reason-able connections across different tasks, thereby facilitating unified learning. The preliminary version of this dataset was introduced in our conference paper [7]. In this work, we present AV-UIE v2, which significantly expands both the scale and diversity of the dataset by increasing the number of source datasets from 8 to 17 and extending the task scope from 4 to 7. New tasks include emotion recog-nition, action recognition, and a cross-modal matching subset derived from VGGSound [ 25 ]. We detail the over-all construction pipeline and provide statistical analysis in the following sections. 
+
+3.1 Dataset Construction 
+
+We construct our dataset by integrating diverse existing audio-visual sources. To address the inconsistent task granularity across these datasets, we convert the original annotations into detailed textual descriptions containing explicit reasoning processes. This serves as a unified rep-resentation to establish connections between diverse tasks. As shown in Figure 3 (a), each data sample combines the raw video and audio, the ground-truth label, and a 4KS 9% 
+
+UCF51 2% 
+
+MELD 5% 
+
+MAFW 3% 
+
+DFEW 4% 
+
+MER2024 2% 
+
+CREMA -D 3% 
+
+VGG -CM 5% 
+
+UnAV -100 2% 
+
+AVE 1% 
+
+LLP 4% 
+
+ARIG 2% AVS 2% 
+
+Ref -AVS 
+
+14% 
+
+AVCap 
+
+MUSIC -
+
+AVQA 
+
+14% 
+
+AVQA 
+
+18% 
+
+AV -UIE 
+
+v2 
+
+> 33%
+> 9%
+> 18%
+> 7%
+> 5%
+> 17%
+> 11%
+> AV Question Answering
+> AV Captioning
+> AV Localization
+> AV Event Localization and Parsing
+> AV Cross-modal Matching
+> AV Emotion Recognition
+> AV Action Recognition
+
+Quesion : Which is 
+
+the musical 
+
+instrument that 
+
+sounds at the same 
+
+time as the flute? 
+
+Answer: Violin 
+
+In this video, two girls are playing musical 
+
+instruments. The girl on the left is playing the flute, 
+
+and the girl on the right is playing the violin. From 
+
+the beginning to the end of the video, they play the 
+
+flute and violin together. So the musical instrument 
+
+that sounds at the same time as the flute is the violin. 
+
+So the answer is <answer> violin </answer>. 
+
+I will provide you with a video of musical instruments performance, 
+
+a question, and the answer to the question. Please describe the 
+
+content of the video and then provide a reasonable reasoning 
+
+process based on the question and answer. Here are three examples: 
+
+Question: Is the flute on the left louder than the piano on the right? 
+
+Answer: yes 
+
+Reasoning process: In the video, two girls are sitting together 
+
+playing musical instruments. The girl on the left is playing the flute, 
+
+and the girl on the right is playing the piano. They are playing from 
+
+the beginning to the end of the video. From the sound, we can judge 
+
+that the sound of the flute is louder than that of the piano. So the 
+
+answer is <answer> yes </answer>. 
+
+[... ] 
+
+> Error
+> Collection
+> Human
+> Correction
+> (a) (b)
+
+Figure 3 Overview of AV-UIE v2 dataset. (a) Construction pipeline. We leverage MLLMs to augment raw data and simple labels with explicit reasoning processes. (b) Statistical distribution. The dataset integrates a comprehensive collection of source data from 17 datasets, covering 7 distinct scene understanding tasks. 
+
+Table 1 Data composition of the AV-UIE v2 dataset, organized by task complexity from basic recognition to complex reasoning.                                          
+
+> Audio-Visual Task Source Dataset Domain Samples (K)
+> Action Recognition Kinetics-Sounds [26] Human Actions 20.1 UCF51 [27] Human Actions 4.5 Emotion Recognition MELD [28] Conversations 11.0 MAFW [29] Movies & TV 6.4 DFEW [30] Movies & TV 9.3 MER2024 [31] Movies & TV 4.8 CREMA-D [32] Studio Speech 6.6 Cross-modal Matching VGG-CM [25] Open-domain 10.3 Event Localization and Parsing UnAV-100 [33] Open-domain 4.9 AVE [12] Open-domain 3.3 LLP [13] Open-domain 9.9 Localization ARIG [14] Open-domain 3.4 AVS [14] Open-domain 4.0 Ref-AVS [15] Open-domain 30.7 Captioning AVCap [34] Open-domain 20.7 Question Answering MUSIC-AVQA [17] Musical 31.9 AVQA [16] Open-domain 40.2
+
+task-specific prompt. We utilize Gemini 1.5 Pro [ 35 ] via in-context learning to generate the reasoning processes. To ensure data quality, we implement a two-step verifi-cation process. First, we require the generated reasoning to logically conclude with the original ground-truth label. Samples that fail this consistency check are automatically discarded. Second, we perform a manual human review on a random subset of the valid samples. For instance, as shown in Figure 3 (a), a sample simply labeled “vio-lin” (answering the question “Which musical instrument sounds at the same time as the flute?”) is expanded into a detailed sequence describing the acoustic characteristics and temporal synchronization of both instruments. We follow this pipeline to process multiple exist-ing datasets. These include MUSIC-AVQA [ 17 ], AVQA [ 16 ], AVE [ 12 ], UnAV-100 [ 33 ], LLP [ 13 ], MELD [28], CREMA-D [32], MAFW [29], DFEW [30], MER2024 [31 ], Kinetics-Sounds (KS) [ 26 , 36 ], UCF51 [ 27 ], and our proposed VGGSound Cross-modal Matching (VGG-CM) dataset. To address the lack of specific temporal intervals in the original LLP training data, we leverage the temporal reasoning capabilities of MLLMs to generate interval annotations. For AVS-Bench [ 14 ] and Ref-AVS [ 15 ], we format the output to support spatial localization and segmentation tasks. For localization, we extract the bounding box from the object mask as [xlef t , y top , x right , y bottom ]. For segmentation, we build upon this by additionally sampling three points within the mask via preprocessing to guide pixel-level localization. Furthermore, we incorporate the audio-visual perception dataset proposed by VALOR [ 34 ]to enrich our formats. This process creates the AV-UIE v2 dataset under a rigorous quality control protocol. 
+
+3.2 Dataset Analysis 
+
+The AV-UIE v2 dataset contains approximately 222K sam-ples, each annotated with explicit reasoning processes to establish connections between diverse tasks. As detailed in Table 1 and visualized in Figure 3 (b), the data distribu-tion follows a hierarchical structure designed to evaluate the model’s capability on tasks of varying granularity. At the foundational level, basic recognition tasks constitute a substantial portion of the dataset, including action recog-nition (11%) and emotion recognition (17%). These tasks aim to identify human activities and affective states from 5Text        
+
+> Tokenizer
+> Visual
+> Encoder
+> Audio
+> Encoder
+> Audio -Language
+> Connector
+> Visual -Language
+> Connector
+> LLM Interation -
+> aware LoRA
+> Textual
+> Instruction
+> Audio Video Text
+> Prompt
+> Encoder
+> Vision
+> Encoder
+> Decoder
+> Segmentation
+> Spatial Prompt
+> {bbox , points}
+> Output
+> A man is sitting on a
+> folding chair playing
+> a classical guitar... Trainable Frozen Architecture -Adaptive: Frozen or trainable
+> depending on backbone characteristics
+> Seg.
+> Module
+
+Figure 4 Our unified input-output interface comprises a visual branch, an audio branch, a LLM backbone, and a segmentation module, trained on the AV-UIE v2 dataset with interaction-aware LoRA. 
+
+multimodal inputs (e.g., Kinetics-Sounds and MELD). Building on this foundation, the dataset incorporates fine-grained spatio-temporal perception tasks that require pre-cise cross-modal alignment. This includes cross-modal matching (5%), event localization and parsing (7%), and localization (18%). In these settings, models are required to ground audio cues within corresponding spatial or tem-poral visual contexts (e.g., Ref-AVS). At the highest level, complex reasoning tasks account for the largest share of the dataset. This level comprises captioning (9%) and question answering (33%). Such tasks demand the inte-gration of multimodal information to generate semantic descriptions or answer challenging queries (e.g., MUSIC-AVQA and AVQA). 
+
+4 Method 
+
+To address the limitations discussed in Section 1, we present a unified model that standardizes task formulations via a consistent input-output interface, integrating Interaction-aware LoRA (I-LoRA) to mitigate inter-task interference. This methodology is designed to be architecture-agnostic. We primarily implement our method on the native AV-LLM paradigm (Crab +) to test the performance upper bound, benefiting from its joint pre-training for strong cross-modal alignment. To further demonstrate the generalizability of our approach, we also extend it to composite paradigms (i.e., LLM+V+A and V-LLM+A). The following subsections detail the unified interface, architectural instantiations, and the I-LoRA mechanism. 
+
+4.1 Unified Input-output Interface 
+
+To bridge the gap between diverse levels of task gran-ularity, we design a unified interface to cast all task targets as sequences, as shown in Figure 4, enabling a streamlined single-stage training pipeline and avoiding disjoint optimization. 
+
+Visual Branch. The visual branch consists of a pre-trained visual encoder EV (·) and a connector ψV (·),which projects visual features into the LLM’s embed-ding space. Given a sequence of Tv video frames V =
+
+{Ii ∈ RH×W ×C }Tv
+
+> i=1
+
+, where H, W , and C denote the height, width, and number of channels, respectively, each frame is partitioned into Nv = H×WP 2 non-overlapping patches. These patches are linearly mapped into a Dv -dimensional embedding space, yielding patch-level fea-tures f iv ∈ RNv ×Dv for the i-th frame. The aggregated visual representation is denoted as Fv = {f iv }Tv
+
+> i=1
+
+. The connector ψV (·) then transforms and flattens these fea-tures to match the input dimension of the LLM, producing the final visual tokens Hv ∈ RLv ×h, where Lv is the num-ber of visual tokens and h is the hidden size of the LLM. 
+
+Audio Branch. Analogously, the audio branch employs a pre-trained audio encoder EA(·) and a connector ψA(·) to align audio features with the language embeddings. Given a sequence of Ta audio segments A = {Si ∈ RLs }Ta
+
+> i=1
+
+,where Ls denotes the length of each segment, each seg-ment is mapped into a Da-dimensional embedding space, yielding segment-level features f ia ∈ RNa×Da for the i-th segment. The aggregated audio representation is denoted as Fa = {f ia}Ta
+
+> i=1
+
+. The connector ψA(·) then transforms and flattens these features to match the input dimension of the LLM, producing the final audio tokens Ha ∈ RLa×h,where La is the number of audio tokens and h is the hid-den size of the LLM. 
+
+Token Fusion and LLM Backbone. Following feature en-coding, the multimodal tokens are concatenated with text tokens derived from the tokenizer. This unified sequence is fed into the LLM backbone for joint autoregressive generation, enabling integrated reasoning across audio, visual, and textual modalities within a single language modeling interface. 
+
+Segmentation Module. Previous approaches[ 37 , 38 ] typ-ically incorporate segmentation into MLLMs via spe-cial tokens, often necessitating multi-stage training. In-spired by Seg-Zero[ 39 ], we adopt a decoupled reasoning-segmentation method by leveraging SAM2[ 40 ] as a frozen segmentation module, as illustrated in Figure 4. The MLLM predicts spatial prompts (e.g., bounding boxes and points), which are then used to query SAM2 for mask generation. This design effectively decouples mul-timodal grounding from segmentation, facilitating a uni-6fied single-stage architecture. Formally, given a training frame I ∈ RH×W ×3 and its ground-truth binary mask 
+
+M ∈ { 0, 1}H×W , we formulate the supervision target 
+
+Yseg . This target comprises the minimal enclosing bound-ing box b and a set of points derived via a geometry-based sampling strategy. We select the centers of the three largest inscribed circles within the mask region, al-lowing partial overlaps among the circles but enforcing a maximum Intersection over Union (IoU) constraint be-tween any pairs. These centers serve as point prompts 
+
+{p1, p 2, p 3}, yielding the supervision set: 
+
+Yseg = {b, p 1, p 2, p 3}. (1) During inference, given the image I, audio A, and instruction Xtext , the model predicts these spatial parameters directly: 
+
+(ˆb, ˆp1, ˆp2, ˆp3) = FMLLM (I, A, X text ), (2) where FMLLM (·) denotes the multimodal large language model. The predicted spatial prompts are then encoded by SAM2’s prompt encoder Eprompt (·) and combined with the image features from SAM2’s vision encoder Evision (·)
+
+via the mask decoder Dmask (·) to produce the final mask: 
+
+ˆM = Dmask 
+
+ Eprompt (ˆb, ˆp1, ˆp2, ˆp3), Evision (I). (3) Building on the aforementioned branches and mod-ules, our approach establishes a unified input-output interface that accepts audio-visual inputs alongside task-specific instructions, and generates corresponding task-oriented outputs. 
+
+4.2 Architectural Instantiations  
+
+> The Native AV-LLM Implementation.
+
+The primary instan-tiation of Crab + adopts the native AV-LLM paradigm, pre-trained on large-scale audio-visual data. We build upon Qwen2.5-Omni [ 5]. The visual branch utilizes the Qwen2.5-VL [ 41 ] backbone, a vision transformer with window attention for efficient spatial modeling, followed by a merger for token compression. The audio branch follows the Qwen2-Audio [ 42 ] architecture, employing a Whisper-Large-v3 [ 43 ] encoder connected via a linear projection layer.  
+
+> Extension to Composite Architectures.
+
+To evaluate the robustness of our method across diverse architec-tures, we apply it to composite paradigms where modal-ities are bridged via lightweight connectors. For the LLM+V+A setting, we utilize LLaMA2-7B-Chat [ 4] and LLaMA3-8B-Instruct [ 20 ] as text backbones, integrat-ing independent visual (CLIP-ViT-L/14 [ 21 ]) and audio (BEATs [ 44 ]) encoders. Each modality is aligned via a 𝑆ℎ𝑎𝑟𝑒 𝐴              
+
+> +
+> 𝐵 𝑛 𝐻𝑒𝑎𝑑 𝐵 𝑛 −1𝐻𝑒𝑎𝑑 𝐵 1𝐻𝑒𝑎𝑑 𝐵 2𝐻𝑒𝑎𝑑
+> Interaction -aware
+> Router 𝑅 Pre -trained
+> Weight 𝑊 𝑜
+> 𝐻
+> 𝐻 ′
+> Softmax
+> Linear
+> ...
+> Figure 5 Interaction-aware LoRA comprises a shared matrix A
+> and multiple Bmatrices, where inputs are dynamically routed to specific Bmatrices.
+
+Q-Former [ 23 ] followed by a two-layer MLP. This setup tests the method’s ability to coordinate loosely coupled modalities. Conversely, the V-LLM+A setting augments an existing vision-language model, Qwen2.5-VL [ 41 ], with an additional audio branch consisting of BEATs, a window-level Q-Former [ 45 ], and a subsequent two-layer MLP. A key difference lies in initialization: unlike the native model, which benefits from checkpoints with prior cross-modal alignment, these composite architec-tures combine independent encoders. Thus, they require an initial connector alignment stage before instruction tun-ing. By validating our approach on these variants along-side the native Crab +, we ensure the method is robust across different model construction paradigms. 
+
+4.3 Interaction-aware LoRA 
+
+LoRA [ 6] achieves parameter efficiency by decompos-ing weight updates into low-rank matrices. However, in multi-task learning, enforcing shared static parameters across diverse tasks limits flexibility. Heterogeneous task demands often induce parameter interference, resulting in negative transfer. While Multi-LoRA [ 46 ] addresses this by assigning disjoint adapters to individual tasks, such parameter isolation prevents the model from exploiting the shared representations inherent in audio-visual data. To overcome this, we propose Interaction-aware LoRA (I-LoRA), a dynamic adaptation module that balances shared knowledge with task-specific specialization. As shown in Figure 5, I-LoRA decomposes the weight update into a shared low-rank matrix A, a set of spe-cialized LoRA heads {Bi}ni=1 , and an interaction-aware router R. This design is based on the insight that diverse audio-visual tasks share a common perceptual foundation. We thus explicitly encode this general capability within the shared matrix A, ensuring parameter efficiency and knowledge sharing. To accommodate the divergent interaction patterns required by different tasks, the router 
+
+R and multiple B heads operate cooperatively to decouple 7task-specific adaptation from shared representations. Unlike rigid task-specific assignment, I-LoRA employs a token-level soft routing strategy. It dynamically synthesizes weights to meet the semantic requirements of each token, minimizing parameter interference within the unified model. Formally, the input H is constructed by concatenat-ing the visual tokens Hv ∈ RLv ×h, audio tokens 
+
+Ha ∈ RLa×h, and text tokens Ht ∈ RLt×h along the sequence dimension: 
+
+H = [ Hv ; Ha; Ht ] ∈ RL×h, (4) where L = Lv + La + Lt is the total sequence length. Within the LLM backbone, I-LoRA is applied to the frozen linear transformation W0 ∈ Rd×h. The architec-ture employs a shared low-rank matrix A ∈ Rr×h for the initial down-projection. The interaction-aware router, parameterized by Wr ∈ Rn×r , utilizes the projected features HA ⊤ to compute routing scores: 
+
+S = softmax(( HA ⊤)W ⊤ 
+
+> r
+
+) ∈ RL×n, (5) where St,i represents the routing weight of the t-th token for the i-th head. The update ∆H aggregates outputs from n heads {Bi ∈ Rd×r }ni=1 , weighted by their respective routing scores: 
+
+∆H =
+
+> n
+
+X
+
+> i=1
+
+diag( S:,i )( HA ⊤B⊤ 
+
+> i
+
+), (6) where diag( S:,i ) ∈ RL×L applies token-wise gating. Finally, the output of the I-LoRA-augmented layer is: 
+
+H′ = HW ⊤ 
+
+> 0
+
++ ∆ H, (7) where H′ ∈ RL×d is the updated hidden representation. We present a unified interface that standardizes tasks across three AV-LLM paradigms into a single-stage pipeline, trained under the standard next-token prediction objective of LLMs. With the I-LoRA module, we manage the trade-off between shared and specific parameters ef-fectively. This method reconciles the conflicts caused by task heterogeneity, unlocking synergy for unified learning in complex environments. 
+
+5 Experiments 
+
+This section presents a comprehensive evaluation of our method. We begin by defining the experiment setup, in-cluding the tasks, datasets, and metrics. We then detail the training strategies for various AV-LLM architectures alongside their implementation. Our analysis starts by benchmarking the approach against representative base-lines, covering both unified AV-LLMs and specialized non-LLM models. Following this, we compare single-task versus multi-task learning and visualize I-LoRA to sub-stantiate our design rationale. We also conduct extensive ablation studies to investigate the effectiveness of I-LoRA, the contribution of heads through dropping, and the sen-sitivity to the number of B-heads. We conclude with qualitative case studies to demonstrate the effectiveness of our method in handling complex audio-visual contexts. 
+
+5.1 Tasks, Datasets and Evaluation Metrics  
+
+> Audio-visual action recognition.
+
+This task aims to recognize human actions from audio-visual streams. Evaluations are performed on Kinetics-Sounds (KS)[26], covering 31 action classes, and UCF51, a 51-class subset of UCF101[ 27 ]. We adopt the official dataset split for KS and the first predefined split for UCF51, reporting Top-1 accuracy.  
+
+> Audio-visual emotion recognition.
+
+This task predicts expressed emotions from audio-visual inputs. We eval-uate on CREMA-D [ 32 ], MAFW [ 29 ], DFEW [ 30 ], MER2024 [ 31 ], and MELD [ 28 ]. CREMA-D contains acted emotional speech, while the other datasets consist of natural expressions from TV or film. We adhere to the split protocol of [59–61] for CREMA-D, the first official split for MAFW and DFEW, and the official division for MELD. MER2024 is trained on its “Train&Val” set. Fol-lowing established benchmarks, we report accuracy for CREMA-D, accuracy and Weighted F1 (WAF) for MELD, and UAR/WAR for the remaining datasets.  
+
+> Cross-modal matching.
+
+This binary classification task determines whether an audio clip and a video correspond to the same event. We evaluate our proposed VGGSound Cross-modal Matching (VGG-CM) benchmark and report accuracy.  
+
+> Audio-visual event localization and parsing.
+
+Event lo-calization determines the temporal boundaries of audio-visual events, while parsing classifies these events as ei-ther unimodal or multimodal. We adopt AVE [ 12 ] and UnAV-100 [ 33 ] for localization, and LLP [ 13 ] for parsing. The AVE dataset contains 4,143 10-second clips across 28 categories, whereas UnAV-100 covers 30,059 annotated events from 100 categories within untrimmed videos. LLP comprises 11,849 curated YouTube videos. Following standard protocols, we report localization accuracy on AVE and F1 scores at both the segment and event levels (IoU 0.5) on LLP. To mitigate the computational cost of UnAV-100’s long sequences, we train on a sampled subset of clips with stable temporal dynamics, thus maintaining event coherence even with reduced input data. 8Table 2 Performance comparison with unified audio-visual LLMs.                                                                                                                                                                                                                                                                                                                                                                                                                                              
+
+> Method MUSIC ACC AVQA ACC AVE ACC AVVP ARIG AVS Ref-AVS CRE ACC DFEW MAFW MELD KS ACC UCF51 ACC VGG-CM Segment-level Event-level IoU AUC S4 MS3 Seen Unseen WAR UAR WAR UAR ACC WAF A→VACC V→AACC
+> JFJFJFJF
+> TimeChat [47] –––51.28 ––––––––––––––––––––––MEERKAT [48] –––54.96 ––––––––––––––––––––––GroundingGPT [49] –––––44.02 45.00 –––––––––––––––––––AnyRef [50] –––––––82.80 90.80 55.60 66.30 –––––––––––––––SimToken [51] –––––––––––72.00 81.30 69.80 79.10 –––––––––––PandaGPT [3] 33.70 79.80 ––––––––––––––––––––––––MacawLLM [52] 31.80 78.70 ––––––––––––––––––––––––Video LLaMA [18] 36.60 81.00 ––––––––––––––35.75 †26.77 †––––––––Video LLaMA 2 [53] 73.60 –––––––––––––––––––––––––CAT+ [54] 86.40 92.60 ––––––––––––––––––––––––OMCAT [55] 73.80 90.20 ––––––––––––––––––––––––UIO-2 [56] ––––––––––––––––––––––89.30 –––VITA [57] ––––––––––––––––32.07 †21.36 †33.38 †14.05 †––––––Emotion-LLaMA [58] ––––––––––––––––77.06 †64.21 †––––––––Crab [7] 78.94 –80.15 59.00 54.44 41.78 42.00 73.25 86.81 58.21 66.24 40.54 58.00 45.55 63.00 –––––––––––Crab +81.09 92.16 83.58 59.47 55.79 79.62 79.60 75.75 86.94 52.64 64.27 65.45 72.68 68.98 74.41 84.41 64.34 55.83 45.60 32.40 52.08 51.14 91.12 94.04 74.50 76.97
+
+Note: The symbol – denotes that the task is not applicable or results are not reported. The symbol † identifies datasets containing multiple standard splits; we exclusively report results on the first split to accommodate the computational complexity of multi-task learning. 
+
+Audio-visual localization. This task aims to segment and localize sounding objects. We use AVSBench [ 14 ], which provides pixel-level masks for Single-Source (S4) and Multi-Source (MS3) settings. To evaluate reference grounding, we also include Ref-AVS with its Seen and Unseen subsets. Consistent with prior work, we take the first frame for S4 and uniformly sampled frames for MS3. Additionally, the S4 bounding boxes serve as annotations for Audio-Referred Image Grounding (ARIG). For Ref-AVS, representative frames are sampled from each 10-second clip. We report performance using the Jaccard index J and F-score F. For ARIG, we adopt Intersection-over-Union (IoU) and Area Under the Curve (AUC) as evaluation metrics. 
+
+Audio-visual captioning. This task generates natural-language descriptions that reflect audio-visual seman-tics. We use the subset of VALOR [ 34 ] to strengthen the model’s fundamental audio-visual perceptual capability. 
+
+Audio-visual question answering. This task entails in-ferring answers using joint acoustic and visual cues. We evaluate our method on MUSIC-AVQA [ 17 ], which com-prises musical scenes spanning 22 instrument categories, and AVQA [ 16 ], containing 57.3K QA pairs across 9 ques-tion types. We report accuracy based on the official splits. 
+
+5.2 Training Strategy 
+
+We tailor the training process to the specific architecture of each model. Since LLM+V+A and V-LLM+A lack inherent audio-visual priors, we train them in two stages: (1) modality-specific connector pre-training, followed by (2) audio-visual multi-task instruction tuning. The native AV-LLM, which already has basic audio-visual perception, proceeds directly to single-stage instruction tuning. 
+
+Stage 1: Modality-specific connector pre-training . For LLM+V+A, the visual connector is pre-trained on a dataset from VideoLLaVA [ 62 ], with all other parame-ters frozen, thereby establishing basic visual perception. For audio processing in both LLM+V+A and V-LLM+A, the audio connector is pre-trained on AudioSet [ 63 ]. Due to AudioSet’s coarse labels, we employ Qwen2Audio [ 42 ]to generate captions as supervision. Only audio connector parameters are updated. 
+
+Stage 2: Audio-visual multi-task instruction tuning . All three paradigms are fine-tuned on the AV-UIE v2 dataset. By default, only interaction-aware LoRA is optimized. For LLM+V+A, we additionally fine-tune audio and visual connectors to improve perceptual alignment. For V-LLM+A and native AV-LLM, connectors are frozen to maintain the cross-modal consistency of their pre-trained encoders. 
+
+5.3 Implementation Details 
+
+In the audio-visual emotion recognition task, we sam-ple four frames per video, given the short clip duration, whereas ten frames are used for all other tasks. All visual inputs are resized to 224 × 224 . Raw audio waveforms are resampled to 16 kHz. We set the number of learn-able tokens K to 32 for both visual and audio Q-Formers. For the window-level Q-Former, each 0.33-second audio segment maps to a single learnable token, resulting in 88 tokens for a 30-second clip. The segmentation model is initialized with pre-trained SAM2.1-Large weights [ 40 ]. We adjust the hyperparameters of the interaction-aware LoRA modules based on the experiment setup. To maxi-mize the capacity of the native AV-LLM in Crab +, we set the rank r = 128 , scaling factor α = 256 , and dropout rate to 0.10. For consistency with the analytical exper-iments in Section 1 (validating multitask effectiveness), we use r = 16 , α = 32 , and a dropout rate of 0.05. The LoRA B matrix employs 3 heads. 9Table 3 Comparison of methods on recognition tasks.                                                                                       
+
+> Method CREMA-D MELD DFEW MAFW KS UCF51
+> OGM-GE [59] 64.34 –––66.35 –MMPareto [64] 70.19 –––69.13 –CAL [65] 79.30 –––74.82 –DialogueRNN [66] –56.12 ––––DQ-Former [67] –64.88 ––––ACoSDN [68] –68.04 ––––DFER-CLIP [69] ––71.25 †52.59 †––VAEmo [70] ––75.78 †58.91 †––AVF-MAE++ [71] ––77.45 †60.24 †––AttenClus [72] ––––73.91 84.79 †
+> DMRN [12] ––––77.50 82.93 †
+> MAFnet [73] ––––83.94 86.72 †
+> Crab +84.41 52.08 64.34 45.60 91.12 94.04
+> Note: †denotes results averaged over all splits. Due to the computational complexity of multi-task learning, we use the first split for evaluation.
+
+Table 4 Comparison of methods on temporal localization tasks. 
+
+Method AVVP AVE Segment-level Event-level 
+
+AVT [74] – – 75.80 MM-Pyramid [75] 59.20 53.04 77.80 CMBS [76] 55.00 48.48 –DHHN [77] 60.32 55.06 –MoLT [78] – – 83.50 Crab + 59.47 55.79 83.58 
+
+Table 5 Comparison of methods on spatial localization tasks.      
+
+> Method ARIG S4 MS3 Seen Unseen
+
+LVS [79] 23.69 – – – –FNAC [80] 27.15 – – – –AVSBench [14] – 78.70 54.00 23.20 32.36 AVSegFormer [81] – 83.06 61.33 33.47 36.05 EEMC [15] – – – 34.20 49.54 SAM2-LOVE [82] – – – 43.50 66.50 Crab + 79.62 75.75 52.64 65.45 68.98 
+
+5.4 Results and Analysis 
+
+Comparison with Audio-Visual Unified Models. Table 2 presents a comparative analysis of our approach against existing unified AV-LLMs. In contrast to prior models re-stricted to limited task subsets, our model encompasses a wider array of audio-visual scenarios. Notably, Crab + rep-resents a substantial advancement over Crab, exhibiting a broader spectrum of task execution capabilities while achieving superior performance across the majority of benchmarks. Compared to other unified AV-LLMs, our method achieves superior performance on tasks such as AVE (83.58 vs. 80.15), AVVP (59.47 vs. 59.00), and KS (91.12 vs. 89.30). Furthermore, it yields competi-tive results on tasks including AVS, Ref-AVS, and DFEW. This demonstrates that our proposed method effectively balances task diversity with specific proficiency. 
+
+Comparison with Specialized Audio-Visual Models. Al-though our unified model is built for general audio-visual scene understanding, it remains highly effective against task-specific expert models. Regarding the recognition 
+
+Table 6 Comparison of methods on AVQA tasks.                                    
+
+> Method MUSIC-AVQA AVQA Audio Visual Audio-Visual Overall
+> ST-AVQA [17] 73.87 74.40 69.53 71.59 –PSTP-Net [83] 70.91 77.26 72.57 73.52 90.20 SaSR-Net [84] 73.56 73.28 74.66 74.21 89.90 QA-TIGER [85] 78.58 85.14 73.74 77.62 –HCRN+HAVF[86] ––––89.00 Crab +79.44 92.45 76.20 81.09 92.16
+
+tasks reported in Table 3, the results underscore the in-herent difficulty of multi-task integration. While a minor performance gap remains on several emotion recognition benchmarks, our model demonstrates solid performance on CREMA-D with a score of 84.41 and achieves superior results in action recognition, specifically 91.12 on KS and 94.04 on UCF51. For temporal localization, as shown in Table 4, our method remains highly competitive. It achieves an accuracy of 83.58 on the AVE dataset, slightly outperforming the previous best-performing approach. On the AVVP task, the model attains the highest event-level score of 55.79, while simultaneously maintaining compa-rable performance at the segment-level. The advantages of our model are most pronounced in spatial grounding tasks. Table 5 shows that our method achieves substantial improvements over dedicated baselines, surpassing prior methods by approximately +52.47 on ARIG and +21.95 on the Ref-AVS (Seen) subset. In addition, Crab + demon-strates strong performance on question answering tasks, as reported in Table 6. Benefiting from robust visual per-ception, it attains an overall accuracy of 81.09 on MUSIC-AVQA and 92.16 on the AVQA benchmark. Overall, these results suggest that the proposed unified model achieves performance comparable to task-specific methods. 
+
+Single-Task vs. Multi-Task. After validating the per-formance of Crab +, we further investigate the general-izability of our unified learning method across distinct AV-LLM construction paradigms (e.g., LLM+V+A and V-LLM+A). We conduct a comparative analysis of single-task and multi-task settings on the AV-UIE v2 dataset using I-LoRA. To ensure a fair comparison, we maintain consistent training configurations, varying only the data composition: single-task models are trained on individual datasets, while the multi-task model is trained on the com-prehensive dataset encompassing all tasks. As shown in Figure 6, under our unified learning method, AV-LLMs across different paradigms consistently outperform single-task baselines in the multi-task setting. Quantitatively, our approach achieves performance improvements in 94% of tasks, with only minor negative transfer observed in remaining tasks, resulting in a substantial net gain of 88%. This contrasts with the analysis in Section 1, where naïve multi-tasking (utilizing isolated instruction following with 10 0      
+
+> 50
+> 100
+> Accuracy
+> LLaMA2 (LLM+V+A)
+> 20
+> 10
+> 0
+> 10
+> 20
+> (Multi - Single)
+> +88%
+> 94%
+> 6%
+> Proportion
+> 0
+> 50
+> 100
+> Accuracy
+> LLaMA3 (LLM+V+A)
+> 20
+> 0
+> 20
+> (Multi - Single)
+> +88%
+> 94%
+> 6%
+> 0
+> 50
+> 100
+> Accuracy
+> Qwen2.5-VL (V-LLM+A)
+> 20
+> 0
+> 20
+> (Multi - Single)
+> +88%
+> 94%
+> 6%
+> MUSIC
+> AVQA
+> AVE
+> AVVP
+> ARIG
+> S4
+> MS3
+> Seen
+> Unseen
+> MELD
+> MAFW
+> DFEW
+> CREMA-D
+> Kinetics
+> UCF51
+> VGG-A2V
+> VGG-V2A
+> 0
+> 50
+> 100
+> Accuracy
+> Qwen2.5-Omni (native AV-LLM)
+> 20
+> 10
+> 0
+> 10
+> 20
+> (Multi - Single)
+> +88%
+> 94%
+> 6%
+> Improved Rate
+> Degraded Rate
+> Net Rate (%Imp %Deg)
+> Multi-Task (Ours) Single-Task (Baseline) Improved ( > 0 )Degraded ( < 0 )
+
+Figure 6 Comparative analysis of synergy in multi-task vs. single-task learning across three representative AV-LLM paradigms. For each model, we report the proportion of tasks exhibiting positive gains and the net score, defined as the difference between the percentage of tasks benefiting from multi-task learning and those suffering negative transfer. The results demonstrate that our method effectively mitigates task heterogeneity, promoting inter-task synergy. 
+
+LoRA) causes performance degradation in approximately 55% of tasks, leading to a negative net gain of -10%. By increasing the positive gain rate from 45% to 94% and improving the net gain from -10% to +88%, our results demonstrate that our method effectively mitigates task heterogeneity, thereby facilitating robust positive transfer and synergy among tasks. (a) head-B1 vs. head-B2 (Datasets) (b) head-B2 vs. head-B3 (Datasets)  
+
+> (c) head-B1 vs. head-B2 (Tasks) (d) head-B2 vs. head-B3 (Tasks)
+
+Figure 7 Visualization of router weights. Head pair compar-isons across (a)–(b) datasets and (c)–(d) tasks. Tasks sharing similar demands form distinct clusters, indicating capacity to clarify complex audio-visual patterns. 
+
+Visualization Analysis . To examine the internal adapt-ability of I-LoRA, we analyze router weights, activation distributions, and parameter similarities (Figures 7–9). Although I-LoRA adopts token-level soft routing rather than task-level hard routing, the router weights exhibit clear semantic clustering. Clusters emerge not only across datasets but also across tasks, such as spatial localiza-tion (e.g., ARIG and Ref-AVS), with datasets from the same task forming compact groups. This suggests that the router effectively captures task-specific semantics. We further analyze head-wise activation behaviors. Over-all, all heads maintain a relatively balanced activation across diverse inputs, with an average activation probabil-ity of approximately 0.3. Despite this balance, different heads exhibit distinct functional preferences: head-B1 focuses on spatial localization and emotion recognition, head-B2 emphasizes temporal localization, and head-B3 specializes in AVQA and cross-modal matching. To vali-date this functional differentiation, we compute pairwise similarities between flattened weight vectors of the three heads, averaged across all layers and LoRA modules. The mean similarity of 0.630 suggests partial parameter shar-ing alongside role specialization. Layer-wise analysis shows higher similarity in shallow layers and progres-sively lower similarity in deeper layers, indicating that task-specific differentiation becomes more pronounced with increasing network depth. 
+
+Ablation Study on LoRA. To verify the efficacy of I-LoRA, we benchmark it against the LoRA baseline. We adopt a unified multi-task training method on the AV-UIE 11 H1 H2 H3                                 
+
+> Heads
+> AVQA
+> AVQA_THU
+> AVE
+> AVVP
+> S4
+> MS3
+> ARIG
+> Ref
+> KS
+> UCF
+> CREMA-D
+> DFEW
+> MAFW
+> MELD
+> A2V
+> V2A
+> Tasks
+> 0.34 0.31 0.36
+> 0.33 0.32 0.35
+> 0.33 0.31 0.35
+> 0.33 0.31 0.36
+> 0.34 0.31 0.34
+> 0.34 0.31 0.34
+> 0.34 0.32 0.34
+> 0.34 0.32 0.34
+> 0.34 0.31 0.35
+> 0.33 0.32 0.35
+> 0.34 0.31 0.35
+> 0.34 0.30 0.35
+> 0.34 0.30 0.35
+> 0.34 0.31 0.36
+> 0.33 0.31 0.36
+> 0.33 0.31 0.36
+
+(a) Average router activation                                   
+
+> H1 H2 H3
+> Heads
+> -0.001 -0.004 0.005
+> -0.008 0.006 0.001
+> -0.006 0.003 0.004
+> -0.007 0.003 0.004
+> 0.005 0.002 -0.008
+> 0.006 0.002 -0.008
+> 0.004 0.005 -0.008
+> 0.005 0.004 -0.009
+> -0.000 0.001 -0.000
+> -0.002 0.004 -0.002
+> 0.004 -0.006 0.002
+> 0.005 -0.008 0.003
+> 0.005 -0.008 0.002
+> 0.002 -0.007 0.005
+> -0.005 0.001 0.005
+> -0.006 0.002 0.004
+
+(b) Relative preference 
+
+> 0.31
+> 0.32
+> 0.33
+> 0.34
+> 0.35
+> Activation
+> 0.008
+> 0.006
+> 0.004
+> 0.002
+> 0.000
+> 0.002
+> 0.004
+> 0.006
+> Relative Preference
+
+Figure 8 Router activation analysis. (a) Average activations show balanced contributions ( ≈ 0.3). (b) Relative patterns reveal task-specific head preferences. 0.0 0.2 0.4 0.6 0.8 1.0 
+
+Cosine Similarity 
+
+0
+
+10 
+
+20 
+
+30 
+
+40 
+
+50 
+
+> Count
+
+(a) Distribution of pairwise B-head similarities 
+
+Mean: 0.630 
+
+0 5 10 15 20 25 30 
+
+Transformer Layer Index 
+
+0.0 
+
+0.2 
+
+0.4 
+
+0.6 
+
+0.8 
+
+1.0 
+
+> Avg. Cosine Similarity
+
+(b) Similarities of B-heads across layers 
+
+q_proj 
+
+k_proj 
+
+v_proj 
+
+o_proj 
+
+gate_proj 
+
+up_proj 
+
+down_proj 
+
+Figure 9 Similarity analysis of routing matrices B. (a) Overall similarity (mean 0.630). (b) Layer-wise similarity, showing divergence in deeper layers. 
+
+Table 7 Results of dropping heads. 
+
+Method CREMA-D AVQA MUSIC AVVP KS ARIG A→V V→A
+
+drop head-1 74.06 86.57 71.11 51.91 91.01 40.22 68.14 66.15 drop head-2 72.37 85.30 71.55 54.65 91.57 43.94 67.01 67.83 drop head-3 71.76 84.34 69.80 39.72 90.76 44.40 67.88 67.14 
+
+no drop 74.12 86.92 74.73 59.77 92.21 45.78 68.81 69.28 0
+
+50 
+
+100 
+
+LLaMA2 Task Win Ratio (on 17 Datasets) 
+
+76% 24% Gap: +53% 
+
+0
+
+50 
+
+100 
+
+LLaMA3 Task Win Ratio (on 17 Datasets) 
+
+65% 35% Gap: +29% 
+
+0
+
+50 
+
+100 
+
+Qwen2.5-VL Task Win Ratio (on 17 Datasets) 
+
+71% 29% Gap: +41% 
+
+> MUSIC
+> AVQA
+> AVE
+> AVVP
+> ARIG
+> S4
+> MS3
+> Seen
+> Unseen
+> MELD
+> MAFW
+> DFEW
+> CREMA
+> KS
+> UCF
+> A V
+> V A
+
+0
+
+50 
+
+100 
+
+Qwen2.5-Omni Task Win Ratio (on 17 Datasets) 
+
+65% 35% Gap: +29% 
+
+> Performance Score
+
+I-LoRA (Ours) LoRA 
+
+Figure 10 Ablation results about LoRA. While LoRA shows gains on a subset of tasks, I-LoRA significantly increases the number of tasks with synergy. -5% 
+
+0
+
+5% LLaMA2 
+
+Baseline (Heads=3) Heads=4 Heads=5 
+
+1.6% 
+
+4.6% 
+
+-5% 
+
+0
+
+5% LLaMA3 
+
+1.8% 2.4% 
+
+-5% 
+
+0
+
+5% Qwen2.5-VL 
+
+4.2% 
+
+2.7% 
+
+> MUSIC
+> AVQA
+> AVE
+> AVVP
+> ARIG
+> S4
+> MS3
+> Seen
+> Unseen
+> MELD
+> MAFW
+> DFEW
+> CREMA
+> KS
+> UCF
+> A V
+> V A
+
+-5% 
+
+0
+
+5% Qwen2.5-Omni 
+
+1.6% 1.9% 
+
+Avg. |Change| 
+
+> Relative Perf. Change vs. Baseline
+
+Figure 11 Ablation on the number of B heads. Our method remains stable without significant fluctuations across this hyperparameter. 
+
+v2 dataset, aiming to mitigate the inherent task heterogene-ity in the data. As shown in Figure 10, the results indicate that joint training across tasks can already yield perfor-mance gains, as evidenced by LoRA achieving better re-sults on a limited subset of tasks. This observation reflects the inherent potential of multi-task learning. By explicitly addressing parameter interference through inter-task inter-action, I-LoRA further amplifies and stabilizes such posi-tive transfer, leading to superior performance on the major-ity of benchmarks. Across different model architectures, 12 Crab +: In the audio, someone is playing               
+
+> acoustic guitar. In the first video, a man
+> is playing acoustic guitar on the street.
+> In the second video, a cat is looking at a
+> laptop playing cat videos. Combined
+> with the audio content, the acoustic
+> guitar playing is a match. Therefore, the
+> video number that matches the audio is
+> <answer>first</answer>.
+> Crab +:In the video, a man with a beard is sitting
+> on a chair, playing an acoustic guitar. He plays the
+> guitar throughout the video. There is no other
+> instrument playing in the video. Therefore, only
+> one type of musical instrument sounds in the
+> video. So the answer is <answer> one </answer>.
+> User: Please listen to the audio and indicate which of
+> the two videos matches what you hear.
+> User: Please answer this question: How many types of musical instruments
+> sound in the video? Crab +:A man is sitting on a folding chair playing a
+> classical guitar. The sound of the acoustic guitar can be
+> heard from the beginning to the end of the video, that
+> is, from 0 seconds to 10 seconds. So the audible and
+> visible event in the video is <event> Acoustic guitar
+> </event>, and the time range is <range> 0,10 </range>.
+> User: Please describe the events and time range that occurred in the video.
+> Crab +:User: Please identify the
+> category of the object producing
+> the sound in the video frame.
+> Then, provide the bounding box
+> and three pixel points of the
+> object that is making the sound
+> within the frame.
+> Crab +:In the video, a man with a beard is sitting on a chair and
+> playing the guitar. His facial expression remains calm and his
+> gaze is directed towards the instrument. His posture is relaxed,
+> and his movements are minimal, suggesting he is focused on the
+> User: Please judge the person's emotion at the moment.
+> music. There are no obvious displays of
+> strong emotion. From his demeanor and lack
+> of expressive gestures, it is clear that he feels
+> neutral at this moment. So the person's
+> emotion is <answer>neutral</answer>.
+> Crab +:In the video, a man with
+> long, dark hair and a beard sits on a
+> chair playing a guitar. He is wearing
+> a black jacket and is sitting outdoors
+> in a park. He strums the strings with
+> his right hand while his left hand
+> fingers the chords. So the action
+> taking place in the video is
+> <answer>playing guitar</answer>.
+> User: Please identify the action taking place in the video. User:
+> Please
+> describe
+> this video
+> and audio.
+> Crab +:In the video, a man is
+> sitting by the roadside playing a
+> guitar, and the pleasant sound of
+> his performance can be heard.
+
+Figure 12 Qualitative results. Crab + is capable of performing multiple different audio-visual scene understanding tasks on a single sample. 
+
+our method achieves the best performance in 65%–76% of the tasks, representing a 29%–53% absolute improvement over the LoRA baseline in terms of task coverage. 
+
+Head Ablation Study. To investigate the contribution of each LoRA head, we employed a “head-dropping” strat-egy by zeroing out the parameters of specific heads within the LLaMA2 backbone. As shown in Table 7, removing any single head leads to consistent performance degra-dation across all tasks, covering AVQA, temporal local-ization (AVVP), spatial localization (ARIG), and cross-modal perception ( A → V , V → A). These results sug-gest that each head captures complementary information rather than highly similar or redundant representations, thereby jointly modeling the audio-visual space. In ad-dition, the varying degrees of performance degradation across tasks are consistent with our earlier visualization analysis. The agreement between quantitative and qualita-tive results further supports the soundness of our design. Overall, the results demonstrate that I-LoRA is suited to handling task heterogeneity in complex audio-visual scene understanding, facilitating inter-task cooperation and leading to more effective unified learning. 
+
+Ablation Study on the Number of B-heads. We further investigate the sensitivity of I-LoRA to the number of 
+
+B-heads. Intuitively, the number of heads determines the breadth of the adaptation subspace. A larger number theoretically provides more capacity for new tasks. How-ever, this configuration involves a trade-off. A minimal count limits the ability to model complex tasks. Con-versely, an excessive number makes it difficult to establish connections between heads for effective unified learning. To evaluate stability, we set N = 3 as the baseline and test the impact of increasing the head count to 4 and 5 across different AV-LLMs. We then visualize both the task-specific deviation and the total average deviation rel-ative to this baseline. As shown in Figure 11, sensitivity varies by backbone architecture. The LLaMA 2-based model exhibits the highest deviation of 4.6% at N = 5 .Meanwhile, Qwen2.5-Omni demonstrates the lowest devi-ation of 1.6%. Despite these variations, the performance fluctuations for all AV-LLMs remain within a reasonable 5% margin relative to the baseline. These results confirm the stability of our method. 
+
+Qualitative Case Study. Figure 12 presents a qualitative analysis of a representative clip showing a man playing an acoustic guitar by the roadside. The model demonstrates consistent performance across a range of audio-visual tasks. The analysis highlights the model’s capabilities progressively. Starting with basic recognition, the model accurately identifies the action of playing the guitar and infers the performer’s emotional state. Moving to fine-grained perception, it precisely localizes the temporal 13 boundaries of the event and segments the sounding instru-ment within the frame. It also succeeds in cross-modal matching by identifying the corresponding video segment given the input audio, despite the presence of distractors. Finally, in complex reasoning, the model comprehends and synthesizes both audio and visual content to provide a correct answer to the query, “How many types of musi-cal instruments sound in the video?” This case exempli-fies the seamless integration of low-level perception with high-level reasoning, validating its potential as a unified audio-visual assistant. 
+
+6 Discussion 
+
+We introduce Crab +, a scalable and unified audio-visual scene understanding model designed to mitigate the se-vere negative transfer observed in naïve multi-task instruc-tion tuning. Rather than viewing task heterogeneity as an obstacle, Crab + reconciles these differences through explicit cooperation from both data and model perspec-tives. On the data side, we construct AV-UIE v2 to bridge output discrepancies via explicit reasoning processes. On the model side, we design a unified input-output inter-face to standardize diverse task structures and propose Interaction-aware LoRA (I-LoRA) to dynamically coordi-nate conflicting capability demands. By aligning these het-erogeneous tasks, Crab + successfully reverses the trend of performance degradation, converting negative inter-ference into positive synergy and establishing a robust baseline for generalist audio-visual scene understanding. 
+
+> Limitation
+
+. While explicit reasoning benefits complex scenarios, applying extensive reasoning chains to sim-pler tasks may induce over-interpretation, potentially in-troducing noise that interferes with direct predictions. Thus, developing adaptive data strategies that dynami-cally align reasoning granularity with task complexity remains an open challenge. 
+
+> Future Work
+
+. Moving forward, we plan to extend our unified model to incorporate generative tasks, advancing the pursuit of general-purpose audio-visual scene understanding. 14 References 
+
+[1] N. A. Taatgen, “The nature and transfer of cognitive skills.” 
+
+Psychol. Rev. , vol. 120, no. 3, p. 439, 2013. [2] Y. Tang et al. , “Empowering llms with pseudo-untrimmed videos for audio-visual temporal understanding,” in Proc. Conf. Assoc. Advance. Artif. Intell. , vol. 39, no. 7, 2025, pp. 7293–7301. [3] Y. Su et al. , “Pandagpt: One model to instruction-follow them all,” arXiv preprint arXiv:2305.16355 , 2023. [4] H. Touvron et al. , “Llama 2: Open foundation and fine-tuned chat models,” arXiv preprint arXiv:2307.09288 ,2023. [5] J. Xu et al. , “Qwen2. 5-omni technical report,” arXiv preprint arXiv:2503.20215 , 2025. [6] E. J. Hu et al. , “Lora: Low-rank adaptation of large lan-guage models,” in Proc. Int. Conf. Learn. Representations ,2022, pp. 1–13. [7] H. Du et al. , “Crab: A unified audio-visual scene un-derstanding model with explicit cooperation,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. , 2025, pp. 18 804–18 814. [8] L. Feng, C. Zhang, and X.-L. Zhang, “Towards a flexible and unified architecture for speech enhancement,” Vici-nagearth , vol. 2, no. 1, p. 14, 2025. [9] L. Wang et al. , “Erf-ba-tfd+: a multimodal model for audio-visual deepfake detection,” Vicinagearth , vol. 2, no. 1, pp. 1–12, 2025. [10] Y. Wei, D. Hu, Y. Tian, and X. Li, “Learning in audio-visual context: A review, analysis, and new perspective,” 
+
+arXiv preprint arXiv:2208.09579 , 2022. [11] R. Gao, T.-H. Oh, K. Grauman, and L. Torresani, “Listen to look: Action recognition by previewing audio,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. , 2020, pp. 10 457–10 467. [12] Y. Tian, J. Shi, B. Li, Z. Duan, and C. Xu, “Audio-visual event localization in unconstrained videos,” in Proc. Eur. Conf. Comput. Vis. , 2018, pp. 247–263. [13] Y. Tian, D. Li, and C. Xu, “Unified multisensory percep-tion: Weakly-supervised audio-visual video parsing,” in 
+
+Proc. Eur. Conf. Comput. Vis. , 2020, pp. 436–454. [14] J. Zhou et al. , “Audio–visual segmentation,” in Proc. Eur. Conf. Comput. Vis. , 2022, pp. 386–403. [15] Y. Wang et al. , “Ref-avs: Refer and segment objects in audio-visual scenes,” in Proc. Eur. Conf. Comput. Vis. ,2024, pp. 196–213. [16] P. Yang et al. , “Avqa: A dataset for audio-visual question answering on videos,” in Proc. ACM Int. Conf. Multimedia ,2022, pp. 3480–3491. [17] G. Li et al. , “Learning to answer questions in dynamic audio-visual scenarios,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. , 2022, pp. 19 108–19 118. [18] H. Zhang, X. Li, and L. Bing, “Video-llama: An instruction-tuned audio-visual language model for video understanding,” arXiv preprint arXiv:2306.02858 , 2023. [19] A. Vaswani et al. , “Attention is all you need,” in Proc. Adv. Neural Inf. Process. Syst. , 2017. [20] A. Grattafiori et al. , “The llama 3 herd of models,” arXiv preprint arXiv:2407.21783 , 2024. [21] A. Radford et al. , “Learning transferable visual models from natural language supervision,” in Proc. Int. Conf. Mach. Learn. , 2021, pp. 8748–8763. [22] C. Jia et al. , “Scaling up visual and vision-language rep-resentation learning with noisy text supervision,” in Proc. Int. Conf. Mach. Learn. , 2021, pp. 4904–4916. [23] J. Li, D. Li, S. Savarese, and S. Hoi, “Blip-2: Bootstrap-ping language-image pre-training with frozen image en-coders and large language models,” in Proc. Int. Conf. Mach. Learn. , 2023, pp. 19 730–19 742. [24] H. Liu, C. Li, Q. Wu, and Y. J. Lee, “Visual instruction tuning,” in Proc. Adv. Neural Inf. Process. Syst. , 2023, pp. 34 892–34 916. [25] H. Chen, W. Xie, A. Vedaldi, and A. Zisserman, “Vg-gsound: A large-scale audio-visual dataset,” in Proc. Int. Conf. Acoust. Speech Signal Process. , 2020, pp. 721–725. [26] R. Arandjelovic and A. Zisserman, “Look, listen and learn,” in Proc. of the IEEE Int. Conf. Comput. Vis. , 2017, pp. 609– 617. [27] K. Soomro, A. R. Zamir, and M. Shah, “Ucf101: A dataset of 101 human actions classes from videos in the wild,” 
+
+arXiv preprint arXiv:1212.0402 , 2012. [28] S. Poria et al. , “Meld: A multimodal multi-party dataset for emotion recognition in conversations,” arXiv preprint arXiv:1810.02508 , 2018. [29] Y. Liu et al. , “Mafw: A large-scale, multi-modal, com-pound affective database for dynamic facial expression recognition in the wild,” in Proc. ACM Int. Conf. Multime-dia , 2022, pp. 24–32. [30] X. Jiang et al. , “Dfew: A large-scale database for recogniz-ing dynamic facial expressions in the wild,” in Proc. ACM Int. Conf. Multimedia , 2020, pp. 2881–2889. [31] Z. Lian et al. , “Mer 2024: Semi-supervised learning, noise robustness, and open-vocabulary multimodal emo-tion recognition,” in Proc. 2nd Int. Workshop on Multi-modal Responsible Affect. Comput. , 2024, pp. 41–48. [32] H. Cao et al. , “Crema-d: Crowd-sourced emotional multi-modal actors dataset,” IEEE Trans. Affect. Comput. , vol. 5, no. 4, pp. 377–390, 2014. 
+
+15 [33] T. Geng, T. Wang, J. Duan, R. Cong, and F. Zheng, “Dense-localizing audio-visual events in untrimmed videos: A large-scale benchmark and baseline,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. , 2023, pp. 22 942– 22 951. [34] S. Chen et al. , “Valor: Vision-audio-language omni-perception pretraining model and dataset,” arXiv preprint arXiv:2304.08345 , 2023. [35] G. Team et al. , “Gemini 1.5: Unlocking multimodal un-derstanding across millions of tokens of context,” arXiv preprint arXiv:2403.05530 , 2024. [36] W. Kay et al. , “The kinetics human action video dataset,” 
+
+arXiv preprint arXiv:1705.06950 , 2017. [37] X. Lai et al. , “Lisa: Reasoning segmentation via large language model,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. , 2024, pp. 9579–9589. [38] Z. Ren et al. , “Pixellm: Pixel reasoning with large mul-timodal model,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. , 2024, pp. 26 374–26 383. [39] Y. Liu et al. , “Seg-zero: Reasoning-chain guided seg-mentation via cognitive reinforcement,” arXiv preprint arXiv:2503.06520 , 2025. [40] N. Ravi et al. , “Sam 2: Segment anything in images and videos,” arXiv preprint arXiv:2408.00714 , 2024. [41] S. Bai et al. , “Qwen2. 5-vl technical report,” arXiv preprint arXiv:2502.13923 , 2025. [42] Y. Chu et al. , “Qwen2-audio technical report,” arXiv preprint arXiv:2407.10759 , 2024. [43] A. Radford et al. , “Robust speech recognition via large-scale weak supervision,” in Proc. Int. Conf. Mach. Learn. ,2023, pp. 28 492–28 518. [44] S. Chen et al. , “Beats: Audio pre-training with acoustic tokenizers,” arXiv preprint arXiv:2212.09058 , 2022. [45] C. Tang et al. , “Salmonn: Towards generic hearing abilities for large language models,” arXiv preprint arXiv:2310.13289 , 2023. [46] Y. Wang, Y. Lin, X. Zeng, and G. Zhang, “Multilora: Democratizing lora for better multi-task learning,” arXiv preprint arXiv:2311.11501 , 2023. [47] S. Ren, L. Yao, S. Li, X. Sun, and L. Hou, “Timechat: A time-sensitive multimodal large language model for long video understanding,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. , 2024, pp. 14 313–14 323. [48] S. Chowdhury et al. , “Meerkat: Audio-visual large lan-guage model for grounding in space and time,” in Proc. Eur. Conf. Comput. Vis. , 2024, pp. 52–70. [49] Z. Li et al. , “Groundinggpt: Language enhanced multi-modal grounding model,” arXiv preprint arXiv:2401.06071 , 2024. [50] J. He et al. , “Multi-modal instruction tuned llms with fine-grained visual perception,” in Proc. IEEE/CVF Conf. Com-put. Vis. Pattern Recognit. , 2024, pp. 13 980–13 990. [51] D. Jin et al. , “Simtoken: A simple baseline for referring audio-visual segmentation,” arXiv preprint arXiv:2509.17537 , 2025. [52] C. Lyu et al. , “Macaw-llm: Multi-modal language model-ing with image, audio, video, and text integration,” arXiv preprint arXiv:2306.09093 , 2023. [53] Z. Cheng et al. , “Videollama 2: Advancing spatial-temporal modeling and audio understanding in video-llms,” 
+
+arXiv preprint arXiv:2406.07476 , 2024. [54] Q. Ye et al. , “Cat+: Investigating and enhancing audio-visual understanding in large language models,” IEEE Trans. Pattern Anal. Mach. Intell. , vol. 47, no. 10, pp. 8674–8690, 2025. [55] A. Goel et al. , “Omcat: Omni context aware transformer,” 
+
+arXiv preprint arXiv:2410.12109 , 2024. [56] J. Lu et al. , “Unified-io 2: Scaling autoregressive mul-timodal models with vision language audio and action,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. ,2024, pp. 26 439–26 455. [57] C. Fu et al. , “Vita: Towards open-source interactive omni multimodal llm,” arXiv preprint arXiv:2408.05211 , 2024. [58] Z. Cheng et al. , “Emotion-llama: Multimodal emotion recognition and reasoning with instruction tuning,” in Proc. Adv. Neural Inf. Process. Syst. , 2024, pp. 110 805–110 853. [59] X. Peng, Y. Wei, A. Deng, D. Wang, and D. Hu, “Balanced multimodal learning via on-the-fly gradient modulation,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. ,2022, pp. 8238–8247. [60] C. Huang, Y. Wei, Z. Yang, and D. Hu, “Adaptive uni-modal regulation for balanced multimodal information ac-quisition,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. , 2025, pp. 25 854–25 863. [61] Y. Wei, D. Hu, H. Du, and J.-R. Wen, “On-the-fly mod-ulation for balanced multimodal learning,” IEEE Trans. Pattern Anal. Mach. Intell. , vol. 47, no. 1, pp. 469–485, 2025. [62] B. Lin et al. , “Video-llava: Learning united visual repre-sentation by alignment before projection,” arXiv preprint arXiv:2311.10122 , 2023. [63] J. F. Gemmeke et al. , “Audio set: An ontology and human-labeled dataset for audio events,” in Proc. Int. Conf. Acoust. Speech Signal Process. , 2017, pp. 776–780. [64] Y. Wei and D. Hu, “Mmpareto: Boosting multimodal learn-ing with innocent unimodal assistance,” arXiv preprint arXiv:2405.17730 , 2024. [65] Z. Xu, Y. Kou, K. Wu, and H. Liu, “Contribution-guided asymmetric learning for robust multimodal fusion under 
+
+16 imbalance and noise,” arXiv preprint arXiv:2510.26289 ,2025. [66] N. Majumder et al. , “Dialoguernn: An attentive rnn for emotion detection in conversations,” in Proc. Conf. Assoc. Advance. Artif. Intell. , vol. 33, no. 01, 2019, pp. 6818– 6825. [67] Y. Jing and X. Zhao, “Dq-former: Querying transformer with dynamic modality priority for cognitive-aligned multi-modal emotion recognition in conversation,” in Proc. ACM Int. Conf. Multimedia , 2024, pp. 4795–4804. [68] J. Ding, B. Zhang, D. Li, J. Wang, and H. Lin, “Disentan-gling cross-modal interactions for enhanced multimodal emotion recognition in conversation,” in Proc. of the 27th Int. Conf. on Multimodal Interaction , 2025, pp. 344–353. [69] Z. Zhao and I. Patras, “Prompting visual-language models for dynamic facial expression recognition,” arXiv preprint arXiv:2308.13382 , 2023. [70] H. Cheng et al. , “Vaemo: Efficient representation learning for visual-audio emotion with knowledge injection,” in 
+
+Proc. ACM Int. Conf. Multimedia , 2025, pp. 5547–5556. [71] X. Wu et al. , “Scalable audio-visual masked autoencoders for efficient affective video facial analysis,” arXiv preprint arXiv:2509.24214 , 2025. [72] X. Long et al. , “Attention clusters: Purely attention based local feature integration for video classification,” in Proc. of the IEEE Conf. on computer vision and pattern recogni-tion , 2018, pp. 7834–7843. [73] M. Brousmiche, J. Rouat, and S. Dupont, “Multimodal attentive fusion network for audio-visual event recognition,” 
+
+Information Fusion , vol. 85, pp. 52–59, 2022. [74] Y.-B. Lin and Y.-C. F. Wang, “Audiovisual transformer with instance attention for audio-visual event localization,” in Proc. of the Asian Conf. on Computer Vision , 2020. [75] J. Yu, Y. Cheng, R.-W. Zhao, R. Feng, and Y. Zhang, “Mm-pyramid: Multimodal pyramid attentional network for audio-visual event localization and video parsing,” in 
+
+Proc. ACM Int. Conf. Multimedia , 2022, pp. 6241–6249. [76] Y. Xia and Z. Zhao, “Cross-modal background suppression for audio-visual event localization,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. , 2022, pp. 19 989– 19 998. [77] X. Jiang et al. , “Dhhn: Dual hierarchical hybrid network for weakly-supervised audio-visual video parsing,” in Proc. ACM Int. Conf. Multimedia , 2022, pp. 719–727. [78] K. Rho, H. Lee, J. W. Cho, and J. S. Chung, “Molt: Mixture of layer-wise tokens for efficient audio-visual learning,” 
+
+arXiv preprint arXiv:2512.00115 , 2025. [79] H. Chen et al. , “Localizing visual sounds the hard way,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. ,2021, pp. 16 867–16 876. [80] W. Sun et al. , “Learning audio-visual source localization via false negative aware contrastive learning,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. , 2023, pp. 6420–6429. [81] S. Gao, Z. Chen, G. Chen, W. Wang, and T. Lu, “Avseg-former: Audio-visual segmentation with transformer,” in 
+
+Proc. Conf. Assoc. Advance. Artif. Intell. , vol. 38, no. 11, 2024, pp. 12 155–12 163. [82] Y. Wang, H. Xu, Y. Liu, J. Li, and Y. Tang, “Sam2-love: Segment anything model 2 in language-aided audio-visual scenes,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. , 2025, pp. 28 932–28 941. [83] G. Li, W. Hou, and D. Hu, “Progressive spatio-temporal perception for audio-visual question answering,” in Proc. ACM Int. Conf. Multimedia , 2023, pp. 7808–7816. [84] T. Yang et al. , “Sasr-net: Source-aware semantic repre-sentation network for enhancing audio-visual question an-swering,” arXiv preprint arXiv:2411.04933 , 2024. [85] H. Kim et al. , “Question-aware gaussian experts for audio-visual question answering,” in Proc. IEEE/CVF Conf. Com-put. Vis. Pattern Recognit. , 2025, pp. 13 681–13 690. [86] T. M. Le, V. Le, S. Venkatesh, and T. Tran, “Hierarchi-cal conditional relation networks for video question an-swering,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. , 2020, pp. 9972–9981. 
+
+17

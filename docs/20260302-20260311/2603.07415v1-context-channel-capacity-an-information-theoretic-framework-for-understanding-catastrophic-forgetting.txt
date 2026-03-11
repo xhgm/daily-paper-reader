@@ -1,0 +1,1658 @@
+Title: Context Channel Capacity: An Information-Theoretic Framework for Understanding Catastrophic Forgetting
+
+URL Source: https://arxiv.org/pdf/2603.07415v1
+
+Published Time: Tue, 10 Mar 2026 01:02:28 GMT
+
+Number of Pages: 39
+
+Markdown Content:
+# Context Channel Capacity: An Information-Theoretic Framework for Understanding Catastrophic Forgetting 
+
+# Ran Cheng March 10, 2026 
+
+Abstract 
+
+Catastrophic forgetting remains a central challenge in continual learning (CL), yet lacks a unified information-theoretic explanation for why some architectures forget catastrophically while others do not. We introduce Context Channel Capacity (Cctx ), the mutual information between a CL architecture’s context signal and its generated parameters, and prove that zero forgetting requires Cctx ≥ H(T ), where 
+
+H(T ) is the task identity entropy. We establish an Impossibility Triangle —zero forgetting, online learning, and finite parameters cannot be simultaneously satisfied by sequential state-based learners—and show that conditional regeneration architectures (HyperNetworks) bypass this triangle by redefining parameters as function values rather than states. We validate this framework across 8 CL methods on Split-MNIST (1,130+ experiments over 86 days, 4 seeds each), showing that Cctx perfectly predicts forgetting behavior: methods with Cctx = 0 
+
+(NaiveSGD, EWC, SI, LwF, CFlow) exhibit catastrophic forgetting (6–97%), while methods with Cctx ≈ 1
+
+(HyperNetwork) achieve zero forgetting (98.8% ACC). We further propose Wrong-Context Probing (P5), a practical diagnostic protocol for measuring Cctx , and extend the framework to CIFAR-10 via a novel 
+
+Gradient Context Encoder that closes the oracle gap from 23.3pp to 0.7pp. A systematic taxonomy of 15+ closed research directions—including the Hebbian null result (frozen random features outperform learned features), CFlow’s θ0-memorizer phenomenon, and the SN symmetry barrier to column specialization— provides the community with precisely diagnosed negative results. Our central design principle: architecture over algorithm —the context pathway must be structurally unbypassable. 
+
+# 1 Introduction 
+
+Catastrophic forgetting—the abrupt loss of previously acquired knowledge when a neural network learns new tasks sequentially—was first documented over three decades ago (McCloskey and Cohen, 1989) and remains a central unsolved problem in machine learning (French, 1999). Despite sustained research effort, the field lacks a principled, quantitative framework that explains why some continual learning (CL) architectures forget catastrophically while others do not. Existing approaches to mitigating forgetting fall into three broad families. Regularization-based methods, such as Elastic Weight Consolidation (EWC) (Kirkpatrick et al., 2017) and Synaptic Intelligence (SI) (Zenke et al., 2017), penalize changes to parameters deemed important for previous tasks. Replay-based 
+
+methods store exemplars from past tasks and interleave them during training, effectively breaking the strict sequential constraint. Architecture-based methods, including Progressive Networks (Rusu et al., 2016) and HyperNetworks (von Oswald et al., 2020; Ehret et al., 2021), allocate or generate task-specific parameters. Each family has produced methods that work to varying degrees, but the performance landscape is strikingly heterogeneous: on Split-MNIST, EWC achieves 18.9% accuracy while a HyperNetwork achieves 98.8%—a gap of 80 percentage points using architectures of comparable parameter count (Table 1). 
+
+The missing explanation. What accounts for this 80-point gap? It is not simply a matter of “more sophisticated algorithms”: EWC uses Fisher information, SI tracks path integrals, and CFlow solves neural ODEs—all arguably more complex than the simple MLP used by the HyperNetwork. Nor is it a matter of capacity: the CFlow system has 2.7M parameters while the HyperNetwork has fewer than 100K. Prior information-theoretic analyses of CL (Achille and Soatto, 2018; Doan et al., 2021; Taheri and Thrampoulidis, 1
+
+> arXiv:2603.07415v1 [cs.LG] 8 Mar 2026
+
+Table 1: Split-MNIST results across 8 continual learning methods (4 seeds each). ACC: mean accuracy after all 5 tasks. Fgt: mean forgetting. P5 ∆: accuracy drop under Wrong-Context Probing (§ ?? ). ˆCctx : empirical context channel capacity proxy. Methods are grouped by their effective Cctx regime. The table reveals a stark dichotomy: all methods with Cctx = 0 exhibit substantial forgetting, while methods with Cctx ≫ 0 achieve zero forgetting.                                                                                 
+
+> Paradigm Method ACC (%) ↑Fgt (%) ↓P5 ∆ˆCctx
+> State Protection (Cctx = 0 )NaiveSGD 18 .7±0.397 .1±0.40.00.000
+> EWC 18 .9±0.197 .6±0.60.00.000
+> SI 16 .4±3.797 .1±0.40.00.000
+> LwF 24 .2±0.654 .8±5.50.00.000
+> Replay (Cctx = 0 )Experience Replay 85 .9±1.312 .5±1.70.00.000
+> State Transform. (Cctx ≈0)CFlow (ODE) 92 .4±0.76.1±1.10.00.000
+> Cond. Regen. (Cctx ≫0)HyperNet Oracle 98 .8±0.30.0±0.0−97 .60.976
+> HyperNet Learned 98 .9±0.20.0±0.0−95 .20.952
+
+2025) have produced bounds on forgetting rates in specific settings but have not addressed the fundamental architectural question: what structural property of an architecture determines whether forgetting is inevitable or avoidable? 
+
+Our answer: Context Channel Capacity. We propose that the key quantity governing forgetting is the Context Channel Capacity (Cctx ): the maximum mutual information between a CL architecture’s context signal and the parameters it uses for prediction. Our central theoretical result (Theorem 4) states that the expected forgetting of any CL architecture A operating on K tasks satisfies 
+
+Fgt( A, K ) ≥ max 
+
+
+
+0, 1 − Cctx (A)
+
+H(T )
+
+
+
+· Fgt max , (1) where H(T ) = log 2 K is the task identity entropy. For architectures without a context pathway (EWC, SI, NaiveSGD), Cctx = 0 and forgetting is maximal regardless of the learning algorithm. For HyperNetworks, 
+
+Cctx ≫ H(T ) and zero forgetting is achievable. The bound is tight: it perfectly separates the 8 methods in Table 1. 
+
+Contributions. Our contributions are fourfold: 1. Context Channel Capacity (Cctx ), a new information-theoretic quantity that unifies the analysis of diverse CL architectures. We prove an Impossibility Triangle (Theorem 3)—zero forgetting, online learning, and finite parameters are mutually exclusive under sequential state updates—and the CCC Bound (Theorem 4), which gives a lower bound on forgetting as a function of Cctx .2. A paradigm taxonomy that classifies CL methods into three categories— State Protection (Cctx = 0 ), 
+
+State Transformation (Cctx → 0 due to structural bypass), and Conditional Regeneration (Cctx ≫
+
+H(T ))—and proves that only the third can achieve zero forgetting with bounded parameters. 3. Wrong-Context Probing (P5), a practical experimental protocol that provides an empirical proxy for Cctx : evaluate a context-conditional model with deliberately incorrect context and measure the accuracy degradation. A large P5 delta indicates high Cctx ; zero delta indicates the context is being bypassed. 4. Comprehensive empirical validation across 8 CL methods on Split-MNIST (1,130+ experiments over 86 days, 4 seeds per configuration), demonstrating that Cctx perfectly predicts the forgetting regime of every method tested. 2Broader contribution: systematic negative results. Over 86 days and 15+ research directions, we accumulated a rich body of negative results—each methodically documented, reproducible, and informative. We showed that Hebbian learning contributes exactly zero to CL performance when combinatorial capacity is sufficient (§2.5.1); that ODE-based parameter flows reduce to θ0-memorizers when context is concatenated rather than conditioned (§2.5.2); and that column specialization cannot emerge from local learning rules in homogeneous architectures. These negative results, viewed through the lens of Cctx , become a coherent story rather than a list of failures. 
+
+One-sentence summary. Architecture determines destiny : whether a CL system forgets is decided not by its learning algorithm, but by whether its architecture provides an unbypassable context pathway with sufficient capacity—a principle we formalize as Cctx ≥ H(T ).
+
+# 2 Theoretical Framework 
+
+We develop an information-theoretic framework for continual learning in five stages. First, we formalize CL as constrained online coding (§2.1). Second, we establish that forgetting is information-theoretically inevitable for sequential state-based learners (§2.2). Third, we prove an impossibility triangle (§2.3). Fourth, we introduce Context Channel Capacity and derive the CCC bound (§2.4). Fifth, we classify CL architectures by their Cctx regime and explain why HyperNetworks bypass the impossibility triangle (§2.5–§2.6). 
+
+# 2.1 Continual Learning as Constrained Online Coding 
+
+Definition 1 (Continual Learning Problem) . A continual learner is a tuple (Θ , F, U, {Dk}Kk=1 ) where: 
+
+• Θ ⊆ Rd is the parameter space with dim(Θ) = d;
+
+• F : X × Θ → ˆY is the prediction function; 
+
+• U : Θ × D → Θ is the update rule (e.g., SGD, Hebbian); 
+
+• {Dk}Kk=1 are sequentially arriving task datasets, where each Dk is drawn i.i.d. from a task-specific distribution Pk(X, Y ).
+
+The learning process produces a parameter trajectory θ0 → θ1 → · · · → θK , where θk = U (θk−1, D k).The defining constraint of CL is causality : when processing task Dk, the learner has access only to θk−1 and 
+
+Dk, not to the raw data D1, . . . , D k−1 of previous tasks. 1
+
+Definition 2 (Forgetting) . The forgetting of task j after learning task k > j is 
+
+Fgt kj = max  
+
+> j≤t≤k−1
+
+ACC j (θt) − ACC j (θk), (2) 
+
+where ACC j (θ) denotes the accuracy of parameters θ on the test set of task j. The average forgetting after 
+
+K tasks is 
+
+Fgt = 1
+
+K − 1
+
+> K−1
+
+X
+
+> j=1
+
+Fgt Kj . (3) 
+
+Connection to rate-distortion theory. The CL problem can be viewed as a constrained online source coding problem. The parameter space Θ is a channel of capacity C ≈ d · log 2(1 /δ ) bits, where δ is the effective parameter precision. Each task Dk is a “source” that must be encoded into this channel, and the distortion is the classification error. The crucial difference from standard rate-distortion theory is the causal constraint :the encoder at time k sees only the current source Dk and the previous codeword θk−1, not the full source sequence (D1, . . . , D K ). This makes CL strictly harder than joint (offline) coding, which can achieve the rate-distortion optimum.     
+
+> 1Replay-based methods partially violate this constraint by maintaining a buffer B ⊂ S
+> j<k Dj. We analyze this relaxation explicitly in §2.5.1.
+
+3Definition 3 (Parameter Capacity) . For a parameter space Θ ⊆ Rd with effective per-parameter precision 
+
+δ > 0, the parameter capacity is 
+
+C(Θ) = d · log 2(1 /δ ) bits . (4) 
+
+For 32-bit floating-point parameters, C ≈ 32 d. In practice, the effective capacity is much lower due to redundancy in the loss landscape. 
+
+# 2.2 The Information Bottleneck Chain 
+
+We now establish that forgetting is information-theoretically inevitable for any sequential learner with finite capacity. 
+
+Theorem 1 (Forgetting is Information-Theoretically Inevitable) . For a deterministic sequential learner with finite parameter capacity C = d · log 2(1 /δ ) bits and independent tasks {Dk}Kk=1 , the mutual information between the final parameters and any past task dataset satisfies: 
+
+I(θK ; D1) ≤ I(θK−1; D1) ≤ · · · ≤ I(θ1; D1) ≤ C. (5) 
+
+Proof. Since θk = U (θk−1, D k) is a deterministic function and Dk is independent of D1 given θk−1 (by the causal constraint and task independence), the random variables form a Markov chain: 
+
+D1 → θ1 → θ2 → · · · → θK . (6) To verify the Markov property: given θk−1, the variable θk = U (θk−1, D k) depends on D1 only through θk−1,since Dk is independent of all previous data. By the Data Processing Inequality (DPI), for any Markov chain 
+
+X → Y → Z, we have I(X; Z) ≤ I(X; Y ). Applying this iteratively: 
+
+I(θK ; D1) ≤ I(θK−1; D1) ≤ · · · ≤ I(θ1; D1). (7) The initial bound follows from the fact that θ1 ∈ Θ can represent at most C bits of information about any quantity, yielding I(θ1; D1) ≤ H(θ1) ≤ C.
+
+Corollary 2 (Forgetting Lower Bound) . If K tasks are mutually independent and each requires at least 
+
+Rmin bits of task-specific information for nontrivial performance (i.e., I(θ; Dk) ≥ Rmin is necessary for 
+
+ACC k(θ) > ACC chance ), then when K > C/R min , it is impossible to retain nontrivial performance on all K
+
+tasks simultaneously. Proof. By the Markov chain, all task-specific information must pass through the bottleneck θK . Since the tasks are independent, the total information required for nontrivial performance on all K tasks is at least 
+
+K · Rmin . But I(θK ; D1, . . . , D K ) ≤ H(θK ) ≤ C. When K · Rmin > C , the pigeonhole principle implies that at least one task must have I(θK ; Dj ) < R min , and hence ACC j (θK ) ≤ ACC chance .
+
+Relation to prior work. Theorem 1 formalizes the intuition that forgetting is a necessary consequence of finite capacity, a point made informally by French (1999) and partially formalized by Taheri and Thrampoulidis (2025) for single-hidden-layer networks. Our contribution is to frame this as a consequence of the DPI applied to a Markov chain, which (i) requires no assumptions on network architecture or training procedure, and (ii) makes the role of the causal constraint explicit: it is the sequential structure D1 → θ1 → · · · → θK that creates the information bottleneck. Methods that break this chain (e.g., replay, joint training) are not subject to Eq. (5). 
+
+# 2.3 The Impossibility Triangle 
+
+Theorem 1 shows that information about past tasks is monotonically lost through sequential updates. We now strengthen this into a trilemma. 
+
+Theorem 3 (Continual Learning Impossibility Triangle) . The following three properties cannot be simultane-ously satisfied by a sequential state-based learner: 
+
+4Table 2: How existing CL methods “escape” the Impossibility Triangle. Each method relaxes one of the three properties. HyperNetworks are unique in satisfying all three—by redefining θ as a function value rather than a state (§2.6).                           
+
+> Method Zero Forgetting Online Learning Bounded
+> |θ|Escape Mechanism EWC / SI / LwF ≈✓✓Approximate zero forgetting Experience Replay ✓×✓Breaks causal constraint (revisits data) Progressive Net ✓✓×Parameters grow linearly with K
+> HyperNet ✓✓✓∗θk=g(ck): params are function values
+> ∗Meta-learned parameters (V, g, θ base )are fixed after joint training; θkis regenerated per task.
+
+1. Zero forgetting : ACC j (θk) = ACC j (θj ) for all j < k ≤ K.2. Online learning (causal constraint): θk depends only on θk−1 and Dk.3. Bounded parameters : |θ| = d does not grow with K.Proof. Assume all three properties hold. We derive a contradiction. 
+
+Step 1: Information accumulation. Property (1) requires that for every j ∈ { 1, . . . , K }, the final parameters 
+
+θK achieve the same accuracy on task j as θj did immediately after training on Dj . This implies that θK
+
+retains sufficient task-specific information for each task: 
+
+I(θK ; Dj ) ≥ Rj for all j ∈ { 1, . . . , K }, (8) where Rj > 0 is the minimum mutual information required to achieve accuracy ACC j (θj ).
+
+Step 2: Independence implies additivity. Since the tasks {Dk} are drawn independently, the total information requirement is 
+
+I(θK ; D1, . . . , D K ) ≥
+
+> K
+
+X
+
+> j=1
+
+Rj ≥ K · Rmin , (9) where Rmin = min j Rj > 0.
+
+Step 3: Capacity bound. Property (2) and (3) together imply that θK ∈ Θ is a fixed-dimensional vector produced by a causal process. Therefore H(θK ) ≤ C = d · log 2(1 /δ ), which is constant in K.
+
+Step 4: Contradiction. For K > C/R min , we have K · Rmin > C ≥ H(θK ) ≥ I(θK ; D1, . . . , D K ),contradicting Step 2. Therefore, at least one of the three properties must be violated. Table 2 shows how each family of CL methods resolves this trilemma by relaxing a different property. 
+
+Remark 1 (Sharpness of the triangle) . The impossibility is not merely asymptotic. On Split-MNIST (K = 5 ), EWC achieves only 18.9% accuracy—essentially equivalent to NaiveSGD’s 18.7%—demonstrating that Fisher-information regularization provides negligible protection when the parameter capacity C is already exhausted by the sequential update process. The regularization term in EWC controls which information is overwritten, but it cannot increase the total capacity C.
+
+# 2.4 Context Channel Capacity 
+
+The impossibility triangle (Theorem 3) applies to sequential state-based learners —systems where θk is obtained by modifying θk−1. We now introduce the key concept that distinguishes architectures that bypass this limitation. 
+
+Definition 4 (Context Signal) . A context signal for a CL architecture is any input c ∈ C that carries information about the current task identity. Examples include: oracle task ID (one-hot vector), batch statistics (mean, variance of current inputs), gradient signals, or learned task embeddings. For architectures without an explicit context mechanism (e.g., SGD, EWC, SI), we define c = ∅ (no context signal). 
+
+5Definition 5 (Context Channel and its Capacity) . For a CL architecture with context signal c ∈ C and a parameter generation mechanism θ(c), the context channel is the mapping c 7 → θ(c). The context channel capacity is: 
+
+Cctx = max   
+
+> P(c)
+
+I(c; θ(c)) , (10) 
+
+where the maximum is over all distributions on the context space C.For architectures without an explicit context pathway (Definition 4, c = ∅), we define Cctx = 0 .2
+
+Intuition. Cctx measures how many bits of task-identifying information can flow through the architecture’s context pathway to influence the prediction parameters. If Cctx = 0 , the architecture has no mechanism to produce different parameters for different tasks—and therefore must use a single set of parameters for all tasks, leading to interference. If Cctx ≥ H(T ), the architecture can, in principle, produce fully distinct parameters for each task, eliminating interference entirely. We now state our main theoretical result. 
+
+Theorem 4 (Context Channel Capacity Bound — CCC Bound) . Let A be a CL architecture operating on 
+
+K tasks with task identity random variable T ∈ { 1, . . . , K }. Let H(T ) = log 2 K (assuming uniform task distribution). Then the expected forgetting satisfies: 
+
+Fgt( A, K ) ≥ max 
+
+
+
+0, 1 − Cctx (A)
+
+H(T )
+
+
+
+· Fgt max , (11) 
+
+where Fgt max is the forgetting of a model that retains only the most recent task (random guessing on all previous tasks). Proof. We proceed in three steps. 
+
+Step 1: Task identification through context. Consider the following communication problem: Nature draws a task T ∼ Uniform {1, . . . , K } and presents data DT . The architecture produces context cT (possibly stochastically) and generates parameters θT = g(cT ). For correct prediction on task T , the generated parameters θT must encode sufficient information about T . Specifically, consider a decoder ˆT = ϕ(θT ) that attempts to identify the task from the generated parameters. The probability of correct task identification is bounded by Fano’s inequality: 
+
+P ( ˆT̸ = T ) ≥ H(T | θT ) − 1log 2(K − 1) . (12) 
+
+Step 2: Bounding H(T | θT ) via the context channel. Since θT = g(cT ) and T → cT → θT forms a Markov chain (context is generated from task data, parameters from context), the DPI gives: 
+
+I(T ; θT ) ≤ I(T ; cT ) ≤ I(cT ; θ(cT )) ≤ Cctx . (13) The first inequality is DPI applied to T → cT → θT . The second uses the fact that T determines cT (so 
+
+I(T ; cT ) ≤ H(cT )) and that I(cT ; θ(cT )) ≤ Cctx by definition of channel capacity. Therefore: 
+
+H(T | θT ) = H(T ) − I(T ; θT ) ≥ H(T ) − Cctx . (14) 
+
+Step 3: Connecting task misidentification to forgetting. When the architecture generates “wrong” parameters—parameters suited for task T ′̸ = T —the accuracy on task T degrades to approximately chance level. 3 The expected forgetting is at least as large as the probability of task misidentification (up to the maximum forgetting): 
+
+Fgt ≥ P ( ˆT̸ = T ) · Fgt max . (15) Combining with Eqs. (12) and the bound on H(T | θT ):
+
+Fgt ≥ H(T ) − Cctx − 1log 2(K − 1) · Fgt max . (16)           
+
+> 2This is consistent with Eq. (10): if θdoes not depend on any input c, then I(c;θ(c)) = 0 for all P(c).
+> 3This is an approximation that becomes exact when tasks share no class structure. For Split-MNIST with 5 binary tasks over 10 classes, wrong-task parameters yield approximately 10% accuracy.
+
+6For K ≥ 3, log 2(K − 1) ≤ H(T ), and dropping the −1 term (which tightens the bound), we obtain the stated result: 
+
+Fgt ≥ max 
+
+
+
+0, 1 − Cctx 
+
+H(T )
+
+
+
+· Fgt max . (17) The CCC Bound has two immediate and important consequences: 
+
+Corollary 5 (Cctx = 0 implies maximal forgetting) . If Cctx (A) = 0 (no context pathway), then 
+
+Fgt( A, K ) ≥ Fgt max (18) 
+
+regardless of the learning algorithm, regularization strength, or any other hyperparameter. 
+
+This corollary has a striking empirical consequence: it predicts that NaiveSGD, EWC, and SI should all exhibit similar forgetting levels, since they all have Cctx = 0 . Table 1 confirms this: all three achieve 16–19% accuracy with 97% forgetting. The Fisher regularization in EWC and the path-integral weighting in SI provide no protection—they cannot change the fact that the architecture has no mechanism to produce task-specific parameters. 
+
+Corollary 6 (Sufficient condition for zero forgetting) . If Cctx (A) ≥ H(T ) and the mapping c 7 → θ(c) has sufficient expressiveness (i.e., there exists a setting of the generator parameters such that θ(ck) achieves optimal accuracy on task k for each k), then zero forgetting is achievable. Proof. When Cctx ≥ H(T ) = log 2 K, the context channel can transmit at least log 2 K bits, which is sufficient to uniquely identify each of the K tasks. Given sufficient expressiveness of the generator, each task can be mapped to its optimal parameter configuration. Since parameters are regenerated from context at inference time (not maintained as state), there is no sequential overwriting and hence no forgetting. 
+
+# 2.5 Paradigm Taxonomy via Cctx 
+
+The Cctx framework naturally partitions CL methods into three paradigms based on their information-flow architecture. This taxonomy is not merely descriptive—each paradigm has provably different forgetting characteristics. 
+
+2.5.1 Paradigm A: State Protection ( Cctx = 0 )
+
+In this paradigm, the parameter vector θ is a state that is sequentially updated: 
+
+θk = U (θk−1, D k), subject to a protection constraint Ω( θk, θ k−1). (19) The protection constraint Ω may be a quadratic penalty around important parameters (EWC: Ω = 
+
+> λ
+> 2
+
+P 
+
+> i
+
+Fi(θ(i) 
+
+> k
+
+− θ(i)
+
+> k−1
+
+)2), a path-integral importance (SI), or knowledge distillation (LwF). Crucially, there is 
+
+no context signal : the same parameters θK are used to predict on all tasks. 
+
+Theorem 7 (State Protection has an irremovable stability-plasticity tradeoff) . For any Paradigm A method with protection strength λ ≥ 0, there exists a tradeoff: 
+
+I(θK ; DK ) + I(θK ; D1, . . . , D K−1) ≤ C, (20) 
+
+where I(θK ; DK ) measures plasticity (information about the current task) and I(θK ; D1, . . . , D K−1) measures stability (retained information about past tasks). Increasing λ shifts information from plasticity to stability but cannot increase the total. Proof. Since θK ∈ Θ has bounded entropy H(θK ) ≤ C, and by the chain rule for mutual information: 
+
+I(θK ; D1, . . . , D K ) = I(θK ; DK ) + I(θK ; D1, . . . , D K−1 | DK ). (21) Since DK is independent of D1, . . . , D K−1:
+
+I(θK ; D1, . . . , D K−1 | DK ) = I(θK ; D1, . . . , D K−1) − I(DK ; D1, . . . , D K−1; θK ) (22) 7where the interaction information term is bounded. In the simplest case (tasks fully independent, deterministic 
+
+U ): 
+
+I(θK ; DK ) + I(θK ; D1, . . . , D K−1) ≤ I(θK ; D1, . . . , D K ) ≤ H(θK ) ≤ C. (23) The protection parameter λ controls the allocation: large λ constrains θK to stay near θK−1, preserving past information but reducing I(θK ; DK ). Small λ allows free adaptation to DK but overwrites past information. Neither extreme can exceed the total capacity C.
+
+Special case: Experience Replay. Replay partially breaks the causal constraint by maintaining a buffer B
+
+of past exemplars. This effectively increases the “accessible information” at step k from I(θk−1; D1, . . . , D k−1)
+
+(information compressed into parameters) to I(θk−1; D1, . . . , D k−1) + I(B; D1, . . . , D k−1) (parameters plus raw data). Replay achieves 85.9% ACC by providing an external memory that supplements the parameter capacity. However, it still has Cctx = 0 : the same θK is used for all tasks at test time, so the P5 protocol yields ∆P5 = 0 .
+
+2.5.2 Paradigm B: State Transformation ( Cctx → 0)
+
+In this paradigm, a context signal ck exists and is combined with the parameter state to produce task-adapted parameters: 
+
+θk = f (θk−1, c k), (24) where f is a learned transformation (e.g., a neural ODE in CFlow). The key distinction from Paradigm C is that f takes both the previous state θk−1 and the context ck as inputs. In principle, this allows context to modulate the transformation. In practice, the following structural failure mode arises. 
+
+Remark 2 (Dimensionality mismatch and context bypass) . When dim (θ) ≫ dim (c) and f is parameterized as a neural network operating on the concatenation [θ; c], the optimizer generically learns to encode task information in θ (the high-dimensional input) rather than in c (the low-dimensional input). This is because the gradient magnitude scales with input dimension: ∥∂f /∂θ ∥ ∝ √d while ∥∂f /∂c ∥ ∝ √m where m = dim (c) ≪
+
+d = dim( θ).
+
+Our CFlow system exemplifies this failure mode. CFlow uses a neural ODE where the flow network takes as input the concatenation [θ ∈ R4842 ; c ∈ R32 ]—a dimensionality ratio of ∼ 150 : 1. Despite the presence of an explicit context encoder, CFlow exhibits ∆P5 = 0 .0, confirming that the context signal is structurally invisible to the dynamics. The 92.4% accuracy of CFlow comes entirely from the meta-learned initialization 
+
+θ0, not from context-dependent parameter generation. In the language of Cctx :
+
+CCFlow ctx ≈ 0 (structurally, despite c̸ = ∅). (25) This is a concrete example of the distinction between having a context signal and using it. The Cctx framework correctly classifies CFlow as effectively context-free, despite its architectural appearance. 
+
+2.5.3 Paradigm C: Conditional Regeneration ( Cctx ≫ H(T ))
+
+In this paradigm, the prediction parameters are generated from scratch by a context-conditional generator: 
+
+θk = g(ck), (26) where g : C → Θ is a learned generator that maps context to parameters. The critical structural property is that there is no pathway from θk−1 to θk—the parameters at step k depend only on the context ck, not on any previous state. This makes Cctx the only channel through which task information reaches the prediction parameters. For a HyperNetwork with the architecture θk = θbase + V · h(ck), where V ∈ Rd×r is a low-rank projection matrix and h : C → Rr is an MLP, the context channel capacity satisfies: 
+
+Cctx ≈ reff (V ) · b bits , (27) where reff (V ) = exp( − P 
+
+> i
+
+¯si log ¯ si) is the effective rank of V (computed from its normalized singular values 
+
+¯si = σi/ P 
+
+> j
+
+σj ), and b is the effective bits per dimension. For our HyperNetwork with nominal rank r = 64 ,we measure reff ≈ 58 .5–59 .1, yielding Cctx ≈ 59 · b ≫ H(T ) = log 2(5) ≈ 2.32 bits. 82.6 Why HyperNetworks Bypass the Impossibility Triangle 
+
+HyperNetworks (von Oswald et al., 2020) appear to violate Theorem 3: they achieve zero forgetting with bounded parameters under online evaluation. The resolution is that HyperNetworks change the semantics of 
+
+θ, thereby escaping the assumptions of the theorem. 
+
+State vs. function value. In Paradigm A (SGD, EWC, SI), θk is a state : it is maintained through sequential updates and must simultaneously serve all tasks at test time. The impossibility triangle applies because this state has bounded capacity C.In Paradigm C (HyperNet), θk = g(ck) is a function value : it is recomputed fresh from context at each evaluation and does not need to simultaneously encode all tasks. The “knowledge” resides not in θk but in the meta-learned parameters ϕ = ( V, h, θ base ) of the generator g. These meta-parameters ϕ are trained jointly 
+
+over all tasks via episodic meta-learning, not sequentially. 
+
+Joint vs. sequential optimization. The meta-parameters ϕ are optimized by the objective 
+
+ϕ∗ = arg min 
+
+> ϕK
+
+X
+
+> k=1
+
+Lk(gϕ(ck)) , (28) where Lk is the loss on task k and gϕ denotes the generator parameterized by ϕ. This is a joint optimization over all tasks—the causal constraint does not apply because ϕ sees all tasks during training. The impossibility triangle’s assumption of sequential updates ( θk = U (θk−1, D k)) is structurally inapplicable. 
+
+Formal analysis. Let us compare the information flows: Paradigm A: D1 → θ1 → · · · → θK (Markov chain, DPI applies) (29) Paradigm C: {D1, . . . , D K } → ϕ∗ → θk = gϕ∗ (ck) (no Markov chain) (30) In Paradigm A, the DPI guarantees monotonic information loss: I(θK ; D1) ≤ I(θ1; D1). In Paradigm C, there is no such chain—each θk is generated independently from the same meta-parameters ϕ∗, which encode information about all tasks simultaneously. The information I(θk; Dk) is not constrained by any sequential bottleneck; it is constrained only by Cctx (how much task-specific information flows through the context) and the expressiveness of g.
+
+The “unbypassability” principle. The above analysis reveals why architectural design matters more than algorithmic sophistication. In Paradigm C, the context pathway is the only route for task information to reach θk. There is no high-dimensional state θk−1 that can serve as an alternative information channel. This “unbypassability” is precisely what forces the model to use context—and thereby achieve high Cctx .Contrast this with CFlow (Paradigm B), where the context c is concatenated with the 4842-dimensional state θ. Here, the state provides a massively wider alternative channel, and the optimizer rationally ignores the narrow context pathway. The result: ∆P5 = 0 .0 (context is unused) despite the architecture nominally having a context input. 
+
+Remark 3 (Connection to the attention–RNN analogy) . The relationship between Paradigm A and Paradigm C mirrors the relationship between recurrent neural networks and attention mechanisms in sequence modeling. An RNN maintains a hidden state ht = f (ht−1, x t) that suffers from vanishing gradients—the sequential analog of catastrophic forgetting. Attention mechanisms bypass the sequential bottleneck by directly accessing past inputs via content-based addressing. Similarly, HyperNetworks bypass the sequential parameter bottleneck by directly generating task-specific parameters via context-based addressing. In both cases, the solution is to replace sequential state compression with direct conditional generation .
+
+# 3 A Taxonomy of Failure Through the Cctx Lens 
+
+The Cctx framework provides a unified vocabulary for analyzing why continual learning methods fail. In this section, we systematically examine four paradigms of failure—state protection, biologically-inspired learning, 9column specialization, and state transformation—and show that each reduces to a violation of the context channel capacity bound (Theorem 4). This analysis draws on 1,130+ experiments conducted over 86 days across 15+ distinct research directions. 
+
+# 3.1 Paradigm A: State Protection Methods 
+
+State protection methods attempt to prevent forgetting by constraining how θ changes when new tasks arrive. They share a common structural property: no context pathway exists , so Cctx = 0 by definition. Theorem 4 therefore predicts maximal forgetting regardless of the specific constraint mechanism. 
+
+3.1.1 Regularization-Based Methods (EWC, SI, LwF) Mechanism. Elastic Weight Consolidation (Kirkpatrick et al., 2017) adds a penalty λ
+
+> 2
+
+P 
+
+> i
+
+Fi(θi − θ∗ 
+
+> i
+
+)2 where 
+
+Fi is the diagonal Fisher information of parameter i computed on the previous task. Synaptic Intelligence (Zenke et al., 2017) accumulates an online importance measure Ωi ∝ P 
+
+> t
+
+gi(t) ∆ θi(t) during training. Learning without Forgetting (Li and Hoiem, 2017) distills the old model’s soft outputs into the new model via 
+
+LKD = α KL( σ(ˆ yold /T ) ∥ σ(ˆ ynew /T )) .
+
+Cctx analysis. All three methods operate on a single shared parameter vector θ with no mechanism to condition on task identity at inference time. The update rule U (θk−1, D k) modifies θ in place, and at test time the same θK is used for all tasks. Thus Cctx = 0 , and Theorem 4 predicts forgetting is inevitable. 
+
+Experimental evidence. On Split-MNIST (Table 1): 
+
+• EWC: 18 .9 ± 0.1% ACC, 97 .6% forgetting ≈ NaiveSGD: 18 .7 ± 0.3% ACC, 97 .1% forgetting. 
+
+• SI: 16 .4 ± 3.7% ACC, 97 .1% forgetting— worse than NaiveSGD. 
+
+• LwF: 24 .2 ± 0.6% ACC, 54 .8% forgetting—knowledge distillation provides some protection, but cannot overcome Cctx = 0 .
+
+Root cause. For EWC and SI, the failure is not merely that Cctx = 0 ; the regularization itself is ineffective. The MLP architecture (784 →256 →128 →10, approximately 235K parameters) has a parameter space far too large for the diagonal Fisher approximation to meaningfully constrain. The Fisher information matrix is 235 K × 235 K; the diagonal approximation discards all off-diagonal structure, reducing the effective constraint to per-parameter penalties that are easily circumvented by the optimizer moving along low-Fisher directions in the loss landscape. The result: |ACC EWC − ACC SGD | = 0 .2pp, which is within noise. LwF’s partial success (forgetting reduced from 97% to 55%) is explained by the distillation loss providing an implicit “soft context”: the old model’s output distribution carries task-relevant information. However, this information decays exponentially as the old model is never refreshed, and the shared θ still has Cctx = 0 
+
+at inference time. 
+
+3.1.2 Deep Neural Drift (DND)—The Hebbian Null Result Mechanism. Deep Neural Drift (DND) is a biologically-inspired architecture combining Oja-rule Hebbian learning, top-k sparse activation, resonance gating, and cosine-similarity template matching. The design hypothesis was that Hebbian learning would discover task-discriminative features that, combined with sparse activation, would naturally partition the representation space across tasks. 
+
+Scale of investigation. We conducted 108+ experiments over 12 days, systematically exploring myelination thresholds, resonance power, sparse scopes, template dynamics, and column sizes. The best configuration (S20: 1024 hidden units, top-k = 80 , with Task-Boundary Template Refresh) achieved 73.19% ACC with −0.42% forgetting (8 seeds). 
+
+The frozen-random control. The critical diagnostic experiment was freezing all Hebbian weights at their random initialization (plasticity rate = 0 , output learning rate = 0 ) while keeping everything else identical: Hebbian-trained DND + TBTR + Final Pass: 80 .85% ACC (31) Frozen random DND + TBTR + Final Pass: 81 .95% ACC (32) 10 (a) Neuron activation overlap (Jaccard index) across tasks. Output layer overlap = 0 .947 ; hidden layers > 0.60 .Virtually all neurons are shared.     
+
+> (b) Template cosine similarity: inter-task ( 0.751 )>intra-task ( 0.737 ). Templates are more similar across tasks than within tasks—the opposite of specialization.
+
+Figure 1: DND neuron overlap and template similarity analysis. No emergent task specialization is observed: neurons are shared across tasks, and templates fail to differentiate. The frozen random network outperforms the Hebbian-trained network by 1.1 percentage points. Hebbian learning contributes exactly zero to continual learning performance. 
+
+Theoretical explanation. This result follows from a well-known property of Hebbian rules: 
+
+Proposition 8 (Hebbian Convergence to PCA, after Oja 1982) . Any Hebbian learning rule of the form 
+
+∆W ∝ f (W, x, y ) that is local and stable converges to a subspace spanned by the leading eigenvectors of the input covariance matrix E[xx ⊤]—i.e., the PCA directions. 
+
+PCA captures directions of maximal global variance, not task-discriminative directions. In the over-parameterized regime where N = 1024 hidden units with top-k = 80 activation, the combinatorial capacity is: 
+
+Ccomb = log 2
+
+1024 80 
+
+
+
+≈ 290 bits ≫ H(Y ) ≈ 3.3 bits (33) When Ccomb ≫ H(Y ), the specific choice of projection directions is irrelevant— any sufficiently incoherent set of directions provides enough combinatorial capacity for the classification task. The accuracy difference between random and learned features is bounded by: 
+
+|ACC random − ACC learned | ≤ O
+
+ H(Y )
+
+Ccomb 
+
+
+
+≈ 3.3290 ≈ 0.011 (34) The experimentally observed difference |80 .85 − 81 .95 | = 1 .1pp ≈ 0.011 is consistent with this bound. 
+
+Cctx analysis. DND has no explicit context pathway. While sparse activation patterns vary across inputs, this variation is not controllable—the same input always produces the same activation pattern regardless of task identity. The template matching classifier operates on a shared set of templates with no task-conditional routing. Thus Cctx = 0 .Figure 1 provides direct evidence: inter-task Jaccard overlap at the output layer is 0.947 (virtually all neurons shared), and template inter-task similarity ( 0.751 ) exceeds intra-task similarity ( 0.737 )—the opposite of what specialization would require. 11 (a) Column specialization metrics across HSPC-T exper-iments. All configurations show near-zero task-specific column usage.         
+
+> (b) Metabolic χvs. column alignment: ρ= 0 .018 ,p=0.87 . The χstatistic carries zero structural information.
+
+Figure 2: Evidence for the SN symmetry barrier. (a) HSPC-T fails to produce column specialization. (b) Metabolic pruning’s χ statistic is uncorrelated with column importance. 
+
+3.1.3 HSPC-T Column Specialization—The SN Impossibility Mechanism. The Hierarchical Sparse Predictive Coding with Temporal pressure (HSPC-T) hypothesis proposed that temporal pressure (urgency signals, metabolic costs) could drive individual columns in a dictionary learning network to specialize for different tasks, creating implicit context through column routing. 
+
+Scale of investigation. We conducted 40+ experiments across three sub-directions: temporal pressure scheduling, metabolic pruning ( χ-based weight decay), and InfoMax fast/slow EMA selective signaling. 
+
+The SN symmetry barrier. All three sub-directions failed for the same fundamental reason: 
+
+Proposition 9 (SN Permutation Symmetry of Reconstruction Loss) . For a dictionary learning network with columns {(wi, e i)}Ni=1 minimizing reconstruction loss L = ∥x − Wdz∥2 where z = encode (x; We), the loss is invariant under the symmetric group SN acting by permutation of column indices: 
+
+L(x; {(wσ(i), e σ(i))}) = L(x; {(wi, e i)}) ∀σ ∈ SN (35) 
+
+Consequently, the gradient field ∇wi L is identical in structure for all columns i, and no loss-driven mechanism can break this symmetry to induce task specialization. 
+
+Any per-column perturbation Lcol (i) that does not explicitly inject column-specific bias (e.g., through task identity) has its gradient contribution dominated by the main reconstruction gradient O(∥x∥2/N ). This was confirmed empirically: 
+
+• Metabolic pruning : The χ statistic (intended to identify task-relevant columns) showed Spearman 
+
+ρ = 0 .018 (p = 0 .87 ) with true column importance—no discriminative power whatsoever. Activation frequency ( ρ = 0 .916 ) is the true discriminator, but the adaptive threshold already handles this. 
+
+• M1 InfoMax : Fast/slow EMA signals with learning rates η ∈ { 0.001 , 0.01 , 0.1} all failed to produce column specialization (0/4 validation metrics passed at any η). 
+
+Cctx interpretation. Column specialization was an attempt to create emergent context through the network’s internal dynamics. The SN symmetry result shows this is impossible without explicit symmetry-breaking—which is precisely what an explicit context pathway provides. 
+
+# 3.2 Paradigm B: State Transformation—CFlow ODE 
+
+Mechanism. CFlow (NeuralDrift Team, 2026) models the parameter trajectory as a continuous-time ODE: 
+
+dθ dt = fϕ(θ, c, t ) (36) 12 Figure 3: CFlow probing results. P5 (wrong context) causes zero accuracy change, while P6 (random θ0)causes a −40 pp drop. This confirms CFlow is a “ θ0 memorizer”—the context pathway is structurally dead. where c ∈ R32 is a learned context vector and fϕ is parameterized by a neural network (the “flow network”). Given a context ck for task k, the system integrates from a shared initialization θ0 to produce task-specific parameters θk = θ0 + R 10 fϕ(θ(t), c k, t ) dt .
+
+Surface-level results. CFlow achieves 92 .4 ± 0.7% ACC on Split-MNIST with only 6.1% forgetting—far better than EWC/SI/LwF and competitive with Experience Replay. This appears to validate the ODE approach. 
+
+P5 probing reveals the truth. However, Wrong-Context Probing delivers a devastating result: 
+
+∆CFlow P5 = 0 .0pp (37) The model achieves identical accuracy regardless of which context vector it receives. The context encoder is completely ignored. 
+
+Root cause: meta-learning bypass collapse. The flow network receives input [θ; c] ∈ R4874 where 
+
+dim (θ) = 4842 and dim (c) = 32 , creating a dimensionality ratio of ≈ 150 :1. We identify two mechanisms that conspire to make context invisible: 
+
+Proposition 10 (Gradient Magnitude Asymmetry) . For a neural network f taking concatenated input [θ; c]
+
+with dim( θ) = dθ ≫ dim( c) = dc, the expected gradient magnitudes satisfy: 
+
+E [∥∇ θ0 L∥ ]
+
+E [∥∇ cL∥ ] = O
+
+r dθ
+
+dc
+
+!
+
+≈
+
+r 4842 32 ≈ 12 .3 (38) 
+
+when parameters are initialized with the same scale. The optimizer follows the θ0 gradient, making θ0 a
+
+task-encoding state rather than a task-neutral initialization. 
+
+P6 confirmation. Replacing θ0 with a random initialization (P6 probe) drops accuracy by 40pp, confirming that all task information resides in the meta-learned θ0:
+
+∆CFlow P6 = −40 pp =⇒ performance is entirely θ0-dependent (39) 
+
+Cctx analysis. CFlow has a context pathway in principle (c is an input to fϕ), but the concatenation architecture makes it bypassable . The optimizer exploits the θ pathway to encode task information, reducing 
+
+Ceffective ctx ≈ 0 despite Carchitectural ctx > 0. This is the “context-implicit” failure mode: context exists but is structurally invisible. 
+
+# 3.3 Additional Closed Directions 
+
+Table 12 summarizes 15+ additional research directions explored during this project, all of which failed. Each is explained by the Cctx framework. 13 Table 3: Summary of closed research directions. All failures reduce to Cctx = 0 or a structural barrier to context utilization. Total: 200+ experiments across these directions.                                         
+
+> Direction Expts ACC Root Cause Spatial Energy 18 ±0pp Distance-weighted L1=regularization; hurts under capacity pressure Riverbed Effect 12 <0pp Uniform suppression −Σailog πi, not selective routing SPC-TC (ISTA) 82 −0.6pp Information bottleneck; learned dict ≈random dict CCD Theory 20 N/A Qualitatively suggestive, quantitatively fails (3/5 predictions wrong) OrthoCorr 8+0 .3%Conflicts with adaptive threshold; cannot help when keff ≥D
+> Metabolic Pruning 16 3/5 fail χhas zero discriminative power ( ρ= 0 .018 )M1 InfoMax 12 0/4 pass Cannot break SNsymmetry
+
+# 3.4 The “Frozen > Learned” Pattern 
+
+A recurring pattern across our experiments is that frozen random features match or outperform learned features in CL settings: 1. DND : Frozen random 81 .95% > Hebbian-trained 80 .85% (Eqs. 31–32). 2. SPC-TC : Frozen random dictionary ≈ online-learned dictionary (alignment difference = 0 .03 ). 3. CIFAR-10 context : Random pixel features 45 .2% > learned CNN features 37 .6% .The Cctx framework provides a unified explanation. In the regime where combinatorial capacity Ccomb ≫
+
+H(Y ), the Johnson-Lindenstrauss lemma guarantees that random projections preserve pairwise distances with high probability. Learning provides no advantage in feature quality but introduces a stability penalty :gradient updates to shared features cause interference across tasks. Frozen features avoid this penalty entirely. The information-theoretic bound is: Stability gain from freezing ≥ Quality gain from learning when Ccomb ≫ H(Y ) (40) This has a striking implication: in over-parameterized CL systems, the feature extractor should be frozen, and all adaptation should flow through the context-conditional pathway. This is precisely the design of our HyperNetwork architecture (Section 6). 
+
+# 4 Wrong-Context Probing Protocol 
+
+We formalize the Wrong-Context Probing (P5) protocol introduced in Section 2.4 and extend it to a family of diagnostic probes that collectively characterize how a CL architecture uses (or fails to use) context information. 
+
+# 4.1 Protocol Definition 
+
+Definition 6 (P5 Probing Family) . For a context-conditional CL model with context encoder e, parameter generator g, and base parameters θbase , we define the following probes: 
+
+P5a : Wrong task identity (for oracle context). Evaluate task k using context c(k+1) mod K . Measures: whether oracle task ID is actually used. 
+
+P5b : Random context vector . Evaluate task k using c ∼ N (0 , I ). Measures: whether any context information (not just correct) matters. 
+
+P6 : Random base parameters . Replace θbase with random initialization, keep correct context. Measures: dependence on meta-learned initialization. 
+
+P7 : Zero context . Evaluate with c = 0. Measures: baseline performance of θbase alone. For each probe Pi, we report ∆Pi = ACC Pi − ACC normal .
+
+14 Interpretation grid. The combination of probe results reveals the architecture’s information routing: 
+
+• ∆P5 ≈ 0, ∆P6 ≪ 0: “θ0 memorizer” (CFlow pattern). Context is dead; all information is in the initialization. 
+
+• ∆P5 ≪ 0, ∆P6 ≈ 0: “Context-dependent” (HyperNet pattern). Performance comes entirely from context-conditional parameter generation. 
+
+• ∆P5 ≈ 0, ∆P6 ≈ 0: Context and initialization both irrelevant (degenerate case). 
+
+# 4.2 Cctx Proxy Estimation 
+
+We define the empirical context channel capacity proxy as: 
+
+ˆCctx = max(0 , −∆P5 ) (41) This proxy is bounded in [0 , 1] : a value of 0 indicates context is completely ignored ( Cctx = 0 ), while a value near 1 indicates complete context dependence ( Cctx ≫ H(T )). 
+
+Limitations of the proxy. The P5-based proxy provides a binary signal (context used vs. not used) rather than a continuous estimate of Cctx in bits. Intermediate values of ˆCctx (e.g., 0.3–0.7) are difficult to interpret. We discuss potential refinements using mutual information neural estimation in Section 7. 
+
+# 4.3 Effective Rank as a Capacity Measure 
+
+For architectures with an explicit parameter generation matrix (such as HyperNet’s V ∈ Rdθ ×r mapping context to parameter deltas), we define an additional capacity measure via singular value decomposition. 
+
+Definition 7 (Effective Rank) . Given the SVD V = U ΣW ⊤ with singular values σ1 ≥ · · · ≥ σr , define normalized singular values ¯σi = σi/ P 
+
+> j
+
+σj . The effective rank is: 
+
+reff = exp −
+
+> r
+
+X
+
+> i=1
+
+¯σi log ¯ σi
+
+!
+
+= exp( H(¯ σ)) (42) 
+
+The rank-based capacity estimate is then Crank ctx = reff × b bits, where b is the effective bits per dimension. 
+
+For our HyperNet, reff ≈ 58 .5–59 .8 across seeds (out of nominal rank r = 64 ), indicating near-full utilization of the context channel. Even conservatively estimating b = 1 bit per dimension, Crank ctx ≈ 59 bits 
+
+≫ H(T ) = log 2 5 ≈ 2.3 bits. 
+
+# 5 Experimental Setup 
+
+# 5.1 Benchmarks 
+
+Split-MNIST (primary). MNIST digits are divided into 5 sequential binary classification tasks: {0, 1},
+
+{2, 3}, {4, 5}, {6, 7}, {8, 9}. All methods share a single 10-class output head and are evaluated on all 10 classes after training on the final task. We use 500 training and 200 test samples per class. 
+
+Split-CIFAR-10 (extension). CIFAR-10 images ( 32 × 32 × 3) are divided into 5 tasks of 2 classes each. This benchmark is substantially harder because batch-level pixel statistics are nearly identical across tasks (cosine similarity > 0.995 ), creating a severe challenge for learned context encoders. 
+
+# 5.2 Architecture Details 
+
+Table 4 provides complete architecture specifications for all methods. 
+
+Context-free baselines use a 2-layer MLP with 256 and 128 hidden units, ReLU activations, and a 10-class softmax output. All use Adam optimizer with learning rate 10 −3.15 Table 4: Architecture and hyperparameter details for all methods evaluated.                                  
+
+> Family Method Architecture Key Hyperparameters
+> Ctx-free  NaiveSGD MLP(784 →256 →128 →10) lr = 10 −3, Adam EWC same MLP λ= 400
+> SI same MLP c= 1 .0
+> LwF same MLP α= 1 .0,T= 2 .0
+> Exp. Replay same MLP buffer = 200 /task Ctx-implicit CFlow ConvTaskNet(4 filters) + FlowNet θdim = 4842 ,cdim = 32
+> Ctx  HyperNet Oracle ConvTaskNet(4f) + HyperNet ctx = 64 d, rank = 64
+> HyperNet Learned same + LearnedEncoder direct_stats , cw = 0 .1, bd = 0 .3
+
+CFlow uses a small CNN backbone ( ConvTaskNet with 4 convolutional filters, producing a 4842-dimensional parameter vector θ) and a 3-layer flow network with 256 hidden units. The context encoder produces 32-dimensional context vectors. Meta-learning uses 80 episodes with replay ratio 0.3 and 100 replay samples per task. 
+
+HyperNetwork uses the same CNN backbone. The HyperNet generates parameter deltas via θk =
+
+θbase + V · g(ck), where V ∈ R4842 ×64 is the low-rank projection matrix and g : R64 → R64 is a 2-layer MLP with 256 hidden units. HyperNet Oracle receives one-hot task identity as context. HyperNet Learned 
+
+uses a batch-statistics encoder with direct_stats=True (current-batch mean/variance, fully differentiable), contrastive loss (weight 0.1) to separate task contexts, and base parameter dropout (rate 0.3) to prevent 
+
+θbase bypass. Joint multi-task training uses 200 episodes. 
+
+# 5.3 Training Protocol 
+
+• Context-free baselines : 5 epochs per task, trained sequentially on tasks 1 → 5. Experience Replay samples uniformly from a buffer of 200 stored examples per past task. 
+
+• CFlow : 80 meta-learning episodes. Each episode samples a random task ordering, trains for 2 epochs, and evaluates for 3 epochs. The flow network is trained end-to-end with meta-learning rate 10 −3.
+
+• HyperNetwork : 200 joint multi-task episodes. Each episode samples a random task, generates task-specific parameters from context, and updates the HyperNet parameters (but not θ directly). This joint training avoids sequential forgetting by construction. All experiments use 4 random seeds ( {0, 1, 2, 3}) and report mean ± standard deviation. All code, configurations, and results are available in the supplementary materials. 
+
+# 5.4 Evaluation Metrics 
+
+• ACC : Mean accuracy across all 5 tasks after training on the final task: ACC = 1
+
+> K
+
+PKk=1 aKk .
+
+• Forgetting (Fgt) : Mean maximum accuracy drop: Fgt = 1
+
+> K−1
+
+PK−1 
+
+> j=1
+
+(max t≤K atj − aKj ).
+
+• Backward Transfer (BWT) : BWT = 1
+
+> K−1
+
+PK−1 
+
+> j=1
+
+(aKj − ajj ). Negative BWT indicates forgetting; positive BWT indicates improvement on old tasks. 
+
+• P5 ∆: Wrong-context probing delta (Definition 6). 
+
+• ˆCctx : Context channel capacity proxy = max(0 , −∆P5 ).
+
+• Crank ctx : Effective rank of HyperNet’s V matrix (Definition 7). 16 6 Results 
+
+# 6.1 Main Results 
+
+Table 1 (reproduced here for convenience) presents the complete Split-MNIST results. The key observations are: 
+
+Observation 1: EWC ≈ SI ≈ NaiveSGD. Fisher-weighted regularization (EWC) and path-integral importance (SI) provide negligible protection—their accuracies ( 18 .9% and 16 .4% ) are statistically indistin-guishable from naive fine-tuning ( 18 .7% ). The diagonal Fisher approximation on a 235K-parameter MLP is too coarse to meaningfully constrain optimization. 
+
+Observation 2: LwF provides partial protection. Knowledge distillation reduces forgetting from 97% 
+
+to 55% , lifting accuracy to 24 .2% . This is consistent with the soft distillation target carrying approximately 
+
+log 2(10) ≈ 3.3 bits of task-relevant information per sample, but this decays as the teacher model is overwritten. 
+
+Observation 3: Replay is powerful. Experience Replay achieves 85 .9% ACC with only 12 .5% 
+
+forgetting, using just 200 stored samples per task. This demonstrates that breaking the causality constraint 
+
+(revisiting old data) is highly effective, even with a small buffer. From the information-theoretic perspective, replay injects I(Dbuffer ; Dold ) bits of information about past tasks at each training step. 
+
+Observation 4: CFlow’s misleading performance. CFlow achieves 92 .4% ACC—better than Replay—but its ∆P5 = 0 .0 reveals that this performance comes entirely from the meta-learned initialization 
+
+θ0, not from the context-conditional ODE. CFlow is effectively a sophisticated meta-learning algorithm, not a context-conditional CL method. 
+
+Observation 5: HyperNet achieves perfect CL. Both HyperNet variants achieve ≥ 98 .8% ACC with 0.0% forgetting. The P5 delta of −97 .6pp (Oracle) and −95 .2pp (Learned) confirms that performance is entirely context-dependent. This is the only architecture family where Cctx > 0.
+
+# 6.2 Cctx vs. Forgetting: A Binary Phase Transition 
+
+Figure ?? plots ˆCctx against forgetting for all 8 methods. The relationship is not gradual—it exhibits a 
+
+binary phase transition :
+
+• Phase I ( ˆCctx = 0 ): All context-free methods and CFlow cluster at high forgetting ( 6–97% ). Within this phase, forgetting varies based on the specific learning algorithm (replay < distillation < regularization 
+
+< naive), but all methods share the fundamental limitation of Cctx = 0 .
+
+• Phase II ( ˆCctx ≈ 1): Both HyperNet variants achieve zero forgetting. The transition is sharp—there are no methods with intermediate ˆCctx values showing intermediate forgetting. This binary pattern is predicted by Theorem 4: the lower bound on forgetting is (1 − Cctx /H (T )) · Fgt max ,which transitions sharply from Fgt max (when Cctx = 0 ) to 0 (when Cctx ≥ H(T )). The absence of methods in the intermediate regime is not a sampling artifact—it reflects the structural difficulty of achieving 
+
+0 < C ctx < H (T ). Either the context pathway is architecturally unbypassable (giving Cctx ≫ H(T )), or the optimizer bypasses it (giving Cctx ≈ 0). 
+
+# 6.3 Wrong-Context Probing Analysis 
+
+Figure ?? shows the P5 probing results as grouped bars (normal vs. wrong-context accuracy). The complete probing table for context-conditional methods is: 
+
+CFlow’s context blindness. CFlow’s P5 ACC equals its normal ACC to within numerical precision across all 4 seeds. Combined with P6 ACC = 52 .4% (a −40 pp drop from random θ0), this confirms the “ θ0
+
+memorizer” pattern: all task-discriminative information resides in the meta-learned initialization, and the context encoder’s output is ignored by the flow network. 
+
+HyperNet’s context dependence. For HyperNet Oracle, wrong context drops accuracy from 98 .8% to 
+
+1.2% —near chance level for 10 classes. Random context (P5b) gives 10 .4% (near chance), confirming that no single random context happens to work. P6 gives 49 .7% , indicating that θbase alone provides a reasonable but far-from-optimal starting point. 17 Table 5: Complete probing results for context-conditional methods (4 seeds). P5 = wrong context, P5b =
+
+random context, P6 = random θbase , P7 = zero context.                         
+
+> Method Normal ACC P5 ACC P5b ACC P6 ACC P7 ACC ˆCctx
+> CFlow 92 .492 .4—52 .4—0.000
+> HyperNet Oracle 98 .81.210 .449 .7—0.976
+> HyperNet Learned 98 .93.719 .5—53 .10.952
+
+Table 6: CIFAR-10 extension results (4 seeds). Batch statistics fail; gradient context restores performance; NestedCapsule achieves new SOTA.                                       
+
+> Method ACC (%) Fgt (%) P5 ∆Context Source HyperNet Oracle 77 .7±0.90.0−77 .0One-hot task ID HyperNet Learned (batch) 54 .4±2.1—−0.5Batch pixel mean/var HyperNet + GradCtx 77 .0±0.90.0−77 .0∇θL
+> NestedCapsule + GradCtx 78 .5±0.60.0−78 .5∇θL+ routing NestedCapsule Oracle 79 .5±0.90.0—One-hot task ID
+
+HyperNet Learned’s encoder quality. The learned encoder achieves ˆCctx = 0 .952 —slightly below Oracle’s 0.976 but still sufficient for zero forgetting. The P5b (random context) result of 19 .5% is higher than Oracle’s 10 .4% , suggesting the learned encoder’s context space may have a less uniform distribution than one-hot encoding. Zero-context (P7) accuracy of 53 .1% shows θbase carries meaningful but incomplete task information. 
+
+# 6.4 Accuracy Matrix Analysis 
+
+Figure ?? shows the full 5 × 5 accuracy matrices. Each row i represents the evaluation after training on task 
+
+i; each column j represents accuracy on task j. The matrices reveal four distinct visual patterns: 1. Diagonal fade (NaiveSGD, EWC, SI): Only the diagonal entry is bright—the model retains only the most recently trained task. Previous tasks fade to near-zero immediately. 2. Partial retention (LwF): The diagonal is bright, and previous tasks show partial retention that decays over time. Task 1 accuracy drops from 100% to ∼ 20% over 4 subsequent tasks. 3. Moderate retention (Replay): Most entries are moderately bright ( > 70% ), with some degradation on early tasks. The replay buffer prevents complete forgetting. 4. Uniform high (HyperNet): All entries are uniformly bright ( > 97% ). Every row is identical because the HyperNet generates task parameters fresh from context, independent of training history. The CFlow matrix is notable for resembling Replay (moderate retention) rather than the HyperNet pattern, despite having a context encoder. This visual evidence supports the P5 finding: CFlow’s performance comes from the meta-learned initialization, not from context-conditional generation. 
+
+# 6.5 Extension to CIFAR-10 
+
+We extend our analysis to Split-CIFAR-10 to test the framework’s applicability beyond MNIST. This benchmark reveals a critical limitation of batch-statistics context encoders and motivates a novel solution. 
+
+The context collapse problem. On CIFAR-10, the batch-statistics encoder that worked perfectly on MNIST ( ˆCctx = 0 .952 ) fails catastrophically. The reason is quantifiable: the cosine similarity between batch pixel statistics (mean, variance) across CIFAR-10 task splits exceeds 0.995 . With five tasks, the context vectors are nearly identical, reducing Ceffective ctx ≈ 0.18 Gradient Context Encoder. To overcome the context collapse, we propose using loss gradients with respect to θbase as context signals: 
+
+ck = MLP(Π rand · ∇ θbase L(xk, y k; θbase )) (43) where Πrand ∈ R128 ×dθ is a frozen random projection matrix that reduces the gradient dimensionality, and MLP maps to the 64-dimensional context space. The key insight is that gradients computed with real labels produce near-orthogonal context vectors across tasks: 
+
+cos( ∇θ Ltask i, ∇θ Ltask j ) ≈ − 0.19 (i̸ = j) (44) whereas pseudo-label gradients (using the model’s own predictions) produce nearly identical vectors ( cos ≈
+
+0.95 ), explaining why self-supervised context fails. 
+
+Results. The Gradient Context Encoder achieves 77 .0 ± 0.9% ACC on Split-CIFAR-10 with ∆P5 =
+
+−77 .0pp—closing the oracle gap from 23 .3pp (batch statistics) to just 0.7pp. Per-seed accuracies ( 77 .5% ,
+
+78 .1% , 76 .4% , 75 .9% ) are highly stable. 
+
+NestedCapsule HyperNet. We further improve performance by replacing the HyperNet’s single MLP with N = 8 capsule-memory modules, each producing a partial rank-8 vector. Capsule routing uses softmax attention over similarity, magnitude, and a Titans-inspired surprise signal: 
+
+αi = softmax 
+
+ si · mi · (1 + surprise i)
+
+τ
+
+
+
+(45) where si is the cosine similarity between context and capsule i’s memory, mi is the magnitude, surprise i is the prediction error from an associative memory, and τ is the temperature. The NestedCapsule achieves 78 .5 ± 0.6% ACC on CIFAR-10 with gradient context—a +1 .5pp improvement over the standard HyperNet and only 1.0pp below the Oracle ceiling ( 79 .5% ). Routing entropy drops from 
+
+log 2 8 = 3 .0 bits (uniform) to 0.52 bits during training, indicating emergent capsule specialization. Direction cosine between capsule outputs is −0.09 (near-orthogonal), confirming functional differentiation. 
+
+# 6.6 Effective Rank Analysis 
+
+For HyperNet Learned on Split-MNIST, we compute the effective rank of the V matrix across all 4 seeds:                                
+
+> Seed reff Nominal rank Utilization Crank ctx (bits, b= 1 )059.8 64 93.4% 59.8 158.9 64 92.0% 58.9 259.7 64 93.3% 59.7 359.7 64 93.3% 59.7 Mean 59 .5±0.464 93.0% 59 .5±0.4
+
+The effective rank reff ≈ 59 .5 out of 64 indicates that the context channel uses 93% of its nominal capacity. The context channel capacity in bits is: 
+
+Crank ctx ≈ 59 .5 × b ≫ H(T ) = log 2 5 ≈ 2.3 bits (46) Even with the most conservative estimate of b = 1 bit per dimension, the capacity exceeds H(T ) by a factor of ∼ 26 ×. This massive over-provisioning explains why the HyperNet achieves perfect task separation: the context channel has far more capacity than needed, making the task identification problem trivially solvable. 
+
+Implications for scaling. If we need to support K tasks with H(T ) = log 2 K, the required rank scales only as O( log K). With rank 64 and b = 1 , we could in principle support 259 .5 ≈ 8.5 × 10 17 tasks—the context channel is not the bottleneck for scaling. 19 7 Discussion 
+
+# 7.1 Architecture > Algorithm: The Cctx -First Design Principle 
+
+The central lesson of our 1,130+ experiments is that the topology of information flow matters far more than the algorithm operating within that topology. EWC, SI, and LwF all implement sophisticated regularization algorithms, yet achieve ≤ 24 .2% ACC on Split-MNIST—barely above chance for the later tasks. Meanwhile, a HyperNetwork with a trivially simple context encoder (one-hot task identity passed through a single MLP) achieves 98.8% ACC with zero forgetting. The difference is entirely structural. We distill this into three concrete design principles for CL architectures: 1. Explicit context signal. The architecture must have a well-defined input that carries task-identifying information—whether task identity, batch statistics, or gradient signatures. Without this signal, 
+
+Cctx = 0 by definition and no algorithm can prevent forgetting (Corollary 2). 2. Structural unbypassability. All task-specific computation must flow through the context pathway. There must be no parameter pathway that can encode task information without context. Formally, for parameter generator θ(c) = g(c, ϕ ) where ϕ denotes context-independent parameters, we require that 
+
+I(θ; T | c) = 0 —the parameters carry no task information beyond what context provides. 3. Differentiable context encoding. The mapping from raw observations to context vectors must be end-to-end differentiable with respect to the encoder parameters. This is not merely an engineering convenience: our learned encoder experiments revealed that EMA-based running statistics ( ¯μk, ¯σ2
+
+> k
+
+)use in-place buffer operations that are not tracked by autograd , causing the encoder to collapse to a near-constant mapping ( ∆P5 = 0 ). Replacing EMA with direct batch statistics ( direct_stats=True )restored ∆P5 from 0.0 to −92 .2 percentage points on Split-MNIST. CFlow (NeuralDrift Team, 2026) provides a vivid illustration of what happens when Principle 2 is violated. Its architecture concatenates a 32-dimensional context vector with a 4,842-dimensional parameter vector θ to form the input to an ODE flow network. Despite the context encoder being well-defined (Principle 1) and differentiable (Principle 3), the 150 : 1 dimensionality ratio between θ and c creates a structural bypass: the optimizer finds it energetically cheaper to encode all task information in the meta-learned initialization θ0
+
+than to route gradients through the thin context pathway. The result is ∆P5 = 0 .0—the model completely ignores its context signal—and all performance (ACC = 92 .4% ) comes from the memorized θ0.
+
+Remark 4. The Cctx -first principle inverts the typical CL research workflow. Instead of asking “given a fixed architecture, what algorithm prevents forgetting?”, we argue one should ask “given the need for Cctx ≥ H(T ),what architecture ensures the context pathway is unbypassable?” The algorithm is secondary. 
+
+# 7.2 The Learned Context Encoder Problem 
+
+A critical question for practical deployment is: can the context signal be learned from data rather than provided by an oracle? Our experiments reveal that the answer depends sharply on the benchmark. 
+
+MNIST: batch statistics suffice. On Split-MNIST, the 5 tasks involve distinct digit pairs (0/1, 2/3, . . . , 8/9) whose pixel-level statistics differ substantially. The pairwise cosine similarity between batch mean vectors across tasks is approximately 0.5, providing ample signal for task discrimination. The learned encoder with direct batch statistics achieves 99.1% ACC ( ∆P5 = −95 .2), actually exceeding the oracle encoder (98.8%). 
+
+CIFAR-10: batch statistics collapse. On Split-CIFAR-10 (5 tasks, 2 classes each), all natural image classes share similar low-level statistics. The pairwise cosine similarity between batch means exceeds 0.995, and the learned batch-statistics encoder achieves only 54.4% ACC—equivalent to memorizing the final task. 
+
+Solution: Gradient Context Encoder. To address this, we propose using the loss gradient ∇θbase L as the context signal. The key insight is that gradients are inherently task-diagnostic: different tasks induce different update directions on shared parameters, even when input statistics are indistinguishable. Concretely, we compute a mini-batch gradient, project it through a frozen random matrix to R128 , and pass the result through a small MLP to produce a 64-dimensional context vector. 20 The gradient context encoder closes the oracle gap dramatically: Batch statistics: ACC = 54 .4% , ∆oracle = 23 .3pp (47) Gradient context: ACC = 77 .0 ± 0.9% , ∆oracle = 0 .7pp (48) Analysis of inter-task gradient cosine similarities confirms the mechanism: gradients computed with real labels yield pairwise cosine ≈ − 0.19 (near-orthogonal across tasks), while pseudo-label gradients yield cosine 
+
+≈ 0.95 (task-indistinguishable). The gradient context encoder’s effectiveness thus depends critically on access to real labels during context computation. 
+
+Limitation. The gradient context encoder requires labeled samples at inference time to compute ∇θbase L.In a deployment scenario, this means the system needs a small labeled calibration set per task—analogous to a “task prompt”—before it can generate task-appropriate parameters. While this is acceptable in many practical settings (e.g., few-shot calibration), it prevents fully unsupervised deployment. 
+
+# 7.3 The “Frozen > Learned” Phenomenon 
+
+A recurring and initially counterintuitive finding across our experimental campaign is that frozen random components frequently outperform their learned counterparts: Table 7: Instances of the “frozen > learned” phenomenon observed across the NeuralDrift project.                
+
+> Component Frozen ACC Learned ACC ∆
+> DND feature extractor 81.95% 80.85% +1 .10
+> SPC-TC dictionary ≈learned ≈frozen ≈0.0
+> Gradient projection matrix 77.0% —(no learned variant)
+
+The Cctx framework provides two complementary explanations: 
+
+Capacity surplus. When the combinatorial capacity of the feature space Ccomb = log 2
+
+ Nk
+
+ greatly exceeds the label entropy H(Y )—as is typically the case in over-parameterized settings—the specific choice of features has little impact on classification accuracy. What matters is the stability of the feature space across tasks. Frozen random features provide perfect stability (zero drift by construction), while learned features inevitably drift during training on new tasks, potentially degrading representations of old tasks. 
+
+Meta-learning bypass collapse. In meta-learning architectures where a learnable component hψ
+
+coexists with a high-capacity static pathway (e.g., θbase in a HyperNetwork), the optimizer faces a choice: invest in hψ or encode the same information in θbase . Since θbase is updated by standard backpropagation while hψ requires second-order gradients (through the context-to-parameter mapping), the path of least resistance is to let hψ collapse to a near-constant function and encode all task-relevant information in θbase .
+
+Proposition 11 (Meta-Learning Bypass Collapse) . Consider a parameter generator θk = θbase + V · hψ (ck)
+
+optimized over tasks {Dk}. If (i) θbase has sufficient capacity to fit any single task, and (ii) gradient updates to θbase are cheaper than second-order updates through hψ , then the optimizer converges to hψ (ck) ≈ const 
+
+for all k—a fixed-point where context is ignored. 
+
+This proposition explains why the naïve CFlow architecture fails ( ∆P5 = 0 ) and why explicit mechanisms to force context reliance—such as base dropout (randomly zeroing θbase during training) or contrastive context losses—are necessary to break the bypass equilibrium. 
+
+# 7.4 Implications for CL Research 
+
+The value of negative results. Our experimental campaign produced 15+ closed research directions, each documented with a precise mathematical or empirical root cause. These are not failures of hyperparameter tuning; they are structural impossibilities within the given architecture class. For example, Hebbian learning contributes 0.0 percentage points to DND’s CL performance because a frozen random projection achieves identical accuracy—the Hebbian rule simplifies to an online PCA that discards precisely the high-frequency components needed for task discrimination. We believe the CL community would benefit from systematic 21 publication of such negative results, as they narrow the search space far more efficiently than positive results expand it. 
+
+Biological inspiration requires biological scale. Several of our closed directions—Hebbian learning, metabolic pruning, synaptic consolidation—were inspired by neuroscience. In the brain, these mechanisms operate across 10 11 neurons with complex neuromodulatory control (dopamine, acetylcholine, norepinephrine). When reduced to a two-layer MLP with Oja’s rule, Hebbian learning degenerates to PCA—a linear dimen-sionality reduction that is neither task-specific nor competitive with random projections. The lesson is not that biological mechanisms are irrelevant, but that they require biological-scale complexity to be effective. 
+
+Split-MNIST is a dangerous benchmark. Our results reveal that Split-MNIST has such large inter-task differences that almost any context signal suffices: batch pixel means alone achieve 99.1% ACC. This means Split-MNIST cannot distinguish between architectures with high Cctx and those with low but nonzero Cctx . On CIFAR-10, where inter-task differences are subtle, the gap between oracle (77.7%) and naïve learned encoders (54.4%) is 23.3 percentage points—a failure mode completely invisible on MNIST. We recommend that CL papers always include at least one “hard context” benchmark where batch statistics are uninformative. 
+
+Evaluation methodology. Two methodological findings deserve attention: (i) Quick mode evaluation (reduced epochs and samples) produces a 100% false positive rate in our CL experiments—every method that appeared to work in quick mode failed at full scale. We recommend against using abbreviated training protocols for CL evaluation. (ii) Wrong-Context Probing (P5) should become a standard evaluation tool for any context-conditional CL architecture, as it provides a direct, interpretable measure of whether the architecture actually uses its context signal. 
+
+# 7.5 Limitations 
+
+Benchmark scope. Our systematic validation is conducted on Split-MNIST (5 tasks) with extension experiments on Split-CIFAR-10. Validating Cctx predictions on harder benchmarks—Split-CIFAR-100 (20 tasks), Split-ImageNet, and domain-incremental settings—remains important future work. The key question is whether the sharp Cctx = 0 ⇔ forgetting dichotomy persists when the number of tasks grows and inter-task similarity increases. 
+
+Task-incremental assumption. The Cctx framework assumes that a context signal carrying task-identifying information is available or can be inferred. In task-free CL settings—where task boundaries are not provided and the data distribution shifts gradually—the notion of “context” is less well-defined. Extending the framework to continuous distribution shifts, where T is a continuous random variable rather than a discrete task index, is nontrivial. 
+
+P5 as a binary probe. The Wrong-Context Probing protocol provides a binary signal: either the model uses context ( ∆P5 ≪ 0) or it does not ( ∆P5 ≈ 0). It does not provide a continuous, calibrated estimate of Cctx in bits. A method with ∆P5 = −95% and one with ∆P5 = −50% both “use context,” but differ in how much task information the context pathway carries. Developing continuous estimators (e.g., via MINE (Belghazi et al., 2018) or NWJ bounds) would strengthen the framework. 
+
+Task boundary knowledge. The HyperNetwork architecture requires knowledge of task boundaries during training (to accumulate per-task context statistics and apply contrastive losses). While this is a standard assumption in task-incremental CL, it limits applicability to settings where task transitions are identifiable. 
+
+Label requirement for gradient context. The gradient context encoder requires real labels to compute discriminative gradients. Pseudo-label gradients (cosine ≈ 0.95 across tasks) are uninformative. This limits fully unsupervised deployment, though few-shot calibration is feasible in many practical settings. 
+
+# 7.6 Future Directions 
+
+Scaling to harder benchmarks. The immediate priority is validating the Cctx framework on Split-CIFAR-100 (20 tasks, 5 classes each) and Split-ImageNet, where H(T ) = log 2 20 ≈ 4.3 bits demands higher-capacity context channels. The gradient context encoder is a natural candidate, as gradient-based task discrimination should scale with model capacity. 22 Task-free CL via automatic context generation. The NestedCapsule architecture (Section 6.5) provides a promising direction: its routing mechanism produces emergent task specialization (gate entropy dropping from log 2 8 = 3 .0 to ∼ 0.5, direction cosine ≈ − 0.09 ) without explicit task labels. This suggests a path toward task-free CL where context is generated automatically from input statistics and routing dynamics. 
+
+Continuous Cctx estimation. Replacing the binary P5 probe with a continuous estimator based on mutual information neural estimation (Belghazi et al., 2018) or the Nguyen-Wainwright-Jordan bound would enable quantitative comparison of architectures that all “use context” but to different degrees. This is particularly important for comparing HyperNet variants (oracle vs. learned vs. gradient). 
+
+Connection to PAC-Bayes bounds. The Cctx framework has a natural connection to PAC-Bayes analysis of CL (Doan et al., 2021): the context channel capacity plays the role of a complexity term that controls the generalization-forgetting trade-off. Formalizing this connection could yield tighter bounds that account for the specific structure of context-conditional architectures. 
+
+Multi-modal and compositional context. Real-world continual learning often involves multiple simultaneous context signals (task instructions, environmental cues, user identity). Extending Cctx to multi-channel settings, where Cctx = I(c1, c 2, . . . , c m; θ), could provide design guidance for compositional CL systems. 
+
+# 8 Related Work 
+
+# 8.1 Catastrophic Forgetting 
+
+The catastrophic forgetting problem was first identified by McCloskey and Cohen (1989) in connectionist models and systematically surveyed by French (1999). The modern era of CL research was catalyzed by Elastic Weight Consolidation (EWC) (Kirkpatrick et al., 2017), which uses the Fisher information matrix to penalize changes to parameters important for past tasks. Synaptic Intelligence (SI) (Zenke et al., 2017) computes importance online during training, avoiding the need for a separate Fisher computation. Learning without Forgetting (LwF) (Li and Hoiem, 2017) uses knowledge distillation from previous model outputs, requiring no stored data. Experience Replay and its variants (Chaudhry et al., 2019) store and revisit subsets of past data. From the Cctx perspective, all of the above are Cctx = 0 methods: they operate on shared parameters without any mechanism for task-conditional computation. Our framework predicts—and our experiments confirm—that such methods are fundamentally limited, regardless of the sophistication of their regularization or replay strategies. 
+
+# 8.2 Architecture-Based Continual Learning 
+
+Progressive Networks (Rusu et al., 2016) allocate new network columns per task, achieving zero forgetting at the cost of linearly growing parameters. PackNet (Mallya and Lazebnik, 2018) assigns parameter subsets to tasks via iterative pruning. Expert Gate (Aljundi et al., 2017) trains task-specific expert networks with a gating mechanism for task selection. These methods implicitly achieve Cctx > 0 by providing task-specific parameter pathways, but they typically require parameter growth proportional to K. The HyperNetwork approach (von Oswald et al., 2020) achieves a more elegant solution: a fixed-size meta-network generates task-specific parameters from compact context vectors, keeping total parameter count independent of K.von Oswald et al. (2020) first demonstrated that task-conditioned HyperNetworks can achieve strong CL performance on Split-MNIST and Permuted-MNIST. Ehret et al. (2021) extended this to sequential task settings with learned task embeddings. Our contribution relative to this line of work is not architectural—we use a standard HyperNetwork—but explanatory : the Cctx framework provides a formal information-theoretic account of why HyperNetworks succeed, identifies the precise structural properties that are necessary (unbypassability, differentiability), and predicts failure modes (CFlow’s context bypass) that are invisible without this framework. 23 8.3 Information-Theoretic Perspectives on CL 
+
+Several prior works have applied information theory to continual learning, but none analyze the role of context-conditional architectures. Achille and Soatto (2018) establish that the mutual information I(W ; S) between weights and training data controls generalization via a PAC-Bayes-like bound. However, their analysis is restricted to single-task learning and does not address the sequential multi-task setting where forgetting arises. Doan et al. (2021) analyze catastrophic forgetting through the Neural Tangent Kernel (NTK) overlap matrix and derive PAC-Bayes bounds for CL. Their analysis characterizes forgetting in terms of task gradient similarity but does not consider architectures where parameters are conditionally generated from context. Taheri and Thrampoulidis (2025) derive forgetting rate bounds for overparameterized single-hidden-layer networks, showing that forgetting scales with the ratio of task-specific to shared features. Their bounds apply to Cctx = 0 architectures and do not account for conditional parameter generation. BEDS (Caraffa, 2026) argues that forgetting is structurally necessary under Bayesian estimation of distributional shift, providing Fisher-Rao optimal regularization. While philosophically aligned with our impossibility result (Theorem 3), BEDS provides a macroscopic framework without the architectural analysis or the quantitative Cctx predictions that distinguish our work. The key distinction of our framework is the focus on architectural information flow topology : we analyze not just whether forgetting occurs, but how the specific routing of information through context pathways determines whether it must occur. This shifts the question from “how much forgetting?” to “does the architecture permit zero forgetting at all?” 
+
+# 8.4 Compression and Continual Learning 
+
+The connection between compression and learning has a long history, from minimum description length (MDL) (Rissanen, 1978) to the information bottleneck (Tishby et al., 2000). In the CL context, Bornschein et al. (2022) connect prequential MDL to online learning, showing that compressibility of the data stream relates to learnability. Angelini et al. (2023) provide the most direct application of MDL to CL, using variational density propagation with MDL objectives. Their work demonstrates that MDL-based CL is feasible but does not analyze the role of architectural structure in determining compression efficiency. Finzi et al. (2025) introduce epiplexity as an information measure for computationally bounded agents, extending Shannon information to settings where the decoder has limited computational power. This is relevant to our framework because Cctx implicitly assumes that the parameter generator g can decode context into useful parameters—an assumption that may not hold for computationally constrained generators. Our work differs from the compression-CL literature in that we do not propose a compression-based learning algorithm. Instead, we use information-theoretic analysis to characterize architectural capacity for conditional regeneration —the ability to reconstruct task-specific parameters from compact context signals. 
+
+# 8.5 Meta-Learning and Task Conditioning 
+
+The HyperNetwork approach to CL is closely related to meta-learning (Finn et al., 2017; Hospedales et al., 2022), where a meta-learner produces task-specific models from task descriptors. MAML (Finn et al., 2017) and its variants learn an initialization θ0 from which task-specific parameters can be obtained via a few gradient steps. In our framework, MAML’s inner loop serves as an implicit context encoder: the support set + gradient steps produce a task-conditional parameter update. However, because θ0 persists across tasks and carries most of the model’s capacity, MAML exhibits the same bypass vulnerability as CFlow—the “task information” may reside primarily in θ0 rather than in the adaptation. Task-conditioned architectures in multi-task learning (Strezoski et al., 2019) use FiLM layers (Perez et al., 2018), task-specific batch normalization, or adapter modules to modulate a shared backbone. These approaches achieve Cctx > 0 by design, as the task signal directly modulates intermediate representations. Our framework provides a principled lens for evaluating such designs: the question is whether the modulation pathway has sufficient capacity ( Cctx ≥ H(T )) and whether it is truly unbypassable. 24 Table 8: Comparison of theoretical CL frameworks. “Arch. analysis” = analyzes how architecture topology affects forgetting. “ Cctx ” = explicitly models context channel capacity. “Neg. results” = provides systematic negative results with root causes.                                    
+
+> Framework Info-theoretic Arch. analysis Cctx Empirical Neg. results Achille and Soatto (2018) ✓––✓–Doan et al. (2021) ✓––✓–Taheri and Thrampoulidis (2025) ✓––––Caraffa (2026) ✓––✓–Angelini et al. (2023) ✓––✓–
+> Ours ✓✓✓✓✓
+
+# 8.6 Our Contribution in Context 
+
+To our knowledge, no prior work simultaneously: (i) proposes a formal information-theoretic lower bound on forgetting tied to architectural context capacity; (ii) compares CL methods through the lens of information flow topology rather than algorithmic sophistication; (iii) formalizes the principle that conditional regeneration from context bypasses the impossibility triangle; and (iv) provides systematic negative results (15+ closed directions) with precise mathematical or empirical root causes. Table 8 summarizes the relationship between our framework and prior theoretical work on CL. 
+
+# 9 Conclusion 
+
+We have presented Context Channel Capacity ( Cctx ), an information-theoretic framework that provides a unified explanation for catastrophic forgetting in continual learning. Through the lens of Cctx , the diverse landscape of CL methods—from regularization (EWC, SI) to distillation (LwF) to replay to architecture-based approaches (HyperNetworks)—reduces to a single structural question: how much task-identifying information can flow through the architecture’s context pathway? 
+
+Our framework makes three contributions: 
+
+Theoretical. We prove that zero forgetting requires Cctx ≥ H(T ) (Theorem 4) and that the Impossibility Triangle (Theorem 3) is bypassed by conditional regeneration—reconstructing task-specific parameters from compact context signals rather than maintaining them through sequential updates. These results shift the CL question from “how to prevent parameter interference” to “how to ensure sufficient context bandwidth.” 
+
+Empirical. We validate the framework across 8 CL methods on Split-MNIST (1,130+ experiments, 4 seeds per configuration). The Cctx proxy perfectly predicts forgetting behavior: all methods with Cctx = 0 
+
+exhibit catastrophic forgetting (6–97%), while methods with Cctx ≈ 1 achieve zero forgetting. We further demonstrate that the framework extends to harder benchmarks via the Gradient Context Encoder, which achieves 77.0% ACC on Split-CIFAR-10 (within 0.7pp of oracle), and the NestedCapsule architecture, which pushes this to 78.5% with emergent routing specialization. 
+
+Methodological. Wrong-Context Probing (P5) provides a simple, practical diagnostic tool: feed wrong-task context and measure accuracy degradation. A ∆P5 ≈ 0 definitively diagnoses context blindness, regardless of how sophisticated the architecture appears. We recommend P5 as a standard evaluation tool for any context-conditional CL system. The overarching design principle is: architecture over algorithm, context pathway must be structurally unbypassable . No amount of algorithmic sophistication—whether Fisher regularization, synaptic intelligence, knowledge distillation, or Hebbian learning—can compensate for an architecture where task-identifying information has no pathway to influence computation. Conversely, even a simple architecture with a well-designed context channel can achieve zero forgetting. Looking forward, the most important open questions are: (i) scaling Cctx to settings with many tasks (K ≫ 5) and fine-grained inter-task similarity; (ii) extending the framework to task-free CL, where context must be generated automatically without task boundary knowledge; and (iii) connecting Cctx to PAC-Bayes generalization bounds to obtain end-to-end learning guarantees for context-conditional CL architectures. 25 References 
+
+Alessandro Achille and Stefano Soatto. Emergence of invariance and disentangling in deep representations. 
+
+Journal of Machine Learning Research , 19(50):1–34, 2018. Rahaf Aljundi, Punarjay Chakravarty, and Tinne Tuytelaars. Expert gate: Lifelong learning with a network of experts. In IEEE Conference on Computer Vision and Pattern Recognition , pages 3366–3375, 2017. Matteo Angelini et al. Variational continual learning with the description length prior. arXiv preprint , 2023. Mohamed Ishmael Belghazi, Aristide Barber, Sai Rajeswar, Gabriel Loaiza-Ganem, Saibal Kahou, and Aaron Courville. MINE: Mutual information neural estimation. In International Conference on Machine Learning ,pages 531–540. PMLR, 2018. Jörg Bornschein et al. Neuro-compositional computing with short-term and incremental learning. arXiv preprint arXiv:2209.01975 , 2022. Thomas Caraffa. BEDS: Bayesian estimation of distributional shift in continual learning. arXiv preprint ,2026. Arslan Chaudhry, Marcus Rohrbach, Mohamed Elhoseiny, Thalaiyasingam Ajber, Davide Alessio, and Martin Jaggi. On tiny episodic memories in continual learning. In arXiv preprint arXiv:1902.10486 , 2019. Thomas M Cover and Joy A Thomas. Elements of Information Theory . John Wiley & Sons, 2nd edition, 2006. Thang Doan, Mehdi Abbana Bennani, Bogdan Mazoure, Guillaume Rabusseau, and Pierre Alquier. Atheoretical analysis of catastrophic forgetting through the NTK overlap matrix. In International Conference on Artificial Intelligence and Statistics , pages 1072–1080. PMLR, 2021. Benjamin Ehret, Christian Henning, Maria R Cervera, Alexander Meulemans, Johannes von Oswald, and Benjamin F Grewe. Continual learning in recurrent neural networks. In International Conference on Learning Representations , 2021. Chelsea Finn, Pieter Abbeel, and Sergey Levine. Model-agnostic meta-learning for fast adaptation of deep networks. In International Conference on Machine Learning , pages 1126–1135. PMLR, 2017. Marc Finzi, Gregory Benton, and Andrew Gordon Wilson. Epiplexity: Information in complex systems beyond shannon. arXiv preprint arXiv:2601.03220 , 2025. Robert M French. Catastrophic forgetting in connectionist networks. Trends in cognitive sciences , 3(4): 128–135, 1999. Timothy Hospedales, Antreas Antoniou, Paul Micaelli, and Amos Storkey. Meta-learning in neural networks: A survey. IEEE Transactions on Pattern Analysis and Machine Intelligence , 44(9):5149–5169, 2022. James Kirkpatrick, Razvan Pascanu, Neil Rabinowitz, Joel Veness, Guillaume Desjardins, Andrei A Rusu, Kieran Milan, John Quan, Tiago Ramalho, Agnieszka Grabska-Barwinska, et al. Overcoming catastrophic forgetting in neural networks. Proceedings of the National Academy of Sciences , 114(13):3521–3526, 2017. Zhizhong Li and Derek Hoiem. Learning without forgetting. In European Conference on Computer Vision ,pages 614–629. Springer, 2017. Arun Mallya and Svetlana Lazebnik. PackNet: Adding multiple tasks to a single network by iterative pruning. In IEEE Conference on Computer Vision and Pattern Recognition , pages 7765–7773, 2018. Michael McCloskey and Neal J Cohen. Catastrophic interference in connectionist networks: The sequential learning problem. Psychology of learning and motivation , 24:109–165, 1989. NeuralDrift Team. Continuous-time parameter flow for continual learning, 2026. Developed as part of the NeuralDrift project. 26 Erkki Oja. Simplified neuron model as a principal component analyzer. Journal of Mathematical Biology , 15 (3):267–273, 1982. Ethan Perez, Florian Strub, Harm de Vries, Vincent Dumoulin, and Aaron Courville. FiLM: Visual reasoning with a general conditioning layer. In AAAI Conference on Artificial Intelligence , 2018. Jorma Rissanen. Modeling by shortest data description. Automatica , 14(5):465–471, 1978. Andrei A Rusu, Neil C Rabinowitz, Guillaume Desjardins, Hubert Sober, Koray Kavukcuoglu, and Raia Hadsell. Progressive neural networks. In arXiv preprint arXiv:1606.04671 , 2016. Gjorgji Strezoski, Nanne van Noord, and Marcel Worring. Many task learning with task routing. In IEEE International Conference on Computer Vision , pages 1375–1384, 2019. Hossein Taheri and Christos Thrampoulidis. On the rate of forgetting in overparameterized continual learning. 
+
+arXiv preprint arXiv:2501.xxxxx , 2025. Naftali Tishby, Fernando C Pereira, and William Bialek. The information bottleneck method. arXiv preprint physics/0004057 , 2000. Johannes von Oswald, Christian Henning, João Sacramento, and Benjamin F Grewe. Continual learning with hypernetworks. In International Conference on Learning Representations , 2020. Friedemann Zenke, Ben Poole, and Surya Ganguli. Continual learning through synaptic intelligence. In 
+
+International Conference on Machine Learning , pages 3987–3995. PMLR, 2017. 
+
+# A Complete Proofs 
+
+# A.1 Proof of Theorem 1 (Information Bottleneck Chain) 
+
+We provide the complete proof with all conditions made explicit. 
+
+Proof. Consider the sequential learning process θ0 → θ1 → · · · → θK , where θk = U (θk−1, D k) is the deterministic update rule. 
+
+Step 1: Markov chain condition. We claim that D1 → θ1 → θ2 → · · · → θK forms a Markov chain. To see this, note that by the causal constraint of sequential learning, θk = U (θk−1, D k) depends only on θk−1
+
+and Dk. Since Dk is drawn independently of D1 (the tasks are independent), we have: 
+
+P (θk | θk−1, D 1, . . . , D k−1) = P (θk | θk−1) (49) where the conditioning on θk−1 implicitly includes the effect of Dk (which is independent of D1). More precisely, for k ≥ 2:
+
+I(θk; D1 | θk−1) = 0 (50) because θk is a deterministic function of θk−1 and Dk, and Dk ⊥ D1.
+
+Step 2: Data Processing Inequality. The DPI (Cover and Thomas, 2006) states that for any Markov chain X → Y → Z:
+
+I(X; Z) ≤ I(X; Y ) (51) Applied to the chain D1 → θk−1 → θk (which holds for all k ≥ 2): 
+
+I(θk; D1) ≤ I(θk−1; D1) ∀ k ≥ 2 (52) By induction, we obtain the full chain: 
+
+I(θK ; D1) ≤ I(θK−1; D1) ≤ · · · ≤ I(θ1; D1) (53) 27 Step 3: Initial capacity bound. The parameter θ1 = U (θ0, D 1) takes values in Θ ⊆ Rd. If each parameter is represented with precision δ (e.g., floating-point quantization), then |Θ| ≤ (1 /δ )d, and: 
+
+I(θ1; D1) ≤ H(θ1) ≤ log 2 |Θ| ≤ d · log 2(1 /δ ) ≜ C (54) 
+
+Discussion: Parameter precision δ. For IEEE 754 float32, the mantissa has 23 bits, so the effective precision per parameter is approximately log 2(1 /δ ) ≈ 24 bits (accounting for the sign bit and distinguishable mantissa states). In practice, the effective precision is often much lower due to the loss landscape geometry: most directions in parameter space are “flat” and carry no task-relevant information. The bound C = d · 24 
+
+bits is therefore a loose upper bound for modern networks with d ∼ 10 6–10 9.
+
+Discussion: Deterministic vs. stochastic update rules. For deterministic U (e.g., full-batch gradient descent), the Markov chain is deterministic, and DPI holds trivially. For stochastic U (e.g., SGD with mini-batch noise), θk is a stochastic function of (θk−1, D k), but the Markov property still holds: I(θk; D1 | θk−1) = 0 
+
+because the stochasticity comes from Dk (independent of D1) and/or the random seed, not from D1. However, stochastic updates can only decrease I(θk; D1) further (adding noise cannot increase mutual information), so the bound remains valid: 
+
+I(θk; D1) ≤ I(θk−1; D1) − I(θk; D1 | θk−1) ≤ I(θk−1; D1) (55) where the second term accounts for the information lost through stochastic processing. 
+
+# A.2 Proof of Theorem 3 (Impossibility Triangle) 
+
+We first formalize the three properties precisely, then prove their mutual incompatibility. 
+
+Proof. Formal definitions. 
+
+1. Zero forgetting. For all j < k ≤ K:
+
+ACC j (θk) = ACC j (θj ) ≜ a∗ 
+
+> j
+
+(56) This requires that θk encodes a sufficient statistic for each past task j’s prediction: there exists a decoding function ϕj such that ϕj (θk) = f ∗ 
+
+> j
+
+(the optimal predictor for task j) for all k ≥ j.2. Online learning (causal constraint). The parameter at step k depends only on the previous parameter and the current task data: 
+
+θk = U (θk−1, D k) (57) In particular, D1, . . . , D k−1 are not accessible at step k (no replay). 3. Finite parameters. The parameter dimension is fixed: θk ∈ Θ ⊆ Rd for all k, with d independent of 
+
+K.
+
+Proof by contradiction. Assume all three properties hold simultaneously. By Property 1, θK must encode sufficient information about every task j ∈ { 1, . . . , K }. Formally, let Rj = I(Dj ; f ∗ 
+
+> j
+
+) denote the minimum mutual information required to achieve accuracy a∗ 
+
+> j
+
+on task j. Then zero forgetting requires: 
+
+I(θK ; Dj ) ≥ Rj ∀ j = 1 , . . . , K (58) If the tasks are mutually independent (i.e., D1, . . . , D K are independent random variables), then the information about distinct tasks cannot be “shared,” and: 
+
+> K
+
+X
+
+> j=1
+
+Rj ≤ I (θK ; D1, . . . , D K ) ≤ H(θK ) ≤ C = d · log 2(1 /δ ) (59) By Property 3, C is a constant independent of K. But PKj=1 Rj ≥ K · Rmin where Rmin = min j Rj > 0
+
+(assuming each task requires at least some information). For K > C/R min , the inequality (59) is violated, giving a contradiction. 28 Why HyperNetworks do not violate the theorem. A HyperNetwork generates θk = g(ck; ϕ), where 
+
+ck is the context for task k and ϕ are the meta-learned parameters. Critically, θk is not a sequentially updated state—it is a function value computed from ck. The knowledge resides in ϕ, which is optimized jointly 
+
+over all tasks (violating Property 2). Alternatively, if ϕ is fixed after meta-training, then at test time, the “state” is (ck, ϕ ), and the effective parameter count is |ϕ| + |ck|, where |ϕ| can store information about all K
+
+tasks because it was trained with access to all of them (violating the online constraint). The HyperNetwork thus escapes the triangle by redefining the parameter-generation process: θk is a conditional output, not an accumulated state. 
+
+# A.3 Proof of Theorem 4 (Context Channel Capacity Bound) 
+
+Proof. Setup: Task identification as channel coding. Consider a context-conditional CL architecture where, at inference time, a context signal c is mapped to parameters θ(c) = g(c; ϕ). We frame this as a communication problem: 
+
+• Encoder: The task identity T ∈ { 1, . . . , K } is mapped to a context signal c = e(T ) (possibly through a learned encoder e). 
+
+• Channel: The context channel c 7 → θ(c) transmits information from the context to the model’s behavior. The capacity of this channel is Cctx = max P (c) I(c; θ(c)) .
+
+• Decoder: Given parameters θ(c), the model must correctly classify inputs from task T , which requires implicitly recovering the task identity. 
+
+Step 1: Applying Fano’s inequality. Let ˆT be an estimate of T based on θ(c) (the “decoded” task identity). The probability of error in task identification is Pe = P ( ˆT̸ = T ). By Fano’s inequality: 
+
+H(T | θ(c)) ≤ h(Pe) + Pe · log 2(K − 1) (60) where h(·) is the binary entropy function. Since H(T | θ(c)) = H(T ) − I(T ; θ(c)) and I(T ; θ(c)) ≤ I(c; θ(c)) ≤
+
+Cctx (by the data processing inequality, since T → c → θ(c)), we obtain: 
+
+H(T ) − Cctx ≤ h(Pe) + Pe · log 2(K − 1) (61) 
+
+Step 2: Bounding the error probability. For K ≥ 2, the above gives a lower bound on Pe. Using the standard relaxation h(Pe) ≤ 1 and log 2(K − 1) ≤ H(T ):
+
+Pe ≥ H(T ) − Cctx − 1
+
+H(T ) = 1 − Cctx + 1 
+
+H(T ) (62) For large K (i.e., H(T ) ≫ 1), the “ +1 ” correction becomes negligible: 
+
+Pe ≳ 1 − Cctx 
+
+H(T ) (63) 
+
+Step 3: Connecting error probability to forgetting. When the model fails to identify task T
+
+through the context channel (i.e., ˆT̸ = T ), it generates parameters optimized for the wrong task, leading to performance degradation. We model this as: 
+
+Fgt ≥ Pe · Fgt max (64) where Fgt max is the expected forgetting when the wrong task’s parameters are used (maximum achievable forgetting; for K-way classification with chance level 1/K , this approaches 1 − 1/K ). Combining: 
+
+Fgt ≥ max 
+
+
+
+0, 1 − Cctx 
+
+H(T )
+
+
+
+· Fgt max (65) 
+
+Discussion: Interpretation of Fgt max . The quantity Fgt max depends on the task structure. For Split-MNIST with K = 5 binary classification tasks, random guessing achieves 50% within each task, so 29 Fgt max ≈ a∗ − 0.5 where a∗ is the achievable accuracy. For tasks that are very different (e.g., digit pairs 0/1 vs. 8/9), using the wrong task’s parameters yields near-zero accuracy on many tasks, giving Fgt max ≈ a∗. In practice, our experiments show Fgt max ≈ 0.97 (NaiveSGD forgetting), confirming this estimate. 
+
+Tightness. The bound is tight in two regimes: (i) when Cctx = 0 , we get Fgt ≥ Fgt max , which is achieved by NaiveSGD; (ii) when Cctx ≥ H(T ), the bound gives Fgt ≥ 0, which is achieved by HyperNet. 
+
+# A.4 Proof of Proposition: Oja’s Convergence and Continual Learning 
+
+Proposition 12 (Oja’s Rule and PCA Convergence) . Oja’s learning rule ∆w = η(xy −y2w), where y = w⊤x,converges to the top eigenvector of the data covariance matrix C = E[xx ⊤] (i.e., the first principal component direction). This convergence does not guarantee task-discriminative representations for continual learning. Proof. Step 1: Oja’s convergence. The Oja update rule is: 
+
+∆w = η  xy⊤ − (y⊤y)w , y = w⊤x (66) Substituting y = w⊤x:
+
+∆w = η  xx ⊤w − (w⊤xx ⊤w)w (67) Taking expectation: 
+
+E[∆ w] = η  Cw − (w⊤Cw )w (68) This is the projected gradient ascent for maximizing w⊤Cw subject to ∥w∥ = 1 . By the Rayleigh quotient theory, the unique maximum (up to sign) is v1, the eigenvector corresponding to the largest eigenvalue λ1
+
+of C. The self-normalizing term −(w⊤Cw )w ensures ∥w∥ remains bounded, and convergence follows from standard stochastic approximation results (Oja, 1982). 
+
+Step 2: PCA directions are not necessarily task-discriminative. The top eigenvector v1 captures the direction of maximum variance in the input data. However, maximum variance and task-discriminability are distinct properties. Consider two tasks with means μ1, μ2 and shared covariance Cshared . The task-discriminative direction is μ1 −μ2 (Fisher’s linear discriminant), while the PCA direction is the top eigenvector of Cshared +μμ ⊤ (where μ is the overall mean). These coincide only when the between-class variance dominates the within-class variance. 
+
+Step 3: Combinatorial capacity of sparse codes. With N = 1024 hidden neurons and top-k
+
+activation with k = 80 , the number of possible activation patterns is: 
+
+Nk
+
+
+
+=
+
+1024 80 
+
+
+
+≈ 10 87 (69) giving a combinatorial capacity of: 
+
+Ccomb = log 2
+
+1024 80 
+
+
+
+≈ 290 bits (70) This exceeds the task identity entropy H(T ) = log 2(5) ≈ 2.3 bits by more than two orders of magnitude, suggesting that the representation has ample capacity. However, as demonstrated in our DND experiments (Section B.1), this combinatorial capacity is not utilized by Oja-based learning: the actual neuron overlap across tasks is > 94% (Jaccard index), indicating that Oja’s rule drives all tasks toward the same sparse support. 
+
+# A.5 Proof of Proposition: SN Permutation Symmetry 
+
+Proposition 13 (SN Symmetry of Dictionary Learning) . For a linear generative model with reconstruction loss L = ∥x − Wdz∥2, the loss is invariant under simultaneous column permutation of Wd and corresponding permutation of z. This symmetry prevents spontaneous column specialization. Proof. Step 1: Permutation invariance. Let π ∈ SN be a permutation of {1, . . . , N }, and let Pπ be the corresponding N × N permutation matrix. Define: 
+
+W′ 
+
+> d
+
+= WdPπ , z′ = P⊤ 
+
+> π
+
+z (71) 30 Then: 
+
+L(W′
+
+> d
+
+, z′) = ∥x − WdPπ P⊤ 
+
+> π
+
+z∥2 = ∥x − Wdz∥2 = L(Wd, z) (72) where we used the orthogonality of permutation matrices: Pπ P⊤ 
+
+> π
+
+= I.
+
+Step 2: Gradient equivalence under symmetric initialization. For column i of Wd, the gradient is: 
+
+∇wi L = −2( x − Wdz)zi (73) Under a symmetric (e.g., i.i.d. Gaussian) initialization of Wd, and assuming z is computed as a function of 
+
+Wd (e.g., via z = W⊤ 
+
+> d
+
+x followed by thresholding), the distribution of (wi, z i) is identical for all i. Therefore: 
+
+E[∇wi L] = E[∇wj L] ∀ i, j (74) This means that, in expectation, all columns receive the same gradient update, preventing any column from specializing for a particular task. 
+
+Step 3: Perturbation analysis. Suppose a small perturbation ϵ breaks the symmetry for a single column. The reconstruction gradient has magnitude ∥∇ wi L∥ = O(∥x∥2), which acts as a “restoring force” driving the perturbed column back toward the symmetric solution. The perturbation can grow only if its effect on the loss exceeds this restoring force. For a perturbation of magnitude ∥ϵ∥, the symmetry-breaking gradient component is O(∥ϵ∥ · ∥ x∥), while the reconstruction gradient is O(∥x∥2/N ) per column. Thus, the ratio of symmetry-breaking to reconstruction forces scales as O(N ∥ϵ∥/∥x∥), which is negligible for small perturbations in high-dimensional systems. 
+
+Corollary. Any perturbation mechanism (e.g., biological noise, dropout) that does not explicitly assign different roles to different columns is suppressed by the O(∥x∥2/N ) reconstruction gradient. This explains why mechanisms such as metabolic pruning and temporal pressure fail to induce column specialization in our experiments. 
+
+# A.6 Proof of Proposition: Meta-Learning Bypass Collapse 
+
+Proposition 14 (Base Parameter Bypass in HyperNetworks) . In a meta-learning framework where θk =
+
+θbase + Vgψ (ck) and θbase is a free parameter, the gradient signal through the base path dominates the context path when V is initialized with small scale, causing “bypass collapse” where θbase absorbs all task information. Proof. Step 1: Gradient magnitudes. Consider the meta-loss: 
+
+L(θbase , V, ψ ) = 
+
+> K
+
+X
+
+> k=1
+
+E(x,y )∼Dk
+
+ℓ f (x; θbase + Vgψ (ck)) , y  (75) Let θk = θbase + Vgψ (ck). The gradients with respect to each parameter group are: 
+
+Base path: 
+
+∂L
+
+∂θ base 
+
+=
+
+> K
+
+X
+
+> k=1
+
+E
+
+ ∂ℓ ∂θ k
+
+
+
+(76) This is simply the sum of per-task gradients, with no additional Jacobian factors. 
+
+Context path (through ψ): 
+
+∂L
+
+∂ψ =
+
+> K
+
+X
+
+> k=1
+
+E
+
+ ∂ℓ ∂θ k
+
+· V · ∂g ψ (ck)
+
+∂ψ 
+
+
+
+(77) This involves the additional factor V · ∂g ψ 
+
+> ∂ψ
+
+.
+
+Step 2: Scale analysis. At initialization with V ∼ N (0 , σ 2 
+
+> V
+
+) where σV = 0 .01 :
+
+∂L
+
+∂θ base 
+
+= O
+
+ ∂ℓ ∂θ 
+
+
+
+, ∂L
+
+∂ψ = O
+
+
+
+σV · ∂ℓ ∂θ · ∂g ∂ψ 
+
+
+
+(78) The ratio is: ∥∂L/∂ψ ∥∥∂L/∂θ base ∥ = O
+
+
+
+σV · ∂g ∂ψ 
+
+
+
+≈ O(0 .01) (79) 31 assuming ∥∂g/∂ψ ∥ = O(1) at initialization. 
+
+Step 3: Information absorption. Since the base path gradient is ∼ 100 × larger, Adam (or any adaptive optimizer) moves θbase much faster than ψ. After a few optimization steps, θbase has absorbed the “average task” solution, and the per-task residuals ℓ(f (x; θbase ), y ) are small. This further reduces ∥∂ℓ/∂θ ∥,making the context path gradient even smaller—a positive feedback loop that leads to bypass collapse: 
+
+gψ (ck) ≈ const for all k.
+
+Step 4: Base dropout as a solution. Setting θbase → 0 with probability p (base_drop_rate) during training removes the base path for a fraction p of training steps, forcing: 
+
+θk = Vgψ (ck) · ∥θbase ∥∥Vgψ (ck)∥ + ϵ (80) (with appropriate rescaling to maintain output magnitude). On these steps, ∂L/∂ψ is the only gradient pathway, forcing the context encoder to learn task-discriminative representations. Our experiments confirm that p = 0 .3 is sufficient: P5 delta drops from 0.0 (collapsed) to −96 .4 percentage points (fully context-dependent) on Split-MNIST. 
+
+Critical note: Base dropout alone is insufficient if the context encoder uses non-differentiable statistics (e.g., EMA running mean/variance). The direct_stats=True fix (using current-batch statistics directly, which are differentiable) is a necessary prerequisite. 
+
+# B Method Details 
+
+# B.1 Deep Neural Drift (DND) 
+
+DND is a biologically-inspired continual learning architecture explored over an 86-day, 1,130+ experiment campaign. We describe the architecture and summarize the diagnostic results that motivated the Cctx 
+
+framework. 
+
+Architecture. The DND network consists of three layers: 
+
+• Input layer: 784 neurons (flattened MNIST images). 
+
+• Hidden layer 1: 1024 neurons with top-k sparse activation ( k = 20 ). 
+
+• Hidden layer 2: 512 neurons with top-k sparse activation ( k = 10 ). 
+
+• Output layer: 10 neurons (one per class) with cosine-similarity-based classification. 
+
+Hebbian learning. Weights are updated using Oja’s rule with reward modulation: 
+
+∆wij = η · r ·  xiyj − y2 
+
+> j
+
+wij 
+
+ (81) where r is the reward signal (1 for correct, 0 for incorrect, “reward_hebbian_neg_only” variant). 
+
+Myelination. Frequently-activated connections are “myelinated” (frozen), controlled by: 
+
+• myelination_threshold : 140 (activation count threshold) 
+
+• myelination_scale : 20 (sharpness of the sigmoid gate) 
+
+Template-Boundary Template Refresh (TBTR). At task boundaries, old tasks’ test data is re-forwarded through the current network, updating classifier templates (EMA centroids) without modifying hidden weights. This corrects the desynchronization between drifted features and stale templates. 
+
+Diagnostic campaign results. Table 9 summarizes the key diagnostic experiments that revealed DND’s architectural limitations and motivated the Cctx framework. The critical finding is that frozen random projections match or exceed Hebbian learning (71.98% vs. 72.08%). Combined with the neuron overlap analysis (Section C.4), this demonstrates that DND’s architecture has 
+
+Cctx = 0 : there is no context pathway, and TBTR + cosine nearest-centroid classification is the entire mechanism. 32 Table 9: DND diagnostic experiments on Split-MNIST (1024/k80 hidden configuration). “Frozen Random” replaces Hebbian learning with frozen random projections; “Shuffled Labels” randomizes TBTR labels; “Final Pass” adds a post-training template refresh over all tasks; “Pure Random Proj” uses a standalone random projection baseline.                          
+
+> Experiment ACC (%) Fgt (%) Key Finding TBTR 1024/k80 73.19 −0.42 Original result TBTR-train 72.08 −0.26 Train data leak = 1.1pp Frozen Random + TBTR 71.98 −1.48 Hebbian learning = 0 contribution Shuffled Labels TBTR 33.81 39.07 TBTR uses real features TBTR + Final Pass 80.85 1.30 Post-training fix = +8.8pp Pure Random Proj + TBTR 81.95 ∼0Beats DND by 1.1pp No TBTR 18.53 96.21 Total catastrophic forgetting
+
+# B.2 CFlow: Continuous-Time Parameter Flow 
+
+CFlow is our ODE-based approach to continual learning, developed as a hypothesis that continuous-time parameter dynamics could enable smooth task transitions. 
+
+Architecture. 
+
+• Task network: ConvTaskNet with 4 filters, producing θdim = 4842 parameters. 
+
+• Flow network: A neural ODE f (θ, c, t ) that generates dθ/dt . Input dimension: θdim + cdim + tembed .
+
+• Context encoder: Learned context encoder mapping batch statistics to c ∈ R32 .
+
+• Time encoding: 16 Fourier frequencies for sinusoidal time embeddings. 
+
+Training. 
+
+• Meta-training over 80 continuous-time episodes with task transitions. 
+
+• Adam optimizer, learning rate 10 −3.
+
+• 30% replay ratio, 100 samples per past task. 
+
+Results and the θ0 memorizer problem. CFlow achieves 92.6% ACC (v1) and 95.3% (v2 with FiLM conditioning) on Split-MNIST. However, probing reveals: 
+
+• P5 (wrong context): ∆ = 0 .0pp — the model completely ignores context. 
+
+• P6 (random θ0): accuracy drops catastrophically — all knowledge is in θ0.
+
+• FiLM architecture contributes nothing (v1 ≈ v2 within noise). The root cause is the dimensionality mismatch: concatenating c ∈ R32 with θ ∈ R4842 creates a 150 :1
+
+ratio. The optimizer naturally exploits the dominant θ pathway, making context structurally invisible. This is the “context bypass” failure mode that the Cctx framework predicts. 
+
+# B.3 HyperNetwork Architecture 
+
+TaskHyperNetwork. The core architecture generates task-specific parameters via a low-rank modulation: 
+
+θk = θbase + V · gψ (ck) (82) 
+
+• θbase ∈ R4842 : learnable base parameters (initialized from ConvTaskNet). 
+
+• V ∈ R4842 ×64 : low-rank projection matrix ( v_init_scale = 0 .01 ). 
+
+• gψ : MLP with architecture 64 → 256 → 256 → 64 (SiLU activations, LayerNorm). 33 • Context dimension: 64. 
+
+Context encoders. We implement three context encoders: 1. Oracle: One-hot task identity → linear projection → R64 .2. Learned (batch statistics): Per-channel mean and variance of the input batch → MLP → R64 . Key fix: direct_stats=True uses current-batch statistics directly (differentiable via autograd), instead of EMA running statistics (non-differentiable buffer operations). 3. Gradient context: ∇θbase ℓ → frozen random projection ( R128 ) → MLP → R64 . Requires real labels for discriminative gradients; pseudo-label gradients produce cosine similarity > 0.95 across tasks (useless). 
+
+Anti-collapse mechanisms. 
+
+• Contrastive weight (λ = 0 .1): pushes context vectors from different tasks apart via Lcontr =
+
+λ P 
+
+> i̸=j
+
+max(0 , cos( ci, c j ) − τ ).
+
+• Base dropout (p = 0 .3): randomly zeros out θbase during training, forcing the model to rely on context-generated deltas. 
+
+Training protocol. 200 episodes of joint multi-task optimization. Each episode samples a random task permutation and trains sequentially, with replay of past tasks. Adam optimizer, lr = 10 −3.
+
+# B.4 NestedCapsule HyperNetwork 
+
+The NestedCapsule architecture extends TaskHyperNetwork by distributing the context-to-rank mapping across N = 8 capsule-memory modules. 
+
+Architecture. 
+
+• N = 8 capsule modules, each with a 2-layer MLP: 64 → 64 → 8 (SiLU activation). 
+
+• Total rank: N × 8 = 64 (same as TaskHyperNetwork). 
+
+• Routing: αi = softmax  si · mi · (1 + σi)/τ , where: 
+
+– si = cos( di, c ): cosine similarity between capsule direction and context. 
+
+– mi = exp(log mi): learned magnitude (confidence/expertise). 
+
+– σi: surprise signal from associative memory prediction error (Titans-inspired, detached from gradient graph). 
+
+– τ : temperature parameter. 
+
+• Output: θk = θbase + V · concat i(αi · capsule i(ck)) .
+
+Direction-magnitude decomposition. Each capsule tracks a “specialty direction” di ∈ Sd−1 in context space via EMA: 
+
+di ← normalize  μ · di + (1 − μ) · ck
+
+, weighted by αi (83) where μ = 0 .9 is the direction momentum. 
+
+Key results. 
+
+• CIFAR-10 with gradient context: 78.5% ± 0.6% ACC, 0% forgetting (vs. 77.0% HyperNet). 
+
+• Gate entropy drops from 2.1 (uniform over 8 capsules) to 0.52, indicating routing concentration. 
+
+• Direction cosine between capsule directions: −0.09 (anti-correlated), indicating genuine specialization. 
+
+• P6 (random base): drops from ∼50% (HyperNet) to 10.5%, confirming capsule deltas carry more model identity. 34 B.5 Baseline Methods Implementation 
+
+All context-free baselines use a 2-layer MLP with hidden sizes (256 , 128) , ReLU activations, and a 10-class output head. Training uses Adam optimizer with lr = 10 −3, batch size 64, and 5 epochs per task (full mode) or 2 epochs (quick mode). 
+
+• NaiveSGD: Standard fine-tuning with no CL mechanism. Serves as the forgetting upper bound. 
+
+• EWC (Kirkpatrick et al., 2017): After each task, computes the diagonal Fisher Information Matrix 
+
+F = E[∇ log p(y|x, θ )∇ log p(y|x, θ )⊤]. Regularization loss: LEWC = λ P 
+
+> i
+
+Fi(θi − θ∗ 
+
+> i
+
+)2 with λ = 400 .
+
+• SI (Zenke et al., 2017): Tracks per-parameter importance Ωi = P 
+
+> k
+
+∆ki /(∆ θki )2 during training. Regularization: LSI = c P 
+
+> i
+
+Ωi(θi − θ∗ 
+
+> i
+
+)2 with c = 1 .0.
+
+• LwF (Li and Hoiem, 2017): Stores the teacher model’s output on the current task data before training. Distillation loss: LLwF = α · KL(softmax( zT /T )∥softmax( zS /T )) with α = 1 .0, temperature T = 2 .0.
+
+• Experience Replay: Maintains a buffer of 200 samples per past task, replayed uniformly during training of new tasks. No regularization. 
+
+# C Extended Results 
+
+# C.1 Per-Seed Accuracy Matrices 
+
+We present the full 5 × 5 accuracy matrices for representative methods. Entry (i, j ) denotes the accuracy on task j after training on task i.
+
+NaiveSGD (seed 0). 
+
+ASGD =
+
+
+
+99 .5 0.0 0.0 0.0 0.00.0 98 .0 0.0 0.0 0.00.0 0.0 99 .0 0.0 0.00.0 0.0 0.0 98 .5 0.00.0 0.0 0.0 0.0 99 .3
+
+
+
+After training on each task, only the most recent task achieves high accuracy; all previous tasks are catastrophically forgotten (0% accuracy). This is the canonical pattern of Cctx = 0 methods. 
+
+HyperNet Oracle (seed 0). 
+
+AHN =
+
+
+
+100 .0 97 .5 98 .8 99 .8 97 .2100 .0 97 .5 98 .8 99 .8 97 .2100 .0 97 .5 98 .8 99 .8 97 .2100 .0 97 .5 98 .8 99 .8 97 .2100 .0 97 .5 98 .8 99 .8 97 .2
+
+
+
+The HyperNetwork produces identical accuracy across all rows, confirming zero forgetting: the accuracy of each task is determined entirely by the context signal, not by the training history. 
+
+CFlow (seed 0). 
+
+ACFlow =
+
+
+
+97 .0 90 .0 93 .0 94 .5 92 .088 .5 95 .0 93 .0 94 .0 93 .587 .5 90 .5 96 .0 94 .0 93 .087 .0 89 .0 92 .5 96 .5 93 .088 .5 91 .0 92 .0 93 .0 98 .5
+
+
+
+CFlow shows moderate forgetting: Task 1 degrades from 97.0% to 88.5% after training all tasks. The relatively high overall accuracy (92.4%) comes from the meta-learned initialization θ0 (the “ θ0 memorizer” effect), not from context-dependent parameter generation. 35 Table 10: Permuted-MNIST results (4 seeds where available). Permuted-MNIST is harder than Split-MNIST because tasks share the same label space, making task identification more critical.                      
+
+> Method ACC (%) Fgt (%) P5 ∆(pp) HyperNet Oracle 90 .3±0.70.0−75 .3
+> HyperNet Learned 89 .1±0.80.0−73 .3
+> CFlow v1 73 .0—0.0
+> SGD + Replay 66 .5—0.0
+
+# C.2 Permuted-MNIST Results 
+
+Table 10 shows results on Permuted-MNIST (5 tasks, each a random pixel permutation of full MNIST). The Cctx framework correctly predicts the results: HyperNet methods with high Cctx achieve zero forgetting, while CFlow and SGD+Replay (both Cctx = 0 ) exhibit substantial forgetting. The learned encoder achieves P5 ∆ = −73 .3pp, confirming that direct_stats=True generalizes beyond Split-MNIST. 
+
+# C.3 CIFAR-10 Results 
+
+Table 11 shows results on Split-CIFAR-10 (5 tasks, 2 classes each). This benchmark reveals the limitations of batch-statistics-based context encoding. Table 11: Split-CIFAR-10 results (4 seeds). Batch statistics become nearly identical across tasks (cosine similarity > 0.995 ), causing the learned encoder to fail. Gradient context resolves this by using loss gradients as the context signal.                                 
+
+> Method ACC (%) P5 ∆(pp) Notes HyperNet Oracle 77 .7—One-hot task ID HyperNet Learned (batch) 54 .4weak cos >0.995 across tasks HyperNet Gradient Context 77 .0±0.9−77 .0Oracle gap only 0.7pp NestedCapsule Gradient Ctx 78 .5±0.6—New SOTA NestedCapsule Oracle 79 .5±0.9—+1 .8pp over HyperNet Oracle SGD + Replay ∼46–63 0.0Catastrophic forgetting
+
+Gradient context encoder. The key insight is that while batch pixel statistics are nearly identical across CIFAR-10 splits (cosine similarity > 0.997 ), loss gradients ∇θbase ℓ with real labels produce near-orthogonal context vectors across tasks (cosine similarity = −0.19 ). The gradient context encoder projects these gradients through a frozen random matrix ( R4842 → R128 ), then passes through an MLP to produce c ∈ R64 .
+
+Requirement: The gradient context encoder requires real labels for discriminative gradients. With pseudo-labels (from the current model’s predictions), gradients have cosine similarity > 0.95 across tasks, rendering them useless for task identification. This is consistent with the Cctx framework: pseudo-label gradients carry information about the model’s behavior (which is task-independent if the model has not yet specialized), not about the task identity. 
+
+# C.4 Neuron Overlap Analysis (DND) 
+
+We analyze the degree of neuron sharing across tasks in the DND architecture to quantify the absence of task specialization. 
+
+Metrics. For each pair of tasks (i, j ), we compute the Jaccard overlap of their top-k active neuron sets: 
+
+J(i, j ) = |Si ∩ Sj ||Si ∪ Sj | (84) where Si is the set of neurons activated by task i’s data. 
+
+Results. 
+
+36 • Output layer: Jaccard overlap = 0 .947 — virtually all neurons are shared across all tasks. This means the sparse output codes are nearly identical regardless of the input task. 
+
+• Hidden layers: > 60% overlap, with < 7% of neurons being task-unique. 
+
+• Template similarity: Inter-task template cosine similarity ( 0.751 ) exceeds intra-task similarity ( 0.737 ), meaning class templates from different tasks are more similar to each other than templates within the same task. These results confirm the theoretical prediction from Section A.4: Oja’s rule drives all tasks toward the same PCA directions, preventing task-specific representations from emerging. The combinatorial capacity (∼290 bits for  1024 80 
+
+) is never utilized. 
+
+# C.5 Closed Direction Summary 
+
+Table 12 provides a comprehensive summary of all research directions explored and subsequently closed during the project, totaling 15+ directions over 1,130+ experiments. Table 12: Summary of closed research directions. Each direction was explored with multiple hyperparameter configurations and seeds before being closed. “Root cause” identifies the fundamental reason for failure. 
+
+Direction #Exps Root Cause Cosine threshold gat-ing 
+
+∼20 Gate values cluster near threshold; binary on/off, no graded routing Output layer tuning (n/k/ η)
+
+∼30 Output layer has Cctx = 0 ; tuning parame-ters cannot create context Myelination sweep ∼25 Freezing weights preserves current state, does not create task routing Split/Lock fast-slow ∼15 Without context, fast and slow pathways converge to same representation Overcapacity + ultra-sparse 
+
+∼20 More capacity ̸ = more specialization without symmetry breaking Template repel ∼15 Strength 0.1: zero effect. Strength 0.5: ACC drops 4pp (destructive) Label embedding (FF) 
+
+∼10 Structural train/test mismatch: labels avail-able at train but not test Spatial energy con-straints 
+
+∼20 Distance-weighted L1 is just regularization; harmful under capacity pressure Weight sparsity ∼10 68% sparsity = 0pp ACC gain; sparsity ̸ =
+
+reduced forgetting Riverbed Effect ∼15 E = − P ai log (πi + ϵ) provides uniform sup-pression, not selective routing SPC-TC (ISTA sparse coding) 
+
+∼40 Information bottleneck: class separability de-grades 12.4%. Frozen random dict ≈ learned dict CCD capacity predic-tions 
+
+∼15 Algebraic bounds hold but capacity scaling and contraction staircase fail OrthoCorr (gradient correction) 
+
+∼15 Structural conflict with adaptive threshold; kills gradient at concept switches Metabolic pruning ( χ-decay) 
+
+∼20 Activation frequency ( ρ = 0 .916 ) discrim-inates but is already handled by adaptive threshold; χ carries zero info ( ρ = 0 .018 )HSPC-T (temporal pressure) 
+
+∼14 10/14 PASS but = dynamic sparsity regula-tor, not pressure → specialization 
+
+A common thread in these failures is the absence of a context pathway: every direction attempted to improve CL performance within a Cctx = 0 architecture. The Cctx framework explains why all such attempts are fundamentally limited. 37 D Implementation Details 
+
+# D.1 Computing Environment 
+
+• Hardware: NVIDIA DGX workstation with CUDA-capable GPUs. 
+
+• Software: Python 3.12, PyTorch 2.x, conda environment “ neuraldrift ”. 
+
+• Total experiments: 1,130+ result directories spanning 86 days of development. 
+
+• Codebase: 102,468 lines across 134 files. 
+
+• Typical run times: – Quick mode (1 seed, reduced data): ∼5 minutes (all methods). 
+
+– Full mode (4 seeds, full data): ∼30 minutes (all methods). 
+
+– Single HyperNet training (200 episodes): ∼4 seconds per seed. 
+
+– Single CFlow training (80 episodes): ∼20 seconds per seed. 
+
+# D.2 Reproducibility 
+
+Random seed control. All experiments use deterministic seeding via a shared utility: 
+
+• torch.manual_seed(seed) 
+
+• numpy.random.seed(seed) 
+
+• random.seed(seed) 
+
+• torch.cuda.manual_seed_all(seed) (when CUDA is available) Default seeds: {0, 1, 2, 3} for 4-seed experiments. All reported means and standard deviations are computed over these seeds unless otherwise noted. 
+
+Result storage. Each experiment run produces a timestamped directory: 
+
+results/{experiment_name}_{YYYYMMDD_HHMMSS}/ results.json # Full metrics, config, per-seed results *.png # Figures (accuracy matrices, curves) command.txt # Exact command for reproduction 
+
+Configuration serialization. All hyperparameters are stored as JSON-serializable dictionaries in 
+
+results.json , enabling exact reproduction. The configuration includes model architecture, optimizer settings, data preprocessing, and evaluation protocol. 
+
+# D.3 CCC Unified Experiment Script 
+
+The unified comparison experiment is implemented in a single script (1,377 lines): 
+
+experiments/cflow/exp_context_channel_capacity.py 
+
+CLI interface. 
+
+• --quick : Quick mode (2 epochs, 200 train samples/class, reduced meta-training episodes). 
+
+• --seeds 0,1,2,3 : Comma-separated seed list. 
+
+• --benchmark split|permuted : Benchmark selection. 
+
+• --methods NaiveSGD,EWC,... : Subset of methods to run. 
+
+• --device cuda|cpu : Device selection (auto-detected by default). 38 Method-specific configurations (full mode): 
+
+• Context-free baselines: 5 epochs, 500 train / 200 test samples per class. 
+
+• CFlow: 80 episodes, 3 flow layers, hidden dim 256, context dim 32, replay 100/task. 
+
+• HyperNet: 200 episodes, rank 64, hidden dim 256, context dim 64, direct_stats=True , base_drop_rate=0.3 ,
+
+contrastive_weight=0.1 .
+
+Probing protocols implemented within the script: 
+
+• P5 (Wrong-Context): Replace task k’s context with task (k + 1 mod K)’s context and measure accuracy degradation. 
+
+• P5b (Random-Context): Use a random Gaussian vector as context. 
+
+• P6 (Random θ0): Replace θbase with a random initialization. 
+
+• P7 (Zero-Context): Set context to the zero vector. 
+
+Effective rank computation. For HyperNet’s V matrix, the effective rank is computed via SVD: 
+
+reff = exp − X
+
+> i
+
+¯si log ¯ si
+
+!
+
+, ¯si = si
+
+P 
+
+> j
+
+sj
+
+(85) where {si} are the singular values of V. This gives a continuous measure of the “effective number of dimensions” used by the context channel. 39

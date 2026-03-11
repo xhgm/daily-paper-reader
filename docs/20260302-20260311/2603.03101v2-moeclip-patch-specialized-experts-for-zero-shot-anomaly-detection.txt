@@ -1,0 +1,964 @@
+Title: MoECLIP: Patch-Specialized Experts for Zero-shot Anomaly Detection
+
+URL Source: https://arxiv.org/pdf/2603.03101v2
+
+Published Time: Thu, 05 Mar 2026 01:32:36 GMT
+
+Number of Pages: 29
+
+Markdown Content:
+# MoECLIP: Patch-Specialized Experts for Zero-shot Anomaly Detection 
+
+## Jun Yeong Park JunYoung Seo Minji Kang Yu Rang Park *
+
+## Yonsei University, Seoul, Korea 
+
+pjk000011@yonsei.ac.kr seojy@yonsei.ac.kr mnzzy@yonsei.ac.kr yurangpark@yuhs.ac 
+
+## Abstract 
+
+The CLIP model’s outstanding generalization has driven re-cent success in Zero-Shot Anomaly Detection (ZSAD) for detecting anomalies in unseen categories. The core chal-lenge in ZSAD is to specialize the model for anomaly de-tection tasks while preserving CLIP’s powerful generaliza-tion capability. Existing approaches attempting to solve this challenge share the fundamental limitation of a patch-agnostic design that processes all patches monolithically without regard for their unique characteristics. To ad-dress this limitation, we propose MoECLIP , a Mixture-of-Experts (MoE) architecture for the ZSAD task, which achieves patch-level adaptation by dynamically routing each image patch to a specialized Low-Rank Adaptation (LoRA) expert based on its unique characteristics. Further-more, to prevent functional redundancy among the LoRA experts, we introduce (1) Frozen Orthogonal Feature Sepa-ration (FOFS), which orthogonally separates the input fea-ture space to force experts to focus on distinct informa-tion, and (2) a simplex equiangular tight frame (ETF) loss to regulate the expert outputs to form maximally equian-gular representations. Comprehensive experimental results across 14 benchmark datasets spanning industrial and med-ical domains demonstrate that MoECLIP outperforms ex-isting state-of-the-art methods. The code is available at 
+
+https://github.com/CoCoRessa/MoECLIP .
+
+## 1. Introduction 
+
+Visual Anomaly Detection (AD) [6] aims to identify anomalous regions that deviate from normal patterns and serves as a critical technology in various fields, including industrial defect detection [3, 12, 56], medical image diag-nosis [5, 17]. Due to the scarcity of anomalous samples, collecting labeled anomaly data is impractical, making Un-supervised Anomaly Detection (UAD) the traditional AD paradigm [11, 22, 24, 25, 47, 53], where models learn only from normal data to detect anomalies. However, UAD is still predicated on the availability of sufficient normal data, 
+
+> *
+
+Corresponding author.          
+
+>       
+>   
+>             
+>       
+> 
+>  
+>   
+>                    
+>  
+>       
+> ··· ··· ···
+>   
+> 
+>      
+
+Figure 1. Comparison between existing CLIP-Adapter based method and our MoECLIP. (a) The general CLIP-based ZSAD framework. (b) Existing methods apply a uniform adaptation to all patches, regardless of their unique characteristics. (c) In con-trast, our MoECLIP utilizes a Mixture of Experts to achieve patch-specialized adaptation, dynamically routing each patch to experts that are differentiated by FOFS and an ETF loss. 
+
+posing a significant constraint in data-scarce environments. As an alternative to overcome these limitations, the Zero-Shot Anomaly Detection (ZSAD) paradigm [7, 8, 29, 38, 45, 55] has emerged, leveraging the rich visual-semantic un-derstanding of Vision-Language Models (VLMs) like Con-trastive Language-Image Pretraining (CLIP) [46] to en-hance generalization for unseen classes. As illustrated in Fig. 1(a), the core idea of CLIP-based ZSAD is to de-tect anomalies by measuring the similarity between patch embeddings and text embeddings. However, CLIP is pre-trained for global semantic understanding, making it sub-optimal for detecting localized anomalies [35]. Thus, a key challenge is adapting CLIP for anomaly detection while preserving its powerful generalization capability. Motivated by this challenge, recent ZSAD methods have attempted to enhance image patch representations for the anomaly detection task. PromptAD [35] and Anomaly-CLIP [55] seek to focus on local regions by replacing CLIP’s QKV Attention with V-V Attention. Parameter-1
+
+> arXiv:2603.03101v2 [cs.CV] 4 Mar 2026
+
+Efficient Fine-Tuning (PEFT) [23] methods, such as Ada-CLIP [7] and AA-CLIP [38], introduce prompting To-kens or Adapters to improve anomaly detection perfor-mance while preserving CLIP’s generalization capability. However, these methods share a limitation: as depicted in Fig. 1(b), they follow a patch-agnostic design that performs uniform adaptation across all patches, without considering that different image regions represent distinct structures or semantics (e.g., object components, backgrounds). To address these limitations, we propose MoECLIP , a novel framework that utilizes Patch-Specialized Experts. The core idea of MoECLIP, as depicted in Fig. 1(c), is to strategically integrate a Mixture of Experts (MoE) [50] module into the CLIP Vision Encoder, which dynamically routes each image patch to the most suitable expert based on its unique characteristics. Specifically, to preserve CLIP’s generalization capability and avoid overfitting on auxil-iary datasets, MoECLIP adopts a PEFT-based feature adap-tation approach, where MoE experts are implemented as lightweight Low-Rank Adaptation (LoRA) [28] modules. However, a naive ensemble of LoRA experts can lead to functional redundancy, where experts learn similar func-tions. To prevent this and promote expert specialization, we employ two complementary strategies: Frozen Orthog-onal Feature Separation (FOFS) enforces expert separation at the input stage by orthogonally separating the feature space, ensuring non-overlapping feature subspaces by con-struction, while at the output stage, a simplex equiangular tight frame (ETF) [43] loss regularizes expert outputs to fol-low an equiangular target structure, ensuring clear differen-tiation. Through this design, MoECLIP overcomes the lim-itations of existing uniform adaptation methods, enabling fine-grained patch-level adaptation and enhancing general-ization performance across diverse datasets. Our key contributions are summarized as follows: 1. Pioneering a MoE-based architecture for Zero-Shot Anomaly Detection. We are the first to introduce an ap-proach to the ZSAD task that dynamically routes each image patch to a specialized expert, establishing a new paradigm of patch-level adaptation for this task. 2. Novel Mechanisms for Expert Specialization. To pre-vent functional redundancy and boost differentiation among LoRA experts, we introduce Frozen Orthogonal Feature Separation (FOFS), which orthogonally sepa-rates the input feature space, and a simplex equiangu-lar tight frame (ETF) loss that enforces an equiangular structure on expert outputs. 3. State-of-the-art performance on comprehensive bench-mark datasets. In comprehensive experiments on 14 benchmark datasets spanning industrial and medical do-mains, MoECLIP achieves state-of-the-art (SOTA) per-formance in both the anomaly classification and segmen-tation tasks of ZSAD. 
+
+## 2. Related Work 
+
+2.1. Zero-Shot Anomaly Detection (ZSAD) 
+
+ZSAD, where generalization performance on unseen classes is critical, has made significant strides based on the CLIP model. WinCLIP [29], the first study to apply CLIP to ZSAD, proposes a method for calculating similar-ity between handcrafted text prompts and multi-scale im-age patches. Subsequent research has attempted various approaches to better adapt CLIP for the anomaly detec-tion task. April-GAN [8] and CLIP-AD [9] seek to en-hance CLIP’s patch representations by introducing a lin-ear adapter. AnomalyCLIP [55] and FiLo [19] utilize a prompt learning approach, introducing learnable parame-ters to the text prompt. Bayes-PFL [45] treats the text prompt space as a learnable probability distribution from a Bayesian inference perspective. AdaCLIP [7] and VCP-CLIP [44] use a hybrid prompt approach to enhance the alignment of text and patch embeddings. AA-CLIP [38] combines a loss function to increase the separability of nor-mal and abnormal text embeddings with a Residual Adapter. In this way, there have been various attempts in the ZSAD field to improve text and image patch representations. How-ever, all approaches to enhancing image patch represen-tations share a common limitation: they apply the same, monolithic transformation to all patches, without consid-ering their unique individual characteristics. This patch-agnostic approach fundamentally undermines the model’s ability to identify fine-grained anomaly patterns. 
+
+2.2. Mixture of Experts (MoE) 
+
+Mixture-of-Experts (MoE) [33, 50] is a conditional compu-tation architecture wherein a gating network dynamically activates only a small subset of experts best suited for a given input, enabling massive-scale expansion and excel-lent generalization performance. Owing to these properties, MoE has been a key strategy for building large-scale mod-els [13, 14, 21, 31, 32], and its application has recently ex-panded to the field of reconstruction-based Unsupervised Anomaly Detection (UAD) [20, 39]. However, two sig-nificant gaps remain. First, the application of MoE to the generalization-critical ZSAD task remains entirely unex-plored. Second, existing methods to MoE’s functional re-dundancy problem [10, 37] typically attempt to enforce dif-ferentiation by applying output-level constraints, such as contrastive loss [16] or orthogonality regularization [15]. However, these methods are limited as they fail to address feature overlap at both the input and output stages of ex-perts. Our MoECLIP is the first to address both gaps: we introduce MoE to the ZSAD task to solve the patch-agnostic problem, and ensure robust expert specialization by apply-ing FOFS and the ETF loss to control differentiation at both the input and output stages of the LoRA experts. 23. Preliminaries 
+
+3.1. Low-Rank Adaptation (LoRA) 
+
+Low-Rank Adaptation (LoRA) [28] is a Parameter-Efficient Fine-Tuning (PEFT) technique that freezes the pretrained weight matrix W0 ∈ Rd1×d2 and injects a trainable, low-rank update ∆W = BA , where down projection matrix 
+
+A ∈ Rr×d2 and up-projection matrix B ∈ Rd1×r are the trainable matrices. The final adapted weight is com-puted as W = W0 + ∆ W . Since the rank r satisfies 
+
+r ≪ min( d1, d 2), this method significantly reduces the number of trainable parameters compared to simple linear adapters and reduces the risk of overfitting. 
+
+3.2. Mixture of Experts (MoE) 
+
+A Mixture-of-Experts (MoE) [50] consists of a router R and 
+
+K expert networks, which in our study are implemented as LoRA modules, each denoted as {En(x) = BnAnx}Kn=1 .The Router takes the input x and computes routing scores that determine the importance of each expert. Then, Top-k routing is applied, activating only the k ≤ K experts with the highest routing scores, and their scores are renormalized to yield the final routing scores, as shown in Eq. (1): 
+
+ˆRn =
+
+
+
+Rn(x)
+
+P 
+
+> m∈top (R(x),k )
+
+Rm(x) , if n ∈ top (R(x), k ),
+
+0, otherwise. 
+
+(1) The final output x′ of the MoE is obtained by taking the weighted sum of each expert’s output using the routing scores as weights, as shown in Eq. (2): 
+
+x′ =
+
+> K
+
+X
+
+> n=1
+
+ˆRn(x)En(x) (2) 
+
+3.3. Simplex Equiangular Tight Frame (ETF) 
+
+A Simplex Equiangular Tight Frame (ETF) [43] is a geo-metrically optimal structure for the perfect separation of a set of K vectors W = [ w1, . . . , w K ] ∈ Rm×K . All its prop-erties are captured by its ideal Gram matrix Gideal ∈ RK×K ,as shown in Eq. (3): 
+
+Gideal  
+
+> n,m
+
+= w⊤ 
+
+> n
+
+wm =
+
+(
+
+1, if n = m, 
+
+− 1 
+
+> K−1
+
+, if n̸ = m.  (3) where this condition holds for ∀n, m ∈ [1 , . . . , K ]. This structure implies that all vectors have the same ℓ2 norm and are maximally separable (equiangular), with a pairwise co-sine similarity of − 1 
+
+> K−1
+
+. In this study, we use an auxiliary loss function to enforce this ETF structure on our expert outputs (detailed in Sec. 4.4). 
+
+## 4. Methods 
+
+4.1. Problem Definition 
+
+We follow the standard ZSAD setting [38, 45, 55], training our model via supervised learning on an auxiliary dataset of seen categories Ds, and then evaluating on unseen cate-gories Du (Ds ∩ Du = ∅). During the test phase, for the 
+
+i-th image Xi ∈ RH×W ×3, the model outputs an image-level Anomaly Score ˆS ∈ [0 , 1] and a pixel-level Anomaly Map ˆM ∈ [0 , 1] H×W .
+
+4.2. Overview 
+
+Fig. 2 illustrates the overall framework of MoECLIP. The core design of MoECLIP is to adapt the model for the anomaly detection task by integrating MoE modules at the output-level of multi-level layers, all while keeping the Vi-sion Encoder weights frozen to preserve CLIP’s generaliza-tion capability. Inside the MoE modules, a router dynami-cally selects the optimal expert based on the unique charac-teristics of each patch. Furthermore, to prevent functional redundancy and induce expert differentiation, we introduce two novel mechanisms: (1) Frozen Orthogonal Feature Sep-aration (FOFS) at the LoRA input, which orthogonally sep-arates the feature space to force experts to focus on differ-ent subspaces, and (2) a simplex Equiangular Tight Frame (ETF) loss at the LoRA output, which regulates the expert output features to be maximally equiangular. 
+
+4.3. MoE-based Feature Adaptation 
+
+We integrate PEFT-based Mixture of LoRA Expert modules at multiple layers, enabling each image patch to dynami-cally select the optimal combination of experts and adapt its representation across different levels of abstraction, all while keeping the CLIP Vision Encoder frozen. The MoE module at the l-th layer receives the corre-sponding patch feature F li ∈ Rd for the i-th patch and learns a residual F li, expert ∈ Rd to perform feature adapta-tion. However, a naive residual addition (i.e., F li + F li, expert )can cause a norm mismatch, which destabilizes training and degrades CLIP’s generalization capability. Inspired by AA-CLIP [38], we address this by normalizing the MoE output to match the ℓ2 norm of the original feature while preserv-ing its direction: 
+
+F li, norm = F li, expert · ∥F li ∥2
+
+∥F li, expert ∥2 + ϵ (4) where ∥ · ∥ 2 denotes the ℓ2 norm and ϵ is a small constant for numerical stability. Subsequently, the normalized out-put F li, norm is combined with the original F li via a weighted residual connection, controlled by λMoE , to yield the patch feature F li, MoE , as shown in Eq. (5): 
+
+F li, MoE = λMoE · F li, norm + (1 − λMoE ) · F li (5) 3         
+
+                                                                       
+
+>     
+>   
+>   
+> ··· ··· ··· ··· ··· ··· ··· ··· ··· ···
+>   
+>              
+>    
+>   
+>    
+>   
+>       
+>     
+>          
+>                     
+>      
+>   
+>  
+> ···
+> 
+>          
+>             
+>         
+>   
+>                      
+> ^^
+> 
+>            
+> 
+> 
+
+Figure 2. The framework of MoECLIP. MoE is integrated into multiple layers of the CLIP Vision Encoder, enabling dynamic expert routing for each image patch to learn patch-specific representations for ZSAD. Within each MoE, FOFS enforces expert specialization by orthogonally separating the feature space and ETF loss further enhances expert diversity by maximizing the equiangular separation of expert outputs. PAA then aggregates the refined patch features across multiple scales to capture anomalies of different sizes. 
+
+4.4. Expert Specialization 
+
+In this section, we introduce Frozen Orthogonal Feature Separation (FOFS) and the ETF loss to enforce expert spe-cialization and prevent functional redundancy. We also employ a standard balance loss to prevent expert collapse, which supports this specialization. 
+
+Frozen Orthogonal Feature Separation (FOFS): The core idea of FOFS is to separate the d-dimensional in-put feature F li ∈ Rd into K non-overlapping subspaces 
+
+c1, . . . , c K , forcing each expert to focus solely on one sub-space. Specifically, the LoRA matrix An ∈ Rr×d for the 
+
+n-th expert is defined as a block matrix. In this matrix, only the columns corresponding to the n-th subspace cn are filled with a random orthogonal matrix Qn ∈ Rr×dn obtained via QR decomposition [18], while all other columns are zero matrices 0. FOFS can be formulated as: 
+
+Qn = (qr Q(Cn)) T , where Cn ∼ N (0 , I)dn×r
+
+An = [0 r×d1 , . . . , 0r×dn−1 , Q n, 0r×dn+1 , . . . , 0r×dK ] (6) where AnATm = 0 for all n̸ = m, ensuring mutual orthogo-nality, and the subspace dimensions satisfy PKn=1 dn = d.FOFS provides two key advantages. First, it inherently prevents redundant knowledge learning by forcing each ex-pert to focus on a physically distinct feature subspace from initialization. Second, freezing the An matrix helps pre-serve CLIP’s generalization capability and reduces the risk of overfitting on auxiliary datasets. This frozen approach is inspired by recent LoRA research [57], which demonstrated that randomly initialized orthogonal A matrices can achieve performance comparable to learned ones. 
+
+ETF loss: Even though FOFS enforces distinct roles for the experts at the input stage, their learnable LoRA B ma-trices can still converge to similar feature spaces, leading to output stage functional redundancy. To address this, we introduce the ETF loss Letf , which enforces the K ex-pert output vectors to be maximally equiangular. Given 
+
+El ∈ RL×K×d representing the outputs of K experts for L
+
+patches at a layer l, we first ℓ2-normalize each expert vector 
+
+eli,n ∈ Rd. Then, the Gram matrix Gli ∈ RK×K is com-puted for each patch i = 1 , . . . , L , as shown in Eq. (7), 
+
+(Gli)n,m = (ˆ eli,n )⊤ ˆeli,m  (7) where ˆei,n and ˆei,m denote the ℓ2-normalized outputs of ex-pert n and m for the i-th patch, respectively. The Letf en-courages all Gli to approximate the ideal equiangular Gram matrix Gideal (Eq. (3)), and is calculated as follows: 
+
+Letf = X
+
+l
+
+1
+
+L
+
+LX
+
+i=1 
+
+∥Gli − Gideal ∥2
+
+F
+
+!
+
+= X
+
+l
+
+1
+
+LK 2
+
+LX
+
+i=1 
+
+KX
+
+n=1 
+
+KX
+
+m=1 
+
+ (Gli)n,m − Gideal 
+
+n,m 
+
+2
+
+!
+
+(8) By enforcing expert outputs to span diverse and equiangular directions at each stage, Letf complements FOFS by further boosting expert specialization at the output stage. 4Balance loss: To prevent expert collapse and ensure as-signments are distributed evenly, we use the standard bal-ance loss [39, 50] Lbal , as shown in Eq. (9), 
+
+Lbal = X
+
+> l
+
+"
+
+CV 2
+
+> L
+
+X
+
+> i=1
+
+R(F li )
+
+!# 
+
+(9) where L is the number of patches, R(F li ) ∈ RK is the rout-ing probability vector and CV 2(·) denotes the squared Co-efficient of Variation (detailed in supplementary Sec. B.5). 
+
+4.5. Patch Average Aggregation (PAA) 
+
+The CLIP Vision Encoder’s (ViT) fixed-size patch division limits its ability to effectively detect anomalies of varying scales. To our knowledge, while previous works [34, 42] use patch aggregation to leverage contextual information, these methods are limited to only the test phase, thus failing to integrate multi-scale awareness during the training phase. We therefore apply the parameter-free Patch Average Ag-gregation (PAA) module during the training phase to the re-fined patch features F l 
+
+> MoE
+
+∈ RL×d. By enabling each patch to leverage neighboring context, PAA incorporates multi-scale awareness to integrate fragmented anomaly patterns across boundaries, enhancing structural robustness. To apply PAA, we first reshape the patch embeddings 
+
+F l 
+
+> MoE
+
+into a 2D spatial grid P l ∈ R√L×√L×d. A new patch feature ˆplh,w is generated by calculating the average of all patch features within an s × s sliding window centered at coordinate (h, w ), as shown in Eq. (10), 
+
+ˆplh,w = 1
+
+s2
+
+> ⌊s/ 2⌋
+
+X
+
+> u=−⌊ s/ 2⌋⌊s/ 2⌋
+
+X
+
+> v=−⌊ s/ 2⌋
+
+plh+u,w +v (10) where plh+u,w +v denotes the original patch feature at coor-dinate (h + u, w + v), and s is a positive odd integer rep-resenting the window size. This aggregation process is per-formed independently for each scale s, extracting multiple sets of patch features ˆP l,s . Finally, ˆP l,s is reshaped back into ˆF l,s P AA ∈ RL×d to form the multi-scale patch features. 
+
+4.6. Anomaly Map and Anomaly Score 
+
+To compute the final outputs, we first prepare the represen-tative text features TA and TN from text prompts. Follow-ing AA-CLIP [38], we pass a set of text prompts (detailed in supplementary Sec. B.4) through the pretrained CLIP Text Encoder and obtain TA, T N ∈ Rd by averaging the out-puts of their corresponding text prompt sets. These features are subsequently used to calculate the pixel-level Anomaly Map and the image-level Anomaly Score. 
+
+Anomaly Map: First, the PAA features ˆF l,s  
+
+> PAA
+
+are aligned with the text space via a trainable projection layer Proj l,yielding V l,s ∈ RL×d, as shown in Eq. (11): 
+
+V l,s = P roj l( ˆF l,s P AA ) (11) This text-aligned feature V l,s is then used to calculate the anomaly map ˆM l,s N/A ∈ RH×W ×2 for the l-th layer and s-th scale, as shown in Eq. (12), 
+
+ˆM l,s N/A = softmax (ϕ(cos( V l,s , T N/A )))  (12) where ϕ denotes an interpolation function that resizes the map to the original image dimensions, and cos( ·, ·) repre-sents the cosine similarity. 
+
+Anomaly Score: The image-level anomaly score is de-termined by the semantic alignment between the patch fea-tures ˆF f 
+
+> PAA
+
+from the final layer and the text features. To enhance this alignment, ˆF f 
+
+> PAA
+
+passes through a Depth-wise Adapter. This adapter, inspired by MobileNet [27], uses a 1D depthwise separable convolution, which combines a Depth-wise and a Point-wise convolution to efficiently cap-ture features with fewer parameters, making it lightweight and less prone to overfitting. The resulting features are then aggregated into Vimage ∈ Rd via Global Average Pooling. The Depth-wise Adapter can be calculated as: 
+
+ˆFdw = GELU (DwConv 1d(LN ( ˆF f
+
+> PAA
+
+))) 
+
+Vimage = 1
+
+L
+
+> L
+
+X
+
+> i=1
+
+P wConv 1d( ˆFdw )i
+
+(13) where LN (·) is a Layer Normalization. The Vimage is com-pared with the text embeddings TA and TN via cosine sim-ilarity, yielding the anomaly score vector ˆSN/A ∈ R2, as shown in Eq. (14), 
+
+ˆSN/A = cos ( Vimage , [TA, T N ])  (14) where [ · , · ] denotes the concatenation operation, and ˆSA is finally used as the image-level anomaly score. 
+
+4.7. Loss Functions 
+
+Following previous works [7, 8, 19, 38, 55], we employ a combination of Focal [36] and Dice Loss [40] for the anomaly segmentation loss Lseg , and the Binary Cross-Entropy loss for the anomaly classification objective Lac ,as shown in Eq. (15), 
+
+Lseg = X
+
+> l
+
+X
+
+> s
+
+h
+
+Focal ( ˆM l,s N/A , M ) + Dice ( ˆM l,s N/A , M )
+
+i
+
+Lac = BCE ( ˆSA, S )
+
+(15) where M ∈ RH×W denotes the pixel-level ground-truth segmentation mask, and S denotes the image-level label in-dicating whether the image is anomalous. The final loss function can be expressed as: 
+
+Ltotal = Lseg + Lac + λetf Letf + λbal Lbal  (16) where Letf and Lbal are the auxiliary losses for expert spe-cialization, calculated as in Eq. (8) and Eq. (9) respectively. 5Table 1. Comparison with state-of-the-art methods across industrial and medical domains under the ZSAD setting. The symbol † indicates results obtained from models re-trained under our setting. The best performance is in bold and the second-best is underlined.                                                                                                                                                                                                  
+
+> metric Domain Dataset WinCLIP [29] (CVPR 2023) April-GAN [8] (CVPRw 2023) AnomalyCLIP [55] (ICLR 2024) †AdaCLIP [7] (ECCV 2024) †AA-CLIP [38] (CVPR 2025) Bayes-PFL [45] (CVPR 2025)
+> MoECLIP (Ours)
+> Image-level (AUROC, AP) Industrial MVTec-AD (91.8, 95.1) (86.1, 93.6) (91.9, 96.2) (91.5, 96.1) (90.9, 96.0) (92.2, 96.1) (93.9 ,96.8 )VisA (78.1, 77.5) (77.5, 80.8) (82.1, 85.4) (83.0, 85.5) (79.2, 83.7) (86.8 ,89.3 )(83.6, 86.2) BTAD (83.3, 84.1) (73.4, 69.6) (92.5, 94.2) (91.6, 92.4) (94.8 , 97.5) (93.0, 96.7) (93.1, 98.0 )RSDD (85.3, 65.3) (72.7, 68.3) (74.0, 73.2) (83.8, 80.1) (94.9, 94.2) (91.3, 89.7) (95.3 ,95.1 )DTD-Synthetic (95.0, 97.9) (85.5, 94.0) (93.3, 97.7) (91.5, 96.3) (92.5, 97.7) (93.5, 97.7) (95.5, 98.6 )Medical Brain MRI (45.1, 80.3) (58.8, 87.8) (70.8, 90.6) (79.5, 94.5) (79.6, 94.4) (81.9, 94.5) (88.5, 97.1 )Head CT (83.7, 81.6) (86.9, 87.9) (95.1, 95.3) (95.7, 93.2) (95.4, 94.3) (95.4, 93.2) (96.6 ,94.5 )Liver CT (66.5, 56.1) (54.7, 49.6) (68.2, 63.4) (62.6, 54.2) (58.4, 49.7) (61.7, 55.2) (74.0 ,64.6 )Retina OCT (53.7, 44.3) (65.6, 60.5) (74.7, 73.9) (70.3, 69.4) (83.4, 83.8) (83.7, 81.8) (85.5 ,84.9 )Average (75.8, 75.8) (73.5, 76.9) (82.5, 85.5) (83.3, 84.6) (85.5, 87.9) (86.6, 88.2) (89.6 ,90.6 )Pixel-level (AUROC, AP) Industrial MVTec-AD (85.1, 18.0) (87.6, 40.8) (88.1, 38.6) (89.7, 43.0) (91.6, 45.4) (91.9, 48.4 )(92.5 , 45.7) VisA (79.6, 5.0) (94.2, 25.8) (95.5, 21.2) (95.5, 28.6) (94.7, 24.2) (95.5, 29.2 )(95.6 , 26.1) BTAD (71.4, 11.2) (91.4, 32.4) (94.2, 42.0) (95.4, 47.0) (95.6, 49.4) (95.6, 48.6) (96.8 ,50.4 )RSDD (95.1, 2.1) (99.3, 33.1) (98.6, 17.8) (99.6, 33.2) (99.4, 41.7 )(99.6, 35.7) (99.7 , 35.9) DTD-Synthetic (82.5, 11.6) (96.5, 67.7) (96.2, 54.0) (96.4, 57.7) (97.6, 61.7) (98.2, 66.7 )(98.8 , 62.7) Medical Brain MRI (95.4, 23.5) (94.4, 37.1) (96.0, 57.5) (94.5, 35.6) (96.7, 55.1) (95.7, 42.9) (97.3 ,61.3 )Liver CT (97.1, 8.0) (95.5, 5.3) (93.0, 2.9) (97.0, 9.4) (97.2 , 9.3) (96.5, 6.2) (97.2 ,10.8 )Retina OCT (88.8, 22.0) (88.6, 35.4) (91.8, 47.1) (94.4, 55.5) (95.4, 62.3) (95.5, 55.0) (96.2 ,66.3 )ColonDB (64.8, 14.3) (78.3, 23.3) (81.6, 34.0) (81.0, 26.5) (82.8, 31.5) (82.9, 30.7) (85.4 ,34.8 )ClinicDB (70.7, 19.4) (85.0, 38.5) (84.3, 41.1) (85.7, 45.8) (89.2, 49.8) (88.2, 49.1) (89.7 ,49.9 )CVC-300 (44.0, 5.0) (92.9, 26.8) (95.8, 56.4) (91.1, 25.9) (96.5, 53.9 )(96.6, 51.6) (97.0 , 53.0) Endo (68.2, 23.8) (84.0, 48.8) (85.4, 49.7) (86.2, 54.1) (88.6, 57.7) (89.4, 58.9) (91.0 ,62.5 )Kvasir (69.8, 27.5) (79.7, 43.0) (81.4, 43.1) (82.9, 51.3) (86.0, 52.9) (85.6, 53.4) (88.1 ,57.6 )Average (77.9, 14.7) (89.8, 35.2) (90.9, 38.9) (91.5, 39.5) (93.2, 45.8) (93.2, 44.3) (94.3 ,47.5 )
+
+## 5. Experiments 
+
+5.1. Experimental Setup 
+
+Datasets: We evaluate our model’s performance on a com-prehensive suite of 14 datasets, spanning 5 industrial and 9 medical datasets. The industrial datasets include MVTec-AD [3], VisA [58], BTAD [41], RSDD [54], and DTD-Synthetic [1]. The medical datasets cover various tasks, including Head CT [48] for brain tumor detection, three datasets from the BMAD benchmarks [2] (BrainMRI, Liver CT, and Retina OCT), and five datasets for colon polyp detection (CVC-ColonDB [51], CVC-ClinicDB [4], CVC-300 [52], Endo [26], and Kvasir [30]). We use VisA as the training dataset for all evaluations on other datasets. To en-sure a fair comparison, VisA [58] results are obtained using a model trained on MVTec-AD [3]. A detailed description of the datasets is provided in supplementary Sec. B.1. 
+
+Evaluation Metrics: We evaluate ZSAD performance on both image-level classification and pixel-level segmentation using the Area Under the Receiver Operating Characteristic (AUROC) and Average Precision (AP). 
+
+Implementation details: We utilize the OpenCLIP ViT-L/14-336 architecture pre-trained by OpenAI [46] as our backbone. All parameters of the pretrained CLIP model are kept frozen during training, and all input images are re-sized to 518 × 518 . Our MoE modules are integrated at the output of the l-th layers of the Vision Encoder, where 
+
+l ∈ { 6, 12 , 18 , 24 }, and their outputs are used to compute the final outputs. For the model configuration, we set the total number of experts K to 4 with Top-2 routing via a linear router layer R, a LoRA rank r to 8, MoE residual weight λMoE to 0.1, PAA scales s ∈ { 1, 3, 5}, the auxiliary loss weights λetf and λbal to 0.01. The model is trained for 20 epochs using the Adam Optimizer with a learning rate of 
+
+5 × 10 −4. All experiments are conducted on 2 × NVIDIA Tesla V100 16GB GPUs. More details can be found in sup-plementary Sec. B.3. 
+
+5.2. Comparison with State-of-the-art methods 
+
+Tab. 1 presents a comprehensive ZSAD performance comparison between MoECLIP and recent state-of-the-art (SOTA) methods, including WinCLIP [29], April-GAN [8], AnomalyCLIP [55], AdaCLIP [7], AA-CLIP [38], and Bayes-PFL [45]. For fairness, all competing models are trained on VisA as the auxiliary dataset under a unified set-ting (detailed in supplementary Sec. B.2). Overall, our MoECLIP consistently achieves SOTA per-formance across both domains. Specifically, for image-level metrics, it further yields improvements of 3.0 % in AUROC and 2.4 % in AP. For pixel-level metrics, MoECLIP out-performs the second-best method by 1.1 % in average AU-ROC and 1.7 % in average AP. These results confirm that 6Figure 3. Visualization of Grad-CAM and Patch Selection Map for each expert at layer 18. The Ground Truth image is shown on the far left. The top row (Grad-CAM) highlights each expert’s focus region. The bottom row (Patch Selection) illustrates the patches where the corresponding expert was the router’s Top-1 choice (shown in green). The value in each subplot title represents the expert’s average renormalized routing weight based on the Top-1 setting for its Top-1 assigned patches.   
+
+> Figure 4. Visualization of Anomaly Maps comparing MoE-CLIP with previous ZSAD methods across industrial and med-ical domains. The first column shows the Ground Truth, and the remaining columns show anomaly maps from each method.
+
+our patch-level dynamic routing is substantially more effec-tive for ZSAD than uniform adaptation strategies employed in previous works. Furthermore, the strong performance on medical datasets shows that patch-specialized experts, de-spite being trained only on industrial data, transfer and gen-eralize robustly to distinct medical domains. 
+
+5.3. Visualization 
+
+Fig. 3 visualizes the behavior of the 18th-layer experts on the MVTec-AD hazelnut class to assess whether MoE-CLIP performs patch-specialized routing. We analyze both the experts’ focus regions (top row, Grad-CAM [49]) and the router’s decisions (bottom row, patch selection maps), which show the Top-1 selected expert for visual clarity. The visualization demonstrates a clear functional differenti-ation. The Grad-CAM reveals that the experts have learned to focus on distinct regions of the image: Expert 1 focuses on the anomaly, Expert 2 on the object body, Expert 3 on the background, and Expert 4 is rarely utilized (detailed in sup-plementary Sec. E.1). The Patch Selection maps show that the router allocates patches in alignment with these focus patterns: Expert 1 is the Top-1 choice for anomaly-related and some background patches, whereas Experts 2 and 3 mainly receive object-body and background patches, re-spectively. Furthermore, the average routing weights show comparable values across Expert 1, 2, and 3. Expert 4’s weight is unrepresentative, being rarely selected. This con-firms the anomaly is identified by dynamic combination of functionally distinct, patch-specialized experts, not a single one, demonstrating content-based routing. More visualiza-tions for the other layers and the Top-2 selected experts are provided in supplementary Sec. G.2. Fig. 4 provides a comparison of Anomaly Maps between MoECLIP and existing SOTA methods on both industrial and medical domains. Due to its patch-specialized expert design, MoECLIP delivers more accurate and fine-grained anomaly localization than existing methods. 
+
+5.4. Ablation Study 
+
+Impact of components: Tab. 2 presents ablation results on the 2 industrial datasets and 2 medical datasets to evalu-ate the impact of the key components in MoECLIP. Specifi-cally, (a) Compared to the Vanilla CLIP baseline, the model 7Table 2. Ablation study on the different components of MoECLIP, evaluated on industrial datasets MVTec-AD and DTD-Synthetic, and medical datasets Head CT and ColonDB using (Pixel-level AUROC, Image-level AUROC) metrics. The best performance is in bold .
+
+Components of MoECLIP Datasets MVTec-AD DTD-Synthetic Head CT ColonDB Average base Vanilla CLIP (38.4, 74.1) (33.9, 71.6) (−, 56.5) (49.5, −) (40.6, 67.4) (a) w/o FOFS & ETF Loss (91.6, 91.7) (97.8, 93.1) (−, 94.4) (84.1, −) (91.2, 93.1) (b) w/o FOFS (92.0, 92.8) (98.3, 93.9) (−, 95.0) (85.3, −) (91.9, 93.9) (c) w/o ETF Loss (92.2, 92.7) (98.2, 93.4) (−, 96.1) (84.6, −) (91.7, 94.1) (d) w/o Depth-wise Adapter (92.0, 92.5) (98.1, 93.8) (−, 94.5) (85.0, −) (91.7, 93.6) (e) w/o PAA (92.1, 92.8) (98.1, 94.7) (−, 93.1) (81.9, −) (90.7, 93.5) Ours MoECLIP (92.5, 93.9) (98.8, 95.5) (−, 96.6) (85.4, −) (92.2, 95.3)                                    
+
+>                                     
+>     
+
+Figure 5. Ablation Study on Inter-Expert similarity heatmap at layer 18. The heatmap shows the average pairwise cosine sim-ilarity between expert features, computed on the MVTec-AD test set. Values approaching +1 (red) indicate high redundancy, while values approaching 0 (white) or negative values (blue) signify suc-cessful differentiation. 
+
+lacking specialization still achieves a significant perfor-mance improvement. However, this model performs worse than our MoECLIP model as it suffers from functional re-dundancy (Fig. 5), which our proposed FOFS and ETF Loss solve to achieve the final performance. (b-c) Removing ei-ther the FOFS strategy or the ETF Loss individually causes a performance drop, confirming both components are com-plementary and essential for resolving the functional re-dundancy mentioned in (a). (d) Removing the Depth-wise Adapter degrades both image-level and pixel-level perfor-mance, indicating its effectiveness in refining features. (e) Notably, removing the PAA module causes a significant per-formance decrease on medical datasets. This highlights that aggregating multi-scale contextual information via PAA is important for medical domains. 
+
+Functional Redundancy: To quantitatively assess func-tional redundancy, we analyze the inter-expert cosine simi-larity as shown in Fig. 5. This matrix is computed by aver-aging the similarity between expert-specific features, which are derived by averaging all patch features that selected that expert (via Top-k) within each image, across the MVTec-AD dataset. The Original MoE exhibits high similarity, with the value between Expert 1 and 2 reaching 0.45 , indi-cating significant functional redundancy. While introducing the FOFS strategy alone substantially reduces this similar-ity, a notable positive similarity of 0.24 persists between              
+
+>  
+> 
+> 
+>        
+>           
+>   
+>     
+
+Figure 6. Ablation Study on the Number of Experts K (from 1 to 8) on the MVTec-AD dataset. 
+
+Expert 1 and 2. Finally, the full MoECLIP model, com-bining FOFS with the ETF Loss, minimizes all remaining similarity, bringing the value between Expert 1 and 2 down to 0.02 . This demonstrates that our approach forces experts to learn specialized, non-overlapping functions. 
+
+Impact of the Number of Experts: As shown in Fig. 6, increasing the number of experts does not necessarily lead to performance improvements in the ZSAD task. We em-pirically set K = 4 as it yields the best results across both pixel-level and image-level AUROC. This suggests a trade-off: too few experts may under-specialize, while too many can cause functional redundancy. Additional analyses are provided in supplementary Sec. C 
+
+## 6. Conclusion 
+
+In this paper, we propose MoECLIP, a novel MoE-based framework that introduces patch-level adaptation to the ZSAD task, overcoming the patch-agnostic design limita-tions of existing approaches. MoECLIP achieves this by dy-namically routing each image patch to a specialized LoRA expert based on its unique characteristics. Furthermore, to solve the inherent functional redundancy problem in MoE and force expert differentiation, FOFS orthogonally sepa-rates the input feature space, and an ETF loss enforces an ideal equiangular structure on the expert outputs. With this design, MoECLIP demonstrates its effectiveness and prac-tical utility through comprehensive experiments on bench-mark datasets spanning industrial and medical domains, consistently outperforming existing SOTA methods. 8Acknowledgement 
+
+This research was supported by the Korea Institute for Ad-vancement of Technology (KIAT) grant funded by the Ko-rea Government (MOTIE) (No. P0023675, HRD Program for Industrial Innovation). 
+
+## References 
+
+[1] Toshimichi Aota, Lloyd Teh Tzer Tong, and Takayuki Okatani. Zero-shot versus many-shot: Unsupervised texture anomaly detection. In Proceedings of the IEEE/CVF Win-ter Conference on Applications of Computer Vision , pages 5564–5572, 2023. 6, 13 [2] Jinan Bao, Hanshi Sun, Hanqiu Deng, Yinsheng He, Zhaox-iang Zhang, and Xingyu Li. Bmad: Benchmarks for medical anomaly detection. In Proceedings of the IEEE/CVF Con-ference on Computer Vision and Pattern Recognition , pages 4042–4053, 2024. 6, 13 [3] Paul Bergmann, Michael Fauser, David Sattlegger, and Carsten Steger. Mvtec ad–a comprehensive real-world dataset for unsupervised anomaly detection. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 9592–9600, 2019. 1, 6, 12 [4] Jorge Bernal, F Javier S´ anchez, Gloria Fern´ andez-Esparrach, Debora Gil, Cristina Rodr´ ıguez, and Fernando Vilari˜ no. Wm-dova maps for accurate polyp highlighting in colonoscopy: Validation vs. saliency maps from physi-cians. Computerized medical imaging and graphics , 43:99– 111, 2015. 6, 13 [5] Erdi C ¸ allı, Ecem Sogancioglu, Bram Van Ginneken, Kicky G van Leeuwen, and Keelin Murphy. Deep learning for chest x-ray analysis: A survey. Medical image analysis , 72:102125, 2021. 1 [6] Yunkang Cao, Xiaohao Xu, Jiangning Zhang, Yuqi Cheng, Xiaonan Huang, Guansong Pang, and Weiming Shen. A sur-vey on visual anomaly detection: Challenge, approach, and prospect. arXiv preprint arXiv:2401.16402 , 2024. 1 [7] Yunkang Cao, Jiangning Zhang, Luca Frittoli, Yuqi Cheng, Weiming Shen, and Giacomo Boracchi. Adaclip: Adapting clip with hybrid learnable prompts for zero-shot anomaly de-tection. In European Conference on Computer Vision , pages 55–72. Springer, 2024. 1, 2, 5, 6, 14 [8] Xuhai Chen, Yue Han, and Jiangning Zhang. April-gan: A zero-/few-shot anomaly classification and segmentation method for cvpr 2023 vand workshop challenge tracks 1&2: 1st place on zero-shot ad and 4th place on few-shot ad. arXiv preprint arXiv:2305.17382 , 2023. 1, 2, 5, 6, 14 [9] Xuhai Chen, Jiangning Zhang, Guanzhong Tian, Haoyang He, Wuhao Zhang, Yabiao Wang, Chengjie Wang, and Yong Liu. Clip-ad: A language-guided staged dual-path model for zero-shot anomaly detection. In International Joint Confer-ence on Artificial Intelligence , pages 17–33. Springer, 2024. 2[10] Yawen Cui, Jian Zhao, Zitong Yu, Rizhao Cai, Xun Wang, Lei Jin, Alex C Kot, Li Liu, and Xuelong Li. Cmoa: Con-trastive mixture of adapters for generalized few-shot contin-ual learning. IEEE Transactions on Multimedia , 2025. 2, 18 [11] Thomas Defard, Aleksandr Setkov, Angelique Loesch, and Romaric Audigier. Padim: a patch distribution modeling framework for anomaly detection and localization. In Inter-national conference on pattern recognition , pages 475–489. Springer, 2021. 1 [12] Hanqiu Deng and Xingyu Li. Anomaly detection via reverse distillation from one-class embedding. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 9737–9746, 2022. 1 [13] Nan Du, Yanping Huang, Andrew M Dai, Simon Tong, Dmitry Lepikhin, Yuanzhong Xu, Maxim Krikun, Yanqi Zhou, Adams Wei Yu, Orhan Firat, et al. Glam: Efficient scaling of language models with mixture-of-experts. In In-ternational conference on machine learning , pages 5547– 5569. PMLR, 2022. 2 [14] William Fedus, Barret Zoph, and Noam Shazeer. Switch transformers: Scaling to trillion parameter models with sim-ple and efficient sparsity. Journal of Machine Learning Re-search , 23(120):1–39, 2022. 2 [15] Jinyuan Feng, Zhiqiang Pu, Tianyi Hu, Dongmin Li, Xi-aolin Ai, and Huimu Wang. Omoe: Diversifying mixture of low-rank adaptation by orthogonal finetuning. arXiv preprint arXiv:2501.10062 , 2025. 2 [16] Jinyuan Feng, Chaopeng Wei, Tenghai Qiu, Tianyi Hu, and Zhiqiang Pu. Comoe: Contrastive representation for mixture-of-experts in parameter-efficient fine-tuning. arXiv preprint arXiv:2505.17553 , 2025. 2, 18 [17] Tharindu Fernando, Harshala Gammulle, Simon Denman, Sridha Sridharan, and Clinton Fookes. Deep learning for medical anomaly detection–a survey. ACM Computing Sur-veys (CSUR) , 54(7):1–37, 2021. 1 [18] Walter Gander. Algorithms for the qr decomposition. Res. Rep , 80(02):1251–1268, 1980. 4 [19] Zhaopeng Gu, Bingke Zhu, Guibo Zhu, Yingying Chen, Hao Li, Ming Tang, and Jinqiao Wang. Filo: Zero-shot anomaly detection by fine-grained description and high-quality local-ization. In Proceedings of the 32nd ACM International Con-ference on Multimedia , pages 2041–2049, 2024. 2, 5 [20] Zhaopeng Gu, Bingke Zhu, Guibo Zhu, Yingying Chen, Wei Ge, Ming Tang, and Jinqiao Wang. Anomalymoe: Towards a language-free generalist model for unified visual anomaly detection. arXiv preprint arXiv:2508.06203 , 2025. 2 [21] Daya Guo, Dejian Yang, Haowei Zhang, Junxiao Song, Ruoyu Zhang, Runxin Xu, Qihao Zhu, Shirong Ma, Peiyi Wang, Xiao Bi, et al. Deepseek-r1: Incentivizing reasoning capability in llms via reinforcement learning. arXiv preprint arXiv:2501.12948 , 2025. 2 [22] Jia Guo, Shuai Lu, Weihang Zhang, Fang Chen, Huiqi Li, and Hongen Liao. Dinomaly: The less is more philosophy in multi-class unsupervised anomaly detection. In Proceedings of the Computer Vision and Pattern Recognition Conference ,pages 20405–20415, 2025. 1 [23] Zeyu Han, Chao Gao, Jinyang Liu, Jeff Zhang, and Sai Qian Zhang. Parameter-efficient fine-tuning for large models: A comprehensive survey. arXiv preprint arXiv:2403.14608 ,2024. 2 
+
+9[24] Haoyang He, Yuhu Bai, Jiangning Zhang, Qingdong He, Hongxu Chen, Zhenye Gan, Chengjie Wang, Xiangtai Li, Guanzhong Tian, and Lei Xie. Mambaad: Exploring state space models for multi-class unsupervised anomaly detec-tion. Advances in Neural Information Processing Systems ,37:71162–71187, 2024. 1 [25] Liren He, Zhengkai Jiang, Jinlong Peng, Wenbing Zhu, Liang Liu, Qiangang Du, Xiaobin Hu, Mingmin Chi, Yabiao Wang, and Chengjie Wang. Learning unified reference repre-sentation for unsupervised multi-class anomaly detection. In 
+
+European Conference on Computer Vision , pages 216–232. Springer, 2024. 1 [26] Steven A Hicks, Debesh Jha, Vajira Thambawita, P˚ al Halvorsen, Hugo L Hammer, and Michael A Riegler. The endotect 2020 challenge: evaluation and comparison of clas-sification, segmentation and inference time for endoscopy. In Pattern Recognition. ICPR International Workshops and Challenges: Virtual Event, January 10-15, 2021, Proceed-ings, Part VIII , pages 263–274. Springer, 2021. 6, 14 [27] Andrew G Howard, Menglong Zhu, Bo Chen, Dmitry Kalenichenko, Weijun Wang, Tobias Weyand, Marco An-dreetto, and Hartwig Adam. Mobilenets: Efficient convolu-tional neural networks for mobile vision applications. arXiv preprint arXiv:1704.04861 , 2017. 5 [28] Edward J Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, Weizhu Chen, et al. Lora: Low-rank adaptation of large language models. ICLR ,1(2):3, 2022. 2, 3 [29] Jongheon Jeong, Yang Zou, Taewan Kim, Dongqing Zhang, Avinash Ravichandran, and Onkar Dabeer. Winclip: Zero-/few-shot anomaly classification and segmentation. In Pro-ceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 19606–19616, 2023. 1, 2, 6, 14 [30] Debesh Jha, Pia H Smedsrud, Michael A Riegler, P˚ al Halvorsen, Thomas De Lange, Dag Johansen, and H˚ avard D Johansen. Kvasir-seg: A segmented polyp dataset. In 
+
+MultiMedia modeling: 26th international conference, MMM 2020, Daejeon, South Korea, January 5–8, 2020, proceed-ings, part II 26 , pages 451–462. Springer, 2020. 6, 14 [31] Albert Q Jiang, Alexandre Sablayrolles, Antoine Roux, Arthur Mensch, Blanche Savary, Chris Bamford, Deven-dra Singh Chaplot, Diego de las Casas, Emma Bou Hanna, Florian Bressand, et al. Mixtral of experts. arXiv preprint arXiv:2401.04088 , 2024. 2 [32] Dmitry Lepikhin, HyoukJoong Lee, Yuanzhong Xu, Dehao Chen, Orhan Firat, Yanping Huang, Maxim Krikun, Noam Shazeer, and Zhifeng Chen. Gshard: Scaling giant models with conditional computation and automatic sharding. arXiv preprint arXiv:2006.16668 , 2020. 2 [33] Dengchun Li, Yingzi Ma, Naizheng Wang, Zhengmao Ye, Zhiyuan Cheng, Yinghao Tang, Yan Zhang, Lei Duan, Jie Zuo, Cal Yang, et al. Mixlora: Enhancing large language models fine-tuning with lora-based mixture of experts. arXiv preprint arXiv:2404.15159 , 2024. 2 [34] Xurui Li, Ziming Huang, Feng Xue, and Yu Zhou. Musc: Zero-shot industrial anomaly classification and segmenta-tion with mutual scoring of the unlabeled images. In The Twelfth International Conference on Learning Representa-tions , 2024. 5 [35] Yiting Li, Adam Goodge, Fayao Liu, and Chuan-Sheng Foo. Promptad: Zero-shot anomaly detection using text prompts. In Proceedings of the IEEE/CVF Winter Conference on Ap-plications of Computer Vision , pages 1093–1102, 2024. 1 [36] Tsung-Yi Lin, Priya Goyal, Ross Girshick, Kaiming He, and Piotr Doll´ ar. Focal loss for dense object detection. In Pro-ceedings of the IEEE international conference on computer vision , pages 2980–2988, 2017. 5, 15 [37] Boan Liu, Liang Ding, Li Shen, Keqin Peng, Yu Cao, Dazhao Cheng, and Dacheng Tao. Diversifying the mixture-of-experts representation for language models with orthogonal optimizer. arXiv preprint arXiv:2310.09762 , 2023. 2 [38] Wenxin Ma, Xu Zhang, Qingsong Yao, Fenghe Tang, Chenxu Wu, Yingtai Li, Rui Yan, Zihang Jiang, and S Kevin Zhou. Aa-clip: Enhancing zero-shot anomaly detection via anomaly-aware clip. In Proceedings of the Computer Vi-sion and Pattern Recognition Conference , pages 4744–4754, 2025. 1, 2, 3, 5, 6, 14, 15, 18 [39] Shiyuan Meng, Wenchao Meng, Qihang Zhou, Shizhong Li, Weiye Hou, and Shibo He. Moead: A parameter-efficient model for multi-class anomaly detection. In European Con-ference on Computer Vision , pages 345–361. Springer, 2024. 2, 5, 15 [40] Fausto Milletari, Nassir Navab, and Seyed-Ahmad Ahmadi. V-net: Fully convolutional neural networks for volumetric medical image segmentation. In 2016 fourth international conference on 3D vision (3DV) , pages 565–571. Ieee, 2016. 5, 16 [41] Pankaj Mishra, Riccardo Verk, Daniele Fornasier, Claudio Piciarelli, and Gian Luca Foresti. Vt-adl: A vision trans-former network for image anomaly detection and localiza-tion. In 2021 IEEE 30th International Symposium on Indus-trial Electronics (ISIE) , pages 01–06. IEEE, 2021. 6, 13 [42] Yurui Pan, Lidong Wang, Yuchao Chen, Wenbing Zhu, Bo Peng, and Mingmin Chi. Pa-clip: Enhancing zero-shot anomaly detection through pseudo-anomaly awareness. 
+
+arXiv preprint arXiv:2503.01292 , 2025. 5 [43] Vardan Papyan, XY Han, and David L Donoho. Prevalence of neural collapse during the terminal phase of deep learning training. Proceedings of the National Academy of Sciences ,117(40):24652–24663, 2020. 2, 3 [44] Zhen Qu, Xian Tao, Mukesh Prasad, Fei Shen, Zhengtao Zhang, Xinyi Gong, and Guiguang Ding. Vcp-clip: A visual context prompting model for zero-shot anomaly segmenta-tion. In European Conference on Computer Vision , pages 301–317. Springer, 2024. 2 [45] Zhen Qu, Xian Tao, Xinyi Gong, Shichen Qu, Qiyu Chen, Zhengtao Zhang, Xingang Wang, and Guiguang Ding. Bayesian prompt flow learning for zero-shot anomaly detec-tion. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 30398–30408, 2025. 1, 2, 3, 6, 14 [46] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learning 
+
+10 transferable visual models from natural language supervi-sion. In International conference on machine learning , pages 8748–8763. PmLR, 2021. 1, 6, 15 [47] Karsten Roth, Latha Pemula, Joaquin Zepeda, Bernhard Sch¨ olkopf, Thomas Brox, and Peter Gehler. Towards to-tal recall in industrial anomaly detection. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 14318–14328, 2022. 1 [48] Mohammadreza Salehi, Niousha Sadjadi, Soroosh Baselizadeh, Mohammad H Rohban, and Hamid R Ra-biee. Multiresolution knowledge distillation for anomaly detection. In Proceedings of the IEEE/CVF confer-ence on computer vision and pattern recognition , pages 14902–14912, 2021. 6, 14, 18 [49] Ramprasaath R Selvaraju, Michael Cogswell, Abhishek Das, Ramakrishna Vedantam, Devi Parikh, and Dhruv Batra. Grad-cam: Visual explanations from deep networks via gradient-based localization. In Proceedings of the IEEE in-ternational conference on computer vision , pages 618–626, 2017. 7 [50] Noam Shazeer, Azalia Mirhoseini, Krzysztof Maziarz, Andy Davis, Quoc Le, Geoffrey Hinton, and Jeff Dean. Outra-geously large neural networks: The sparsely-gated mixture-of-experts layer. arXiv preprint arXiv:1701.06538 , 2017. 2, 3, 5, 15 [51] Nima Tajbakhsh, Suryakanth R Gurudu, and Jianming Liang. Automated polyp detection in colonoscopy videos using shape and context information. IEEE transactions on medical imaging , 35(2):630–644, 2015. 6, 13 [52] David V´ azquez, Jorge Bernal, F Javier S´ anchez, Gloria Fern´ andez-Esparrach, Antonio M L´ opez, Adriana Romero, Michal Drozdzal, and Aaron Courville. A benchmark for en-doluminal scene segmentation of colonoscopy images. Jour-nal of healthcare engineering , 2017(1):4037190, 2017. 6, 13 [53] Julian Wyatt, Adam Leach, Sebastian M Schmon, and Chris G Willcocks. Anoddpm: Anomaly detection with de-noising diffusion probabilistic models using simplex noise. In Proceedings of the IEEE/CVF conference on computer vi-sion and pattern recognition , pages 650–656, 2022. 1 [54] Haomin Yu, Qingyong Li, Yunqiang Tan, Jinrui Gan, Jianzhu Wang, Yangli-ao Geng, and Lei Jia. A coarse-to-fine model for rail surface defect detection. IEEE Transactions on In-strumentation and Measurement , 68(3):656–666, 2018. 6, 13 [55] Qihang Zhou, Guansong Pang, Yu Tian, Shibo He, and Jiming Chen. Anomalyclip: Object-agnostic prompt learn-ing for zero-shot anomaly detection. arXiv preprint arXiv:2310.18961 , 2023. 1, 2, 3, 5, 6, 14 [56] Bingke Zhu, Zhaopeng Gu, Guibo Zhu, Yingying Chen, Ming Tang, and Jinqiao Wang. Adformer: Generalizable few-shot anomaly detection with dual cnn-transformer ar-chitecture. IEEE Transactions on Instrumentation and Mea-surement , 2024. 1 [57] Jiacheng Zhu, Kristjan Greenewald, Kimia Nadjahi, Haitz S´ aez De Oc´ ariz Borde, Rickard Br¨ uel Gabrielsson, Leshem Choshen, Marzyeh Ghassemi, Mikhail Yurochkin, and Justin Solomon. Asymmetry in low-rank adapters of foundation models. arXiv preprint arXiv:2402.16842 , 2024. 4 [58] Yang Zou, Jongheon Jeong, Latha Pemula, Dongqing Zhang, and Onkar Dabeer. Spot-the-difference self-supervised pre-training for anomaly detection and segmentation. In Eu-ropean conference on computer vision , pages 392–408. Springer, 2022. 6, 13 
+
+11 MoECLIP: Patch-Specialized Experts for Zero-shot Anomaly Detection 
+
+# Supplementary Material 
+
+## Contents 
+
+A. Algorithm Implementation 12 B. Additional Information 12 
+
+B.1. Data Descriptions . . . . . . . . . . . . . . 12 B.2. Comparison Method Details . . . . . . . . . 14 B.3. Detailed Experimental Setup . . . . . . . . . 15 B.4. Text Prompt . . . . . . . . . . . . . . . . . 15 B.5. Details of Balance Loss . . . . . . . . . . . 15 B.6. Details of Focal Loss and Dice Loss . . . . . 15 
+
+C. Additional Experimental Analysis 16 
+
+C.1. Analysis of Model Configurations . . . . . . 16 C.2. Analysis of Training on Medical Data . . . . 18 C.3. Analysis of Computation Overhead . . . . . 18 
+
+D. Theoretical Grounding for MoE in ZSAD 18 E. Analysis of Expert Specialization 19 
+
+E.1. Expert Utilization . . . . . . . . . . . . . . 19 E.2. Expert Interpretability . . . . . . . . . . . . 19 
+
+F. Detailed Quantitative Results 20 
+
+F.1. Performance Results for All Categories . . . 20 F.2. Inter-Expert Similarity . . . . . . . . . . . . 20 
+
+G. More Visualization Results 20 
+
+G.1. Multi-layer and Multi-Scale Maps . . . . . . 20 G.2. Grad-CAM and Patch Selection Map . . . . 20 G.3. Final Anomaly Map . . . . . . . . . . . . . 20 
+
+H. Limitations and Future Work 20 
+
+## A. Algorithm Implementation 
+
+Algorithm 1 provides pseudocode to illustrate MoECLIP’s core feature adaptation logic with specialization. 
+
+Algorithm 1 MoE Feature Adaptation with Specialization 
+
+Input: Patch features F l ∈ RL×d from the l-th ViT layer; MoE module M l with K experts; Top-k value k.
+
+Output: Adapted patch features F l
+
+> MoE
+
+; ETF Loss Letf .
+
+▷ Step 1: FOFS-based expert initialization  
+
+> 1:
+
+Initialize experts {Eln(Aln, B ln)}Kn=1 using FOFS (Eq. (6)); Aln frozen, Bln trainable. 
+
+▷ Step 2: Routing scores for all patches  
+
+> 2:
+
+Rl ← Softmax(Router l(F l)) (Rl ∈ RL×K )
+
+▷ Step 3: Perform patch-wise routing and adaptation  
+
+> 3:
+
+E ← [ ] ▷ Initialize list to collect expert outputs for ETF loss  
+
+> 4:
+
+for each patch i = 1 , . . . , L do  
+
+> 5:
+
+Extract patch routing scores Rli from Rl. 
+
+> 6:
+
+Compute normalized Top-k weights ˆRli (Eq. (1)).  
+
+> 7:
+
+▷ Compute all K expert outputs  
+
+> 8:
+
+Ei ← [Eln(F li ) for n = 1 , . . . , K ] 
+
+> 9:
+
+E.append (Ei) 
+
+> 10:
+
+▷ Compute weighted sum using normalized weights  
+
+> 11:
+
+F li, expert ← PKn=1 ˆRli,n · E i,n  
+
+> 12:
+
+▷ Normalization and residual connection  
+
+> 13:
+
+F li, norm ← F li, expert · (|| F li || 2/(|| F li, expert || 2 + ϵ))  
+
+> 14:
+
+F li, MoE ← λM oE · F li, norm + (1 − λM oE ) · F li 
+
+> 15:
+
+end for  
+
+> 16:
+
+Etensor ← Stack (E) ▷ Shape: L × K × d 
+
+> 17:
+
+Compute ETF Loss Letf from Etensor (Eq. (8)).  
+
+> 18:
+
+return F l
+
+> MoE
+
+, Letf 
+
+## B. Additional Information 
+
+B.1. Data Descriptions 
+
+We evaluated the zero-shot anomaly detection (ZSAD) per-formance of our proposed method on a total of 14 publicly available datasets, including five industrial and nine medical datasets, as presented in Tab. 3. • MVTec-AD [3] is a benchmark dataset widely used for industrial anomaly detection. It comprises 15 object cate-gories, with images captured by high-resolution industrial cameras. In this study, we use only the test set, which contains 467 normal and 1,258 anomalous images. Each 12 Table 3. Summary of key statistics for the 14 publicly available industrial and medical datasets used in our study. It reports the number of classes, normal and anomalous images, and data types. The last column indicates the availability of evaluation (Pixel-level / Image-level), where ’X’ denotes cases not applicable due to the absence of ground truth masks or normal images.                                                                             
+
+> Domain Dataset #Classes #Normal Images #Anomalous Images Data Types Evaluation (Pixel / Image) Industrial MVTec 15 467 1,258 object & texture (O, O) VisA 12 962 1,200 object (O, O) BTAD 3451 290 object & texture (O, O) RSDD 1387 387 texture (O, O) DTD-synthetic 12 375 947 texture (O, O) Medical Brain MRI 1640 1,013 brain (O, O) Head CT 1100 100 brain (X, O) Liver CT 1833 660 Liver (O, O) Retina OCT 11,041 764 Retina (O, O) ColonDB 10380 Colon (O, X) ClinicDB 10612 Colon (O, X) CVC-300 1060 Colon (O, X) Endo 10200 Colon (O, X) Kvasir 101,000 Colon (O, X)
+
+anomalous image is accompanied by a pixel-level defect mask, enabling both image-level classification and pixel-level anomaly segmentation evaluation. • VisA [58] is a benchmark dataset for industrial anomaly detection that includes surface and structural defects of manufactured products. It comprises 12 object categories, such as PCB, capsules, and candle. In this study, we em-ploy only the test set, which contains 962 normal and 1,200 anomalous images. Each anomalous image pro-vides a pixel-level defect mask, allowing both image-level classification and pixel-level anomaly segmentation eval-uation. • BTAD [41] is an industrial anomaly detection dataset col-lected from real manufacturing environments. It includes three product categories. In this study, we use only the test set, which contains 451 normal and 290 anomalous images. • RSDD [54] is an industrial anomaly detection dataset designed for rail surface defect detection, consisting of two object-type categories. In this study, we use the test set, which includes 387 normal and 387 anomalous im-ages. Pixel-level annotations are provided, allowing both image-level classification and pixel-level anomaly seg-mentation evaluation. • DTD-Synthetic [1] is a dataset generated by synthesiz-ing data from 12 texture categories. Despite being syn-thetically created, it provides pixel-level anomaly masks, allowing evaluation at both the image and pixel levels. In this study, the dataset includes 375 normal images and 947 anomalous images. • Brain MRI [2] is a medical dataset consisting of brain MRI scans used for detecting various types of brain le-sions. In this study, we use the test set, which includes 640 normal and 1,013 anomalous images. Each anoma-lous image is accompanied by a pixel-level defect mask, enabling both image-level classification and pixel-level anomaly segmentation evaluation. • Liver CT [2] is a medical dataset composed of liver CT scans. We utilize its test set, which consists of 833 nor-mal and 660 anomalous images. Pixel-level segmentation masks are provided, enabling both image-level classifica-tion and pixel-level anomaly segmentation evaluation. • Retina OCT [2] is a medical dataset consisting of reti-nal images captured using Optical Coherence Tomogra-phy (OCT). We utilize its test set, which consists of 1,041 normal and 764 anomalous images. Pixel-level annota-tions of anomalous regions are provided, enabling both image-level and pixel-level evaluation. • CVC-ColonDB [51] is a medical anomaly detec-tion dataset consisting of polyp images captured from colonoscopy procedures. The dataset contains 380 anomalous images, each accompanied by a pixel-level mask, but no normal samples. Due to the absence of nor-mal data, we use this dataset exclusively for pixel-level anomaly segmentation evaluation. • CVC-ClinicDB [4] is a medical anomaly detection dataset composed of polyp images obtained from colonoscopy examinations. Similar to CVC-ColonDB, it provides pixel-level segmentation masks and contains 612 anomalous images without any normal samples. Thus, it is used exclusively for pixel-level anomaly seg-mentation evaluation. • CVC-300 [52] is a medical anomaly detection dataset consisting of polyp images captured from colonoscopy procedures. It contains only 60 anomalous images with pixel-level annotations and no normal samples. Ac-13 cordingly, we use this dataset exclusively for pixel-level anomaly segmentation evaluation. • Endo [26] is a medical anomaly detection dataset for polyp detection, comprising colon endoscopy images. It contains 200 anomalous images with pixel-level annota-tions and no normal samples. Consequently, this dataset is evaluated exclusively on pixel-level anomaly segmen-tation. • Kvasir [30] is a medical anomaly detection dataset con-sisting of colon endoscopy images. It contains 1,000 anomalous images, each annotated with pixel-level masks for polyps, and includes no normal samples. In this study, we employ this dataset exclusively for pixel-level anomaly segmentation evaluation. • Head CT [48] is a medical dataset consisting of head CT scans used for detecting brain anomalies such as hemor-rhages and tumors. In this study, we employ the refined version curated by AdaCLIP [7]. The test set comprises 100 normal and 100 anomalous images. As this version provides only image-level labels, it is used exclusively for image-level anomaly classification. 
+
+B.2. Comparison Method Details 
+
+For a fair comparison, we unify the backbone to OpenCLIP ViT-L/14-336 across all baselines except WinCLIP [29], where we cite standard ViT-B/16 +-240 results [29, 45] as the official code is unavailable. Furthermore, all competing models that require an auxiliary training phase are evaluated using weights trained on the VisA dataset under this unified setting (conversely, weights trained on MVTec-AD are used when evaluating on VisA). • WinCLIP [29] identifies that the original CLIP model is trained only on global embeddings, and its last visual fea-ture maps before pooling are not well aligned with the language space, which limits its zero-shot segmentation performance. To address this issue, this paper proposes a window-based strategy. In this approach, the input im-age is divided into multi-scale sliding windows, and each masked image is independently passed through the CLIP image encoder to extract window-level global features that are aligned with the language space. In addition, a Compositional Prompt Ensemble is introduced, which combines state words and prompt templates to better de-fine normal and anomalous conditions. We use the results of WinCLIP reported in [29, 45]. • APRIL-GAN [8] points out that the patch-level image features in the original CLIP model are not properly mapped to a joint embedding space aligned with text fea-tures. To address this limitation, this paper introduces additional linear layers that map fine-grained patch fea-tures—extracted from multiple stages of the CLIP image encoder—into the joint embedding space. This approach enhances CLIP from a classification-only model to one capable of segmentation, allowing it to visually highlight where anomalies occur. We evaluate the model using the official pre-trained weights. • AnomalyCLIP [55] argues that the original CLIP model lacks the ability to distinguish between normal and abnor-mal concepts, which leads to degraded zero-shot anomaly detection (ZSAD) performance. To address this issue, this paper proposes an object-agnostic prompt learning strategy. Instead of explicitly including object class names, the method learns text prompts designed to cap-ture generic indicators of normality and abnormality. These prompts are trained through a glocal context opti-mization process that combines global and local losses on an auxiliary dataset, while the visual encoder is fine-tuned using a Diagonally Prominent Attention Map (DPAM) to enhance local visual features. This approach allows the model to focus on shared anomaly patterns rather than object-specific semantics, enabling better generalization to unseen object categories. We evaluate the model using the official pre-trained weights. • AdaCLIP [7] highlights the limitations of existing Static Prompt and Dynamic Prompt-based models, as well as the shortcomings of simple image-level detection ap-proaches. To address these issues, this paper introduces a hybrid learnable prompts mechanism that combines static prompts—which provide basic adaptation for zero-shot anomaly detection (ZSAD)—with Dynamic Prompts that enable dynamic adaptation. These prompts are applied to both the image encoder and the text encoder. In addi-tion, a Hybrid Semantic Fusion module is introduced to enhance image-level detection performance. We re-train the model using the official code and configuration. • AA-CLIP [38] is the first to identify the unique anomaly unawareness problem of the original CLIP model — its inability to distinguish subtle semantic differences be-tween normal and anomalous concepts. To address this issue, this paper proposes an effective two-stage adapta-tion strategy. In the first stage, the visual encoder is kept frozen, and the text encoder is adapted using a Residual Adapter and a Disentangle Loss to clearly separate nor-mal and abnormal text anchors. In the second stage, the learned text anchors are fixed, and the visual encoder is fine-tuned with a Residual Adapter so that its patch-level features align with these text anchors. This controlled two-stage approach preserves CLIP’s strong generaliza-tion ability while efficiently injecting anomaly-aware in-formation, thereby improving zero-shot performance. We re-train the model using the official code and configura-tion. • Bayes-PFL [45] points out the excessive engineering re-14 quired for manual prompt design and the limited gen-eralization ability of simple learnable prompts. To ad-dress this issue, this paper proposes Bayesian Prompt Flow Learning, which models the text prompt space as a learnable probabilistic distribution from a Bayesian per-spective. A Prompt Flow Module and a Residual Cross-Modal Attention Module are introduced to strengthen the alignment between dynamically generated text embed-dings and fine-grained image patch features. We evaluate the model using the official pretrained weights. 
+
+B.3. Detailed Experimental Setup 
+
+We implement MoECLIP using the OpenCLIP ViT-L/14-336 architecture pre-trained by OpenAI [46], as our frozen backbone. All input images are uniformly resized to 518 ×
+
+518 . We integrate our MoE modules at the output of the l-th layers of the Vision Encoder, where l ∈ { 6, 12 , 18 , 24 }, and text features are extracted from the final layer of the text en-coder. During the training phase, we apply data augmenta-tion [38] with a 0.5 probability for each transformation, in-cluding random affine transformation, color jitter, random rotation, random horizontal flip, and random vertical flip. For the model configuration, we set the total number of ex-perts K to 4 with Top-2 routing via a linear router layer R,a LoRA rank r to 8, a LoRA scaling factor α to 16, and a LoRA dropout rate of 0.05. We also set the MoE residual weight λM oE to 0.1, and the normalization ϵ to 1 × 10 −6.The PAA module utilizes scales s ∈ { 1, 3, 5}, and the auxil-iary loss weights λetf and λbal are both set to 0.01. The pro-jection layer used for aligning features to the text space is shared across all PAA scales within the same encoder layer. We train the model for 20 epochs using the Adam optimizer with β1 set to 0.5, β2 set to 0.999, and a batch size of 2. The initial learning rate is 5 × 10 −4, which is decayed by a factor of 0.5 at 16,000 and 32,000 iterations using a Mul-tiStepLR scheduler. All experiments are conducted on 2 × NVIDIA Tesla V100 16GB GPUs and an Intel(R) Xeon(R) Gold 5120 CPU @ 2.20GHz, using PyTorch 2.3.1. 
+
+B.4. Text Prompt 
+
+Following the methodology of AA-CLIP [38], we adopt identical prompt templates and descriptors as specified in Tab. 4. Throughout the training and inference phases, the ”[ class ]” token is substituted with the class-specific de-scription, while either the normal or anomaly descriptor is injected into the template. 
+
+B.5. Details of Balance Loss 
+
+In our MoE-based architecture, the router selects the opti-mal Top-k experts for each patch. A common failure mode is expert collapse, where the network favors a small sub-set of experts, which prevents genuine specialization be-cause under-utilized experts receive few training signals.    
+
+> Table 4. Templates used for the Text Prompts
+> State Prompt Prompt Template {}
+> a photo of a {}
+> Normal Prompt [class ]the [ class ]a [ class ]Abnormal Prompt [class ] with damage [class ] with defect [class ] with flaw damaged [ class ]broken [ class ]
+
+To mitigate this issue, we employ an auxiliary balance loss 
+
+Lbal [39, 50], based on the squared Coefficient of Variation (CV 2), that penalizes uneven load distribution. The CV 2 is computed from the batch load vector Bl, which represents the total routing weight assigned to each of the K experts from all L patches at layer l, as shown in Eq. (B.1), 
+
+CV 2(Bl) = σ(Bl)2
+
+μ(Bl)2 + ϵ , where Bl =
+
+> L
+
+X
+
+> i=1
+
+R(F li )
+
+(B.1) where R(F li ) ∈ RK is the routing probability vector for the i-th patch; μ(Bl) and σ(Bl) are the mean and standard deviation of the load vector Bl; and ϵ is a small constant (1 × 10 −6) for numerical stability. The final balance loss 
+
+Lbal is the sum of this CV 2 value across all MoE layers, forcing the load distribution to be uniform by minimizing the variance, as shown in Eq. (B.2): 
+
+Lbal = X
+
+> l
+
+"
+
+CV 2
+
+> L
+
+X
+
+> i=1
+
+R(F li )
+
+!# 
+
+= X
+
+> l
+
+CV 2(Bl)
+
+(B.2) 
+
+B.6. Details of Focal Loss and Dice Loss 
+
+Focal Loss: In anomaly segmentation, the extreme imbal-ance between vast normal regions and small anomalous ar-eas causes standard Cross-Entropy loss to be overwhelmed by easy negative samples. This issue is mitigated by the Fo-cal Loss [36], which down-weights the contribution of these high-confidence predictions to effectively focus learning on misclassified or ambiguous samples. The Focal loss is de-fined as: 
+
+LF ocal = − 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+(1 − pi)γ log( pi) (B.3) where N is the total number of pixels, pi is the predicted probability, and γ is the focusing parameter that controls the down-weighting rate of easy negative samples. As γ in-creases, the loss contribution of well-classified pixels ( pi →
+
+1) is suppressed more aggressively, forcing the model to fo-cus on hard, misclassified pixels with low predicted proba-bilities ( pi → 0). In our implementation, we set γ to 2. 15 Figure 7. Ablation study of hyperparameters on the MVTec-AD dataset. 
+
+Dice Loss: Complementing Focal Loss, the Dice Loss [40] is employed to directly optimize the overlap between the predicted anomaly map and the ground-truth mask. It is particularly effective for small anomalous regions, as it is insensitive to the dominance of large background regions. The Dice loss is defined as: 
+
+LDice = 1 − 2 PNi=1 yi ˆyi
+
+PNi=1 yi + PNi=1 ˆyi
+
+(B.4) where yi and ˆyi denote the ground truth and the predicted probability for the i-th pixel in the image, respectively. Min-imizing this loss effectively maximizes the overlap between the prediction and the ground truth. 
+
+## C. Additional Experimental Analysis 
+
+C.1. Analysis of Model Configurations 
+
+Analysis of Model Hyperparameters: Fig. 7 presents the results of our model hyper-parameter analysis on the MVTec-AD dataset. We first analyze the image adapt weight λMoE , which balances the original CLIP feature 
+
+F li against the adapted MoE feature F li, norm (Eq. (5)). Asmall value of 0.1 yields the best performance, while rely-ing more heavily on the adapted features via larger λMoE 
+
+values causes a significant performance degradation after 0.4. This strongly suggests that relying too heavily on the adapted features damages the vital generalization capability preserved in the original frozen CLIP features. For the auxiliary loss weights, both λ1 (ETF) and λ2
+
+(Balance) achieve optimal results at 0.01. Disabling these losses or weighting them too heavily degrades ZSAD per-formance, confirming that a small amount of regularization is crucial for expert specialization and stability. The LoRA rank r analysis shows that performance peaks at r = 8 . Increasing the rank does not guarantee better 
+
+Table 5. Ablation study on different backbones, image resolutions, and patch sizes, evaluated on the MVTec-AD dataset. The best performance is in bold .                                             
+
+> Backbone Patch size Image Resolution Image-level Pixel-level AUROC AP AUROC AP ViT-B/32-224 32 448 ×448 82.7 91.8 88.4 28.5 ViT-B/16-224 16 448 ×448 87.9 94.7 90.9 39.3 ViT-L/14-224 14 518 ×518 91.8 95.8 91.3 42.7 ViT-L/14-336 14 448 ×448 93.1 96.7 91.0 45.2
+> ViT-L/14-336 14 518 ×518 93.9 96.8 92.5 45.7
+> ViT-L-14-336 14 602 ×602 93.3 96.7 91.1 45.4
+
+performance. This indicates that r = 8 provides sufficient capacity, while a higher rank may increase the risk of over-fitting to the auxiliary dataset. The Top-k analysis using a total of 4 experts demon-strates that k = 2 (Top-2 routing) clearly outperforms other values. This finding suggests that using more experts can be detrimental to ZSAD performance, possibly by introducing noise or redundant information, whereas k = 2 provides the optimal balance of specialized features. 
+
+Analysis of Backbone, Resolution, and Patch Size: In Tab. 5, we analyze the influence of backbone, patch size, and image resolution. First, a clear trend emerges with patch size: decreasing the patch size from 32 (ViT-B/32) to 16 (ViT-B/16) significantly improves performance. This suggests that smaller patches provide more detailed local information, which is crucial for identifying anomalous re-gions. Similarly, scaling the model backbone from ViT-B to ViT-L also yields a substantial performance increase, con-firming the benefit of a larger model capacity. Regarding image resolution, performance generally improves when in-creasing the size from 448 ×448 to 518 ×518 using the ViT-L/14-336 model. However, we observe a performance drop when increasing the resolution further to 602 × 602 . This indicates a potential trade-off, suggesting that resolutions significantly larger than the model’s pre-training resolution 16 (336 × 336 ) may not be optimal. Based on this analysis, the ViT-L/14-336 model using a 518 × 518 input resolution achieves the best performance. Therefore, we select this configuration as the default backbone for MoECLIP. 
+
+Fixed-Prompt Ensemble vs. Learnable Prompt: In Tab. 6, we investigate the impact of our text prompt de-sign. The default MoECLIP configuration utilizes an en-sembling strategy based on a set of fixed base prompts (e.g., “a photo of a”) combined with state-specific words (“dam-aged”, “broken”, etc.) and the class name. We compare this fixed prompt ensemble strategy against an alternative de-sign based on prompt tuning, where the base prompts are replaced with learnable parameters. The results indicate that our fixed-prompt design achieves higher AUROC/AP scores than the learnable-parameter variant at both the im-age and pixel levels. This suggests that while prompt tuning offers flexibility, it may be prone to overfitting on the auxil-iary dataset. Our use of a fixed-prompt ensemble appears to better preserve the generalization capabilities of the original CLIP model, leading to superior ZSAD performance. 
+
+Table 6. Comparison of fixed vs. learnable text prompt strategies. The table compares our default fixed-prompt ensemble against a learnable prompt tuning variant, evaluated on the MVTec-AD dataset. The best performance is in bold .                        
+
+> Method Prompt Image-level Pixel-level AUROC AP AUROC AP MoECLIP (Fixed) tn=a photo of a [class ]
+> ta=a photo of a [state ][ class ]93.9 96.8 92.5 45.7
+> MoECLIP (Learnable) tn= [ V1][ V2][ V3][ V4][ class ]
+> ta= [ W1][ W2][ W3][ W4][ state ][ class ]92.2 96.3 91.9 44.1
+
+Analysis of MoE Module Placement: In Tab. 7, we an-alyze the effect of placing MoE modules at different ViT layers. We observe that integrating modules in a concen-trated block—either at the shallow layers (e.g., 1–4) or the deep layers (e.g., 20–24)—yields suboptimal results. Sim-ilarly, a dense integration across 8 layers (e.g., 3, 6, 9...24) also underperforms, particularly in Pixel-Level AUROC. In contrast, our chosen strategy of sparsely integrating mod-ules at four key layers (6, 12, 18, and 24) achieves superior AUROC and AP scores at both the image and pixel levels. These results suggest that integrating MoE capacity strate-gically across a few key stages leverages complementary representations from different depths more effectively than either concentrated or overly dense approaches. 
+
+Table 7. Ablation study on the layer placement of MoE modules. The best performance is in bold .                     
+
+> MoE Integration Layers Image-Level Pixel-Level AUROC AP AUROC AP 1, 2, 3, 4 91.0 96.2 92.2 43.6 20, 21, 22, 23, 24 91.8 96.6 91.6 43.4 3, 6, 9, 12, 15, 18, 21, 24 92.3 96.5 90.9 45.3
+> 6, 12, 18, 24 93.9 96.8 92.5 45.7
+
+Single-layer vs. Multi-layer Features: In Tab. 8, we fur-ther examine the contribution of features extracted from individual ViT layers compared to a multi-layer ensem-ble. Using a single layer yields highly different perfor-mance characteristics depending on depth: early layers (e.g., Layer 6) provide limited semantic discrimination, re-sulting in lower image-level AUROC and AP scores, while deeper layers (e.g., Layers 12, 18, and 24) yield progres-sively stronger results due to richer semantic abstractions. However, none of the single-layer configurations surpass the multi-layer ensemble, which aggregates features from Layers 6, 12, 18, and 24. The ensemble achieves the best performance across both image-level and pixel-level met-rics, demonstrating that complementary information from multiple hierarchical stages is essential for robust anomaly detection. These results highlight the benefit of leveraging multi-layer ViT features rather than relying on a single fea-ture depth. 
+
+Table 8. Ablation study on the multi-layer feature ensemble. The table compares our ’Ensemble’ method (aggregating 4 lay-ers) against configurations using features from only a single ViT layer (6, 12, 18, or 24). The best performance is in bold .                         
+
+> Layers Image-Level Pixel-Level AUROC AP AUROC AP Layer 6 76.0 87.4 83.4 28.9 Layer 12 90.0 95.0 91.7 43.7 Layer 18 92.0 96.3 91.0 43.4 Layer 24 91.6 95.7 91.4 42.6
+> Ensemble 93.9 96.8 92.5 45.7
+
+Analysis of PAA Scale Configuration: In Tab. 9, we analyze the impact of scale configurations in Patch Aver-age Aggregation (PAA). The original feature ( s = 1 ) pro-vides the baseline performance, whereas using single larger scales ( s = 3 or 5) degrades performance by obscuring fine-grained details. Conversely, the multi-scale combination (s ∈ { 1, 3, 5}) achieves the highest accuracy, confirming that integrating local details ( s = 1 ) with contextual fields (s = 3 , 5) is essential. Thus, a balanced combination of the original feature and mid-range scales is optimal. 
+
+Table 9. Ablation study on the multi-scale configuration of PAA. The best performance is in bold .                                  
+
+> PAA Scale sImage-Level Pixel-Level AUROC AP AUROC AP 192.8 96.0 92.1 44.1 392.3 96.5 91.2 42.8 591.8 96.5 91.5 43.2 1, 3 90.7 95.2 92.4 45.2 1, 5 92.2 96.5 91.9 45.2 3, 5 92.0 96.4 90.0 43.7
+> 1, 3, 5 93.9 96.8 92.5 45.7
+
+17 Analysis of MoE Configurations: We analyze robust-ness across router design, expert capacity, and expert con-straint mechanisms in Tab. 10. Increasing capacity via deeper MLP routers or full-rank experts leads to overall performance degradation, suggesting reduced generaliza-tion. Alternative constraints on experts (contrastive [16], cosine similarity [10]) also underperform our FOFS+ETF. In Tab. 11, we assess router stability by injecting adaptive Gaussian noise ϵ ∼ N (0 , (α·σ)2) into routing logits, where 
+
+σ is the logit standard deviation. Even at α = 1 .0, the per-formance remains stable with Pixel-level AUROC exhibit-ing zero degradation (maintaining 92.5) and Image-level AUROC dropping by only a marginal 0.5. This strong re-silience indicates that the router forms highly confident and sharp routing distributions, where expert assignment deci-sions are not easily flipped by logit noise. These results con-firm MoECLIP’s robustness to diverse configurations and internal perturbations. 
+
+Table 10. Robustness analysis of expert configurations and router designs on the MVTec-AD dataset evaluated by (AUROC, AP). The best performance is in bold .
+
+Method Image-Level Pixel-Level AUROC AP AUROC AP MLP Router 93.3 97.1 92.1 45.5 Full-Rank Expert 92.8 96.7 91.9 46.0 
+
+Contrastive Constraint 92.4 96.2 91.7 45.6 Similarity Constraint 92.7 96.7 91.9 45.5 
+
+MoECLIP 93.9 96.8 92.5 45.7 
+
+Table 11. Robustness of the routing mechanism to logit perturba-tion on the MVTec-AD dataset evaluated by AUROC and AP. 
+
+Perturbation ( α) Image-Level Pixel-Level AUROC AP AUROC AP 0.0 93.8 96.8 92.5 45.7 0.2 93.6 96.7 92.5 45.7 0.4 93.7 96.7 92.5 45.6 0.6 93.7 96.7 92.5 45.5 0.8 93.5 96.7 92.5 45.6 1.0 93.3 96.4 92.5 45.6 
+
+C.2. Analysis of Training on Medical Data 
+
+While MoECLIP trained on the industrial dataset demon-strates strong generalization performance to unseen medical datasets, a performance gap due to the industrial-medical domain shift remains. This suggests that ZSAD perfor-mance can be further enhanced by leveraging an auxiliary dataset from the same medical domain. To investigate this, we train an additional MoECLIP model using the Brain MRI [48] dataset as the auxiliary source, as it provides both category labels and segmentation ground truths. The results are presented in Tab. 12, where the model is evaluated on the 8 other medical datasets excluding Brain MRI itself. On average, while the medical-domain model shows a modest improvement in mean AUROC ( 1.8% for Image-level and 
+
+0.6% for Pixel-level), the most significant gains are in Aver-age Precision (AP). The model improves the mean Image-level AP by 3.4% and the Pixel-level AP by a substantial 
+
+6.7% across the 8 medical datasets. This confirms that us-ing an auxiliary dataset from the same domain is an effec-tive strategy for enhancing ZSAD performance. The large gains in AP, which is particularly sensitive to the precision of localization and false positives, suggest that in-domain training primarily improves the model’s confidence and ac-curacy in identifying true anomalous regions. 
+
+Table 12. Comparison of MoECLIP’s ZSAD performance on 8 unseen medical datasets, when trained on a same-domain medical auxiliary dataset (Brain MRI) versus an out-of-domain industrial dataset (VisA). The best performance is in bold .                                            
+
+> MoECLIP (Industrial) MoECLIP (Medical) Dataset Image-level Pixel-level Image-level Pixel-level (AUROC, AP) (AUROC, AP) (AUROC, AP) (AUROC, AP) Head CT (96.6, 94.5) –(98.8, 99.0) –Liver CT (74.0, 64.6) (97.2, 10.8) (77.2, 70.8) (97.7, 10.3) Retina OCT (85.5, 84.9) (96.2, 66.3) (85.7. 84.4) (95.9, 60.1) ColonDB –(85.4, 34.8) –(88.7, 52.1) ClinicDB –(89.7, 49.9) –(90.4, 57.9) CVC-300 –(97.0, 53.0) –(97.8, 73.0) Endo –(91.0, 62.5) –(90.3, 65.3) Kvasir –(88.1, 57.6) –(88.4, 62.7) Average (85.4, 81.3) (92.1, 47.8) (87.2, 84.7) (92.7, 54.5)
+
+C.3. Analysis of Computation Overhead 
+
+As analyzed in Tab. 13, patch-level routing entails a modest overhead (+39ms, 0.2G FLOPs). However, our lightweight LoRA experts and sparse Top-k routing strategy reduce peak memory by 34.3% and parameters by 1.7% com-pared to AA-CLIP (single expert) [38], while boosting AU-ROC on MVTec-AD by 3.0% and 0.9% at the image and pixel levels, respectively, offering a favorable trade-off for ZSAD. 
+
+Table 13. Evaluation of computation overhead and ZSAD perfor-mance (AUROC, AP).                    
+
+> Model Params (M) Inference Time (ms) Peak GPU Memory (MB) FLOPs (G) MVTec-AD Image-level Pixel-level AA-CLIP (Single Expert) 441.3 119.6 13,853.8 1120.6 (90.9, 96.0) (91.6, 45.4)
+> MoECLIP 433.6 158.9 9,096.4 1120.8 (93.9 ,96.8 )(92.5 ,45.7 )
+
+## D. Theoretical Grounding for MoE in ZSAD 
+
+Zero-Shot Anomaly Detection (ZSAD) requires capturing highly diverse and heterogeneous visual primitives from auxiliary data to generalize to unseen anomalies. However, when adapting a monolithic model to learn these diverse patterns simultaneously, the network frequently encounters 18 optimization challenges due to gradient conflicts. Let θ de-note the shared parameters of a monolithic network, and let ℓi and ℓj be the patch-specific losses for distinct patch features F li and F lj . The gradient conflict can be mathemat-ically expressed as: 
+
+cos( ∇θ ℓi, ∇θ ℓj ) < 0. (D.1) This negative cosine similarity indicates destructive inter-ference during backpropagation, which impedes model con-vergence and degrades generalization performance. To fundamentally address this optimization bottleneck, MoECLIP employs a Mixture-of-Experts (MoE) architec-ture that decouples the parameter space. For a given LoRA-based expert n with a frozen down-projection matrix An
+
+and a learnable up-projection matrix Bn, the gradient of the total loss L with respect to Bn is formulated through condi-tional routing: 
+
+∇Bn L = X
+
+> i
+
+ˆRn(F li ) ∂ℓ i
+
+∂yi,n 
+
+(AnF li )⊤, (D.2) where ˆRn(F li ) is the routing probability assigned to expert 
+
+n for patch F li , and yi,n = BnAn(F li ) is the output of ex-pert n for patch i. This formulation demonstrates that the parameter update for each expert is strictly conditioned on its routing weights, effectively isolating the gradients of het-erogeneous patches. FOFS further strengthens this isolation by assigning each expert n to a disjoint input subspace cn. Because An ex-tracts only the cn-partition of the input, the effective gradi-ent signal (AnF li ) for expert n is computed from a strictly non-overlapping region of the feature dimension, indepen-dent of any other expert m̸ = n. This structural information separation at the input level ensures that gradient updates across experts do not interfere, regardless of their inner-product relationship. Crucially, FOFS enforces orthogonal-ity only on LoRA A matrices (input projections), not on outputs. After orthogonal projection, each expert applies distinct learnable B matrices and outputs are aggregated via gating This architectural design enables the final representa-tion to freely model the non-orthogonal, overlapping feature interactions necessary for detecting multi-faceted anoma-lies. Orthogonality in the input subspace serves as a ben-eficial inductive bias for specialization without limiting the model’s representational flexibility. Complementarily, the ETF constraint prevents experts from collapsing into redun-dant representations in the output space by maximizing the pairwise angle between the expert outputs ˆei,n and ˆei,m .This synergistic design—FOFS for input-level infor-mation separation and ETF for output-level diversity— mitigates gradient interference at both stages. Fig. 8 empir-ically validates that MoECLIP converges 1.3 × faster than the Single Expert model, demonstrating that mitigating de-
+
+Figure 8. Comparison of training loss curves between the Single Expert Model and MoECLIP. 
+
+structive gradient interference leads to more stable and effi-cient optimization in the ZSAD setting. 
+
+## E. Analysis of Expert Specialization 
+
+E.1. Expert Utilization 
+
+The low activation of Expert 4 in Fig. 3 reflects dataset-specific characteristics rather than redundancy. MVTec-AD inherently lacks the specific patterns that Expert 4 special-izes in. Fig. 9 shows that expert utilization varies across datasets, demonstrating that each expert captures distinct patch characteristics. This confirms specialization rather than over-parameterization. Since ZSAD targets unseen datasets with unpredictable characteristics, retaining ex-perts that may be underutilized on specific datasets is crucial for robust generalization. MVTec-AD                 
+
+> BTAD
+> RSDD
+> DTD-Synthetic
+> BrainMRI
+> Head CT
+> Liver CT
+> Retina OCT
+> ColonDB
+> ClinicDB
+> CVC-300
+> Endo
+> Kvasir
+> 0
+> 10
+> 20
+> 30
+> 40
+> 50
+> 60
+> 70
+> 80
+> 90
+> 100
+> Utilization (%)
+> 45.0
+> 63.1
+> 8.0
+> 50.9 49.9 44.6
+> 2.5
+> 63.5
+> 36.0 41.4 36.7
+> 27.4
+> 36.6
+> 23.9
+> 17.9
+> 10.0
+> 30.0
+> 8.3 16.8
+> 10.9
+> 13.1
+> 21.9
+> 22.3
+> 21.1
+> 28.1
+> 25.2
+> 27.6
+> 15.5
+> 73.9
+> 17.2
+> 5.7
+> 28.3
+> 7.2
+> 10.6
+> 19.6
+> 19.2
+> 22.5 33.5 22.2
+> 3.5 3.5 8.1 1.9
+> 36.1
+> 10.3
+> 79.4
+> 12.8
+> 22.5 17.1 19.7
+> 11.0 16.0
+> Expert 1 Expert 2 Expert 3 Expert 4
+
+Figure 9. Distribution of Top-2 expert utilization (%) at layer 18. The stacked bars illustrate the average proportion of routing as-signments among the four experts for each dataset. 
+
+E.2. Expert Interpretability 
+
+We quantitatively validated expert specialization by mea-suring the average visual properties of patches assigned to each expert: Sobel Gradient (edge strength), Contrast (pixel 19 std), and Shannon Entropy (pattern complexity). Tab. 14 confirms the experts on BrainMRI exhibit functional dif-ferentiation. Expert 4 captures the non-informative back-ground (near-zero stats), while Expert 1 attends to homoge-neous regions with low variability. In contrast, Expert 2 spe-cializes in strong structural edges (Highest Gradient) and Expert 3 focuses on high-complexity patterns (Highest En-tropy). This confirms that MoECLIP disentangles patches into distinct visual features—ranging from background to structural edges and complex patterns—providing the quan-titative explainability crucial for medical domains.                     
+
+> Table 14. Quantitative analysis of expert specialization using low-level visual features at layer 18 on BrainMRI (Top-1 selection).
+> Expert Gradient ( ∇)Contrast ( σ)Entropy ( H)Specialization Expert 1 48.7 17.7 1.7 Low-variance regions Expert 2 152.2 66.9 5.4 Structural edges Expert 3 137.0 60.9 5.7 Complex patterns Expert 4 0.7 0.2 0.03 Background
+
+## F. Detailed Quantitative Results 
+
+F.1. Performance Results for All Categories 
+
+In Tab. 15, we report the detailed class-wise performance on the MVTec, VisA, BTAD, and DTD-Synthetic datasets. 
+
+F.2. Inter-Expert Similarity 
+
+Fig. 10 provides a comparison of inter-expert cosine simi-larity for both the Original MoE baseline lacking FOFS & ETF Loss and our MoECLIP model across layers 6, 12, 18, and 24. This matrix is computed by averaging the similarity between expert-specific features, which are derived by av-eraging all patch features that selected that expert (via Top-k) within each image, across the MVTec-AD dataset. The results demonstrate the effectiveness of our specialization strategies, FOFS and ETF Loss. While the baseline exhibits significant redundancy with high similarity scores among experts, our model minimizes this overlap, particularly in the intermediate layers. This confirms that our approach successfully enforces experts to learn distinct functions. 
+
+## G. More Visualization Results 
+
+G.1. Multi-layer and Multi-Scale Maps 
+
+To demonstrate the complementarity of Multi-Level fea-tures, we visualize anomaly maps from various layers (6, 12, 18, 24) and scales ( s ∈ { 1, 3, 5}). As shown in Fig. 11, we observe that deeper layers excel at highlighting fine-grained details, while larger scales cover broader contexts. Leveraging this synergy, our Multi-Layer & Multi-Scale Ensemble yields more accurate segmentation results com-pared to single configuration. 
+
+G.2. Grad-CAM and Patch Selection Map 
+
+Figs. 12 to 15 visualize the focus region and expert routing for the independent MoE modules integrated at layers 6, 12, 18, and 24, spanning from low-level to high-level features. 
+
+G.3. Final Anomaly Map 
+
+Figs. 16 to 35 illustrate the anomaly map results across mul-tiple categories in industrial and medical datasets. 
+
+## H. Limitations and Future Work 
+
+Although MoECLIP model achieves high ZSAD perfor-mance across 14 benchmark datasets, it possesses the fol-lowing limitations. 1) The current study primarily focused on enhancing performance by effectively adapting patch features for the ZSAD task. Consequently, the potential for synergistic improvements through advanced text fea-ture adaptation and utilization with the MoECLIP model re-mains an underexplored area. 2) While MoECLIP provides anomaly maps to visualize anomalous regions, it does not offer explicit explanations as to why the model identifies a specific area as an anomaly. This lack of explainability is a significant drawback, particularly in medical domains. To address these limitations and extend the scope of this research, we plan to investigate replacing the current CLIP-based backbone with a Multimodal LLM-based backbone. This approach aims to construct a model capable of gen-erating text-based explanations for anomalies and explore a more sophisticated language-vision synergy for enhanced generalization performance. 20 Table 15. Class-wise performance results on the MVTec-AD, VisA, BTAD, and DTD-Synthetic datasets. 
+
+Dataset Class Image-Level Pixel-Level AUROC AP AUROC AP MVTec-AD bottle 95.4 98.7 91.4 60.7 cable 76.7 86.8 82.8 16.3 capsule 95.6 99.2 95.5 27.8 carpet 99.9 100 99.6 82.1 grid 99.5 99.8 98.0 33.6 hazelnut 97.4 99.7 97.9 63.2 leather 100 100 99.4 55.8 metal nut 93.8 98.6 77.8 30.5 pill 86.9 97.4 87.9 30.0 screw 89.2 95.6 98.5 35.5 tile 99.4 99.8 98.7 70.4 transistor 81.0 80.4 71.9 12.5 toothbrush 96.1 98.5 95.6 34.4 wood 98.6 99.6 98.0 68.2 zipper 98.6 99.6 96.9 58.7 Average 93.9 96.8 92.5 45.7 VisA candle 88.5 91.8 98.8 31.9 capsules 83.4 91.8 97.3 40.3 cashew 84.8 92.7 97.7 21.1 chewinggum 98.6 99.8 99.5 81.5 fryum 90.2 96.2 94.7 30.3 macaroni1 80.6 81.3 97.3 9.8 macaroni2 57.0 55.7 96.6 1.7 pcb1 72.0 71.1 91.1 5.5 pcb2 79.5 81.1 90.6 10.9 pcb3 77.4 79.3 90.5 18.0 pcb4 96.1 95.8 95.9 28.7 pip fryum 95.5 98.2 97.5 33.2 Average 83.6 86.2 95.6 26.1 BTAD 01 98.9 99.6 96.6 53.3 02 80.6 96.8 95.8 63.1 03 99.7 97.6 97.9 34.8 Average 93.1 98.0 96.8 50.4 DTD-Synthetic Blotchy 099 96.5 99.1 99.3 67.6 Fibrous 183 99.3 99.7 99.4 69.5 Marbled 078 96.1 99.0 99.3 65.4 Matted 069 95.3 98.8 99.1 58.3 Mesh 114 89.7 96.0 98.0 51.8 Perforated 037 84.5 99.2 96.9 54.5 Stratified 154 97.2 99.3 99.6 73.9 Woven 001 99.1 99.7 99.8 69.4 Woven 068 96.7 98.2 98.9 54.5 Woven 104 98.1 99.3 98.5 64.1 Woven 125 99.5 99.7 99.6 69.8 Woven 127 94.5 94.8 96.9 53.6 Average 95.5 98.6 98.8 62.7 
+
+21 Figure 10. Inter-expert cosine similarity across layers on the MVTec-AD dataset. The top row represents the Original MoE lacking FOFS & ETF Loss, and the bottom row represents our full MoECLIP model. Each column corresponds to a different ViT layer. Values approaching +1 (red) indicate high redundancy, while values approaching 0 (white) or negative values (blue) signify successful differentiation. 
+
+Figure 11. Visualizations from different scales ( s ∈ { 1, 3, 5}) and layers (6, 12, 18, 24) demonstrate complementary characteristics across depth and spatial context. The final ensemble (bottom-right) presents a unified anomaly map combining all scales and layers. 
+
+22 Figure 12. Visualization of Grad-CAM and patch selection maps for each expert at layer 6 on the hazelnut class of the MVTec-AD dataset. The Ground Truth image is shown on the far left. The first row (Grad-CAM) highlights each expert’s focus region. The second and third rows (Patch Selection) illustrate the patches where the corresponding expert was selected as the router’s Top-1 and Top-2 choices, respectively (shown in green). The value in each subplot title represents the expert’s average renormalized routing weight computed from its Top-1 and Top-2 assigned patches under their respective routing settings. 
+
+Figure 13. Visualization of Grad-CAM and patch selection maps for each expert at layer 12 on the hazelnut class of the MVTec-AD dataset. The Ground Truth image is shown on the far left. The first row (Grad-CAM) highlights each expert’s focus region. The second and third rows (Patch Selection) illustrate the patches where the corresponding expert was selected as the router’s Top-1 and Top-2 choices, respectively (shown in green). The value in each subplot title represents the expert’s average renormalized routing weight computed from its Top-1 and Top-2 assigned patches under their respective routing settings. 
+
+23 Figure 14. Visualization of Grad-CAM and patch selection maps for each expert at layer 18 on the hazelnut class of the MVTec-AD dataset. The Ground Truth image is shown on the far left. The first row (Grad-CAM) highlights each expert’s focus region. The second and third rows (Patch Selection) illustrate the patches where the corresponding expert was selected as the router’s Top-1 and Top-2 choices, respectively (shown in green). The value in each subplot title represents the expert’s average renormalized routing weight computed from its Top-1 and Top-2 assigned patches under their respective routing settings. 
+
+Figure 15. Visualization of Grad-CAM and patch selection maps for each expert at layer 24 on the hazelnut class of the MVTec-AD dataset. The Ground Truth image is shown on the far left. The first row (Grad-CAM) highlights each expert’s focus region. The second and third rows (Patch Selection) illustrate the patches where the corresponding expert was selected as the router’s Top-1 and Top-2 choices, respectively (shown in green). The value in each subplot title represents the expert’s average renormalized routing weight computed from its Top-1 and Top-2 assigned patches under their respective routing settings. 
+
+24 Ground Truth MOECLIP Figure 16. Anomaly Map results for the bottle in the MVTec-AD. The first row contains the original images with red areas showing the ground truth. The second row shows the anomaly map results generated by MoECLIP. Ground Truth MOECLIP 
+
+Figure 17. Anomaly Map results for the capsule in the MVTec-AD. The first row contains the original images with red areas showing the ground truth. The second row shows the anomaly map results generated by MoECLIP. Ground Truth MOECLIP 
+
+Figure 18. Anomaly Map results for the hazelnut in the MVTec-AD. The first row contains the original images with red areas showing the ground truth. The second row shows the anomaly map results generated by MoECLIP. Ground Truth MOECLIP 
+
+Figure 19. Anomaly Map results for the pill in the MVTec-AD. The first row contains the original images with red areas showing the ground truth. The second row shows the anomaly map results generated by MoECLIP. 
+
+25 Ground Truth MOECLIP Figure 20. Anomaly Map results for the screw in the MVTec-AD. The first row contains the original images with red areas showing the ground truth. The second row shows the anomaly map results generated by MoECLIP. Ground Truth MOECLIP 
+
+Figure 21. Anomaly Map results for the zipper in the MVTec-AD. The first row contains the original images with red areas showing the ground truth. The second row shows the anomaly map results generated by MoECLIP. Ground Truth MOECLIP 
+
+Figure 22. Anomaly Map results for the capsules in the VisA. The first row contains the original images with red areas showing the ground truth. The second row shows the anomaly map results generated by MoECLIP. Ground Truth MOECLIP 
+
+Figure 23. Anomaly Map results for the chewinggum in the VisA. The first row contains the original images with red areas showing the ground truth. The second row shows the anomaly map results generated by MoECLIP. 
+
+26 Ground Truth MOECLIP Figure 24. Anomaly Map results for the 02 in the BTAD. The first row contains the original images with red areas showing the ground truth. The second row shows the anomaly map results generated by MoECLIP. Ground Truth MOECLIP 
+
+Figure 25. Anomaly Map results for the Mesh 114 in the DTD-Synthetic. The first row contains the original images with red areas showing the ground truth. The second row shows the anomaly map results generated by MoECLIP. Ground Truth MOECLIP 
+
+Figure 26. Anomaly Map results for the Marbled 079 in the DTD-Synthetic. The first row contains the original images with red areas showing the ground truth. The second row shows the anomaly map results generated by MoECLIP. Ground Truth MOECLIP 
+
+Figure 27. Anomaly Map results on the RSDD. The first row contains the original images with red areas showing the ground truth. The second row shows the anomaly map results generated by MoECLIP. 
+
+27 Figure 28. Anomaly Map results on the Brain MRI. The first row contains the original images with red areas showing the ground truth. The second row shows the anomaly map results generated by MoECLIP. 
+
+Figure 29. Anomaly Map results on the Liver CT. The first row contains the original images with red areas showing the ground truth. The second row shows the anomaly map results generated by MoECLIP. 
+
+Figure 30. Anomaly Map results on the Head CT. The absence of pixel-level annotations restricts the use of this dataset to anomaly classification. The first row contains the original images. The second row shows the anomaly map results generated by MoECLIP. 
+
+Figure 31. Anomaly Map results on the CVC-ColonDB. The first row contains the original images with red areas showing the ground truth. The second row shows the anomaly map results generated by MoECLIP. 
+
+28 Figure 32. Anomaly Map results on the CVC-ClinicDB. The first row contains the original images with red areas showing the ground truth. The second row shows the anomaly map results generated by MoECLIP. 
+
+Figure 33. Anomaly Map results on the CVC-300. The first row contains the original images with red areas showing the ground truth. The second row shows the anomaly map results generated by MoECLIP. 
+
+Figure 34. Anomaly Map results on the Endo. The first row contains the original images with red areas showing the ground truth. The second row shows the anomaly map results generated by MoECLIP. 
+
+Figure 35. Anomaly Map results on the Kvasir. The first row contains the original images with red areas showing the ground truth. The second row shows the anomaly map results generated by MoECLIP. 
+
+29

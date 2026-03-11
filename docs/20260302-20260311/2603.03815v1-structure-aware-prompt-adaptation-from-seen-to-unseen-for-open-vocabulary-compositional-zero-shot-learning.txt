@@ -1,0 +1,1246 @@
+Title: Structure-aware Prompt Adaptation from Seen to Unseen for Open-Vocabulary Compositional Zero-Shot Learning
+
+URL Source: https://arxiv.org/pdf/2603.03815v1
+
+Published Time: Thu, 05 Mar 2026 01:45:28 GMT
+
+Number of Pages: 15
+
+Markdown Content:
+> 1
+
+# Structure-aware Prompt Adaptation from Seen to Unseen for Open-Vocabulary Compositional Zero-Shot Learning 
+
+Yihang Duan 1, Jiong Wang 2, Pengpeng Zeng 1, Ji Zhang 3, Lei Zhao 1, Chong Wang 2,Jingkuan Song 4, Lianli Gao 11University of Electronic Science and Technology of China, 
+
+> 2
+
+Ningbo University, 3Southwest Jiaotong University, 4Tongji University 
+
+Abstract —The goal of Open-Vocabulary Compositional Zero-Shot Learning (OV-CZSL) is to recognize attribute-object compo-sitions in the open-vocabulary setting, where compositions of both seen and unseen attributes and objects are evaluated. Recently, prompt tuning methods have demonstrated strong generalization capabilities in the closed setting, where only compositions of seen attributes and objects are evaluated, i.e., Compositional Zero-Shot Learning (CZSL). However, directly applying these methods to OV-CZSL may not be sufficient to generalize to unseen attributes, objects and their compositions, as it is limited to seen attributes and objects. Normally, when faced with unseen con-cepts, humans adopt analogies with seen concepts that have the similar semantics thereby inferring their meaning ( e.g., “wet” and “damp”, “shirt” and “jacket”). In this paper, we experimentally show that the distribution of semantically related attributes or objects tends to form consistent local structures in the embedding space. Based on the above structures, we propose Structure-aware Prompt Adaptation (SPA) method, which enables models to generalize from seen to unseen attributes and objects. Specifically, in the training stage, we design a Structure-aware Consistency Loss (SCL) that encourages the local structure’s consistency of seen attributes and objects in each iteration. In the inference stage, we devise a Structure-guided Adaptation Strategy (SAS) that adaptively aligns the structures of unseen attributes and objects with those of trained seen attributes and objects with similar semantics. Notably, SPA is a plug-and-play method that can be seamlessly integrated into existing CZSL prompt tuning methods. Extensive experiments on the OV-CZSL benchmarks prove the effectiveness of SPA, specifically its ability to achieve competitive performance in the closed setting while significantly improving results in the open-vocabulary setting. The code is available at: https://github.com/ZHlo-404/SPA. 
+
+Index Terms —Open-Vocabulary, Compositional Zero-Shot Learning, Prompt Tuning, Adaptation. 
+
+I. I NTRODUCTION 
+
+Compositional Zero-Shot Learning (CZSL) aims to recog-nize unseen compositions made of attributes and objects that have appeared within seen compositions during training. While existing CZSL methods [1–5] achieve promising results, they rely on a closed-set assumption where all attributes and objects are predefined during training. This constraint limits their applicability to real-world scenarios, where new attributes and objects frequently emerge. To overcome this, Open-Vocabulary CZSL (OV-CZSL) [6] extends the task to an open-world setting, enabling models to recognize novel attribute–object compositions beyond the training vocabulary. As illustrated in Fig. 1, while CZSL considers only compositions of seen attributes and objects during training, OV-CZSL extends this Training 
+
+Compositions 
+
+Peeled Apple 
+
+Ripe Lemon 
+
+Unseen Test Compositions (OV -CZSL)        
+
+> Ripe Apple Peeled Lemon
+> CZSL
+> Sliced Lemon
+> Unseen Attribute
+> Sliced Apple
+> Peeled Potato Ripe Potato
+> Unseen Object
+> Sliced Potato Sliced Tomato
+> Unseen Attribute & Object
+
+Training 
+
+Compositions 
+
+Peeled Apple 
+
+Ripe Lemon 
+
+Test 
+
+Compositions 
+
+Peeled Lemon 
+
+Ripe Apple 
+
+Fig. 1: Illustration of Compositional Zero-Shot Learning (CZSL) and its extended version Open-Vocabulary Compositional Zero-Shot Learning (OV-CZSL). 
+
+setting to include three additional types: seen attributes with unseen objects, unseen attributes with seen objects, and com-positions involving both unseen attributes and objects. Recently, prompt tuning with pre-trained vision-language models( i.e., CLIP) has demonstrated remarkable generaliza-tion ability in CZSL, effectively modeling attribute-object compositions. Among these, CSP[1] stands out as an early CLIP-based approach that treats attributes and objects as learn-able textual tokens and integrates them into prompt templates (i.e., ”a photo of [attribute] [object]”) to enhance the compo-sitional representation learning. Building on this foundation, follow-up works such as DFSP[3] and Troika [4] introduce elaborately designed adaptation and interaction mechanisms to further improve CZSL performance. However, in contrast to CZSL, the main challenge of OV-CZSL is enabling models to effectively generalize from seen to unseen, particularly when handling compositions that involve novel attributes, objects, or both. To tackle this challenge, Saini et al. [6] propose Neigh-borhood Expansion Loss (NEL), which incorporates external semantic concepts to enhance generalization. However, this method relies on BERT for textual encoding and an ImageNet-pretrained visual encoder, whose representation capabilities are relatively weak and less effective at capturing fine-grained attribute-object interactions. This raises an intuitive question: 
+
+Can we leverage the powerful representations of CLIP to better address the challenges of OV-CZSL? 
+
+With this question in mind, we empirically conduct a confir-matory experiment applying CLIP-based prompt tuning meth-ods to the OV-CZSL task. As shown in Tab. I, methods like                     
+
+> arXiv:2603.03815v1 [cs.CV] 4 Mar 2026 2wet
+> wet
+> damp
+> damp
+> shirt
+> shirt
+> jacket jacket wet
+> wet
+> damp
+> damp
+> shirt
+> shirt
+> jacket jacket wet
+> wet
+> damp
+> damp
+> shirt
+> shirt
+> jacket jacket wet
+> wet
+> damp
+> damp
+> shirt
+> shirt
+> jacket jacket wet
+> wet
+> damp
+> damp
+> shirt
+> shirt
+> jacket jacket wet
+> wet
+> damp
+> damp
+> shirt
+> shirt
+> jacket jacket wet
+> wet
+> damp
+> damp
+> shirt
+> shirt
+> jacket jacket wet
+> wet
+> damp
+> damp
+> shirt
+> shirt
+> jacket jacket wet
+> wet
+> damp
+> damp
+> shirt
+> shirt
+> jacket jacket
+> Attributes: Physical State Geometric Property Processing
+> Objects: Fruit Food Furniture Apparel Nature Container
+> Training Stage: Before Training After Training
+
+Fig. 2: Our core motivation : Semantically related primitives (e.g., ”wet” and ”damp”) form consistent local structures in the embedding space. This structural prior is preserved through training and provides a basis for generalizing from seen to unseen concepts. 
+
+CSP significantly outperform non-CLIP baselines ( i.e., 26.82 
+
+v.s. 10.94 HM on MIT-States), highlighting CLIP’s strong representation power in this setting. However, we observe that the performance gains primarily remain within the seen domain, and the generalization to unseen attributes and objects is still limited. To further address this limitation, we turn to human cognitive behavior. Humans are often able to infer unfamiliar concepts by associating them with semantically similar known concepts ( e.g., understanding “damp” through “wet”, or relating “jacket” to “shirt”). Inspired by this, we choose a representative CLIP-based model, CSP [1], and visualize the embedding space using t-SNE. As shown in Fig. 2, we find that semantically related attributes and objects (e.g., “shirt” and “jacket” under the ”Apparel” category) tend to cluster together and form local structures in CLIP’s embed-ding space. Interestingly, this structural coherence is largely preserved before and after training, indicating that these local relationships could serve as a valuable prior to guide the learning of unseen concepts. Indeed, the effectiveness of relying on these local structures is substantiated by recent advances in related areas like zero-shot classification [7] and robust learning [8, 9], confirming the reliability of CLIP’s local structure for knowledge transfer. Based on the above observations, we propose Structure-aware Prompt Adaptation (SPA), an effective framework de-signed to improve compositional generalization in the open-vocabulary setting. SPA aims to leverage the inherent local structures in CLIP’s embedding space to facilitate knowledge transfer from seen to unseen attribute-object compositions. During the training stage, we introduce a Structure-aware Consistency Loss (SCL), which encourages the preservation of local structural relationships among seen attributes and ob-jects between their original CLIP-based embeddings and their updated embeddings after prompt tuning. This consistency constraint helps maintain the semantic neighborhood formed by CLIP and ensures that fine-tuning does not distort the meaningful relational structure. At inference time, we propose a Structure-guided Adaptation Strategy (SAS) that dynami-cally adjusts the embeddings of unseen attributes and objects by aligning their structures with the local structures of se-mantically similar seen attributes and objects. This alignment allows the model to better integrate unseen concepts into the learned compositional space, thereby enhancing recognition performance on unseen compositions. Notably, SPA is a plug-and-play method that can be seamlessly integrated into existing prompt tuning methods. Our main contributions are as follows:  
+
+> •
+
+We present a pioneering exploration of CLIP-based prompt tuning for Open-Vocabulary Compositional Zero-Shot Learning (OV-CZSL), demonstrating its strong po-tential in this challenging setting.  
+
+> •
+
+We propose Structure-aware Prompt Adaptation (SPA), which utilizes local structural consistency to generalize from seen to unseen attributes and objects, combining Structure-aware Consistency Loss (SCL) to preserve local coherence in seen concepts and Structure-guided Adap-tation Strategy(SAS) to align unseen concepts with the learned structure, improving recognition performance on unseen compositions.  
+
+> •
+
+Extensive experiments on multiple OV-CZSL benchmarks demonstrate that our proposed SPA is both effective and flexible, without introducing significant computational overhead. II. R ELATED WORKS 
+
+A. Compositional Zero-shot learning (CZSL) 
+
+Compositional Zero-Shot Learning (CZSL) aims to recog-nize novel attribute-object combinations from previously seen components ( e.g., inferring ”peeled apple” from seen ”ripe apple” and ”peeled lemon”). Early studies on CZSL can be broadly categorized into two directions, namely joint and disentangled representations. Representative works [10–13] learn unified embeddings for attribute–object pairs to capture compositional semantics within a shared space. In contrast, subsequent studies [14–18] disentangle attribute and object representations, enabling independent modeling and improving generalization to unseen compositions. Recently, the focus has shifted to leveraging Vision-Language Pre-trained (VLP) models like CLIP [19]. For instance, CSP [1] uses trainable tokens for attributes and objects in prompts, while DFSP [20] employs a decomposed fusion module to enhance fine-grained interactions. However, traditional CZSL struggles with entirely unseen attributes or objects. To address this limitation, Saini et al. [6] introduce the Open-Vocabulary CZSL (OV-CZSL) setting, but their method is incompatible with modern prompt-tuning techniques. In this work, we present a pioneering explo-ration of CLIP-based prompt tuning for OV-CZSL, proposing a plug-and-play method to bridge this gap and significantly enhance the generalization of existing baselines [1–4] in open-vocabulary scenarios. 
+
+B. Open Vocabulary Learning 
+
+Open vocabulary learning aims to enable models to compre-hend arbitrary text-described concepts by semantically align-ing visual and linguistic modalities, thereby overcoming the 3
+
+limitations of predefined category labels. Pioneering works like CLIP [19] and ALIGN [21] established this paradigm through large-scale image-text contrastive learning, projecting images and text into a shared embedding space to achieve zero-shot classification. Building on this foundation, the OV approach has been extended to more complex vision tasks, in-cluding object detection [22, 23], semantic segmentation [24], and video tracking [25]. Despite these advancements, practical scenarios necessitate a critical shift from identifying isolated atomic concepts toward reasoning about their intricate com-positional interactions. This necessity underpins the emerging task of Open-Vocabulary Compositional Zero-Shot Learning (OV-CZSL) [6], which moves beyond primitive-level recogni-tion to address the more challenging goal of comprehending novel attribute-object combinations where both components may be entirely unseen. 
+
+C. Prompt Learning 
+
+Prompt learning adapts pre-trained models to downstream tasks by optimizing input prompts[26, 27]. Originating from NLP, this technique has evolved from using rigid, manually crafted templates to learnable prompts that automatically ad-just task-specific representations while keeping the backbone model frozen. Building on this success, the paradigm extends naturally to Vision-Language Models (VLMs). CoOp [28] first introduced learnable context vectors to replace static text prompts in CLIP [19], enabling end-to-end adaptation without fine-tuning the encoders. However, CoOp employs a single prompt, which makes it difficult to disentangle compositional semantics. To overcome this limitation, CSP [1] proposes primitive-aware prompting, decomposing prompts into sepa-rate, learnable embeddings for attributes and objects (e.g., “a photo of [attribute] [object]”). This design allows independent optimization of primitives and enhances zero-shot composi-tional reasoning. Subsequent methods like DFSP [3] further refine this idea with improved disentanglement strategies. Despite their success, methods based on the CSP paradigm [1– 4] are inherently limited in open-vocabulary settings, as they cannot model unseen attributes and objects. To overcome this limitation, we propose a plug-and-play method that adapts these CZSL approaches to the OV-CZSL task, significantly improving their generalization to novel concepts. III. M ETHODS 
+
+In this section, we present Structure-aware Prompt Adap-tation (SPA), a plug-and-play module designed to enhance CLIP-based prompt tuning methods for open-vocabulary com-positional zero-shot learning (OV-CZSL). Specifically, we start with an overview of essential preliminaries, including the task formulation of OV-CZSL and the CLIP-based prompt tuning paradigm in Sec. III-A. Next, we illustrate the details of SPA in Sec. III-B, containing two novel components, i.e., Structure-aware Consistency Loss (SCL) and Structure-guided Adaptation Strategy (SAS). Finally, the training objectives and inference procedure are described in Sec. III-C. The overall architecture can be seen in Fig.3. 
+
+A. Preliminary 
+
+Task Formulation. The goal of Open-Vocabulary Composi-tional Zero-Shot Learning (OV-CZSL) is to recognize images described by attribute-object compositions, where either the attribute, the object, or both may be unseen during training. Formally, let A and O denote the sets of seen attributes and objects, respectively, and A∗, O∗ represent unseen attributes and objects. Each image is annotated with a pair (a, o ),where a ∈ A ∪ A∗, o ∈ O ∪ O∗. Notably, all pairs in the compositional space are valid pairs, partitioned into seen compositions Y s ⊆ AO . and unseen compositions Y u, the latter comprising four distinct cases:  
+
+> •
+
+(AO )∗: novel compositions of seen attributes and seen objects excluded from training  
+
+> •
+
+AO ∗: compositions of seen attributes with previously unseen objects  
+
+> •
+
+A∗O: compositions of previously unseen attributes with seen objects  
+
+> •
+
+A∗O∗: compositions involving both unseen attributes and unseen objects Given training data Dtr = {(xi, y i)} where yi ∈ Y s, the objective is to learn a model M : x → y ∈ Y = Y s S Y u
+
+that generalizes to all types of compositions under the strict separation constraint Y s ∩ Y u = ∅. This formulation extends conventional CZSL (where A∗ = ∅, O ∗ = ∅) by allow-ing compositions to include previously unseen attributes and objects, thereby unifying compositional generalization with open-vocabulary recognition. 
+
+Revisiting the CLIP-based Prompt Tuning Paradigm. Our work builds upon the CLIP-based prompt tuning paradigm, which we briefly revisit here. CLIP [19], a vision-language model pre-trained on large-scale image-text pairs, has demon-strated strong performance across a range of tasks, such as image classification[29, 30] and object detection[31, 32]. Recent progress in CZSL has been driven by prompt tuning with CLIP. In this framework, the vision and text encoders are frozen, while the prompts for attributes and objects are learned to enable flexible recomposition and recognition of attribute–object pairs. Given an input image xi, its visual embedding is extracted via the frozen CLIP vision encoder: 
+
+vi = fvis (xi) ∈ Rd, (1) where fvis (·) denotes the frozen vision encoder and d is the embedding dimension. Each candidate composition label yj = ( aj , o j ) ∈ Y =
+
+Y s ∪ Y u is converted into a natural language prompt using a predefined template, such as ”a photo of a [attribute] [object]” , where [attribute] and [object] are learnable tokens. The CLIP text encoder then encodes each prompt to a corre-sponding text embedding: 
+
+tyj = ftext (Pj ) ∈ Rd, (2) where P j is the prompt for composition yj , and ftext (·) is the frozen CLIP text encoder. 4Structure -aware Consistency Loss 
+
+[𝑨 /O] 𝟎 
+
+[𝑨 /O] +
+
+> Top -K
+> Top -K
+
+Train Stage (Seen) Test Stage(Seen + Unseen) 
+
+> Top -K Indices
+
+Structure -guided Adaptation Strategy        
+
+> Structure Consistency
+> apple
+> apple
+> lemon
+> lemon
+> berry chopped
+> bed desk
+> floor
+> bed desk
+> floor
+> chopped berry
+> peeled
+> sliced
+> peeled
+> sliced
+> [𝑨 ∗/𝑶 ∗]𝟎
+> [𝑨 /O]𝟎
+> [𝑨 /O]+
+
+∆[𝑨 /𝑶 ]
+
+> …
+
+TE 
+
+> …
+
+TE 
+
+𝑺 𝑨 /𝑶 
+
+> 𝟎
+
+𝑺 𝑨 /𝑶 
+
+> +
+> …
+> …
+> …
+
+TE  
+
+> ……
+
+𝑺 𝑨 /𝑶 
+
+> u𝟐 s
+
+∆[𝑨 ∗/𝑶 ∗] 
+
+> …
+> [𝑨 ∗/𝑶 ∗]+
+
+Parameter Frozen Trainable 
+
+Text 
+
+Encoder 
+
+CE Loss 
+
+> Image Feature
+
+Image 
+
+Encoder 
+
+Text 
+
+Encoder 
+
+> Cosine Sim
+> Text Features
+> Image Feature
+
+Image 
+
+Encoder 
+
+Predict 
+
+> Text Features
+
+[halved ] [fig ]
+
+a photo of 
+
+＋
+
+halved fig 
+
+[peeled ]
+
+a photo of 
+
+[apple ] SAS 
+
+peeled apple 
+
+> Cosine Sim
+
+SC Loss 
+
+Fig. 3: Overview of the proposed Structure-aware Prompt Adaptation (SPA). It comprises two main components: (1) Structure-aware Consistency Loss (SCL) applied during training to preserve the structural distribution of seen primitives in the CLIP embedding space, and (2) Structure-guided Adaptation Strategy dynamically adjusts the representations of unseen primitives by using their semantic proximity to seen ones at test time. SPA operates as a plugin that seamlessly integrates with existing CLIP-based prompt tuning methods. 
+
+The alignment between the image and each candidate com-position is measured by cosine similarity: 
+
+Si,j = cos( vi, t yj ) = v⊤ 
+
+> i
+
+tyj
+
+∥vi∥ · ∥ tyj ∥ . (3) The prediction probability over all candidate compositions is then given by a temperature-scaled softmax function: 
+
+P (yj |xi) = exp( Si,j /τ )
+
+P|Y | 
+
+> k=1
+
+exp( Si,k /τ ) , (4) where τ is a temperature parameter controlling the sharpness of the distribution. Finally, the model is trained using cross-entropy loss over the seen composition set Y s:
+
+LCE = − 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+log P (yi|xi), (5) where xi is an image labeled with yi ∈ Y s, and N is the number of training samples. 
+
+B. Structure-aware Prompt Adaptation 
+
+Building on the insight that semantically similar primitives (attributes and objects) exhibit local structure consistency in their embedding space, we propose Structure-aware Prompt Adaptation (SPA) to preserve such structure and enable gen-eralization from seen to unseen compositions for OV-CZSL task. 
+
+Structure-aware Consistency Loss. As discussed in Sec. I, semantically similar primitives (attributes or objects) form local structures in the embedding space. Through large-scale pretraining on text-image alignment tasks, CLIP learns rich semantic prior knowledge and maintains well-structured local neighborhoods (e.g., the ”wet” and ”damp” attributes are closely embedded). However, direct fine-tuning on down-stream datasets may overfit to the training distribution and distort these original structures. To address this, we introduce a Structure-aware Consistency Loss (SCL) that regularizes the local structural relationships of seen primitives during training. We first extract text embeddings of attributes and objects us-ing CLIP’s text encoder. Each attribute or object is represented as a prompt-based textual description, where the learnable parameters θp (p ∈ { a, o }) are optimized during fine-tuning. Specifically, we construct the following prompts: 
+
+P(0)  
+
+> p
+
+= [ w0, . . . , w m, θ (0)  
+
+> p
+
+], P(+)  
+
+> p
+
+= [ w0, . . . , w m, θ (+)  
+
+> p
+
+]
+
+(6) where [ w0, . . . , w m] are fixed tokens representing the context, and θp denotes the learnable parameters for either attributes (θa) or objects ( θo). The superscripts (0) and (+) indicate the embeddings from the pretrained CLIP and the embeddings being optimized during fine-tuning, respectively. By feeding these prompts into the frozen text encoder ftext , we obtain the corresponding embeddings: 
+
+t(0)  
+
+> p
+
+= ftext (P(0)  
+
+> p
+
+), t(+)  
+
+> p
+
+= ftext (P(+)  
+
+> p
+
+) (7) where p ∈ { a, o } denotes either attribute or object. To quan-tify the structural relationships among attributes and among objects, we compute pairwise cosine similarity matrices before and after fine-tuning: 
+
+S(0)  
+
+> p
+
+= t(0)  
+
+> p
+
+(t(0)  
+
+> p
+
+)⊤
+
+∥t(0)  
+
+> p
+
+∥2 , S(+)  
+
+> p
+
+= t(+)  
+
+> p
+
+(t(+)  
+
+> p
+
+)⊤
+
+∥t(+)  
+
+> p
+
+∥2 (8) 5
+
+To capture the local structural relationships, we define the neighborhood of each attribute or object based on its Top-K most similar neighbors in the initial similarity matrix S(0)  
+
+> p
+
+.This neighborhood is treated as the primitive’s local structure and remains fixed during training: 
+
+Ip = TopK (S(0)  
+
+> p
+
+), S(0 ,N ) 
+
+> p
+
+= S(0)  
+
+> p
+
+[Ip], S(+ ,N ) 
+
+> p
+
+= S(+)  
+
+> p
+
+[Ip]
+
+(9) Here, Ip denotes the indices of the Top-K neighbors in the initial space, which capture the local structure of attributes or objects. We then extract the corresponding similarity scores from both the initial and updated similarity matrices using these fixed indices. This enables us to compare the distribution over a consistent local neighborhood before and after fine-tuning. To preserve the local structural relationships, we impose a structure consistency constraint over the neighborhood simi-larity scores. Specifically, we define probability distributions over neighbors using a softmax function with temperature τ :
+
+p(Np) = softmax 
+
+
+
+S(N ) 
+
+> p
+
+/τ 
+
+
+
+(10) where p(Np) represents the probability distribution of the similarity scores over the selected Top-K neighbors. We then enforce consistency between the original and fine-tuned dis-tributions using KL-divergence: 
+
+LSCL = 1
+
+NaNaX
+
+> i=1
+
+DKL 
+
+
+
+p
+
+
+
+S(0 ,N ) 
+
+> a
+
+[i]
+
+
+
+∥ p
+
+
+
+S(+ ,N ) 
+
+> a
+
+[i]
+
+ 
+
++ 1
+
+NoNoX
+
+> i=1
+
+DKL 
+
+
+
+p
+
+
+
+S(0 ,N ) 
+
+> o
+
+[i]
+
+
+
+∥ p
+
+
+
+S(+ ,N ) 
+
+> o
+
+[i]
+
+ 
+
+(11) where Na and No are the number of seen attributes and objects. This loss encourages the learned embeddings to retain their original local structures, preventing fine-tuning from distorting the underlying semantic relationships. 
+
+Structure-guided Adaptation Strategy. In the Structure-aware Consistency Loss (SCL) process, we regularize the distributions of seen attributes and objects during training to preserve their original semantic relationships. However, while seen attributes and objects are progressively optimized to fit the task-specific data distribution, unseen ones remain fixed in the pretrained space. This discrepancy disrupts the local structure between seen and unseen concepts, making it challenging for unseen compositions to generalize effec-tively. To mitigate this issue, we introduce the Structure-guided Adaptation Strategy (SAS) at inference time, which dynamically refines the representations of unseen prompts by leveraging local structural information from seen attributes and objects. Given a set of seen and unseen attributes and objects, we first obtain their initial text embeddings using the CLIP text encoder: 
+
+t(0)  
+
+> p
+
+= ftext (P(0)  
+
+> p
+
+), tp∗ = ftext (P(0)  
+
+> p∗
+
+) (12) where p ∈ { a, o } refers to either attribute or object, and 
+
+∗ denotes unseen attributes or objects. Next, we compute the similarity matrices between unseen and seen primitives: 
+
+Su2s  
+
+> p
+
+= t(0)  
+
+> p∗
+
+· (t(0)  
+
+> p
+
+)⊤
+
+∥t(0)  
+
+> p∗
+
+∥∥ t(0)  
+
+> p
+
+∥ (13) For each unseen primitive, we determine its Top-K most similar seen primitives: 
+
+SN 
+
+> p
+
+= NK (Su2s  
+
+> p
+
+) (14) where NK (·) selects the Top-K highest similarity scores and their corresponding seen primitives. To update the representa-tion of unseen primitives, we first compute the adjustment of seen primitives due to fine-tuning: 
+
+∆Pp = P(+)  
+
+> p
+
+− P(0)  
+
+> p
+
+(15) Next, we obtain the normalized weights wk using a softmax function over the similarity scores: 
+
+wk = exp( SN 
+
+> p
+
+[k]/τ )
+
+P 
+
+> j∈N K
+
+exp( SN 
+
+> p
+
+[j]/τ ) (16) Using these weights, we compute the aggregated update for each unseen primitive: 
+
+∆Pp∗ = X
+
+> k∈N K
+
+wk∆Pp[k] (17) Finally, we update the unseen primitives accordingly: 
+
+P(+)  
+
+> p∗
+
+= P(0)  
+
+> p∗
+
++ ∆ Pp∗ (18) This adjustment ensures that unseen primitives adapt to the updated local structure of seen primitives while preserving their original semantics. It is worth noting that while text-only embedding spaces may occasionally cluster visually distinct concepts (e.g., antonyms) due to contextual co-occurrence, CLIP’s multimodal pre-training promotes a strong alignment between semantic proximity and visual similarity. Quantitative evidence for this alignment is provided in IV-E 
+
+C. Training and Inference 
+
+Training Objective. Our training objective consists of two components: (1) a classification loss to optimize compositional recognition, and (2) a Structure-aware Consistency Loss (SCL) that preserves local structure among seen primitives. The overall loss is defined as: 
+
+L = LCE + λLSCL , (19) where λ controls the trade-off between classification perfor-mance and structural regularization. 
+
+Inference Procedure. At test time, we apply Structure-guided Adaptation Strategy (SAS) to adjust the prompt represen-tations of unseen attributes and objects using structural in-formation transferred from similar seen primitives. Formally, 6
+
+TABLE I: Comprehensive results on the MIT-States and C-GQA benchmarks. The top block reports traditional CZSL methods, and the bottom block presents VLM-based prompt tuning approaches with and without SPA. Incorporating SPA consistently improves performance, notably yielding large gains on open-vocabulary splits, such as a +55.1% relative improvement on A∗O∗ for C-GQA.                                                                                                                                                                                                                                                                                                                    
+
+> Methods Mit-States C-GQA HM ↑AUC ↑Seen ↑Unseen ↑AO ↑(AO )∗↑A∗O↑AO ∗↑A∗O∗↑HM ↑AUC ↑Seen ↑Unseen ↑AO ↑(AO )∗↑A∗O↑AO ∗↑A∗O∗↑
+> Traditional Paradigm (Non-VLM)
+> LE [11] 7.64 1.01 16.29 9.46 10.24 11.38 5.98 4.15 2.87 8.39 1.17 19.37 8.36 10.76 6.51 9.53 2.67 1.08 CompCos [33] 10.22 1.97 26.53 10.29 14.32 21.09 5.86 2.89 0.63 9.64 2.35 40.19 7.25 20.19 20.24 4.47 1.95 0.26 OADis [34] 9.55 1.83 25.35 10.79 12.18 16.06 6.40 5.41 1.34 9.74 2.33 42.88 7.12 20.86 15.19 6.17 3.47 0.61 SCEN [35] 9.72 1.73 22.08 8.25 11.85 30.02 3.82 0.33 0.08 9.03 1.97 41.65 7.83 20.65 21.42 3.61 1.08 0.05 CANet [36] 10.52 2.40 26.42 9.54 16.56 23.08 6.15 4.08 0.58 11.96 3.04 40.52 9.21 22.43 20.87 4.95 2.03 0.64 OADis+NEL [6] 10.94 2.41 29.02 11.13 14.11 18.87 8.24 5.49 3.54 12.11 3.18 42.38 9.77 19.78 16.07 12.86 2.87 3.04
+> VLM Prompting Paradigm
+> CSP [1] 26.82 10.22 36.53 33.11 29.03 26.19 22.36 26.22 25.52 15.19 3.54 29.47 14.03 19.54 10.87 16.49 7.65 9.28
+> +SPA 27.80 10.59 36.53 34.01 28.47 27.90 26.52 27.38 29.44 16.70 4.07 29.47 15.77 20.86 13.11 18.98 7.12 10.67
+> HPL [2] 26.77 10.15 36.05 33.14 29.11 23.81 25.52 24.35 29.25 14.30 3.16 26.99 13.42 18.71 13.06 14.24 7.45 8.15
+> +SPA 27.49 10.60 36.45 34.2 29.6 24.11 25.48 25.71 32.03 16.21 4.07 32.12 14.46 22.19 11.84 17.47 6.22 10.93
+> DFSP [3] 28.12 12.09 44.19 33.13 35.81 25.11 18.08 26.51 21.71 22.57 8.35 48.51 19.86 30.63 28.06 19.60 12.02 9.11
+> +SPA 28.90 12.32 43.63 33.52 34.11 27.36 21.99 26.88 24.07 22.81 8.51 48.68 20.24 30.63 29.03 19.50 12.21 10.75
+> Troika [4] 27.11 10.89 39.60 32.70 30.32 28.45 21.78 26.41 18.16 20.52 6.90 43.87 18.08 27.98 22.91 19.40 11.74 1.73
+> +SPA 27.45 10.97 39.03 33.56 30.32 26.16 24.15 26.22 26.15 21.43 7.03 40.89 19.49 27.81 18.45 21.91 11.74 11.54
+> Baseline Avg 27.21 10.84 39.09 33.02 31.07 25.89 21.94 25.87 23.66 18.15 5.49 37.21 16.35 24.22 18.73 17.43 9.72 7.07
+> +SPA Avg 27.91 11.12 38.91 33.82 30.63 26.38 24.54 26.55 27.92 19.29 5.92 37.79 17.49 25.37 18.11 19.47 9.32 10.97
+
+for each unseen primitive pu ∈ { au, o u}, we compute the calibrated prompt as: 
+
+P(+)  
+
+> p∗
+
+= SAS (P(0)  
+
+> p∗
+
+), (20) where SAS (·) denotes the Structure-guided Adaptation Strat-egy defined in Sec. III-B. With the refined prompts for both seen and unseen prim-itives, we construct the full set of candidate composi-tion prompts {Pyi }yi∈Y and obtain their text embeddings 
+
+{tyi }yi∈Y using the CLIP text encoder. Given a test image xi, we compute its visual embedding 
+
+vi = fvis (xi) and evaluate cosine similarity with each compo-sition embedding tyj . The prediction probability is given by a temperature-scaled softmax: 
+
+P (yj |xi) = exp( Si,j /τ )
+
+P|Y | 
+
+> k=1
+
+exp( Si,k /τ ) , (21) and the final prediction is: 
+
+ˆy = arg max  
+
+> yi∈Y
+
+P (yi | xi). (22) 
+
+Algorithm Summary. We present the complete training and inference procedure of our proposed SPA in Algorithm 1. IV. E XPERIMENTS 
+
+A. Experiment Settings 
+
+Datasets. To thoroughly assess the generalization and ro-bustness of our method, we conduct experiments on four OV-CZSL benchmarks, i.e., MIT-States [37], C-GQA [38], VAW-CZSL [39] and UT-Zappos [40]. The MIT-States dataset includes 115 attributes and 245 objects, yielding 1,962 at-tribute–object compositions and a total of 53,753 images. C-GQA, derived from Stanford GQA, expands this scale with 413 attributes and 674 objects, forming roughly 7,000 pairs with 39,298 samples. The largest benchmark, VAW-CZSL, consists of 533 attributes and 543 objects, leading to 15,785 combinations and 92,000 images in total. UT-Zappos comprises 50,025 fine-grained shoe images, encompassing 116 unique compositions derived from 16 attributes and 12 objects. We follow the dataset split proposed by Saini et al. [6] to ensure a fair evaluation under the open-vocabulary setting. As no established open-vocabulary partition exists for UT-Zappos, we define a new split for this benchmark following the same rigorous criteria to ensure consistency across all evaluations. Detailed statistics of these partitions, including the numbers of seen/unseen attributes and objects and the composition types (AO , (AO )∗, A∗O, etc. ), are provided in the supplementary material. 
+
+Evaluation Metrics. Following established protocols [33, 34, 41, 42], our evaluation provides a multi-faceted assessment of model performance. To measure the overall balance between seen ( Y s) and unseen ( Y u) compositions, we report the Har-monic Mean (HM). Additionally, we use the Area Under the Curve (AUC) to evaluate the model’s robustness to different inference biases. We primarily report Top-1 AUC, and Top-3 AUC is used for the large and challenging VAW-CZSL benchmark. For a more granular analysis of generalization, we further provide a detailed breakdown of accuracies on five key subsets: fully seen compositions ( AO ), unseen combinations of seen primitives( (AO )∗), and the three challenging open-vocabulary cases ( A∗O, AO ∗, and A∗O∗). 
+
+Baseline. To evaluate the effectiveness of our SPA, we in-tegrate it with a set of representative CZSL baselines. These include single-branch methods, such as CSP [1] and DFSP [3], as well as multi-branch architectures, including HPL [2] and Troika [4]. 
+
+Implementation Details. Following prior works [1–4], we use CLIP as the vision–language backbone. To reduce computa-tional overhead, we adopt CLIP ViT-B/32 across all experi-ments instead of the commonly used CLIP-L/14. Importantly, all models are trained under the same backbone and protocol, ensuring a fair comparison. Both the image and text encoders 7
+
+Algorithm 1 Structure-aware Prompt Adaptation (SPA) 
+
+Require: Seen primitive sets A, O; unseen primitive sets A∗,
+
+O∗; CLIP encoders fvis , ftext ; hyperparameters K, τ , λ.
+
+Ensure: Adapted prompts for all attribute-object composi-tions.  
+
+> 1:
+
+Phase 1: Training with the Structure-aware Consis-tency loss  
+
+> 2:
+
+for each primitive p ∈ A ∪ O do  
+
+> 3:
+
+Extract initial embedding t(0)  
+
+> p
+
+from CLIP  
+
+> 4:
+
+Compute initial similarity matrix S(0)  
+
+> p
+> 5:
+
+Identify Top-K neighbor indices Ip 
+
+> 6:
+
+end for  
+
+> 7:
+
+for each training iteration do  
+
+> 8:
+
+for each primitive p ∈ A ∪ O do  
+
+> 9:
+
+Extract optimized embedding t(+)  
+
+> p
+> 10:
+
+Compute updated similarity matrix S(+)  
+
+> p
+> 11:
+
+Extract neighborhood similarities S(0 ,N ) 
+
+> p
+
+, S(+ ,N ) 
+
+> p
+
+us-ing Ip 
+
+> 12:
+
+end for  
+
+> 13:
+
+Compute distributions over neighborhoods  
+
+> 14:
+
+Calculate LSCL using KL-divergence  
+
+> 15:
+
+Minimizing L = LCE + λLSCL  
+
+> 16:
+
+end for  
+
+> 17:
+
+Phase 2: Inference with Structure-guided Adaptation Strategy  
+
+> 18:
+
+for each primitive p ∈ A ∪ O do  
+
+> 19:
+
+Compute parameter shift ∆Pp = P(+)  
+
+> p
+
+− P(0)  
+
+> p
+> 20:
+
+end for  
+
+> 21:
+
+for each unseen primitive p∗ ∈ A∗ ∪ O∗ do  
+
+> 22:
+
+Compute similarity between p∗ and seen primitives  
+
+> 23:
+
+Retrieve Top-K most similar seen neighbors NK 
+
+> 24:
+
+Compute normalized weights wk using softmax  
+
+> 25:
+
+Aggregate shift: ∆Pp∗ = P 
+
+> k∈N K
+
+wk∆Pp[k] 
+
+> 26:
+
+Calibrate prompt: P(+)  
+
+> p∗
+
+= P(0)  
+
+> p∗
+
++ ∆ Pp∗ 
+
+> 27:
+
+end for  
+
+> 28:
+
+Predict compositions using adapted prompts. are initialized from the pre-trained CLIP ViT-B/32 model and keep frozen during training. For optimization, we use AdamW with a learning rate of 5 × 10 −5 for MIT-States and C-GQA, and 1 × 10 −5 for VAW-CZSL, together with a weight decay of 1 × 10 −6. All models are trained for 20 epochs. Regarding training hyperparameters, the batch size is set to 256 for MIT-States and 128 for C-GQA and VAW-CZSL. We fix the number of neighbors K at 5 and the structure consistency weight λ at 1. Regarding the Structure-guided Adaptation Strategy (SAS), the Top-K neighbor search is performed independently for each dataset, restricted solely to the seen primitives within that dataset’s respective training split. Furthermore, as specified in our formulations, all attribute and object embeddings are L2-normalized prior to calculating cosine similarities during both the training and inference stages. 
+
+B. Main Results 
+
+Results on MIT-States and C-GQA. We first evaluate our method on two OV-CZSL benchmarks, MIT-States and C-
+
+TABLE II: Results on the VAW-CZSL benchmark. Compared with traditional CZSL methods, VLM-based prompting approaches achieve stronger generalization. Incorporating SPA further enhances performance, particularly under fine-grained and open-vocabulary settings, showing consistent gains across most metrics.                                                                                                                        
+
+> Methods VAW-CZSL HM ↑AUC ↑AO ↑(AO )∗↑A∗O↑AO ∗↑A∗O∗↑
+> Traditional Paradigm (Non-VLM)
+> LE [11] 8.27 1.49 15.62 10.48 5.79 2.78 0.98 CompCos [33] 10.68 2.69 20.21 20.58 5.04 2.48 0.5 OADis [34] 10.91 2.68 21.19 15.65 6.75 3.16 0.76 SCEN [35] 10.64 2.53 19.06 20.76 4.52 2.05 0.42 CANet [36] 11.21 2.89 24.56 18.42 5.74 2.86 0.95 OADis+NEL [6] 11.35 2.91 23.02 16.18 7.86 3.37 1.36
+> VLM Prompting Paradigm
+> CSP [1] 13.26 2.71 12.95 4.43 3.21 5.55 5.59
+> +SPA 13.92 2.42 9.75 6.91 4.36 6.40 6.70
+> HPL [2] 11.60 2.12 9.44 4.18 2.42 4.36 4.18
+> +SPA 13.03 2.45 11.38 4.94 2.74 4.81 5.07
+> DFSP [3] 20.87 7.64 26.57 7.26 3.24 6.05 4.78
+> +SPA 21.91 8.14 26.39 8.38 3.61 6.87 5.29
+> Troika [4] 18.25 5.17 24.94 7.42 2.09 6.71 0.72
+> +SPA 20.34 5.26 21.79 9.16 5.07 7.32 3.24
+> Baseline Avg 16.00 4.41 18.48 5.82 2.74 5.67 3.82
+> +SPA Avg 17.30 4.56 17.33 7.35 3.95 6.35 5.08
+
+GQA, and report results in Tab. I. Methods are grouped into two paradigms: (1) traditional CZSL approaches without vi-sion–language pretraining (top block), and (2) vision–language model (VLM)-based prompt tuning methods (bottom block). For the latter, we assess performance both with and without our SPA. As shown in Tab. I, traditional non-VLM methods ( e.g., 
+
+LE [11], CompCos [33], OADis [34]) generally underperform on both overall metrics (HM, AUC) and composition-level metrics. In contrast, VLM-based prompt tuning approaches obtain substantially better baselines due to rich pre-trained representations and flexible prompt designs, though they still struggle on compositions containing unseen primitives. Within this VLM paradigm, integrating SPA consistently yields im-provements across four strong baselines. On the MIT-States dataset, we first validate this effectiveness. As shown in Tab. I, SPA achieves consistent improvements across the board, increasing the overall HM and AUC scores by +2.6%. More importantly, it shows strong generalization to open-vocabulary compositions, raising the A∗O and A∗O∗ metrics by +11.9% and +18.0%, respectively. This generalization ability is even more pronounced on the more challenging C-GQA dataset. SPA boosts the overall HM by +6.3% and the AUC by +7.8%. Its most notable impact is on the hardest split, A∗O∗, where it achieves a +55.1% relative gain (from 7.07 to 10.97), highlighting its capability to handle entirely unseen compositions. Note that while SPA delivers substantial gains in targeted unseen splits, the improvement in AUC is more measured. This stems from the nature of AUC as a global integral across the entire bias spectrum. Consequently, within the aggregate AUC calculation, the marginal reduction in seen performance partially offsets the sharp gains on the unseen splits. We also note a slight drop on AO ∗ for C-GQA (9.72 → 9.32), which likely stems from some unseen objects being semantically/visually distant from the seen set; we 8
+
+TABLE III: Comprehensive results on the UT-Zappos bench-marks. Integrating SPA consistently bolsters performance across various baselines, particularly in open-vocabulary scenarios. Such empirical evidence underscores the efficacy of our structural reason-ing in capturing nuanced attribute-object relationships.                                                                              
+
+> Methods UT-Zappos HM ↑AUC ↑AO ↑(AO )∗↑A∗O↑AO ∗↑A∗O∗↑
+> VLM Prompting Paradigm
+> CSP [1] 27.33 9.56 16.01 8.58 3.97 7.16 3.33
+> +SPA 29.01 10.75 15.91 8.86 5.66 9.66 10.57
+> HPL [2] 27.83 9.70 16.52 9.10 3.23 6.56 1.98
+> +SPA 30.13 11.03 15.99 8.99 6.32 7.38 8.67
+> DFSP [3] 32.07 15.00 20.86 13.77 6.61 10.39 2.38
+> +SPA 34.32 16.83 20.64 14.40 7.18 11.64 13.69
+> Troika [4] 31.13 14.88 21.32 10.87 5.47 7.83 2.11
+> +SPA 32.98 15.42 20.93 11.03 6.85 9.11 7.73
+> Baseline Avg 29.59 12.29 18.68 10.58 4.82 7.98 2.45
+> +SPA Avg 31.61 13.51 18.37 10.82 6.51 9.45 10.17
+
+analyze these failure modes and provide qualitative examples in Sec. IV-F. Overall, SPA preserves competitive performance on seen compositions while substantially improving gener-alization to unseen ones, demonstrating its effectiveness for open-vocabulary CZSL. 
+
+Results on VAW-CZSL. To further validate the effectiveness of our approach, we conduct additional evaluations on the large-scale and highly challenging VAW-CZSL dataset, with results presented in Tab. II. Following prior work [6], all metrics are reported under the Top-3 AUC setting due to the dataset’s difficulty. The results also confirm the VLM paradigm’s superiority on this complex dataset, where our SPA-enhanced models set a new state-of-the-art. By con-sistently improving performance across four representative baselines, SPA raises the average HM from 16.00 to 17.30 and the AUC from 4.41 to 4.56. Beyond overall gains, SPA delivers notable improvements on open-vocabulary splits, including 
+
+A∗O (+44.1%), AO ∗ (+12.0%), and A∗O∗ (+33.0%). While a marginal absolute decrease is observed in AO performance (18.48 → 17.33), we interpret this as a strategic trade-off to mitigate the co-occurrence bias inherent in seen pairs. Specifically, by slightly relaxing the empirical fitting on the training distribution, SPA achieves substantial gains across all open-vocabulary splits. The consistent improvement in Har-monic Mean (HM) confirms that this structural regularization provides a net benefit for global model robustness. Overall, SPA provides a plug-and-play enhancement for VLM-based CZSL methods, maintaining strong performance in open-vocabulary settings even on challenging, large-scale datasets. 
+
+Results on UT-Zappos. Beyond large-scale benchmarks, we evaluate SPA on the fine-grained shoe images of UT-Zappos. Given the absence of prior open-vocabulary settings for this dataset, we defined a new, rigorous partition for a com-prehensive assessment. The results in Table III consistently demonstrate that SPA enhances performance across a variety of metrics. Specifically, for the baseline average, SPA achieves a +2.02 absolute gain in HM and a substantial +7.72 gain (over 4 × improvement) in A∗O∗. These results highlight our method’s robustness when dealing with subtle, fine-grained attribute differences in novel compositions. 
+
+TABLE IV: Ablation study on the effect of the number of neighbors ( K) in SPA. We report key performance metrics on MIT-States, showing that a moderate choice of K = 5 achieves the best trade-off across HM and open-vocabulary metrics. 
+
+Neighbors K MIT-States HM ↑ AUC ↑ A∗O↑ AO ∗↑ A∗O∗↑
+
+K = 0 (Baseline) 26 .82 10 .22 22 .36 26 .22 25 .52 
+
+K = 1 27 .59 10 .64 27 .41 26 .24 29 .44 
+
+K = 3 27 .70 10 .66 26 .43 27 .30 29 .25 
+
+K = 5 27.80 10 .59 26.52 27.38 29.44 
+
+K = 7 27 .70 10.66 26 .43 27 .30 29 .25 
+
+K = 10 27 .78 10 .66 26 .41 27 .35 29 .31 
+
+C. Ablation Study 
+
+In this section, we conduct detailed ablation studies to in-vestigate the contribution of each component. All experiments are conducted on the MIT-States [37] dataset, using CSP [1] as the baseline model. We primarily report overall performance metrics (HM and AUC), and then place particular emphasis on open-vocabulary metrics ( (A∗O, AO ∗, A ∗O∗). 
+
+Effectiveness of components. To validate the individual ef-fectiveness of our two core components, the Structure-aware Consistency Loss (SCL) and the Structure-guided Adaptation Strategy (SAS), we conduct an incremental ablation study with results presented in Tab. VII. Our baseline model (CSP) achieves an HM of 26.82 and an A∗O∗ score of 25.52. When individually integrating our proposed components, both yield clear benefits. Specifically, incorporating SAS alone increases HM from 26.82 to 27.52 and the challenging A∗O∗ score from 25.52 to 28.05. SCL alone also provides a clear benefit, improving the HM to 27.14. Importantly, combining both components in our full SPA model yields the best overall performance. The full model achieves the highest scores across all key metrics, reaching an HM of 27.80 and A∗O∗ score of 29.44. This analysis demonstrates that SCL and SAS are complementary, and both are essential for achieving the optimal performance of SPA. 
+
+Effect of number of Top-K Neighbors. We investigate the impact of the nearest neighbor count (K), which controls the amount of local structural information used in both SCL and SAS modules. Tab. IV shows that our method is robust across a wide range of K values, consistently outperforming the baseline. Here, K = 0 corresponds to the baseline, where no local structure is leveraged for adaptation. The best overall trade-off is achieved at K=5, which yields the highest HM (27.80) and A∗O∗ (29.44). We observe that a small K (e.g., 1or 3) already provides meaningful structure propagation, while a very large K ( e.g., 10) may introduce less relevant neighbors that slightly dilute the semantic signal. This confirms that 
+
+K = 5 provides an optimal balance between capturing a rich local structure and avoiding potential noise. These results indicate that our approach effectively exploits local structural information while maintaining robustness to the choice of K.While K = 5 is initially determined on MIT-States, we further evaluate its scalability across larger datasets including C-GQA and VAW-CZSL. As detailed in the Supplementary Material, SPA exhibits remarkable stability, as K = 5 con-9                                        
+
+> TABLE V: Component-wise computational cost and performance trade-off analysis of SPA on the MIT-States dataset. The values in parentheses denote the increase in cost or performance over the CSP baseline.
+> Training Overhead Inference Overhead Performance Gain Method Time (min) ↓Memory (MB) ↓Speed (ms/img) ↓Memory (MB) ↓HM ↑A*O* ↑
+> Baseline (CSP) 20.33 6388 2.34 4560 26.82 25.52
+> wSCL 21.38 (+1.05) 6490 (+102) 2.34 (+0.00) 4560 (+0.00) 27.14 (+0.32) 26.15 (+0.63)
+> wSAS 20.33 (+0.00) 6388 (+0.00) 2.36 (+0.02) 4574 (+0.14) 27.52 (+0.70) 28.05 (+2.53)
+> SPA (Full) 21.38 (+1.05) 6490 (+102) 2.36 (+0.02) 4574 (+14) 27.80 (+0.98) 29.44 (+3.92)
+
+sistently emerges as the optimal sweet spot despite varying vocabulary densities. This confirms that our structure-aware adaptation is primarily governed by intrinsic semantic locality, which implies that a concept’s meaningful neighbors are nat-urally limited and independent of global vocabulary statistics. 
+
+Effect of hyper-parameters λ and τ . We further analyze the sensitivity of the loss weight of the SCL λ and the temperature 
+
+τ . Values that are too high over-constrain the structure, while values too low allow the fine-tuning to distort the useful prior knowledge. The weight λ balances the primary classification objective with our structural consistency regularizer. The tem-perature τ controls the sharpness of the neighbor similarity distribution. Lower temperatures ( e.g., 0.01) can make the loss brittle, while higher temperatures ( e.g., 0.20) over-smooth the distribution and include less relevant concepts. Our SPA demonstrates robustness across a wide range of values for both hyper-parameters. Detailed analyzes and results are provided in the supplementary material, showing optimal performance at λ = 1 .00 and τ = 0 .10 .
+
+D. Computational Cost Analysis 
+
+In this section, we analyze the computational overhead of our proposed Structure-aware Prompt Adaptation (SPA) method to demonstrate its efficiency and practicality. We evaluate its impact on training and inference. Specifically, We dissect the cost of each component in SPA when applied to the CSP baseline, with results detailed in Tab. V. The Structure-aware Consistency Loss (SCL) is applied during training, introducing a minimal overhead. Specifically, it in-creases the training time by only 1.05 minutes ( ∼5.2%) and training memory by 102MB ( ∼1.6%). The Structure-guided Adaptation Strategy (SAS) operates during inference, adding a negligible 0.02ms to the per-image inference time and 14MB of memory. When combined, our full SPA module enhances performance significantly while maintaining high efficiency, proving its excellent cost-benefit trade-off. We also considered the module’s scalability for extremely large vocabularies. A detailed analysis is provided in the supplementary material, which identifies the k-NN search operation within our SAS module as the primary bottleneck (> 80% of overhead). We note that k-NN search can be readily replaced by more efficient Approximate Nearest Neighbor (ANN) algorithms (e.g., Faiss, ScaNN) to enhance SPA’s applicability to massive-scale vocabularies. 
+
+E. In-depth Discussion and Analysis 
+
+Analysis of Design Choices. To justify our design choices, we conduct additional experiments on two core aspects: (1) adopting prompt tuning instead of full fine-tuning, and (2) evaluating our proposed SPA mechanism against the prior Neighborhood Expansion Loss (NEL) [6]. Since NEL was originally developed for traditional CZSL methods, we im-plement it on the same VLM baseline (CSP+NEL) for a fair comparison.                            
+
+> TABLE VI: Comparison of design choices on MIT-States. CSP + SPA outperforms full fine-tuning CLIP, CSP, and CSP + NEL across all metrics while maintaining low training memory. Method MIT-States HM ↑A∗O↑AO ∗↑A∗O∗↑Train Memory ↓
+> CLIP (Full FT) 25 .09 22 .36 25 .73 24 .95 22 748
+> CSP 26 .82 22 .36 26 .22 25 .52 6388
+> CSP + NEL 26 .93 24 .43 25 .52 26 .47 11 544
+> CSP + SPA 27.80 26.52 27.38 29.44 6490
+
+1) Comparison with Full Fine-tuning: We first examine the choice of using a frozen backbone with prompt tuning. Tab. VI shows that full fine-tuning of CLIP (denoted as CLIP (Full FT)) leads to a degraded performance ( e.g., HM from 26.82 for CSP down to 25.09) and incurs a nearly 4× increase in training memory. In contrast, frozen-backbone prompt tuning (denoted as CSP) preserves pre-trained representations and adapts efficiently to OV-CZSL, achieving a better trade-off between accuracy and efficiency. 
+
+2) Comparison with NEL: Next, we compare SPA with the prior Neighborhood Expansion Loss. CSP+SPA consistently outperforms CSP+NEL across all key metrics on MIT-States. For instance, it improves the HM from 26.93 to 27.80 and achieves a substantial gain on the challenging A∗O∗ split (29.44 v.s. 26.47). Moreover, SPA attains these improvements while using roughly half the training memory of CSP+NEL. This demonstrates that SPA provides a more effective and efficient mechanism for structured adaptation within the VLM prompting paradigm. 
+
+Validity of Semantic-Visual Alignment. To investigate the reliability of using semantic proximity as a proxy for visual similarity, we conduct a quantitative alignment analysis on the MIT-States dataset. Specifically, after applying feature mean-centering to account for CLIP’s inherent anisotropy, we eval-uate the consistency between the semantic and visual spaces. As shown in Table VIII and Table IX, the highly significant Pearson correlation ( p = 0 .0026 < 0.01 ) and the 13.7 × higher visual consistency of Top-5 semantic neighbors compared to random baselines demonstrate that semantic proximity in CLIP is a robust, non-random proxy for visual similarity. This evidence suggests that CLIP’s multimodal pre-training effectively mitigates the risk of semantic-visual misalignment 10 CSP+SPA 
+
+A*O AO* A*O* 
+
+ancient coin broken drum 
+
+ancient coin broken drum 
+
+ancient coin broken drum 
+
+AO (AO)* 
+
+weathered beach 
+
+barren beach 
+
+barren beach 
+
+splintered branch 
+
+splintered log 
+
+splintered branch 
+
+coiled cable 
+
+winding cord 
+
+coiled cable 
+
+Success Cases Failure Cases 
+
+Mit -States 
+
+A*O AO* A*O* 
+
+lightweight cloud 
+
+cloudy cloud 
+
+thick cloud 
+
+caramelized fish 
+
+shiny salmon 
+
+burnt fish 
+
+draped tulip 
+
+rough table 
+
+winding plant 
+
+GT
+
+CSP 
+
+CSP+SPA 
+
+adult bird arched roof 
+
+adult bird arched roof 
+
+adult bird arched roof speckled painting 
+
+floral painting 
+
+floral painting 
+
+black magazine 
+
+black laptop 
+
+black magazine 
+
+rusty truck 
+
+brown bus 
+
+rusty truck 
+
+C-GQA 
+
+burnt cake 
+
+assorted donut 
+
+sprinkled donut 
+
+full suitcase 
+
+cluttered shelf 
+
+piled luggage 
+
+Intricate artwork 
+
+striped wallpaper 
+
+Intricate sculpture 
+
+GT 
+
+CSP 
+
+Fig. 4: Qualitative comparison of CSP+SPA against the baseline CSP on samples from MIT-States (top) and C-GQA (bottom). GT denotes Ground Truth. SPA corrects the baseline’s (CSP) prediction errors on challenging open-vocabulary compositions ( A∗O, AO ∗, A∗O∗)while maintaining strong performance on seen ones ( AO , (AO )∗). Failure cases for open-vocabulary types are also shown to analyze the method’s boundaries. Predictions marked in red are incorrect; those in green are correct. TABLE VII: Ablation study of SPA components on MIT-States [37] using the CSP [1] baseline. We incrementally add the Structure-aware Consistency Loss (SCL) and Structure-guided Adaptation Strategy (SAS), showing that each component improves performance, with the full SPA model achieving the best overall results across HM, AUC, and open-vocabulary metrics. Setting Components MIT-States SCL SAS HM ↑ AUC ↑ A∗O↑ AO ∗↑ A∗O∗↑
+
+Baseline ( w/o SPA) 26.82 10.22 22.36 26.22 25.52 +SCL ✓ 27.14 10.34 23.73 27.33 26.15 +SAS ✓ 27.52 10.58 22.94 26.83 28.05 
+
++SCL +SAS (Full SPA) ✓ ✓ 27.80 10.59 26.52 27.38 29.44 
+
+(e.g., antonym interference), providing high-fidelity structural signals for SAS. 
+
+TABLE VIII: Quantitative Analysis of Semantic-Visual Alignment. 
+
+Correlation Measure Pearson ( ρ) Spearman ( rs) P-value 
+
+Semantic vs. Visual Distance 0.1548 0.2153 0.0026 
+
+TABLE IX: Consistency Check: Visual Similarity of Semantic Neigh-bors 
+
+Neighbor Selection Avg. Visual Similarity (Mean-Centered) 
+
+Random Neighbors 0.0047 
+
+Top-5 Semantic Neighbors 0.0642 ( ↑ 13.7 ×)
+
+Impact of Structural Regularization Intensity. To investi-gate whether our structural regularization is overly restrictive, we conduct a sensitivity analysis of the intensity parameter λ
+
+using Troika+SPA on the VAW-CZSL dataset. As shown in Fig. 5, the regularization intensity λ controls the equilibrium between seen domain fitting and unseen domain generaliza-tion. A lower λ favors AO accuracy but limits transferability, while an excessively high λ may over-restrict the represen-tation space. Our results show that at λ = 1 .0, the model achieves the optimal Harmonic Mean, effectively mitigating the Semantic Gap without collapsing on seen categories. 0 0.05 0.1 0.5 1.0 5.0 10.0     
+
+> Regularization Intensity ( )
+> 14
+> 16
+> 18
+> 20
+> 22
+> 24
+> 26
+> Seen ( AO ) & HM (%)
+> Peak HM: 20.34
+> Seen ( AO )
+> Harmonic Mean ( HM )
+> Unseen ( A*O*)
+> 0.0
+> 0.5
+> 1.0
+> 1.5
+> 2.0
+> 2.5
+> 3.0
+> 3.5
+> 4.0
+> Unseen ( A * O * ) (%)
+
+Fig. 5: Sensitivity analysis of the regularization intensity λ for Troika on the VAW-CZSL dataset. To ensure transparency and ro-bustness, we report the average performance across five independent runs with different random seeds . As λ increases, the marginal decrease in Seen performance ( AO ) is significantly outweighed by the sharp gain in Unseen performance ( A∗O∗), resulting in the 
+
+Harmonic Mean ( HM ) reaching its peak at λ = 1 .0. This confirms that λ = 1 .0 is the optimal equilibrium point for balancing empirical fitting and structural manifold preservation. 
+
+Quantitative Analysis of the Semantic Gap. To further clarify the operational boundaries of SPA, we conduct a11                                    
+
+> TABLE X: Performance Gain vs. Semantic Isolation on MIT-States. Samples are partitioned into three groups based on the semantic similarity to their closest neighbors in the training set. The results reflect the A∗O∗performance for CSP and CSP+SPA.
+> Isolation Group Ratio Avg. Sim CSP (A∗O∗)+SPA (A∗O∗)Gain ( ∆)
+> Near 50% 0.78 25.69 30.62 +4.93
+> Moderate 40% 0.66 25.37 28.63 +3.26
+> Isolated 10% 0.41 25.27 26.78 +1.51 Total Average 100% 0.70 25.52 29.44 +3.92
+
+granular analysis on the MIT-States dataset by partitioning unseen test samples into three groups—Near, Moderate, and Isolated—based on their semantic similarity to the closest training-set neighbors. As summarized in Table X, SPA’s per-formance gain is positively correlated with semantic proximity, achieving a significant +4.93% improvement in the ”Near” group. Crucially, even in the ”Isolated” group (Avg. Sim = 0.41), where semantic anchors are sparse, SPA maintains a consistent gain of +1.51% over the baseline. This demon-strates that our Structure-Consistent Learning (SCL) objective provides effective global manifold regularization, ensuring a robust ”performance floor” and preventing representation collapse even in semantically sparse regions. 
+
+F. Qualitative Results 
+
+To complement our quantitative analysis and provide a deeper understanding of SPA’s behavior, we present a qualita-tive evaluation comparing our full model (CSP+SPA) against the baseline CSP on MIT-States and C-GQA datasets in Fig. 4. This analysis helps reveal how SPA handles diverse compositions and highlights its strengths and limitations in open-vocabulary reasoning. 
+
+Success Cases. The left panel of Fig. 4 demonstrates SPA’s effectiveness in correcting the baseline’s semantic errors, par-ticularly on challenging open-vocabulary compositions. This success stems from SPA’s ability to leverage learned struc-tural relationships to infer the meaning of unseen primitives more precisely. For example, CSP confuses the unseen at-tribute ”barren” with the semantically related but incorrect ”weathered”. SPA corrects this, demonstrating a finer-grained semantic understanding. This improvement stems from SPA’s ability to align the distributions of unseen primitives with semantically similar seen ones, enabling better generalization. Concurrently, SPA maintains high accuracy on seen compo-sitions ( e.g., ’windblown desert’), demonstrating that SCL effectively regularizes for generalization without degrading seen-domain performance. 
+
+Failure Cases and Limitations. The right panel of Fig. 4 reveals the method’s boundaries when there is a large semantic gap between the unseen concept and its closest seen neighbors. A deeper analysis shows that even in these failure cases, SPA often demonstrates more robust semantic reasoning than the baseline. Consider the A∗O∗ example with the ground truth ”Intricate artwork”. The baseline CSP fails by predict-ing ’striped wallpaper’, likely misled by superficial visual textures. Conversely, CSP+SPA predicts ”Intricate sculpture”. It correctly identifies the highly abstract, unseen attribute ”Intricate” and recognizes a far more appropriate object category (”sculpture” v.s. ”artwork”). This suggests that our structural analogy mechanism captures higher-order semantic patterns that transcend simple pixel-level matching, providing a stable performance floor even when local semantic anchors are sparse. Ultimately, failures typically arise only when the semantic gap is exceptionally vast, causing the analogical reasoning of SAS to lack reliable concepts for knowledge transfer. This highlights the method’s reliance on semantic proximity and points toward avenues for future work. V. C ONCLUSION 
+
+In this paper, we explore how to improve compositional generalization in Open-Vocabulary Compositional Zero-Shot Learning (OV-CZSL) through prompt tuning methods. Specif-ically, we propose SPA, an effective plug-in method that aligns the structure of seen and unseen attributes and objects to enhance generalization. By leveraging the local structural relationships among semantically similar attributes and ob-jects, SPA preserves meaningful structures during training through a Structure-aware Consistency Loss (SCL), and adapts unseen concepts at inference via a Structure-guided Adaptation Strategy (SAS). Extensive experiments demonstrate that SPA significantly improves performance in the open-vocabulary setting while maintaining strong results in the conventional CZSL scenario, highlighting its effectiveness and applicability. REFERENCES 
+
+[1] N. V. Nayak, P. Yu, and S. H. Bach, “Learning to compose soft prompts for compositional zero-shot learning,” in The Eleventh International Conference on Learning Representations, ICLR 2023, Kigali, Rwanda, May 1-5, 2023 . OpenReview.net, 2023. [Online]. Available: https://openreview.net/forum?id=S8-A2FXnIh [2] H. Wang, M. Yang, K. Wei, and C. Deng, “Hierarchical prompt learning for compositional zero-shot recogni-tion.” in IJCAI , vol. 1, no. 2, 2023, p. 3. [3] X. Lu, S. Guo, Z. Liu, and J. Guo, “Decomposed soft prompt guided fusion enhancing for compositional zero-shot learning,” in IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2023, Vancouver, BC, Canada, June 17-24, 2023 .IEEE, 2023, pp. 23 560–23 569. [Online]. Available: https://doi.org/10.1109/CVPR52729.2023.02256 [4] S. Huang, B. Gong, Y. Feng, M. Zhang, Y. Lv, and D. Wang, “Troika: Multi-path cross-modal traction for compositional zero-shot learning,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2024, pp. 24 005–24 014. [5] L. Min, Z. Fan, S. Wang, F. Dou, X. Li, and B. Wang, “Adaptive fusion learning for compositional zero-shot recognition,” IEEE Transactions on Multimedia , 2024. [6] N. Saini, K. Pham, and A. Shrivastava, “Beyond seen primitive concepts and attribute-object compositional learning,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2024, pp. 14 466–14 476. 12 
+
+[7] Y. Kalantidis, G. Tolias et al. , “Label propagation for zero-shot classification with vision-language models,” in 
+
+Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2024, pp. 23 209–23 218. [8] W. Chang, Y. Shi, and J. Wang, “Csot: Curriculum and structure-aware optimal transport for learning with noisy labels,” Advances in Neural Information Processing Sys-tems , vol. 36, pp. 8528–8541, 2023. [9] J. Zhang, J. Song, L. Gao, N. Sebe, and H. T. Shen, “Reliable few-shot learning under dual noises,” IEEE Transactions on Pattern Analysis and Machine Intelli-gence , 2025. [10] M. F. Naeem, Y. Xian, F. Tombari, and Z. Akata, “Learning graph embeddings for compositional zero-shot learning,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2021, pp. 953–962. [11] T. Nagarajan and K. Grauman, “Attributes as opera-tors: factorizing unseen attribute-object compositions,” in 
+
+Proceedings of the European Conference on Computer Vision (ECCV) , 2018, pp. 169–185. [12] M. U. Anwaar, Z. Pan, and M. Kleinsteuber, “On lever-aging variational graph embeddings for open world com-positional zero-shot learning,” in Proceedings of the 30th ACM International Conference on Multimedia , 2022, pp. 4645–4654. [13] J. Zhang, X. Luo, L. Gao, D. Zou, H. Shen, and J. Song, “From channel bias to feature redundancy: Uncovering the” less is more” principle in few-shot learning,” arXiv e-prints , pp. arXiv–2310, 2023. [14] X. Li, X. Yang, K. Wei, C. Deng, and M. Yang, “Siamese contrastive embedding network for compositional zero-shot learning,” in Proceedings of the IEEE/CVF confer-ence on computer vision and pattern recognition , 2022, pp. 9326–9335. [15] Y. Atzmon, F. Kreuk, U. Shalit, and G. Chechik, “A causal view of compositional zero-shot recognition,” 
+
+Advances in Neural Information Processing Systems ,vol. 33, pp. 1462–1473, 2020. [16] D. Huynh and E. Elhamifar, “Compositional zero-shot learning via fine-grained dense feature composition,” 
+
+Advances in Neural Information Processing Systems ,vol. 33, pp. 19 849–19 860, 2020. [17] S. Karthik, M. Mancini, and Z. Akata, “Kg-sp: Knowl-edge guided simple primitives for open world com-positional zero-shot learning,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2022, pp. 9336–9345. [18] M. Yang, C. Xu, A. Wu, and C. Deng, “A decomposable causal view of compositional zero-shot learning,” IEEE Transactions on Multimedia , vol. 25, pp. 5892–5902, 2022. [19] A. Radford, J. W. Kim, C. Hallacy, A. Ramesh, G. Goh, S. Agarwal, G. Sastry, A. Askell, P. Mishkin, J. Clark 
+
+et al. , “Learning transferable visual models from natural language supervision,” in International conference on machine learning . PMLR, 2021, pp. 8748–8763. [20] X. Lu, S. Guo, Z. Liu, and J. Guo, “Decomposed soft prompt guided fusion enhancing for compositional zero-shot learning,” in Proceedings of the IEEE/CVF Confer-ence on Computer Vision and Pattern Recognition , 2023, pp. 23 560–23 569. [21] C. Jia, Y. Yang, Y. Xia, Y.-T. Chen, Z. Parekh, H. Pham, Q. Le, Y.-H. Sung, Z. Li, and T. Duerig, “Scaling up visual and vision-language representation learning with noisy text supervision,” in International conference on machine learning . PMLR, 2021, pp. 4904–4916. [22] X. Gu, T. Lin, W. Kuo, and Y. Cui, “Open-vocabulary object detection via vision and language knowledge distillation,” in The Tenth International Conference on Learning Representations, ICLR 2022, Virtual Event, April 25-29, 2022 . OpenReview.net, 2022. [Online]. Available: https://openreview.net/forum? id=lL3lnMbR4WU [23] J. Zhang, L. Gao, B. Hao, H. Huang, J. Song, and H. Shen, “From global to local: Multi-scale out-of-distribution detection,” IEEE Transactions on Image Pro-cessing , vol. 32, pp. 6115–6128, 2023. [24] B. Li, K. Q. Weinberger, S. J. Belongie, V. Koltun, and R. Ranftl, “Language-driven semantic segmentation,” in The Tenth International Conference on Learning Representations, ICLR 2022, Virtual Event, April 25-29, 2022 . OpenReview.net, 2022. [Online]. Available: https://openreview.net/forum?id=RriDjddCLN [25] S. Li, T. Fischer, L. Ke, H. Ding, M. Danelljan, and F. Yu, “Ovtrack: Open-vocabulary multiple object tracking,” in 
+
+Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 2023, pp. 5567–5577. [26] J. Wang, Z. Yang, L. Zong, X. Zhang, D. Wang, and J. Zhang, “Dual-branch prompting for multimodal machine translation,” arXiv preprint arXiv:2507.17588 ,2025. [27] J. Zhang, S. Wu, L. Gao, J. Song, N. Sebe, and H. T. Shen, “A closer look at conditional prompt tuning for vision-language models,” International Journal of Com-puter Vision , 2025. [28] K. Zhou, J. Yang, C. C. Loy, and Z. Liu, “Learning to prompt for vision-language models,” Int. J. Comput. Vis. , vol. 130, no. 9, pp. 2337–2348, 2022. [Online]. Available: https://doi.org/10.1007/s11263-022-01653-1 [29] R. Abdelfattah, Q. Guo, X. Li, X. Wang, and S. Wang, “Cdul: Clip-driven unsupervised learning for multi-label image classification,” in Proceedings of the IEEE/CVF international conference on computer vision , 2023, pp. 1348–1357. [30] F. Peng, X. Yang, L. Xiao, Y. Wang, and C. Xu, “Sgva-clip: Semantic-guided visual adapting of vision-language models for few-shot image classification,” IEEE Trans-actions on Multimedia , vol. 26, pp. 3469–3480, 2023. [31] Y. Zhong, J. Yang, P. Zhang, C. Li, N. Codella, L. H. Li, L. Zhou, X. Dai, L. Yuan, Y. Li et al. , “Regionclip: Region-based language-image pretraining,” in Proceed-ings of the IEEE/CVF conference on computer vision and pattern recognition , 2022, pp. 16 793–16 803. [32] X. Gu, T.-Y. Lin, W. Kuo, and Y. Cui, “Open-vocabulary object detection via vision and language knowledge 13 
+
+distillation,” arXiv preprint arXiv:2104.13921 , 2021. [33] M. Mancini, M. F. Naeem, Y. Xian, and Z. Akata, “Open world compositional zero-shot learning,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 2021, pp. 5222–5230. [34] N. Saini, K. Pham, and A. Shrivastava, “Disentangling visual embeddings for attributes and objects,” in Proceed-ings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2022, pp. 13 658–13 667. [35] S. Hao, K. Han, and K.-Y. K. Wong, “Learning attention as disentangler for compositional zero-shot learning,” in 
+
+Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 2023, pp. 15 315–15 324. [36] Q. Wang, L. Liu, C. Jing, H. Chen, G. Liang, P. Wang, and C. Shen, “Learning conditional attributes for com-positional zero-shot learning,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 2023, pp. 11 197–11 206. [37] P. Isola, J. J. Lim, and E. H. Adelson, “Discovering states and transformations in image collections,” in Proceedings of the IEEE conference on computer vision and pattern recognition , 2015, pp. 1383–1391. [38] M. Mancini, M. F. Naeem, Y. Xian, and Z. Akata, “Learning graph embeddings for open world composi-tional zero-shot learning,” IEEE Transactions on pattern analysis and machine intelligence , vol. 46, no. 3, pp. 1545–1560, 2022. [39] K. Pham, K. Kafle, Z. Lin, Z. Ding, S. Cohen, Q. Tran, and A. Shrivastava, “Learning to predict visual attributes in the wild,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 2021, pp. 13 018–13 028. [40] A. Yu and K. Grauman, “Fine-grained visual compar-isons with local learning,” in Proceedings of the IEEE conference on computer vision and pattern recognition ,2014, pp. 192–199. [41] Y.-L. Li, Y. Xu, X. Mao, and C. Lu, “Symmetry and group in attribute-object compositions,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 2020, pp. 11 316–11 325. [42] S. Purushwalkam, M. Nickel, A. Gupta, and M. Ranzato, “Task-driven modular networks for zero-shot composi-tional learning,” in Proceedings of the IEEE/CVF In-ternational Conference on Computer Vision , 2019, pp. 3593–3602. [43] A. Yu and K. Grauman, “Fine-grained visual comparisons with local learning,” in 2014 IEEE Conference on Computer Vision and Pattern Recognition, CVPR 2014, Columbus, OH, USA, June 23-28, 2014 .IEEE Computer Society, 2014, pp. 192–199. [Online]. Available: https://doi.org/10.1109/CVPR.2014.32 14 
+
+APPENDIX 
+
+SUPPLEMENTARY MATERIAL 
+
+OVERVIEW 
+
+This supplementary material provides additional experimen-tal details for our SPA method. Specifically, we include: (1) a detailed breakdown of the dataset splits for the four OV-CZSL benchmarks; (2) detailed ablation studies on the hyperparameters λ and τ , which control the weight of the Structure-aware Consistency Loss (SCL) and the temperature for neighbor similarity, respectively; (3) a comprehensive sensitivity analysis of the neighbor count K, demonstrat-ing its remarkable stability and scalability across multiple datasets with varying vocabulary densities, and (4) a scala-bility analysis of the Structure-guided Adaptation Strategy (SAS) module, highlighting computational bottlenecks and potential optimizations for large vocabulary settings. These results complement the analyses presented in the main paper and further demonstrate the robustness and efficiency of our approach. DATASET SPLITS 
+
+Table S1 summarizes the dataset splits for the four OV-CZSL benchmarks. We follow a standard convention, where 
+
+A/A ∗ and O/O ∗ denote seen/unseen attributes and objects, and the validation/test sets are further categorized into five compositional types: AO , (AO )∗, A∗O, AO ∗, and A∗O∗. This allows for a systematic evaluation of generalization to unseen compositions. ABLATION STUDY ON HYPERPARAMETERS 
+
+Effect of hyper-parameter λ. We analyze the impact of the SCL loss weight λ, which balances the primary classification objective with our structural consistency regularizer. Tab. S2 shows that performance is stable across a wide range of λ
+
+values, underscoring the robustness of our method. The model achieves the best overall performance at λ=1.00, reaching the highest HM (27.80) and a top A∗O∗ (29.44). While a very large weight ( λ=10.00) can slightly improve the A∗O∗ metric further, it comes at the cost of the overall HM, suggesting that an overly strong structural constraint can begin to interfere with the classification task. Thus, we identify λ=1.00 as the optimal value. 
+
+TABLE S2: Ablation study of the SCL weight λ on MIT-States ,showing that performance is stable across a wide range of values, with λ = 1 .0 achieving the best overall performance. Weight λ MIT-States HM ↑ AUC ↑ A∗O↑ AO ∗↑ A∗O∗↑
+
+λ = 0 .05 27 .52 10 .58 23 .15 26 .66 28 .74 
+
+λ = 0 .10 27 .49 10 .58 23 .20 26 .58 28 .93 
+
+λ = 0 .50 27 .52 10 .58 23 .03 26 .69 28 .68 
+
+λ = 1 .00 27.80 10.59 26.52 27 .38 29 .44 
+
+λ = 5 .00 27 .49 10 .52 23 .01 26 .69 29 .00 
+
+λ = 10 .00 27 .47 10 .45 25 .34 27.78 29.75 
+
+Effect of hyper-parameter τ . The temperature τ controls the sharpness of the neighbor similarity distribution in SCL. We investigate its effect in Tab. S3. The results indicate that model performance is sensitive to this parameter, with a clear optimal value at τ =0.10. A lower temperature ( e.g., 0.01) makes the distribution too peaky and may cause the model to rely on a few potentially noisy neighbors, while a higher temperature (e.g., 0.20) softens the distribution excessively, giving undue weight to less relevant concepts. A value of τ =0.10 appears to effectively focus the model on the most semantically relevant neighbors, leading to the best performance across all key metrics. 
+
+TABLE S3: Ablation study of the temperature τ in SPA on MIT-States , illustrating that performance peaks at τ = 0 .10 , which provides the best HM and open-vocabulary scores.                                     
+
+> Temperature τMIT-States HM ↑AUC ↑A∗O↑AO ∗↑A∗O∗↑
+> τ= 0 .01 27 .23 10 .25 26 .22 26 .24 28 .52
+> τ= 0 .05 27 .38 10 .42 25 .55 26 .69 28 .50
+> τ= 0 .07 27 .47 10 .46 25 .53 26 .77 29 .31
+> τ= 0 .10 27.80 10.59 26.52 27.38 29.44
+> τ= 0 .20 27 .52 10 .46 23 .15 26 .72 28 .49
+
+Effect of hyper-parameter K on C-GQA and VAW-CZSL. 
+
+To further investigate the sensitivity and scalability of the number of neighbors K, we extend our ablation study to the larger-scale C-GQA and VAW-CZSL datasets. As shown in Table S4 and Table S5, SPA exhibits remarkable stability across varying vocabulary scales. In both benchmarks, the performance consistently peaks at K=5, which achieves the highest Harmonic Mean (HM) and significant gains in unseen-split metrics such as A∗O∗. These results confirm the principle of intrinsic semantic locality, which suggests that the mean-ingful structural information of a concept is contained within a limited set of its closest semantic neighbors. While the total vocabulary size increases, the number of truly relevant seman-
+
+TABLE S1: Dataset splits for the three OV-CZSL benchmarks. Notation: A/A ∗ and O/O ∗ denote seen/unseen attributes and objects. The val/test sets are broken down into five compositional types: seen attribute–seen object pairs ( AO ), novel compositions of seen attributes and objects ( (AO )∗), unseen attribute–seen object pairs ( A∗O), seen attribute–unseen object pairs ( AO ∗), and fully novel pairs ( A∗O∗). This partitioning enables a comprehensive evaluation of generalization to novel compositions and unseen concepts.                                        
+
+> Datasets Attributes Objects Training Set Validation Set Test Set
+> AA∗OO∗AO AO /(AO )∗/A ∗O/AO ∗/A ∗O∗AO /(AO )∗/A ∗O/AO ∗/A ∗O∗
+> MIT-States [37] 84 31 182 63 955 236 / 105 / 126 / 177 / 44 289 / 130 / 157 / 218 / 50 C-GQA [38] 311 102 504 170 4094 1012 / 447 / 525 / 517 / 147 1239 / 542 / 664 / 655 / 176 VAW-CZSL [39] 330 135 406 110 7142 1767 / 803 / 1420 / 1253 / 412 2161 / 982 / 1737 / 1532 / 504 UT-Zappos [43] 12 49349 8 / 9 / 6 / 8 / 2 8 / 9 / 7 / 8 / 2 15
+
+tic anchors remains relatively constant. Consequently, K = 5 
+
+serves as a robust sweet spot that effectively captures the core semantic essence without introducing neighbor-induced interference, proving that SPA is not strictly dependent on global vocabulary density. 
+
+TABLE S4: Ablation study on the effect of the number of neighbors ( K) in SPA. We report key performance metrics on C-GQA, showing that a moderate choice of K = 5 achieves the best trade-off across HM and open-vocabulary metrics. 
+
+Neighbors K C-GQA HM ↑ AUC ↑ A∗O↑ AO ∗↑ A∗O∗↑
+
+K = 0 (Baseline) 15 .19 3.54 16 .49 7.65 9.28 
+
+K = 1 15 .27 3.66 16 .14 7.15 5.38 
+
+K = 3 15 .90 3.87 16 .90 7.78 7.11 
+
+K = 5 16.70 4.07 18.98 7.12 10.67 
+
+K = 7 16 .65 4.03 18 .45 7.34 10 .44 
+
+K = 10 16 .57 3.95 18 .71 7.54 10 .37 
+
+TABLE S5: Ablation study on the effect of the number of neighbors ( K) in SPA. We report key performance metrics on VAW-CZSL, showing that a moderate choice of K = 5 achieves the best trade-off across HM and open-vocabulary metrics. 
+
+Neighbors K VAW-CZSL HM ↑ AUC ↑ A∗O↑ AO ∗↑ A∗O∗↑
+
+K = 0 (Baseline) 13 .26 2.71 3.21 5.55 5.59 
+
+K = 1 12 .79 2.56 2.67 5.30 4.39 
+
+K = 3 13 .05 2.73 2.85 4.98 6.14 
+
+K = 5 13.92 2.42 4.36 6.40 6.70 
+
+K = 7 13 .86 2.37 4.34 6.34 6.67 
+
+K = 10 13 .91 2.39 4.37 6.28 6.65 
+
+SCALABILITY ANALYSIS 
+
+The scalability of the SAS module may be a concern for OV-CZSL tasks with extremely large vocabularies. The overhead of this module can be broken down into two main components: (1) a k-Nearest Neighbor (k-NN) search to find relevant seen concepts, and (2) the subsequent adaptation and aggregation computation. To quantify the bottleneck, we profiled the inference time of these components, with results shown in Tab. S6. The analysis clearly indicates that the brute-force k-NN search is the dominant factor, accounting for over 80% of the module’s computational overhead. The k-NN search can be readily replaced by more efficient Approximate Nearest Neighbor (ANN) algorithms ( e.g., Faiss, ScaNN). This standard practice reduces the search complexity from linear to sub-linear, which in turn enhances SPA’s applicability to massive-scale vocabularies. 
+
+TABLE S6: Breakdown of the inference time overhead of the SAS module.

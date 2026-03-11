@@ -1,0 +1,479 @@
+Title: E2E-GNet: An End-to-End Skeleton-based Geometric Deep Neural Network for Human Motion Recognition
+
+URL Source: https://arxiv.org/pdf/2603.02477v1
+
+Published Time: Wed, 04 Mar 2026 01:19:01 GMT
+
+Number of Pages: 15
+
+Markdown Content:
+# E2E-GNet: An End-to-End Skeleton-based Geometric Deep Neural Network for Human Motion Recognition 
+
+# Mubarak Olaoluwa Hassen Drira University of Strasbourg, ICube Laboratory, UMR 7357, F-67412 Strasbourg, France  
+
+> {molaoluwa, hdrira }@unistra.fr
+
+# Abstract 
+
+Geometric deep learning has recently gained significant attention in the computer vision community for its abil-ity to capture meaningful representations of data lying in a non-Euclidean space. To this end, we propose E2E-GNet, an end-to-end geometric deep neural network for skeleton-based human motion recognition. To enhance the discriminative power between different motions in the non-Euclidean space, E2E-GNet introduces a geometric trans-formation layer that jointly optimizes skeleton motion se-quences on this space and applies a differentiable loga-rithm map activation to project them onto a linear space. Building on this, we further design a distortion-aware opti-mization layer that limits skeleton shape distortions caused by this projection, enabling the network to retain discrimi-native geometric cues and achieve a higher motion recog-nition rate. We demonstrate the impact of each layer through ablation studies and extensive experiments across five datasets spanning three domains show that E2E-GNet outperforms other methods with lower cost. Code is avail-able at https://github.com/ayodejimb/E2E-GNet .
+
+# 1. Introduction 
+
+Human motion recognition aims to automatically interpret and categorize human behaviors from visual observations, forming a core task in human-centered computer vision [38, 66]. Its importance spans a wide range of applica-tions, including video surveillance, action recognition, hu-man–robot collaboration, and analysis of musculoskeletal disorders in healthcare. Early studies approached this prob-lem primarily through the analysis of still images or conven-tional RGB video sequences, relying heavily on 2D appear-ance cues such as color, texture, and silhouettes [1, 63, 86]. However, these methods were inherently constrained by sensitivity to background clutter, occlusions, variations in illumination and viewpoint, and differences in movement execution—challenges that persisted even with the emer-gence of deep learning pipelines. Advances in affordable RGB-D sensors, such as the Microsoft Kinect [80], opened a new line of research by providing depth measurements that are less affected by lighting and offer richer 3D structural detail. This en-abled more reliable estimation of body joint locations from depth maps, prompting the development of numerous RGB-D–based motion analysis frameworks [2, 61, 78]. Build-ing on these capabilities, skeleton-based motion recognition has attracted growing interest due to its compact, semanti-cally meaningful representation of human movement. By modeling actions through 3D joint trajectories rather than raw pixel data, skeleton-based approaches mitigate back-ground and appearance variability, provide viewpoint ro-bustness, and focus directly on the geometric structure of human motion—making them particularly well-suited for modern learning-based recognition systems. The emergence of skeleton-based representations has motivated the development of geometric deep learning models capable of operating on the non-Euclidean struc-ture inherent in the skeleton data. Skeleton-based manifold-aware deep architectures such as those leveraging Kendall’s shape space [27–29, 33, 77], Lie-group representations [77] or symmetric positive definite (SPD) matrices formulations [52] have demonstrated the value of incorporating geomet-ric constraints into motion recognition pipelines. While these methods underscore the potential of geometry-driven learning, they also reveal two main limitations: (i) the lack of an end-to-end training pipeline that jointly optimizes both the geometric and deep learning components on the manifold, and (ii) distortion effects introduced during the projection of skeletons from their nonlinear manifold to lin-ear (tangent) spaces. These issues hinder the expressive ca-pacity and stability of geometric networks, especially when deployed across diverse domains. In this work, we address these issues and our contributions are as follows: • First, we propose E2E-GNet, an end-to-end geometric deep network with a new geometric transformation layer 1
+
+> arXiv:2603.02477v1 [cs.CV] 3 Mar 2026
+
+enabling manifold to Euclidean learning. • Second, we design a distortion-minimization layer that explicitly reduces the geometric distortions arising during manifold-to-tangent projections, thereby improving rep-resentation fidelity and model performance. • Third, extensive experiments on five benchmarks across three domains—action recognition, disease analysis, and rehabilitation—show that E2E-GNet consistently outper-forms other methods with lower computational overhead. 
+
+# 2. Related Work 
+
+2.1. Geometric Deep Learning 
+
+Geometric deep learning has recently attained superior per-formance than conventional deep learning techniques in various domains such as 3D vision and graphics, medical imaging, and autonomous systems and robotics [71]. This is attributed to their capability to account for the underly-ing geometry of the input data which usually lies in a non-Euclidean space. Existing work on geometric deep learning can be categorized into two main research axes: techniques based on graphs and techniques based on manifolds [11]. Many previous studies [3, 21, 32, 43, 65, 74] have adapted convolution neural networks (CNN) to graphs for graph-based approaches. For brevity and since this study pertains to geometric deep learning techniques on manifolds, we fo-cus on existing research in this area. We however refer readers who are interested in additional studies on graphs to these comprehensive surveys [7, 11, 14, 71]. Existing work on manifold-based approaches can be categorically classified into two: feature space deep ap-proaches [5, 6, 13, 35–37, 49, 50, 52, 53] and shape space deep approaches [27–29, 33, 77]. Since our method falls in the latter category, we briefly review this line of work. Friji et al. [27, 28] introduced deep models on Kendall shape space for human action recognition and later extended them to face and gait recognition in [29]. Hosni et al [33] pro-posed a Kendall space autoencoder for gait analysis. Re-cently, Zaier et al. [77] proposed a transformer architecture on Kendall space and Lie group representations for human motion prediction. While these works have demonstrated the promise of deep learning on shape-space geometry, they share two key limitations: (i) end-to-end training of deep models on the manifold remains unresolved, and (ii) distor-tions introduced when projecting shapes to tangent space remain unaddressed. In this work, we offer an effective remedy to both, bridging these gaps in prior research. 
+
+2.2. Skeleton-based Human Motion Recognition 
+
+Action Recognition : Skeleton-based human action recog-nition has evolved along three major methodological directions: GCN-based, transformer-based, and manifold-based methods. ST-GCN [75] established the foundation of GCN-based by integrating graph convolutions for unified spatial–temporal modeling. Subsequent works largely fol-low this paradigm while strengthening the expressive power of GCNs [15, 16, 18, 25, 34, 41, 47, 60, 70, 72, 82, 84]. Among recent advances, BlockGCN [85] introduced an efficient encoding scheme and graph convolution block to strengthen skeletal topology with reduced cost, and ProtoGCN [45] proposed a prototype-learning strategy to capture subtle action variations. Prior transformer-based approaches leverage self-attention to capture long-range joint dependencies for action recognition [22, 30, 54, 56, 73, 79]. Building on this direction, recent work [81] integrates GCNs with trans-formers to encode richer spatio-temporal representations, while [58] combines hypergraph convolution with trans-former blocks to aggregate complementary features for diverse actions. Furthermore, the study by [69] introduces a frequency-based attention mechanism to improve the discrimination of subtle movements. Different to transformer-based methods, manifold-based approaches provide geometry-aware formulations for action recognition by representing skeletal motion in non-Euclidean spaces. Early work [36] leveraged Lie group representations to model skeletal dynamics on matrix manifolds, while subsequent efforts [28] built deep archi-tectures on Kendall’s shape space for learning pose actions. Additional studies [52] introduced neural networks on the manifold of symmetric positive definite matrices to capture discriminative action features. In this work, we introduce a Kendall shape space manifold-based deep approach that demonstrates consistent superior performance over prior manifold-based, transformer-based and GCN-based approaches. 
+
+Disease and Rehabilitation Assessment : In earlier times, studies [19, 26, 42, 55, 62] on disease and rehabilitation assessments relied on extracting handcrafted features from input data to indicate abnormalities in motion or exercise. However, the arrival and impressive performance of various deep learning methods have replaced these traditional techniques with deep learning ones. Most recent studies have applied various deep learning methods for skeleton-based disease and exercise rehabilitation assessment on humans. Generally speaking, these works can be broadly put into two main categories: regression-based approaches [20, 24, 44, 51, 57, 68] and non-regression-based ap-proaches [4, 8–10, 40, 76]. Since our work belongs to non-regression–based approaches, we briefly review existing methods in this category. Bruce et al. [9] introduced the Elderly Home Exercise (EHE) dataset of Alzheimer’s patients and ap-plied a GCN-based abnormality classifier built upon their earlier model [8]. Subsequent studies extended this line of work to ensemble GCN architectures for improved 2abnormality classification [10, 76]. More recently, Bai et al. [4] proposed an SPD-manifold method for abnormality assessments but at the cost of a higher model complexity. Compared to these approaches, our proposed method achieves superior accuracy while maintaining lower com-putational cost, highlighting a more efficient and effective design within non-regression frameworks. 
+
+# 3. Proposed End-to-End Geometric Network 
+
+Fig. 1 presents an overview of the proposed E2E-GNet, and the following sections describe each component in detail. 
+
+3.1. Modeling of Sequences on Pre-shape Space 
+
+We use the position features of the skeleton motion se-quences only. We begin by modeling these features onto a manifold space that is invariant to translation and scaling (also known as Kendall’s pre-shape space [39]). Each skele-ton X is denoted as n joints in R3, i.e., X ∈ Rn×3. Trans-lation variability is removed by premultiplying X by H
+
+where H denotes (n−1) ×n submatrix of a Helmert matrix [23] but with the first row removed. Thus HX ∈ R(n−1) ×3.Scaling variability is removed from the centered skeleton 
+
+HX using the inner product and all skeletons were scaled to have a unit norm. Thus, we arrive at the pre-shape space 
+
+C = {HX ∈ Cs| ∥ HX ∥2 = (HX )T (HX ) = 1} where 
+
+Cs is a centered and scaled skeleton. C then becomes a 
+
+(3 n−4) -dimensional unit sphere as a result of the unit norm constraint. 
+
+3.2. Geometric Transformation Layer (GTL) 
+
+The skeleton motion sequences on the pre-shape space are received by the proposed geometric transformation layer (GTL) that passes these sequences from the non-linear pre-shape space to the tangent space. It does this in two steps: (i) Optimization over SO (3) matrices applied to motion se-quences and (ii) Projection of transformed sequences onto the tangent space through log map activation. 
+
+Optimization over SO (3) matrices : Let P ∈ RF ×n×3 de-note a sequence from pre-shape space C with F and n rep-resenting sequences and joints respectively. For each frame 
+
+f ∈ { 1, . . . , F }, let Pf ∈ Rn×3 denote the f -th skeleton. We learn rotation parameters θf for each skeleton to gener-ate a rotation matrix Rf (θf ) ∈ SO (3) . Each skeleton shape is then transformed as: 
+
+ePf = Pf Rf (θf ), Rf (θf ) ∈ SO (3) . (1) Thus, we arrive at Kendall’s shape space (space obtained by quotienting out rotational variability C/SO (3) ) on the unit sphere. Each skeleton shape ePf belongs to a point in Kendall, and the distance between any two points indicates the magnitude of the difference between these shapes. We refer to this variant as Rigid-Constrained .Logarithm map activation function: We then introduce a differentiable Riemannian logarithm map as a non-linear geometric activation function to project the transformed skeleton sequences from the shape space to tangent space. Let ePf ∈ Rn×3 denote the transformed skeleton at frame f , we project each skeleton onto the tangent space of the first skeleton frame eP1, which is chosen as the refer-ence configuration. The logarithm map activation between 
+
+ePf and eP1 is therefore derived as: 
+
+log σ 
+
+> eP1
+
+( ePf ) = eZf = θd
+
+sin( θd)
+
+ ePf − cos( θd) eP1
+
+
+
+, θd̸ = 0 .
+
+(2) where θd = arccos 
+
+
+
+⟨ eP1, ePf ⟩
+
+
+
+is the geodesic distance between eP1 and ePf and ⟨· , ·⟩ denotes the Frobenius inner product. This operation maps all transformed skeletons to a common tangent space at eP1, (TfP1 ), enabling a consistent linearized representation for subsequent learning. If one would like to go from the tangent space back to the shape space, one can use the Riemannian exponential map (Eq. 3) and if one wishes to move between tangent spaces at different reference frames, one can apply parallel transport [31]. During the backward pass, we do not back-propagate through the exponential map since it is not part of the computational graph during the forward pass. 
+
+exp eP1 ( eZf ) = ePf = cos( ∥ eZf ∥F ) eP1
+
++ sin( ∥ eZf ∥F )
+
+∥ eZf ∥F
+
+eZf , ∥ eZf ∥F̸ = 0 . (3) where ∥ · ∥ F denotes the Frobenius norm and eZf is the rep-resentative skeleton on the tangent space. 
+
+3.3. Distortion Minimization Layer (DML) 
+
+Let us recall the logarithm map activation in Eq. (2). The corrective factor  θd/ sin( θd) is not constant, and its vari-ability introduces two forms of distortion. First, global dis-tortion : when a skeleton ePf lies at a non-zero distance from the reference skeleton eP1, the geodesic distance θd is > 0
+
+and increases with the separation between the two skele-tons. Since sin( θd) ≤ θd ∀ θd > 0, the ratio (θd/ sin( θd)) 
+
+exceeds 1 and grows with θd. As a result, the magnitude of the representative skeleton eZf , that is eZf on the tangent space is stretched, meaning that eZf in the tangent space overestimate the true geodesic distance θd on the manifold and which becomes worse for larger θd. Second, pairwise distortion : this global stretching relative to eP1 propagates to the relationships among all other projected skeletons. For two skeletons eP2 and eP3, the distance between their tan-gent representations at eP1, eZ2 − eZ3 generally differs from their true geodesic distance on the manifold. That is, 3Figure 1. Illustration of proposed E2E-GNet . The input motion sequences are modeled onto the pre-shape space of a unit sphere. Then the geometric transformation layer (GTL) learns and applies optimal transforms to the sequences for improved feature extraction, with projection onto the tangent space via a log-map activation function. The distortion minimization layer (DML) then acts on these tangent representative skeletons to reduce projection-induced distortions. Finally, convolution and LSTM modules extract discriminative spatio-temporal features for classification, and the optimization is done in an end-to-end manner spanning both manifold and tangent spaces. 
+
+eZ2 − eZ3̸ = θd( eP2, eP3). Hence, both absolute distances to the reference and pairwise relationships among projected skeletons become distorted in the tangent space. To minimize these distortions, we introduce a learnable positive parameter α, initialized in the interval (−1, 1) and constrained to remain positive during training through Eu-ler’s exponentiation. Each tangent representative skeleton 
+
+eZf is uniformly scaled such that: 
+
+eZf 7 → α eZf α > 0, f ∈ { 1, . . . , F } (4) thereby modulating the magnitude of eZf . Since eZf is a hor-izontal tangent vector on Kendall shape space (i.e., orthogo-nal to rotational directions in the preshape space), multiply-ing it by the scalar α maintains orthogonality to rotation di-rections and leaves its direction eZf /∥ eZf ∥F unchanged. The geometric interpretation follows directly from the exponen-tial map. Let eZf = log σ 
+
+> eP1
+
+( ePf ) and define the geodesic: 
+
+γ(t) = exp eP1 (t eZf )
+
+with γ(0) = eP1, ˙γ(0) = eZf , and γ(1) = ePf . Then exp eP1 (α eZf ) = γ(α),
+
+showing that scaling the tangent representation corresponds to evaluating the same geodesic at parameter α. Thus, the geodesic path is preserved; only the traveled geodesic dis-tance becomes αθ d because the intrinsic deformation direc-tion remains the same: 
+
+α eZf
+
+∥α eZf ∥ F
+
+= eZf
+
+∥ eZf ∥ F
+
+Moreover, curvature in Kendall shape space is determined by its Riemannian metric inherited from the preshape space via the quotient by rotations. Reparameterizing the geodesic by the learnable α does not alter the metric or cur-vature; it only changes the shape position along the same curved trajectory. Hence, the intrinsic geometry and defor-mation mode are preserved. Since α > 0, it follows that the optimal α satisfies 
+
+0 < α < 1, thus the displacement from eP1 satisfies 
+
+∥α eZf ∥ ≈ αθ d, keeping the skeleton shape closer to the reference where the logarithm map provides a better linear approximation of the manifold. Consequently, α acts as an adaptive geodesic distance contraction that preserves direc-tion and intrinsic curvature while reducing distortion in the tangent representation. We refer to this variant as Global Homogeneous since the same α is applied uniformly to all joints and frames of the skeletal configuration. 
+
+3.4. Additional GTL and DML Variants 
+
+To allow more flexibility for the deep architecture, we ex-tend beyond rigid-constrained transformations and global homogeneous scaling, and explore alternative variants that relax strict geometric constraints, described as follows: 
+
+(a) GTL Variants 
+
+Rigid-Unconstrained: In this setting, we directly learn a transformation matrix Af ∈ R3×3 for each skeleton. Un-like the rigid–constrained case, Af is not constrained to satisfy orthogonality during optimization. Each skeleton is transformed as ePf = Pf Af , Af ∈ R3×3
+
+Non-Rigid–Constrained: For this variant, we learn rotation parameters θf,i for each joint i ∈ { 1, . . . , n } in frame f to generate joint-wise rotation matrices Rf,i (θf,i ) ∈ SO (3) 
+
+such that each joint is rotated independently. The trans-formed skeleton is given as ePf,i = Pf,i Rf,i , Rf,i ∈
+
+SO (3) , i = 1 , . . . , n. 
+
+Non-Rigid–Unconstrained: In this setting, we learn a trans-formation matrix Af,i ∈ R3×3 for each joint i ∈ { 1, . . . , n }
+
+4in frame f . Unlike the constrained variant, each Af,i is not 
+
+required to satisfy orthogonality. Each joint is transformed independently as ePf,i = Pf,i Af,i , Af,i ∈ R3×3, i =1, . . . , n. 
+
+(b) DML Variants 
+
+Global inhomogeneous: For this variant, we learn αi for each joint i ∈ { 1, . . . , n } and the same αi is shared across all skeleton frames. 
+
+Local homogeneous: In this variant, we learn αf for each skeleton frame f ∈ { 1, . . . , F } and the same αf is shared across all joints within that frame. 
+
+Local inhomogeneous: In this setting, we learn αf,i for each joint i ∈ { 1, . . . , n } in each skeleton frame f ∈ { 1, . . . , F }.
+
+3.5. Feature Extraction and Classification 
+
+For feature extraction, we use two Conv1D layers fol-lowed by a MaxPool1D and an LSTM, and for classifica-tion we apply two fully connected layers (FCL). We use two Conv1D layers for action datasets and one Conv1D layer for others. For all datasets, the Conv1D kernel size is set to 3 and the LSTM comprises 12 units. The hidden dimension of FCL is set to 512 for action datasets and 32 for others. 
+
+# 4. Experimental Datasets and Settings 
+
+Datasets: We validate E2E-GNet on five diverse datasets described below: 
+
+NTU RGB+D (NTU-60) dataset [59] is a large-scale benchmark for human action recognition, comprising 56,880 skeleton-based action sequences performed by 40 different subjects and categorized into 60 action classes. Each sequence is represented by 25 body joints and includes at most two subjects. The dataset provides two standard evaluation protocols: (1) Cross-Subject (X-Sub) — training samples are collected from 20 subjects, while the remain-ing 20 are used for testing; and (2) Cross-View (X-View) — training samples are captured from camera views 2 and 3, with testing samples from camera view 1. 
+
+NTU RGB+D 120 (NTU-120) dataset [46] is an extension of NTU RGB+D, containing 114,480 skeleton-based action sequences across 120 action classes. These actions are per-formed by 106 subjects and recorded using 32 distinct cam-era setups. The dataset also includes two standard evalua-tion protocols: (1) Cross-Subject (X-Sub) — training data are taken from 53 subjects, while the remaining 53 subjects are used for testing; and (2) Cross-Setup (X-Set) — train-ing data are collected from 16 even-numbered setup IDs, and testing data from 16 odd-numbered setup IDs. 
+
+Elderly Home Exercise (EHE) dataset [9] is a real-world Alzheimer’s disease (AD) dataset collected in an elderly home. The dataset contains skeleton features of 25 subjects performing six daily morning exercises in a repetitive man-ner. There are 869 exercise sequences in total and 10 of the 25 subjects have been diagnosed with AD. 
+
+Kinematic Assessment of Movement for Remote Moni-toring of Physical Rehabilitation (KIMORE) dataset [12] is another real-world dataset that includes exercise data from 78 subjects across three groups: a control group of experts (CG-E, 12 physiotherapists and experts in the re-habilitation of back pain and postural disorders), a control group of non-experts (CG-NE, 32 subjects), and a group with pain and postural disorders (GPP, 34 subjects with con-ditions such as Parkinson’s, stroke, and back pain). Partici-pants performed five exercises and we use the skeleton fea-tures from [76], comprising 1,769 exercise sequences. 
+
+The University of Idaho Physical Rehabilitation Move-ments (UI-PRMD) dataset [64] is a rehabilitation dataset that contains skeleton features from 10 healthy subjects with each subject performing 10 repetitions of 10 rehabilita-tion exercises. Each subject performed each exercise in both correct and incorrect manners. We use the version from [76] where samples due to measurement errors and exercise per-formance with wrong limbs have been removed. This ver-sion contains 1,326 exercise sequences in total. 
+
+Pre-processing: For action datasets, we follow the data pre-processing steps in [28] where we applied cubic spline interpolation independently to each subject in train and test to resample skeleton trajectories into smooth, equally-spaced sequences of fixed length. For other datasets (EHE, KIMORE and UI-PRMD), all train and test subjects in each dataset contain the same sequence length. 
+
+Evaluation: For action datasets, we follow the same stan-dard train–test split protocol used by all compared methods. For others (EHE, KIMORE and UI-PRMD), we use the same cross-subject five-fold cross-validation division pro-tocol as done in all compared methods (see Appendix C of supplementary text). 
+
+Settings: All experiments are conducted with PyTorch us-ing Adam optimizer, fixed learning rate, cross-entropy loss and on a workstation with 64GB RAM and Tesla V100 GPU. Other settings and sequence length are given in Ta-ble 1. Table 1. Datasets other experimental settings                     
+
+> Parameters NTU-60/120 EHE KIMORE UI-PRMD
+> Batch size 64 12 16 16 Epochs 50 35 50 40 Learning rate 1e-4 1e-3 1e-3 1e-3 Sequence Length 100 221 150 150
+
+# 5. Results and Discussion 
+
+5.1. Comparison with State-of-the-Art Methods 
+
+Tables 2 and 3 present a comprehensive comparison of E2E-GNet against state-of-the-art (SOTA) methods across all benchmarks. On NTU-60, E2E-GNet outperforms SOTA performance [28] by 0.1% on both X-Sub and X-View pro-tocols. Notably, on the more challenging NTU-120 dataset, 5Table 2. Performance comparison (% classification accuracy and cost) against SOTA methods on NTU-60 and NTU-120 datasets. 
+
+Category Methods Venue Params (M) FLOPs (G) NTU-60 (%) NTU-120 (%) X-Sub X-View X-Sub X-Setup 
+
+Graph Convolution ST-GCN [75] AAAI 2018 3.08 5.34 81.5 88.3 70.7 73.2 2s-AGCN [60] CVPR 2019 – – 88.5 95.1 82.5 84.2 MS-G3D [47] CVPR 2020 3.17 10.27 91.5 96.2 86.9 88.4 MST-GCN [16] AAAI 2021 3.10 – 91.5 96.6 87.5 88.8 CTR-GCN [15] ICCV 2021 1.46 1.97 92.4 96.8 88.9 90.6 InfoGCN [18] CVPR 2022 1.60 1.84 93.0 97.1 89.8 91.2 PYSKL [25] ACM MM 2022 1.39 2.80 92.6 97.4 88.6 90.8 SkeletonGCL [34] ICLR 2023 – – 92.8 97.1 89.8 91.2 FR Head [82] CVPR 2023 1.99 – 92.8 96.8 89.5 90.9 GAP [70] ICCV 2023 – – 92.9 97.0 89.9 91.1 HD-GCN [41] ICCV 2023 1.68 1.60 93.4 97.2 90.1 91.6 DS-GCN [72] AAAI 2024 – – 93.1 97.5 89.2 91.1 BlockGCN [85] CVPR 2024 1.30 1.63 93.1 97.0 90.3 91.5 ProtoGCN [45] CVPR 2025 – – 93.8 97.8 90.9 92.2 Transformer/ Graph Transformer IGFormer [54] ECCV 2022 – – 93.4 96.5 85.4 86.5 FG-STFormer [30] ACCV 2022 – – 92.6 96.7 89.0 90.6 MAMS [48] ICCV 2023 – – 93.1 97.5 90.0 91.3 SkateFormer [22] ECCV 2024 2.03 3.62 93.5 97.8 89.8 91.4 JT-GraphFormer [81] AAAI 2024 – – 93.4 97.5 89.9 91.7 FreqMixFormer [69] ACM MM 2024 2.04 2.40 93.6 97.4 90.5 91.9 HyperGraph Convolution DC-GCN+ADG [17] ECCV 2020 – 16.20 90.8 96.6 86.5 88.1 DST-HCN [67] ICME 2023 2.93 3.50 92.3 96.8 88.8 90.7 AdaptiveHGCN [84] ICCV 2025 1.10 1.63 93.3 97.4 90.5 91.7 HyperGraph Transformer Hyperformer [83] ArXiv 2022 2.6 14.8 92.9 96.5 89.9 91.3 AutoregAd-HGformer [58] WACV 2025 3.20 15.4 94.2 97.8 91.0 92.4 Deep Riemannian LieNet [36] CVPR 2017 – – 61.4 67.0 – –KShapeNet [28] ICCV 2021 0.93 0.01 97.0 98.5 90.6 86.7 GeomNet [52] ICCV 2021 – – 93.6 96.3 86.5 87.6 
+
+E2E-GNet (Ours) 0.93 0.01 97.1 98.6 95.2 93.3 
+
+Table 3. Performance comparison (% classification accuracy and cost) against SOTA methods on EHE, KIMORE and UI-PRMD datasets. 
+
+Methods Venue Params (M) FLOPs (G) EHE KIMORE UI-PRMD 
+
+SPDNet [35] AAAI 2017 – – 78.76 82.57 88.87 GCN [8] TransAI 2020 3.10 3.80 77.63 76.27 75.44 KShapeNet [28] ICCV 2021 0.07 0.003 83.26 76.60 88.22 EGCN [76] IJCAI 2022 6.20 7.60 78.87 80.14 86.90 EGCN++ [10] TPAMI 2024 6.20 7.60 86.38 83.56 89.95 ManSPD [4] SciReports 2025 267.20 0.60 84.74 85.05 92.40 
+
+E2E-GNet (Ours) 0.07 0.003 87.14 85.93 95.19 
+
+E2E-GNet delivers substantial gains, outperforming SOTA [58] by 4.2% on X-Sub and 0.9% on X-Setup. In the disease and rehabilitation domain, E2E-GNet again shows consis-tent superiority, surpassing SOTA [4, 10] by 0.76%, 0.88%, and 2.79% on EHE, KIMORE, and UI-PRMD, respectively. Beyond accuracy, E2E-GNet also demonstrates compu-tational efficiency. Across all datasets, it maintains approx-imately the same computational cost with [28]. This lower cost is further supported by lower inference time provided in Appendix A of the supplementary text. These results to-gether showcase the effectiveness and computational effi-ciency of proposed E2E-GNet across diverse applications. 
+
+5.2. Ablation Studies 
+
+Contribution of Components: We study the impact of pro-posed GTL and DML in E2E-GNet as shown in Tab. 4. Baseline (BL) denotes Conv1D and LSTM directly on pre-shape space without GTL and DML. BL results show mod-est but less competitive performance across all datasets. Adding GTL to BL consistently boosts performance. For example, improvements of 6.7% on NTU-120 X-Set, 5.44% on KIMORE and 5.66% on UI-PRMD. These gains result from enhanced discriminative feature extraction through optimal skeleton transformations and the convenient linear-space representation provided by the log-map activation. Finally, adding DML to BL and GTL yields E2E-GNet which consistently improves performance across all datasets. For example, 4.9%, 5.84% and 8.13% improve-ments on NTU-120 X-Set, KIMORE and UI-PRMD respec-tively. These results highlight the effectiveness of DML with a learning-based approach. Also, the end-to-end in-tegration of GTL and DML significantly enhances the rep-6resentation and discriminative power of the proposed E2E-GNet. 
+
+Table 4. Ablation results (% accuracy) on the contribution of each proposed layer in E2E-GNet. E2E-GNet is BL+GTL+DML .                         
+
+> Protocol Action Disease RHB NTU-60 NTU-120 EHE KIMORE UI-PRMD
+> X-Sub X-View X-Sub X-Set Baseline (BL) 93.2 95.8 89.1 81.7 81.69 74.65 81.40
+> BL+GTL 95.2 96.8 92.3 88.4 83.15 80.09 87.06
+> BL+GTL+DML 97.1 98.6 95.2 93.3 87.14 85.93 95.19
+
+Performance Comparison of GTL variants: We study the impact of each transformation variant by adding it to the baseline only, reported in Tab. 5. We remark a consistent variant for each domain. For example, on action datasets, the non-Rigid variant (unconstrained) yields the best per-formance, while for disease and rehabilitation datasets, the rigid variant proves the most optimal, particularly with 
+
+SO (3) constraints for disease datasets. This explains that action datasets contain highly variable, joint-specific ar-ticulations, so non-rigid transformations provide the flex-ibility needed to model these heterogeneous motions. In contrast, disease and rehabilitation movements are more globally coherent and biomechanically constrained, making rigid transformations the best variant for this application. 
+
+Table 5. Performance (% accuracy) of GTL variants on all datasets. Best are bolded. RHB is Rehabilitation. R, NR, Ctr and Utr are rigid, non-rigid, constrained and unconstrained.                                 
+
+> Variants Action Disease RHB NTU-60 NTU-120 EHE KIMORE UI-PRMD
+> X-Sub X-View X-Sub X-Set
+> R-Ctr 93.8 95.7 91.3 86.8 83.15 80.09 87.06
+> R-Utr 94.7 95.7 91.9 86.8 81.63 77.09 87.00 NR-Ctr 94.6 96.6 91.1 88.3 80.03 79.05 85.02 NR-Utr 95.2 96.8 92.3 88.4 79.25 77.77 84.80
+
+Performance Comparison of DML Variants: In Tab. 6, we report the performance of each DML variant on the best transformation variant for each domain from Tab. 5. The results on other transformation variants are provided in Ap-pendix B of the supplementary text. The results in Tab. 6 show that all variants improve performance, highlighting the benefit of the proposed DML in reducing distortions. For action datasets, global inhomogeneous is best, reflect-ing joint-specific variability in skeleton shapes. For disease and rehabilitation datasets, global homogeneous performs best, consistent with their globally constrained and homo-geneous movement patterns. 
+
+Robustness of DML to different choice of reference shape: The results in Tab. 7 show the performance of 
+
+Table 6. Performance (% accuracy) of DML variants on best trans-formation for each domain from Tab. 5. Best are bolded. G, L, H and IN are global, local, homogeneous and inhomogeneous.                                 
+
+> Variants Action Disease RHB NTU-60 NTU-120 EHE KIMORE UI-PRMD
+> X-Sub X-View X-Sub X-Set
+> GH 97.0 98.5 95.0 92.7 87.14 85.93 95.19
+> GIN 97.1 98.6 95.2 93.3 86.51 84.78 93.95 LH 96.8 98.6 95.2 93.1 85.85 85.23 93.89 LIN 96.6 98.6 95.2 92.5 86.18 85.96 94.85
+
+the proposed DML under different reference frame choices (first, tenth, twentieth, etc) on the NTU-120 X-Sub dataset. The results show that the proposed DML consistently improves performance regardless of the reference frame choice, demonstrating its effectiveness in reducing distor-tions rather than overfitting to a specific reference pose. For all experiments of this work, we keep the first frame as the choice of reference for consistency. 
+
+Table 7. Performance (% accuracy) of proposed DML on different choice of reference frame on NTU-120 X-Sub dataset.   
+
+> 1st 10th 20th 30th 40th 50th 60th 70th 80th 90th
+> without DML 92.3 90.6 91.1 90.6 89.1 89.1 89.0 89.2 89.0 88.8 with DML 95.2 95.0 95.3 95.0 95.0 95.2 95.1 95.3 95.0 95.0
+
+5.3. Proposed DML versus Parallel Transport (PT) 
+
+Performance comparison of DML and PT under Choice of Reference as the First Shape: We further assess the per-formance of DML by comparing it with the PT technique (a well-known method for minimizing distortions). For PT, we implement the Pole Ladder (PL) technique from [31] to transport the tangent representative skeleton between con-secutive skeleton shapes to a common reference. Specifi-cally, we first perform log map activation between consecu-tive shapes in each sequence (that is, we project each current shape to the tangent space of the previous) and then trans-port these tangent representations to a common reference at the first shape using the PL algorithm. The results of PT are given in the second row of Tab. 8. The first row in Tab. 8 corresponds to results under the first shape (FS) as the reference (that is, log-map projec-tion of all skeleton shapes to this same reference) while the third row belongs to adding DML under this same FS. PT demonstrates inconsistent improvements over FS across all datasets, for example, a performance drop behind FS on dis-eased datasets. DML however consistently improves over FS and shows higher improvements than PT, demonstrating the effectiveness of our learning-based approach. 
+
+PT Failure on Diseased Datasets: Fig. 2 shows five con-secutive shapes for normal and Alzheimer’s subjects per-7Table 8. Comparison (% accuracy) of PT and DML under projec-tion at the first shape (FS). Values in blue indicate improvements over FS. * denotes p ≤ 0.05 between PT and DML.                               
+
+> Protocol Action Disease RHB NTU-60 NTU-120 EHE KIMORE UI-PRMD
+> X-Sub X-View X-Sub X-Set
+> FS 95.2 96.8 92.3 88.4 83.15 80.09 87.06 PT 95.8
+> (↑0.9)
+> 98.4
+> (↑1.6)
+> 94.3
+> (↑2.0)
+> 91.2
+> (↑2.8)
+> 78.81
+> (↓4.34)
+> 73.41
+> (↓6.68)
+> 89.23
+> (↑2.17)
+> DML 97.1 *
+> (↑1.9)
+> 98.6 *
+> (↑1.8)
+> 95.2 *
+> (↑2.9)
+> 93.3 *
+> (↑4.9)
+> 87.14 *
+> (↑3.99)
+> 85.93 *
+> (↑5.84)
+> 95.19 *
+> (↑8.13)
+
+forming exercise 4 (bend waist to right) in the EHE dataset, where we observed reduced performance with PT. We re-mark that contrary to normal subjects, consecutive shapes in Alzheimer’s exhibit minimal displacement (supported by lower geodesic distances), reflecting limited motion ampli-tude and rigidity in the waist-bending task. Thus, the lo-cal tangent representations between consecutive shapes for these subjects are dominated by numerical noise, leading to unstable chained transports and thus hurting performance. 
+
+Figure 2. Five consecutive shapes of normal (left) and Alzheimer’s subjects (right) for Bend Waist exercise in EHE dataset. Black val-ues are geodesic distance between the current shape and previous. 
+
+5.4. Additional Studies 
+
+Our proposed GTL versus transformation layer (TL) proposed by [28] on NTU-120 Dataset: We compare the performance of GTL with the TL introduced in the refer-enced study under two protocols as shown in Tab. 9. The TL results are taken directly from their ablation studies, and all comparisons are conducted under the same baseline set-ting for fairness. The first and second rows correspond to TL performance on the non-linear pre-shape space and the linear tangent space, respectively. GTL demonstrates per-formance gains over TL on both protocols particularly for the non-linear pre-shape setting (35.1% and 24.6% gains on X-Sub and X-Set). This confirms the effectiveness of our GTL in accounting for the non-linear underlying geometry of the skeleton sequences in contrast to the TL of [28] that assumes the sequences must reside in a linear space—a lim-itation that our GTL explicitly removes. 
+
+Table 9. Performance comparison of our proposed GTL vs. trans-formation layer (TL) proposed by [28] on NTU-120 dataset.         
+
+> Protocol X-Sub (% acc.) X-Set (% acc.) TL by [28] on pre-shape space 57.2 63.8
+> TL by [28] on the tangent space 90.6 86.7
+> GTL (ours) 92.3 88.4
+
+Temporal Coherence Analysis of Skeleton Frames : We study the temporal consistency of the rigid-constrained vari-ant of the proposed GTL by computing the differences between optimal rotations for consecutive frames Rf and 
+
+Rf +1 , computed as θrad = arccos((trace( Rf +1 R⊤ 
+
+> f
+
+) −
+
+1) /2) . The results, shown in Fig. 3, indicate that consec-utive rotations relax temporal coherence of the skeletons, as each rotation independently aligns the frame to the ref-erence. This frame-wise alignment finds the geodesic path between each skeleton and the reference, thereby isolating the intrinsic deformation between skeleton shapes. Con-sequently, while temporal smoothness is not strictly pre-served, the computed rotations emphasize shape-specific deformation relevant for motion recognition. 
+
+Figure 3. Rotation difference between consecutive frames on NTU-60 X-Sub. 
+
+Visualization of Distortion Reduction by DML: Fig. 4 il-lustrates the effect of DML on a test sample of the ‘pick up’ action from the NTU dataset. Some representative shapes for this action are shown, with a neutral pose used as the ref-erence for projecting these shapes to the tangent space. The red values indicate geodesic distances between the shapes and their tangent-space reconstructions obtained via the ex-ponential map (Eq. 3), while the blue values correspond to geodesic distances after applying DML. Distortions are ob-served at the spine base, hips, and left leg (highlighted in red), which are effectively reduced by DML, as evidenced by lower geodesic distances shown in blue. 
+
+# 6. Conclusion 
+
+In this work, we propose E2E-GNet, a novel end-to-end ge-ometric network for skeleton-based human motion recog-nition. E2E-GNet integrates a geometric transformation layer that optimizes sequences directly on the non-linear 8Figure 4. Visualization of DML effect on some representative skeleton shapes for ‘pick up’ action of NTU dataset. Red and blue values are geodesic distances before and after DML respectively. 
+
+manifold before projecting them to the tangent space, fol-lowed by a distortion minimization layer that compen-sates for projection-induced distortions. Extensive ablations and comparisons validate the effectiveness of both layers, with each variant showing consistent behavior tailored to a respective application. Experiments on five benchmark datasets spanning action recognition, disease analysis, and rehabilitation show that E2E-GNet consistently surpasses state-of-the-art methods. Together, these results highlight the effectiveness, efficiency, and broad applicability of our geometric design in the proposed E2E-GNet. 
+
+# Acknowledgments 
+
+This work of the Interdisciplinary Thematic Institute HealthTech, as part of the ITI 2021-2028 program of the University of Strasbourg, CNRS and Inserm, was sup-ported by IdEx Unistra (ANR-10-IDEX-0002) and SFRI (STRAT’US project, ANR-20-SFRI-0012) under the frame-work of the French Investments for the Future Program. The authors would like to acknowledge the High Perfor-mance Computing Center of the University of Strasbourg for supporting this work by providing scientific support and access to computing resources. Part of the computing re-sources were funded by the Equipex Equip@Meso project (Programme Investissements d’Avenir) and the CPER Al-sacalcul/Big Data. 
+
+# References 
+
+[1] Jake K Aggarwal and Quin Cai. Human motion analysis: A review. Computer vision and image understanding , 73(3): 428–440, 1999. 1 [2] Jake K Aggarwal and Lu Xia. Human activity recognition from 3d data: A review. Pattern Recognition Letters , 48: 70–80, 2014. 1 [3] James Atwood and Don Towsley. Diffusion-convolutional neural networks. Advances in neural information processing systems , 29, 2016. 2 [4] Zhonghai Bai, Vaclav Snasel, Crina Grosan, Seyedali Mir-jalili, Bay Vo, Jeng-Shyang Pan, et al. Multiscale spd mani-fold learning for rehabilitation exercise evaluation. Scientific Reports , 2025. 2, 3, 6 [5] Davide Boscaini, Jonathan Masci, Simone Melzi, Michael M Bronstein, Umberto Castellani, and Pierre Vandergheynst. Learning class-specific descriptors for deformable shapes us-ing localized spectral convolutional networks. In Computer graphics forum , pages 13–23. Wiley Online Library, 2015. 2 [6] Davide Boscaini, Jonathan Masci, Emanuele Rodol` a, and Michael Bronstein. Learning shape correspondence with anisotropic convolutional neural networks. Advances in neu-ral information processing systems , 29, 2016. 2 [7] Michael M Bronstein, Joan Bruna, Yann LeCun, Arthur Szlam, and Pierre Vandergheynst. Geometric deep learning: going beyond euclidean data. IEEE Signal Processing Mag-azine , 34(4):18–42, 2017. 2 [8] XB Bruce, Yan Liu, and Keith CC Chan. Skeleton-based de-tection of abnormalities in human actions using graph convo-lutional networks. In 2020 Second International Conference on Transdisciplinary AI (TransAI) , pages 131–137. IEEE, 2020. 2, 6, 3 [9] XB Bruce, Yan Liu, Keith CC Chan, Qintai Yang, and Xi-aoying Wang. Skeleton-based human action evaluation us-ing graph convolutional network for monitoring alzheimer’s progression. Pattern Recognition , 119:108095, 2021. 2, 5, 1, 3 [10] XB Bruce, Yan Liu, Keith CC Chan, and Chang Wen Chen. Egcn++: A new fusion strategy for ensemble learning in skeleton-based rehabilitation exercise assessment. IEEE Transactions on Pattern Analysis and Machine Intelligence ,2024. 2, 3, 6, 1 [11] Wenming Cao, Zhiyue Yan, Zhiquan He, and Zhihai He. A comprehensive survey on geometric deep learning. IEEE Ac-cess , 8:35929–35949, 2020. 2 [12] Marianna Capecci, Maria Gabriella Ceravolo, Francesco Ferracuti, Sabrina Iarlori, Andrea Monteriu, Luca Romeo, and Federica Verdini. The kimore dataset: Kinematic assess-ment of movement and clinical scores for remote monitor-ing of physical rehabilitation. IEEE Transactions on Neural Systems and Rehabilitation Engineering , 27(7):1436–1448, 2019. 5 [13] Rudrasis Chakraborty, Jose Bouza, Jonathan H Manton, and Baba C Vemuri. Manifoldnet: A deep neural network for manifold-valued data with applications. IEEE Transactions on Pattern Analysis and Machine Intelligence , 44(2):799– 810, 2020. 2 [14] Chaoqi Chen, Yushuang Wu, Qiyuan Dai, Hong-Yu Zhou, Mutian Xu, Sibei Yang, Xiaoguang Han, and Yizhou Yu. A survey on graph neural networks and graph transformers in computer vision: A task-oriented perspective. IEEE Trans-actions on Pattern Analysis and Machine Intelligence , 2024. 2[15] Yuxin Chen, Ziqi Zhang, Chunfeng Yuan, Bing Li, Ying Deng, and Weiming Hu. Channel-wise topology refinement graph convolution for skeleton-based action recognition. In 
+
+Proceedings of the IEEE/CVF international conference on computer vision , pages 13359–13368, 2021. 2, 6 [16] Zhan Chen, Sicheng Li, Bing Yang, Qinghan Li, and Hong Liu. Multi-scale spatial temporal graph convolutional net-work for skeleton-based action recognition. In Proceed-ings of the AAAI conference on artificial intelligence , pages 1113–1122, 2021. 2, 6 
+
+9[17] Ke Cheng, Yifan Zhang, Congqi Cao, Lei Shi, Jian Cheng, and Hanqing Lu. Decoupling gcn with dropgraph module for skeleton-based action recognition. In European conference on computer vision , pages 536–553. Springer, 2020. 6 [18] Hyung-gun Chi, Myoung Hoon Ha, Seunggeun Chi, Sang Wan Lee, Qixing Huang, and Karthik Ramani. In-fogcn: Representation learning for human skeleton-based action recognition. In Proceedings of the IEEE/CVF con-ference on computer vision and pattern recognition , pages 20186–20196, 2022. 2, 6 [19] Samarjit Das, Laura Trutoiu, Akihiko Murai, Dunbar Alcin-dor, Michael Oh, Fernando De la Torre, and Jessica Hodgins. Quantitative measurement of motor symptoms in parkinson’s disease: A study with full-body motion capture data. In 2011 Annual International Conference of the IEEE Engineering in Medicine and Biology Society , pages 6789–6792. IEEE, 2011. 2 [20] Swakshar Deb, Md Fokhrul Islam, Shafin Rahman, and Se-juti Rahman. Graph convolutional networks for assessment of physical rehabilitation exercises. IEEE Transactions on Neural Systems and Rehabilitation Engineering , 30:410– 419, 2022. 2 [21] Micha¨ el Defferrard, Xavier Bresson, and Pierre Van-dergheynst. Convolutional neural networks on graphs with fast localized spectral filtering. Advances in neural informa-tion processing systems , 29, 2016. 2 [22] Jeonghyeok Do and Munchurl Kim. Skateformer: skeletal-temporal transformer for human action recognition. In Eu-ropean Conference on Computer Vision , pages 401–420. Springer, 2024. 2, 6 [23] Ian L Dryden and Kanti V Mardia. Statistical shape analysis: with applications in R . John Wiley & Sons, 2016. 3 [24] Chen Du, Sarah Graham, Colin Depp, and Truong Nguyen. Assessing physical rehabilitation exercises using graph con-volutional network with self-supervised regularization. In 
+
+2021 43rd Annual International Conference of the IEEE En-gineering in Medicine & Biology Society (EMBC) , pages 281–285. IEEE, 2021. 2 [25] Haodong Duan, Jiaqi Wang, Kai Chen, and Dahua Lin. Pyskl: Towards good practices for skeleton action recogni-tion. In Proceedings of the 30th ACM international confer-ence on multimedia , pages 7351–7354, 2022. 2, 6 [26] Amr Elkholy, Mohamed E Hussein, Walid Gomaa, Dima Damen, and Emmanuel Saba. Efficient and robust skeleton-based quality assessment and abnormality detection in hu-man action performance. IEEE journal of biomedical and health informatics , 24(1):280–291, 2019. 2 [27] Rasha Friji, Hassen Drira, and Faten Chaieb. Geometric deep learning on skeleton sequences for 2d/3d action recognition. In VISIGRAPP (5: VISAPP) , pages 196–204, 2020. 1, 2 [28] Rasha Friji, Hassen Drira, Faten Chaieb, Hamza Kchok, and Sebastian Kurtek. Geometric deep neural network using rigid and non-rigid transformations for human action recog-nition. In Proceedings of the IEEE/CVF international con-ference on computer vision , pages 12611–12620, 2021. 2, 5, 6, 8, 3 [29] Rasha Friji, Faten Chaieb, Hassen Drira, and Sebastian Kurtek. Geometric deep neural network using rigid and non-rigid transformations for landmark-based human behavior analysis. IEEE transactions on pattern analysis and machine intelligence , 45(11):13314–13327, 2023. 1, 2 [30] Zhimin Gao, Peitao Wang, Pei Lv, Xiaoheng Jiang, Qidong Liu, Pichao Wang, Mingliang Xu, and Wanqing Li. Focal and global spatial-temporal transformer for skeleton-based action recognition. In Proceedings of the Asian Conference on Computer Vision , pages 382–398, 2022. 2, 6 [31] Nicolas Guigui and Xavier Pennec. Numerical accuracy of ladder schemes for parallel transport on manifolds. Founda-tions of Computational Mathematics , 22(3):757–790, 2022. 3, 7 [32] Rana Hanocka, Amir Hertz, Noa Fish, Raja Giryes, Shachar Fleishman, and Daniel Cohen-Or. Meshcnn: a network with an edge. ACM Transactions on Graphics (ToG) , 38(4):1–12, 2019. 2 [33] Nadia Hosni and Boulbaba Ben Amor. A geometric convnet on 3d shape manifold for gait recognition. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition Workshops , pages 852–853, 2020. 1, 2 [34] Xiaohu Huang, Hao Zhou, Jian Wang, Haocheng Feng, Junyu Han, Errui Ding, Jingdong Wang, Xinggang Wang, Wenyu Liu, and Bin Feng. Graph contrastive learn-ing for skeleton-based action recognition. arXiv preprint arXiv:2301.10900 , 2023. 2, 6 [35] Zhiwu Huang and Luc Van Gool. A riemannian network for spd matrix learning. In Proceedings of the AAAI conference on artificial intelligence , 2017. 2, 6 [36] Zhiwu Huang, Chengde Wan, Thomas Probst, and Luc Van Gool. Deep learning on lie groups for skeleton-based ac-tion recognition. In Proceedings of the IEEE conference on computer vision and pattern recognition , pages 6099–6108, 2017. 2, 6 [37] Zhiwu Huang, Jiqing Wu, and Luc Van Gool. Building deep networks on grassmann manifolds. In Proceedings of the AAAI Conference on Artificial Intelligence , 2018. 2 [38] Geetanjali Vinayak Kale and Varsha Hemant Patil. A study of vision based human motion recognition and analysis. In-ternational Journal of Ambient Computing and Intelligence (IJACI) , 7(2):75–92, 2016. 1 [39] David G Kendall. Shape manifolds, procrustean metrics, and complex projective spaces. Bulletin of the London mathemat-ical society , 16(2):81–121, 1984. 3 [40] Jeong-Kyun Kim, Kang Bok Lee, Jae-Chul Kim, and Sang Gi Hong. Patient identification based on physical reha-bilitation movements using skeleton data. In 2021 Interna-tional Conference on Information and Communication Tech-nology Convergence (ICTC) , pages 1572–1574. IEEE, 2021. 2[41] Jungho Lee, Minhyeok Lee, Dogyoon Lee, and Sangyoun Lee. Hierarchically decomposed graph convolutional net-works for skeleton-based action recognition. In Proceedings of the IEEE/CVF international conference on computer vi-sion , pages 10444–10453, 2023. 2, 6 [42] Min Hun Lee, Daniel P Siewiorek, Asim Smailagic, Alexan-dre Bernardino, and Sergi Berm´ udez i Badia. Learning to assess the quality of stroke rehabilitation exercises. In Pro-
+
+10 ceedings of the 24th International Conference on Intelligent User Interfaces , pages 218–228, 2019. 2 [43] Ruoyu Li, Sheng Wang, Feiyun Zhu, and Junzhou Huang. Adaptive graph convolutional neural networks. In Proceed-ings of the AAAI conference on artificial intelligence , 2018. 2[44] Yalin Liao, Aleksandar Vakanski, and Min Xian. A deep learning framework for assessing physical rehabilitation ex-ercises. IEEE Transactions on Neural Systems and Rehabil-itation Engineering , 28(2):468–477, 2020. 2, 1 [45] Hongda Liu, Yunfan Liu, Min Ren, Hao Wang, Yunlong Wang, and Zhenan Sun. Revealing key details to see differ-ences: A novel prototypical perspective for skeleton-based action recognition. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 29248–29257, 2025. 2, 6 [46] Jun Liu, Amir Shahroudy, Mauricio Perez, Gang Wang, Ling-Yu Duan, and Alex C Kot. Ntu rgb+ d 120: A large-scale benchmark for 3d human activity understanding. IEEE transactions on pattern analysis and machine intelligence ,42(10):2684–2701, 2019. 5 [47] Ziyu Liu, Hongwen Zhang, Zhenghao Chen, Zhiyong Wang, and Wanli Ouyang. Disentangling and unifying graph convo-lutions for skeleton-based action recognition. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 143–152, 2020. 2, 6 [48] Yunyao Mao, Jiajun Deng, Wengang Zhou, Yao Fang, Wanli Ouyang, and Houqiang Li. Masked motion predictors are strong 3d action representation learners. In Proceedings of the IEEE/CVF International Conference on Computer Vi-sion , pages 10181–10191, 2023. 6 [49] Jonathan Masci, Davide Boscaini, Michael Bronstein, and Pierre Vandergheynst. Geodesic convolutional neural net-works on riemannian manifolds. In Proceedings of the IEEE international conference on computer vision work-shops , pages 37–45, 2015. 2 [50] Federico Monti, Davide Boscaini, Jonathan Masci, Emanuele Rodola, Jan Svoboda, and Michael M Bronstein. Geometric deep learning on graphs and manifolds using mixture model cnns. In Proceedings of the IEEE confer-ence on computer vision and pattern recognition , pages 5115–5124, 2017. 2 [51] Elham Mottaghi and Mohammad-R Akbarzadeh-T. Auto-matic evaluation of motor rehabilitation exercises based on deep mixture density neural networks. Journal of Biomedi-cal Informatics , 130:104077, 2022. 2 [52] Xuan Son Nguyen. Geomnet: A neural network based on rie-mannian geometries of spd matrix space and cholesky space for 3d skeleton-based interaction recognition. In Proceed-ings of the IEEE/CVF International Conference on Com-puter Vision , pages 13379–13389, 2021. 1, 2, 6 [53] Xuan Son Nguyen, Luc Brun, Olivier L´ ezoray, and S´ ebastien Bougleux. A neural network based on spd manifold learning for skeleton-based hand gesture recognition. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pat-tern Recognition , pages 12036–12045, 2019. 2 [54] Yunsheng Pang, Qiuhong Ke, Hossein Rahmani, James Bai-ley, and Jun Liu. Igformer: Interaction graph transformer for skeleton-based human interaction recognition. In European Conference on Computer Vision , pages 605–622. Springer, 2022. 2, 6 [55] Paritosh Parmar and Brendan Tran Morris. Measuring the quality of exercises. In 2016 38th Annual International Con-ference of the IEEE Engineering in Medicine and Biology Society (EMBC) , pages 2241–2244. IEEE, 2016. 2 [56] Chiara Plizzari, Marco Cannici, and Matteo Matteucci. Skeleton-based action recognition via spatial and temporal transformer networks. Computer Vision and Image Under-standing , 208:103219, 2021. 2 [57] Md Johir Raihan, Md Atiqur Rahman Ahad, and Abdullah-Al Nahid. Automated rehabilitation exercise assessment by genetic algorithm-optimized cnn. In 2021 Joint 10th Inter-national Conference on Informatics, Electronics & Vision (ICIEV) and 2021 5th International Conference on Imaging, Vision & Pattern Recognition (icIVPR) , pages 1–6. IEEE, 2021. 2 [58] Abhisek Ray, Ayush Raj, and Maheshkumar H Kolekar. Au-toregressive adaptive hypergraph transformer for skeleton-based activity recognition. In 2025 IEEE/CVF Winter Con-ference on Applications of Computer Vision (WACV) , pages 9690–9699. IEEE, 2025. 2, 6 [59] Amir Shahroudy, Jun Liu, Tian-Tsong Ng, and Gang Wang. Ntu rgb+ d: A large scale dataset for 3d human activity anal-ysis. In Proceedings of the IEEE conference on computer vision and pattern recognition , pages 1010–1019, 2016. 5 [60] Lei Shi, Yifan Zhang, Jian Cheng, and Hanqing Lu. Two-stream adaptive graph convolutional networks for skeleton-based action recognition. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition ,pages 12026–12035, 2019. 2, 6 [61] Karen Simonyan and Andrew Zisserman. Two-stream con-volutional networks for action recognition in videos. Ad-vances in neural information processing systems , 27, 2014. 1[62] Lili Tao, Adeline Paiement, Dima Damen, Majid Mirmehdi, Sion Hannuna, Massimo Camplani, Tilo Burghardt, and Ian Craddock. A comparative study of pose representation and dynamics modelling for online motion quality assessment. 
+
+Computer vision and image understanding , 148:136–152, 2016. 2 [63] Pavan Turaga, Rama Chellappa, Venkatramana S Subrahma-nian, and Octavian Udrea. Machine recognition of human activities: A survey. IEEE Transactions on Circuits and Sys-tems for Video technology , 18(11):1473–1488, 2008. 1 [64] Aleksandar Vakanski, Hyung-pil Jun, David Paul, and Rus-sell Baker. A data set of human body movements for physical rehabilitation exercises. Data , 3(1):2, 2018. 5 [65] Nitika Verma, Edmond Boyer, and Jakob Verbeek. Feastnet: Feature-steered graph convolutions for 3d shape analysis. In 
+
+Proceedings of the IEEE conference on computer vision and pattern recognition , pages 2598–2606, 2018. 2 [66] Pichao Wang, Wanqing Li, Philip Ogunbona, Jun Wan, and Sergio Escalera. Rgb-d-based human motion recognition with deep learning: A survey. Computer vision and image understanding , 171:118–139, 2018. 1 
+
+11 [67] Shengqin Wang, Yongji Zhang, Hong Qi, Minghao Zhao, and Yu Jiang. Dynamic spatial-temporal hypergraph con-volutional network for skeleton-based action recognition. In 2023 IEEE International Conference on Multimedia and Expo (ICME) , pages 2147–2152. IEEE, 2023. 6 [68] Christian Williams, Aleksandar Vakanski, Stephen Lee, and David Paul. Assessment of physical rehabilitation move-ments through dimensionality reduction and statistical mod-eling. Medical engineering & physics , 74:13–22, 2019. 2, 1[69] Wenhan Wu, Ce Zheng, Zihao Yang, Chen Chen, Srijan Das, and Aidong Lu. Frequency guidance matters: Skeletal ac-tion recognition by frequency-aware mixed transformer. In 
+
+Proceedings of the 32nd ACM International Conference on Multimedia , pages 4660–4669, 2024. 2, 6 [70] Wangmeng Xiang, Chao Li, Yuxuan Zhou, Biao Wang, and Lei Zhang. Generative action description prompts for skeleton-based action recognition. In Proceedings of the IEEE/CVF international conference on computer vision ,pages 10276–10285, 2023. 2, 6 [71] Yun-Peng Xiao, Yu-Kun Lai, Fang-Lue Zhang, Chunpeng Li, and Lin Gao. A survey on deep geometry learning: From a representation perspective. Computational Visual Media , 6 (2):113–133, 2020. 2 [72] Jianyang Xie, Yanda Meng, Yitian Zhao, Anh Nguyen, Xi-aoyun Yang, and Yalin Zheng. Dynamic semantic-based spa-tial graph convolution network for skeleton-based human ac-tion recognition. In Proceedings of the AAAI conference on artificial intelligence , pages 6225–6233, 2024. 2, 6 [73] Wentian Xin, Qiguang Miao, Yi Liu, Ruyi Liu, Chi-Man Pun, and Cheng Shi. Skeleton mixformer: Multivariate topology representation for skeleton-based action recogni-tion. In Proceedings of the 31st ACM International Con-ference on Multimedia , pages 2211–2220, 2023. 2 [74] Junchi Yan, Changsheng Li, Yin Li, and Guitao Cao. Adap-tive discrete hypergraph matching. IEEE transactions on cy-bernetics , 48(2):765–779, 2017. 2 [75] Sijie Yan, Yuanjun Xiong, and Dahua Lin. Spatial tempo-ral graph convolutional networks for skeleton-based action recognition. In Proceedings of the AAAI conference on arti-ficial intelligence , 2018. 2, 6 [76] Xinbo Yu, Yan Liu, Xiang Zhang, Gong Chen, and Keith CC Chan. Egcn: An ensemble-based learning framework for exploring effective skeleton-based rehabilitation exercise as-sessment. In IJCAI , pages 3681–3687, 2022. 2, 3, 5, 6, 1 [77] Mayssa Zaier, Hazem Wannous, and Hassen Drira. Geometry-aware deep learning for 3d skeleton-based motion prediction. In 2025 IEEE/CVF Winter Conference on Ap-plications of Computer Vision (WACV) , pages 4831–4840. IEEE, 2025. 1, 2 [78] Jing Zhang, Wanqing Li, Philip O Ogunbona, Pichao Wang, and Chang Tang. Rgb-d-based action recognition datasets: A survey. Pattern Recognition , 60:86–105, 2016. 1 [79] Yuhan Zhang, Bo Wu, Wen Li, Lixin Duan, and Chuang Gan. Stst: Spatial-temporal specialized transformer for skeleton-based action recognition. In Proceedings of the 29th ACM International Conference on Multimedia , pages 3229–3237, 2021. 2 [80] Zhengyou Zhang. Microsoft kinect sensor and its effect. 
+
+IEEE multimedia , 19(2):4–10, 2012. 1 [81] Yaolin Zheng, Hongbo Huang, Xiuying Wang, Xiaoxu Yan, and Longfei Xu. Spatio-temporal fusion for human action recognition via joint trajectory graph. In Proceedings of the AAAI conference on artificial intelligence , pages 7579–7587, 2024. 2, 6 [82] Huanyu Zhou, Qingjie Liu, and Yunhong Wang. Learn-ing discriminative representations for skeleton based action recognition. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 10608– 10617, 2023. 2, 6 [83] Yuxuan Zhou, Zhi-Qi Cheng, Chao Li, Yanwen Fang, Yifeng Geng, Xuansong Xie, and Margret Keuper. Hypergraph transformer for skeleton-based action recognition. arXiv preprint arXiv:2211.09590 , 2022. 6 [84] Youwei Zhou, Tianyang Xu, Cong Wu, Xiaojun Wu, and Josef Kittler. Adaptive hyper-graph convolution network for skeleton-based human action recognition with virtual con-nections. arXiv preprint arXiv:2411.14796 , 2024. 2, 6 [85] Yuxuan Zhou, Xudong Yan, Zhi-Qi Cheng, Yan Yan, Qi Dai, and Xian-Sheng Hua. Blockgcn: Redefine topology aware-ness for skeleton-based action recognition. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 2049–2058, 2024. 2, 6 [86] Fan Zhu, Ling Shao, Jin Xie, and Yi Fang. From handcrafted to learned representations for human action recognition: A survey. Image and Vision Computing , 55:42–52, 2016. 1 
+
+12 E2E-GNet: An End-to-End Skeleton-based Geometric Deep Neural Network for Human Motion Recognition 
+
+# Supplementary Material 
+
+# A. Inference Time of Proposed Method across Datasets 
+
+In order to support the reported FLOPS and Params of proposed E2E-GNet shown in the main text, we provide in Table 10 the full inference time (IT) per sample in each dataset. All reported FLOPS and IT include Max-pool1D, Conv1D, LSTM, fully connected layers, Geomet-ric Transformation layers (GTL), distortion minimization layer (DML), and pre-shape space operations. The results in Table 10 indicate a lower inference time which supports the claim that the proposed E2E-GNet is computationally efficient.        
+
+> NTU-60/120 EHE KIMORE UI-PRMD
+> IT (sec.) 0.004 0.003 0.0025 0.0025
+> Table 10. Complete inference time (IT) per sample in each dataset
+
+# B. Ablation Results of each DML Variant un-der each Geometric Transformation Set-ting 
+
+Table 11 and 12 present for all datasets, the performance of each distortion minimization layer (DML) variant un-der each geometric transformation setting. Recall from the main text that the best geometric transformation variant for action recognition datasets is Non-rigid-Unconstrained (NR-Utr), while for disease and rehabilitation datasets is Rigid-Constrained (R-Ctr). Accordingly, in the tables be-low, the most consistent DML variant under the best trans-formation setting for each domain is highlighted in bold. 
+
+# C. Detailed Cross Validation Folds Division 
+
+In Table 13 below, we provide for the three datasets (EHE, KIMORE and UI-PRMD) the number of available exercise sequences present in the testing set of each cross-validation fold. The same cross-validation split is used by all other compared methods in this work. 
+
+# D. Additional Evaluation Using Model’s Pre-dicted Probability Scores on EHE and UI-PRMD Datasets 
+
+Alongside classification accuracy, separation degree (SD), distance metrics (DM), cross correlation (CR), and Eu-clidean distance (ED) have been employed in previous works to assess a model’s prediction ability and to quantify the consistency between machine and human evaluation. 
+
+Model’s Prediction Capacity: Studies in [10, 44, 68, 76] examined a model’s representation capacity with SD and DM. SD and DM are used to quantify the difference be-tween correct and incorrect predicted evaluation scores. Similar to these studies, we compute SD and DM for the UI-PMRD dataset where expert evaluation scores are not available. Given a pair of positive numbers x and y, SD is computed as SD (x, y ) = x−yx+y ∈ [−1, 1] . For two positive sequences x = ( x1, ..., x y ) and y = ( y1, ..., y z ), SD and DM are calculated as: 
+
+SD (x, y ) = 1
+
+yz 
+
+> y
+
+X
+
+> i=1
+> z
+
+X
+
+> j=1
+
+SD (xi, y j ) (5) 
+
+DM (xn, y n) = |xn − yn|
+
+r 1
+
+y
+
+Pyi=1 (xn − yn)2
+
+(6) 
+
+Consistency between Human and Model’s Evaluation: 
+
+CR and ED have been employed in [9, 10] to study the con-sistency between expert and model’s evaluation scores. CR and ED quantify the differences between model’s predicted numerical scores and expert’s clinical scores. Lower ED and higher CR tell that a model’s evaluation score is more consistent with human’s and vice versa. Given two vectors 
+
+x = ( x1, x 2, ..., x j ) and y = ( y1, y 2, ..., y j ), the CR and ED between them are computed as: 
+
+CR(x, y ) = 
+
+Pji=1 (x − ¯x)( y − ¯y)
+
+qPji=1 (x − ¯x)2 Pji=1 (y − ¯y)2
+
+(7) 
+
+ED (x, y ) = 
+
+rXji=1 (xi − yi)2 (8) For these calculations, we took the probability scores be-fore the final classification layer as similarly done in all compared methods. These scores can serve as model’s nu-merical evaluation scores and we evaluate their consistency with human’s evaluation scores on the EHE dataset where expert’s screening scores are available. The EHE dataset [9] provides clinical scores ranging from 0 to 10 indicat-ing varying severity of Alzheimer’s disease. However, for the UI-PRMD dataset where no clinical scores are present, we evaluate the model’s confidence in separating between the correct and incorrect predictions. The results of these evaluations are given in Table 14. 1DML Variants NTU-60 X-Sub NTU-60 X-View NTU-120 X-Sub NTU-120 X-Set R-Ctr R-Utr NR-Ctr NR-Utr R-Ctr R-Utr NR-Ctr NR-Utr R-Ctr R-Utr NR-Ctr NR-Utr R-Ctr R-Utr NR-Ctr NR-Utr 
+
+GH 96.2 96.5 96.4 97.0 98.4 98.7 98.3 98.5 93.9 94.6 95.0 95.0 91.1 91.9 92.3 92.7 GIN 97.0 97.0 97.0 97.1 98.5 98.8 98.4 98.6 95.0 95.4 95.1 95.2 92.0 92.9 93.0 93.3 
+
+LH 96.5 96.6 96.6 96.8 98.5 98.6 98.3 98.6 95.1 94.9 95.0 95.2 91.3 92.0 93.0 93.1 LIN 96.1 96.5 96.1 96.6 98.2 98.5 98.7 98.6 94.5 95.1 94.9 95.2 92.2 92.1 92.3 92.5 
+
+Table 11. Performance (% accuracy) of each DML variant under each geometric transformation setting for action recognition datasets. G, L, H and IN are global, local, homogeneous and inhomogeneous respectively. R-Ctr, R-Utr, NR-Ctr and NR-Utr denote rigid-constrained, rigid-unconstrained, non-rigid-constrained and non-rigid-unconstrained respectively. 
+
+DML Variants EHE KIMORE UI-PRMD R-Ctr R-Utr NR-Ctr NR-Utr R-Ctr R-Utr NR-Ctr NR-Utr R-Ctr R-Utr NR-Ctr NR-Utr 
+
+GH 87.14 86.74 86.62 87.00 85.93 85.19 84.81 85.31 95.19 92.60 92.93 93.95 GIN 86.51 86.27 85.24 85.77 84.78 84.49 83.78 84.81 93.95 91.47 91.38 95.47 LH 85.85 86.62 85.55 86.63 85.23 85.09 84.88 85.84 93.89 92.64 92.63 95.61 LIN 86.18 85.46 85.90 85.86 85.96 83.75 83.67 83.16 94.85 92.54 93.39 95.76 
+
+Table 12. Performance (% accuracy) of each DML variant under each geometric transformation setting for disease and rehabilitation datasets. G, L, H and IN are global, local, homogeneous and inhomogeneous respectively. R-Ctr, R-Utr, NR-Ctr and NR-Utr denote rigid-constrained, rigid-unconstrained, non-rigid-constrained and non-rigid-unconstrained respectively. 
+
+Folds EHE KIMORE UI-PRMD E1 E2 E3 E4 E5 E6 Es1 Es2 (L) Es2 (R) Es3 (L) Es3 (R) Es4 (L) Es4 (R) Es5 E1 E2 E3 E4 E5 E6 E7 E8 E9 E10 F1 33 27 27 30 14 14 58 53 54 54 51 47 56 58 38 30 30 18 36 20 18 16 20 36 
+
+F2 34 27 35 26 12 12 55 47 44 48 48 38 61 51 38 34 18 36 34 38 18 28 18 18 
+
+F3 41 30 42 35 16 16 49 34 34 38 39 49 34 53 34 14 18 18 36 18 18 16 18 18 
+
+F4 45 30 52 52 16 15 43 31 34 37 38 33 43 48 36 14 18 36 34 32 36 30 36 18 
+
+F5 45 30 40 43 16 14 50 31 35 33 33 56 26 45 34 18 18 32 28 38 36 36 28 18 
+
+Table 13. Exercise Repetitions in the test set of each fold for EHE, KIMORE and UI-PRMD datasets. E and Es represent Exercise while R and L are right and left respectively. 
+
+# E. Classification Results Per Exercise on EHE, KIMORE and UI-PRMD Datasets 
+
+Table 15, 16, and 17 provides respectively the classification accuracy (per exercise) of our proposed E2E-GNet for EHE, KIMORE and UI-PRMD Datasets. 2Methods EHE UI-PRMD Sigmoid Softmax Sigmoid Softmax 
+
+ED ⇓ CR ⇑ ED ⇓ CR ⇑ SD ⇑ DM ⇑ SD ⇑ DM ⇑
+
+GCN [8], [9] 1.7357 0.3458 1.5382 0.4878 0.3035 0.7736 0.4336 0.7830 
+
+KShapeNet [28] 1.7697 0.6732 1.7856 0.6625 0.5772 0.9284 0.4626 0.8895 
+
+EGCN [76] 1.5893 0.5111 1.5077 0.5531 0.4142 0.8280 0.5307 0.8494 
+
+EGCN++ [10] 1.5456 0.6254 1.4444 0.6713 0.5419 0.8702 0.6485 0.8916 
+
+E2E-GNet 1.6312 0.7251 1.5952 0.7384 0.7447 0.9587 0.7285 0.9424 
+
+Table 14. ED, CR, SD, and DM results for EHE and UI-PRMD datasets, with comparison to other state-of-the-art methods. Best results are in bold, second best underlined. 
+
+Dataset Exercise ID Average E1 E2 E3 E4 E5 E6 EHE 89.51 88.52 88.63 83.60 90.36 82.24 87.14 
+
+Table 15. Performance results (% accuracy per exercise) of the proposed E2E-GNet for the EHE Dataset. 
+
+Dataset Exercise ID Average Es1 Es2(L) Es2(R) Es3(L) Es3(R) Es4(L) Es4(R) Es5 KIMORE 86.97 81.61 88.06 87.38 90.33 84.79 84.11 84.21 85.93 
+
+Table 16. Performance results (% accuracy per exercise) of the proposed E2E-GNet for the KIMORE Dataset. 
+
+Dataset Exercise ID Average E1 E2 E3 E4 E5 E6 E7 E8 E9 E10 UI-PRMD 93.94 95.88 94.56 100 100 100 93.33 93.18 90.56 90.40 95.19 
+
+Table 17. Performance results (% accuracy per exercise) of the proposed E2E-GNet for the UI-PRMD Dataset. 
+
+3

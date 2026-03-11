@@ -1,0 +1,331 @@
+Title: PCFEx: Point Cloud Feature Extraction for Graph Neural Networks
+
+URL Source: https://arxiv.org/pdf/2603.08540v1
+
+Published Time: Tue, 10 Mar 2026 02:42:47 GMT
+
+Number of Pages: 9
+
+Markdown Content:
+> 1
+
+# PCFEx: Point Cloud Feature Extraction for Graph Neural Networks 
+
+Abdullah Al Masud 1, Shi Xintong 2, Mondher Bouazizi 3, Ohtsuki Tomoaki 4
+
+Abstract —Graph Neural Networks (GNN) have gained signifi-cant attention for their effectiveness across various domains. This study focuses on applying GNN to process 3D point cloud data for Human Pose Estimation (HPE) and Human Activity Recog-nition (HAR). We propose novel point cloud feature extraction techniques to capture meaningful information at the point, edge, and graph levels of the point cloud by considering point cloud as a graph. Moreover, we introduce a GNN architecture designed to efficiently process these features. Our approach is evaluated on four most popular publicly available millimeter-wave radar datasets—three for HPE and one for HAR. The results show substantial improvements, with significantly reduced errors in all three HPE benchmarks, and an overall accuracy of 98.8% in mmWave-based HAR, outperforming existing state-of-the-art models. This work demonstrates the great potential of feature extraction incorporated with GNN modeling approach to enhance the precision of point cloud processing. 
+
+Index Terms —Graph neural network, point cloud feature extraction, node feature extraction, frame feature extraction, graph attention, mmWave radar, human pose estimation, human activity recognition 
+
+I. I NTRODUCTION 
+
+Human Pose Estimation (HPE) and Human Activity Recog-nition (HAR) have achieved remarkable success through deep learning techniques. Two-dimensional (2D) human pose esti-mation (HPE) from RGB images is a well-studied topic, with notable works such as [1], [2], [3], [4]. In 3D HPE, notable progress includes end-to-end models [5], [6], [7], [8] and two-stage ”lifting” approaches [9], [10], [11]. However, these RGB-based methods are sensitive to lighting, body orientation, shadows, etc., which degrades performance in HPE and human activity recognition (HAR) and raises privacy concerns in monitoring applications. By contrast, mmWave radar provides reliable 3D data and is robust to visual conditions, leading to better accuracy in HPE, as shown in [11]. It also consumes significantly less power and better preserves privacy. Motivated by these factors, we adopted mmWave radar for our study. Early works in radar-based HPE such as [12] employed CNN-based region proposal networks where [13] employed a forked-CNN to stack radar point clouds, [14], Fast-Scalable [15], and mRI [16], used similar CNN-based techniques to pre-dict human pose keypoints. In contrast, [17] used transformer   
+
+> 1, 2 Graduate School of Science and Technology, Keio University, Kanagawa, 223-8522, Japan
+> 3, 4 Faculty of Science and Technology, Keio University Kanagawa, 223-8522, Japan
+> Email: 1abdullahalmasud.keio@gmail.com, 2shixintong@ohtsuki.ics.keio.ac.jp,
+> 3bouazizi@ohtsuki.ics.keio.ac.jp,
+> 4ohtsuki@keio.jp. Manuscript submitted on June, 2025
+
+model for HPE, [18] applied a point-transformer model as well, [19] used transformer to predict HAR. [20] was the first to combine voxelized radar point clouds with Long Short-Term Memory (LSTM) networks for activity recognition. Further works like [21], introduced GNN for HAR, while [22] used ST-GCN for sequential pose keypoint input to predict HAR. However, current approaches still face limitations. Notably, the internal structure of the point cloud is often ignored, requiring models to implicitly learn it resulting in susceptibil-ity towards noisy points leading to poor model convergence. Additionally, in methods like [13] and [14], the stacked image array representation of radar data assumes adjacent points are spatially close, distorting the relationships between points in the radar point cloud. The damage in spatial coherency affects the efficacy of the underlying CNN-kernels resulting in poor keypoints prediction To address these challenges, we propose a GNN-based approach using Graph Attention (GAT) [23] to effectively combine node and edge features. We introduce Statbox for node and frame feature extraction, shared Multi-Layer Percep-trons (MLP) for node feature processing, and by proposing frame feature processing block. We validate our method on four most popular mmWave point cloud datasets— MMFi, mRI, MARS, and MMActivity to provide strong empirical support for our hypothesis in both HPE and HAR. Going forward, we discuss the research background in section II, explain modeling approach in section III, describe implementation details in section IV, discuss the results, in-sights, improvements in section V and VI and finally wrap up our discussion in section VII and VIII. II. R ELATED WORK 
+
+Recent works on HPE and HAR with mmWave radar vary widely in how they handle spatial structure, temporal dynamics, and data representations such as point clouds or radar heatmaps. These differences are directly reflected in the underlying model architecture. Consequently, to better present the prior works, we categorize existing methods below by their core neural architectures 
+
+1) Convolutional neural networks (CNN): Recent advance-ments in HPE and HAR using mmWave radar largely rely on Convolutional Neural Networks (CNNs) to extract spatial and temporal features. [12] introduced voxelized 4D tensors (3D space + time) and applied 4D convolutions to predict 14 body keypoints. [13] projected 3D radar point clouds onto 2D planes (XY, YZ) and used a forked-CNN, while [14] stacked point clouds into image-like tensors for CNN-based pose estimation. 
+
+> arXiv:2603.08540v1 [cs.CV] 9 Mar 2026 2
+
+[15] and [16] enhanced frame density through point cloud fusion. Temporal dynamics were modeled in [24] and [25] via CNN-LSTM combinations over range-Doppler maps. [26] used CNNs and transformers [27] on raw radar signals for 3D pose estimation. [28] localized human regions with CNN before keypoint prediction; [29] combined 3D convolutions and self-attention for 2D pose estimation. In HAR, [20], [30] employed CNN-LSTM models, and [31] integrated 3D CNNs with self-attention. However, methods like [13], [14], [16], [15] rely on image-like tensor representations, distorting spatial relationships among radar points and limiting CNN effectiveness due to their dependence on spatial locality. It also makes them vulnerable to signal noises. Others—[24], [26], [28], [29]—use radar heatmaps that often exclude dimensions like elevation, Doppler velocity, and intensity. In contrast, our method processes raw 3D point clouds directly as graphs, preserving spatial structure. By leveraging GAT, we employ a more robust architecture against signal noises, we extract rich node, edge, and frame-level features, enabling more tailored towards accurate and structurally aware HPE and HAR. 
+
+2) Multi layer perceptrons (MLP): Some researchers have used shared MLP networks for processing 3D point cloud data. [32] employed MLP to process raw point clouds and incor-porated LSTM [33] for handling sequential frames. Similarly, [34] utilized MLP akin to PointNet [35] and added LSTM for sequence modeling. A comparable approach was adopted in [36], where spatial and temporal constraints were added to PointNet and LSTM for sequential HPE. [37] followed a similar approach, combining PointNet with spatial attention, LSTM, and temporal attention for predicting sequential HPE. However, these MLP-based models treat each point indepen-dently, failing to capture the local spatial relationships that are crucial in point cloud data with strong geometric correlation. While our method also leverages shared-MLPs for initial node and edge feature extraction, it integrates them with GAT to effectively model inter-point relationships, enabling a more expressive and tailored feature representation. 
+
+3) Transformers: The transformer architecture [27] has gained popularity due to its ability to extract features through self-attention and cross-attention. Researchers have applied transformers for radar-based pose estimation. [17] used a transformer encoder to process radar features extracted by PointNet++ [38] and image features processed by 2D CNNs to predict 3D human mesh. [19] employed a transformer encoder to process VRDAE (velocity, range, Doppler, azimuth, eleva-tion) 3D tensors to predict 2D poses, and refined predictions with a GNN. [18] applied the Point-Transformer [39] for 3D pose estimation from radar Because of radar heatmaps, these approaches still lack complete information such as Doppler velocity, signal intensity, SNR etc. In [19], VRDAE maps were used to capture more information, but this increases computational complexity. To reduce complexity, we introduce grid-based node sampling for dense point clouds, nearest neighbor based edge sampling, along with edge and frame feature extraction to capture the internal state of the point cloud. 
+
+4) Graph neural networks (GNN): Graph Neural Networks (GNN) have also been used for point cloud data processing 
+
+Fig. 1: (a) point cloud graph formation of frame i; (b) data-processing pipeline. in HPE and HAR. [22] used ST-GCN [40] for sequential radar point clouds processing in HAR. [21] applied GNN for HAR, representing the point cloud as a graph, similar to our approach. However, these approaches lack in modeling the relationship inside point-cloud leading to susceptibility towards noisy points resulting in suboptimal accuracy. Our model counters it by introducing Statbox for node, edge and frame features, we employ GAT for more intuitive accumu-lation of nodes and edge features which also makes it robust against signal noises. We propose PCFEx (Point Cloud Feature Extraction) as a complete architecture to process all available data of a point cloud in an efficient way using GNN. This work is an extension of our previous work [41]. The notable contributions in this study over the previous one are as follows: 1) Existing radar point feature dimensions typically range from 3 ( x, y, z for object-based clouds in [42]) to 5 
+
+(x, y, z, Doppler velocity, signal intensity) . We are the first to introduce node feature processing and Statbox 
+
+shown in Fig. 3. Together they increase the point feature dimension from 5D to 19D with scope to extend further. 2) We propose frame-level feature extraction using 
+
+Statbox . Node, edge, and frame features together, create enriched feature representation for the point cloud. 3) We propose a frame-feature processing branch to accom-modate frame-level features in the GNN model. 4) We take the motivation from [35] to process node and edge features with shared-MLP, we use edge feature extraction and graph attention the same way like [41]. We incorporate these two approaches into our feature extraction processes and modeling techniques. 5) We introduce node downsampling to reduce computa-tional complexity in case the point cloud is dense. 6) We use four publicly available mmWave radar bench-mark datasets for more reliable empirical validation. III. P ROPOSED METHOD 
+
+A. Definition 
+
+Let a radar frame i contain ni data points. We con-struct a directed graph Gi(V, E ) for frame i, where 
+
+V = {p1, p 2, · · · , p ni } is the set of nodes and E =
+
+{e(1 ,2) , e (2 ,1) , · · · , e (ni,n i−1) } is the set of directed edges. Connection from p1 to p2 is denoted by e(1 ,2) when p13
+
+Fig. 2: Node feature map (right) of a 3D point cloud (left). Points 7, 12, 27, 32 show large centroid distances; point 36 may be an outlier due to high neighbor distance, standard deviation. 
+
+Fig. 3: Node feature extraction. is the target node and p2 is a neighboring node of p1.The terms “node” and “point” are interchangeably used to indicate a single radar data point. A target point pj is connected to K nearest points N (pj ) based on Euclidean distance such as N (pj ) = {p3, p 7, p 8, · · · , p ni−5}. Therefore, 
+
+e(pj ,p 3), e (pj ,p 7), · · · , e (pj ,p ni−5) will be included in E.
+
+B. Data Processing 1) Frame Fusion: We adopt this approach from [15] to merge F consecutive frames point clouds to increase the point cloud density. According to this, we take the point clouds from 
+
+(i − F + 1) to i, merge all points and place them in frame i.
+
+2) Node Downsampling: We use constant cell size along 
+
+x, y, z axes, divide the point cloud into necessary number of grid cells to cover the whole point cloud, then randomly select maximum Q points from each of the cells containing data points. Cell size may vary along x, y, z axes. 
+
+3) Node Feature Extraction: In all four datasets MARS[14], mRI[16], MMFi[18], MMActivity[20], each point pj contains 5 attributes which are x, y, z coordinates in 
+
+Fig. 4: Frame feature extraction. 3D, Doppler velocity ( v), intensity ( I). We extract additional node features from the x, y, z, v, I just as shown in Fig. 3. Even though the features are generated from original data, they provide additional information such as the relative position of a point against the neighbors, against the whole point-cloud, distance & direction from cloud center etc. relatable features regarding point-clouds aiding the model to learn the target task. Their contributions towards the target tasks are well discussed in subsection VI(A). We use Statbox to extract statistical features which consists of 10 statistical operators (mean, standard deviation, median, skewness, kurtosis, geometric-mean, quantile at 25% and 75%, percentile at 25% and 75%). We calculate distance and directions from each point to the centroid of the point cloud. Combining all these features with the original x, y, z, v, I ,we get node feature fpj for point pj with 19 dimensions. In Fig. 3 we show the feature extraction for K = 8 for cleaner matrix presentation. However, in all of our experiments, we use K = 20 based on the empirical insights from [41]. 
+
+4) Edge Feature Extraction: For edge feature extraction, we select K nodes around a target node using nearest neighbor 4
+
+Fig. 5: Proposed graph neural network. This architecture calculates the frame representation feature vector. approach. We adopt the edge feature extraction from [41] to get 6 features for each selected edge which are: the Euclidean distance || p1 − p2|| ; the angles from p1 to p2, respectively along x, y, z axes calculated by (p2 − p1)/|| p2 − p1|| , If the denominator is 0 the angle is considered as 0; the relative velocity vp2 − vp1 ; the relative intensity Ip2 − Ip1 . Here || .|| 
+
+indicates L2 norm. This 6 dimensional edge feature vector from p1 towards p2 is denoted as ge(1 ,2) .
+
+5) Frame Feature Extraction: Node and edge features com-putation brings specific information regarding every individual points. However, they do not provide overall information regarding the whole point-cloud which motivated us to design a parallel branch which includes frame feature extraction and processing blocks. They often perform as a residual block by providing a shortcut path for primitive features as described more in subsection VI(A). We extract frame features as shown in Fig. 4. Using Statbox , we compute statistics along the columns (number of samples) of the input point cloud matrix, which also gives us the centroid (Mean from Statbox ). We then calculate the squared distance between all points of point cloud and the centroid, apply Statbox again to extract features along columns. After flattening and concatenating both feature vectors, we obtain the frame feature vector denoted by fi.For simplicity, we present node feature dimensions as 5 in Fig. 4, but in practice, we calculate frame features after node feature extraction (19 dimensional vector), resulting in a 380-dimensional frame feature vector. To optimize the computation overhead, we calculate the distance matrix from the squared-distances shown in Fig. 4 and used it in node feature extraction and edge feature extraction as well as to define the edge-matrix for the graph. At this point, we have node features, edge features, and frame features. We now define the graph, assign pose or activity label accordingly for HPE and HAR and store the graph for model training and validation. 
+
+C. GNN Model Architecture 
+
+The whole model consists of two parts. Frame representa-tion feature vector generation shown in Fig. 5 and prediction head shown in Fig. 6. The frame representation block com-putes a single feature vector that represents the entire frame, it is then fed into the prediction heads for final prediction. 
+
+1) Edge Feature Processing Block ( hedge ): The edge fea-ture processing block hedge consists of shared Fully Connected Network (FCN) layers, each FCN layer is followed by a ReLU [43] activation, except for the first layer. The processed edge features between a target point pj and all its neighbors N (pj )
+
+are computed like below-
+
+Xpjedge = hedge (ge(pj ,p k ) ), p k ∈ N (pj ), j ∈ 1, 2, ..., n i. (1) It works as a shared-MLP block on all edge features in E.
+
+2) Node Feature Processing Block ( hnode ): Node feature processing block also consists of FCN layers each followed by ReLU activation. This block also acts as a shared-MLP block on all node features in V . Processed node features Xpjnode 
+
+are calculated as follows: 
+
+Xpjnode = hnode (fpj ), j ∈ 1, 2, ..., n i. (2) 
+
+3) Graph Attention Block: We combine processed node features Xpjnode with the processed edge features Xpjedge in GAT [23] computation. GAT calculates attention weights for each neighbor to decide how much importance is given to which neighbor by Eqn. 4. It processes the target node with the neighboring nodes via a series of linear transformations. 
+
+Cj,k = [Θ( Xpjnode ), Θ( Xpknode ), Θe(Xpjedge [k])] . (3) 
+
+αj,k = exp( a(W T (Cj,k ))) 
+
+P    
+
+> pk∈N(pj)
+
+exp( a(W T (Cj,k ))) . (4) Finally node feature Xpjnode is updated using Eqn. 5 
+
+Xpjnode = αj,j ∗ Θ( fpj ) + X   
+
+> pk∈N(pj)
+
+αj,k ∗ Θ( fpk ). (5) 5
+
+Fig. 6: Prediction heads. Here W , Θ, and Θe are learnable weights (actually FCN layer), a is the Leaky ReLU [44] activation function, and [, ]
+
+is concatenation operator. From Eqn. 5 we get the processed node features for the target node pj . The process is repeated for all the nodes in V . We use a dropout [45] layer with the ratio of 0.5 inside the GAT layer. We use multiple consecutive GAT layers to process node features each one followed by a ReLU activation function except the last layer. 
+
+4) Feature Aggregation: At this point, we have multiple node level processed features. We have to aggregate them to find a graph level representation vector using an aggregation function. We tried a few options and found that average pooling works the best for the aggregation using Eqn. 6 
+
+mi = 1
+
+niniX
+
+j=1 
+
+Xpjnode . (6) While processing data in a mini-batch of frames, we also need information about which points belong to which frame to calculate this aggregation, shown in Fig. 5. 
+
+5) Frame Feature Processing Block ( hf rame ): Frame fea-ture processing block also consists of FCN layers each fol-lowed by ReLU activation, but it does not act like a shared-MLP because there is only one frame feature vector. The processed frame features Xf rame are calculated as follows: 
+
+Xif rame = hf rame (fi). (7) 
+
+6) Frame Feature Representation Vector: Finally, we con-catenate the aggregated feature vector Xif rame with mi to form the frame feature representation vector Xi which rep-resents the entire point cloud for frame i.
+
+7) Prediction Head: We have two types of prediction head shown in Fig. 6. For sequential modeling, we use Sequential prediction head. It takes L consecutive frames’ representative feature vectors {X(i−L+1) , X (i+1 −L+1) , ..., X i}, passes them through a bidirectional LSTM [33] block, takes the last time-step’s output, processes through prediction block hpred ,and generates the final prediction. For frame-wise modeling, we do not need LSTM. Hence, we directly pass the frame representative feature vector Xi through hpred to generate final prediction. Prediction block hpred consists of FCN layers, each followed by a ReLU activation except the last layer. The final prediction from either frame-wise or sequential prediction head is denoted as Xipose for frame i.IV. E XPERIMENTAL SETUP 
+
+A. Datasets 
+
+In this work we focus on efficient algorithm development to process point cloud data. Therefore, we test our approach on four publicly available mmWave datasets- MARS [14], mRI [16], MMFi [18] for HPE, and MMActivity [20] for HAR. We describe several aspects such as metrics, loss function, hyper-parameters etc. in TABLE I for these datasets. We choose to use frame-wise HPE prediction for MARS, mRI, and MMFi datasets to keep consistency in the result comparison, as the original papers of these datasets used frame-wise HPE with frame fusion. For MMActivity dataset, we use sequential modeling similar to [20] and other approaches for HAR. Note that, for experiments on these datasets, we do not use node downsampling as the point clouds are not very dense. Yet, for scalability comparison, we discuss the trade-off between performance and time-resource complexity using node downsampling in the Ablation Study section. In the same section, we discuss the generalization of our approach on 3D object point cloud data using the ShapeNet dataset [42]. We use the node downsampling method on ShapeNet as the point clouds in ShapeNet are quite dense. 
+
+B. Loss Function 
+
+For the mRI and MMFi datasets, we train our model using Mean Per Joint Position Error (MPJPE) loss function after adjusting the skeleton position by mid-hip point using Eqn. 9 .
+
+Xiadj j = Xipose j − Xipose mid −hip + XiGT mid −hip . (8) 
+
+LM P JP E = 1
+
+B
+
+BX
+
+i=1 
+
+1
+
+M
+
+MX
+
+j=1 
+
+|| Xiadj j − XiGT j || . (9) Here, B is the batch-size for training, M is the number of keypoints in the skeleton, Xipose and XiGT indicate predicted pose and ground truth pose keypoints for frame i respectively. 
+
+Xipose j is the jth predicted keypoint for frame i, Xadj denotes adjusted predicted keypoints, Xipose mid −hip is the mid-hip keypoint for frame i.For the MARS dataset [14], we use Mean Squared Error (MSE) loss for HPE. For the MMActivity[20] dataset, we use cross-entropy loss for HAR. 
+
+C. Hyper-parameters and Hardware Setup 
+
+We show most of the model hyper-parameters in TABLE I. We conducted the whole experiment in Python [46]. For deep learning model development, we used Pytorch [47], for graph attention layer and model batch formation, we used Pytorch-Geometric [48]. We conducted this experiment on a system with Intel i7-12700K 64-bit processor, 32 GB RAM, TABLE I: Experimental Setup Details                                                                            
+
+> Aspects MARS
+> frame-wise
+> mRI
+> frame-wise
+> MMFi
+> frame-wise
+> MMActivity
+> sequential Loss function MSE MPJPE MPJPE Cross-entropy Evaluation metrics RMSE, MAE MPJPE, PA-MPJPE MPJPE, PA-MPJPE accuracy Fusion frame F= 15 F= 15 F= 15 F= 1
+> node downsampling No No No No edge sampling by kNN K= 20 K= 20 K= 20 K= 20
+> Input feature dimension (node, edge, frame) (19, 6, 380) (19, 6, 380) (19, 6, 380) (19, 6, 380) Edge Processing Block FCN (layers, units) (4, 64) (4, 64) (4, 64) (5, 64) Node Processing Block FCN (layers, units) (4, 128) (4, 128) (4, 128) (5, 128) Frame Processing Block FCN (layers, units) (4, 128) (4, 128) (4, 128) (5, 128) Graph Attention Block (layers, units, dropout) (4, 128, 0.5) (4, 128, 0.5) (4, 128, 0.5) (5, 128, 0.5) LSTM block (layers, units, dropout) ---(1, 64, 0.5) Prediction Block FCN (layers, units) (5, 128) (5, 128) (5, 128) (5, 128) Final output dimension 57(19 ×3) 51(17 ×3) 51(17 ×3) 5Learning rate 0.001 0.001 0.00075 0.0001 LR reduction factor 0.995 0.975 0.99 0.99 6
+
+an Nvidia RTX-3090-ti GPU. We set a large number of epochs for training, store the best performing model on validation set after each epoch and halt the training if no further convergence is observed for several epochs. After finishing the training, we use the best model to infer on validation/test dataset for result collection. V. R ESULT ANALYSIS 
+
+We discuss results on four datasets: MARS [14], mRI [16], MMFi [18] for HPE, and MMActivity [20] for HAR. For HPE evaluation, we use metrics such as MPJPE, PA-MPJPE [49], RMSE, and MAE, where lower scores are better. In this study, we emphasize on frame-wise modeling over sequential approach as more existing works are available in frame-wise approach to compare. For MPJPE calculation, we follow Eqn. 9, as both [18] and [16] mentioned of using MPJPE of the adjusted skeleton by Thorax (mid-hip). We contacted the authors of [18] and [16] for confirmation of this adjustment, we received no response. However, the shared code from [18] suggests the MPJPE is calculated without skeleton adjustment, which may impact direct comparison on MPJPE. Nevertheless, PA-MPJPE remains unaffected by this adjustment, making it a more reliable metric for HPE. For HAR evaluation, we use accuracy, where higher scores are better. We conducted extensive trainings across all dataset splits repeatedly, consis-tently observing stable results to validate the reproducibility and reliability. Finally, we recorded the results for those five datasets for each split set and reported here 
+
+A. MARS [14] for HPE 
+
+Originally, the MARS dataset was split into 60% for train-ing, 20% for validation, and 20% for testing. We follow the same splits, use RMSE, MAE metrics for frame-wise and MPJPE, PA-MPJPE for sequential approach, ensuring a fair comparison. In this work, our focus is more on frame-wise prediction where we achieve significantly lower RMSE and MAE errors than SOTA methods. The results on the test dataset are shown in TABLE II in centimeters (cm). To compare with [36] and [25], we incorporate an LSTM block to develop a sequential HPE model, as shown in Fig. 6. To prevent overfitting, we reduce the model’s architecture, using 64 units and 3 layers for all blocks (node-processing, GAT, LSTM, prediction-block), except the LSTM block, which has 1 layer. We use frame fusion with F = 3 and 16 frames window for sequential input to LSTM same as [36]. Altogether, we see great reduction in MAE and RMSE over the previous models outperforming most of them in most metrics for both frame-wise and sequential modeling. TABLE II: Result Comparison on MARS Dataset for HPE                                
+
+> approach Model Average MAE
+> (cm)
+> Average RMSE
+> (cm)
+> MPJPE
+> (cm)
+> PA-MPJPE
+> (cm) Frame-wise MARS [14] 5.87 8.10 --Fast-Scalable [15] 3.6 ---mmGAT [41] 3.42 5.653 --PCFEx (ours) 2.454 4.330 --Sequential Multi-Frame [25] 1.91 3.09 --Spatial-Temporal [36] --3.05 1.97
+> PCFEx-seq (ours) 1.48 2.49 3.02 2.44
+
+TABLE III: Result Comparison on mRI Dataset for HPE                             
+
+> Split mode mRI [16] mmGAT [41] PCFEx (ours) MPJPE
+> (mm)
+> PA-MPJPE
+> (mm)
+> MPJPE
+> (mm)
+> PA-MPJPE
+> (mm)
+> MPJPE
+> (mm)
+> PA-MPJPE
+> (mm) S1P1 163.3 94.1 81 69 52.7 48.66
+> S1P2 125.1 74.1 68 47 38.26 31.04
+> S2P1 186.6 97.3 122 96 99.83 78.71
+> S2P2 126.6 75 107 74 83.99 59.61
+
+B. mRI [16] for HPE 
+
+The mRI dataset is divided into two settings: S1, a random 80/20 train-validation split, and S2, a subject-wise split with 16 subjects for training and 4 (subject 11, 13, 15, 17) for validation. The dataset contains 12 activities, with Protocol-1 (P1) including all activities and Protocol-2 (P2) consisting of 10 rehabilitation activities leading to four splits- S1P1, S1P2, S2P1, and S2P2. For evaluation, we use MPJPE and PA-MPJPE metrics in millimeter (mm) unit as in [16], with MPJPE calculated using Eqn. 9 . The results are shown in TABLE III. We could improve HPE with 29% and 25% error reductions in MPJPE and PA-MPJPE scores, respectively over the SOTA methods. We see that the S1 splits show greater error reduction than the S2. Since [37] does not specify the split protocol, we omit their comparison on the mRI dataset. S2P1 in mRI and S2P3 in MMFi are analogous as both are subject-wise split containing all activities. MMFi’s S2P3 MPJPE error is 72.74 mm, much lower than mRI S2P1’s MPJPE error of 99.83. mRI dataset’s S2 splits (subject-wise) show higher MPJPE error than MMFi dataset’s S2 splits. On the other hand, S1 splits (random) show lower error on mRI dataset compared to MMFi dataset’s S1 splits. 
+
+C. MMFi [18] for HPE 
+
+This dataset has three settings which are- random (S1), subject-wise (S2), and environment-wise (S3). They also have three protocols: P1 for 14 daily activities, P2 for 13 rehabilita-tion activities, and P3 for all 27 activities. In total, there are 9 different ways to split to train and validation sets from S1P1 to S3P3. We use MPJPE and PA-MPJPE scores same as [18] used to evaluate the results in millimeter (mm) unit. We use Eqn. 9 
+
+to calculate MPJPE. The comparison results are shown in IV. MMFi is the largest and most diversified dataset for mmWave based HPE. Its random split (S1) has higher MPJPE error than mRI S1 split. S3 split (environment-wise) is the most difficult split to train the model. It indicates that generalization of pose estimation is difficult across different environment. Although we were able to make significant improvements to TABLE IV: Result Comparison on MMFi Dataset for HPE                                              
+
+> Split mode mmSkeleton [37] (sequential)
+> MM-Fi [18] (frame-wise)
+> PCFEx (ours)
+> (frame-wise)
+> MPJPE
+> (mm)
+> MPJPE
+> (mm)
+> PA-MPJPE
+> (mm)
+> MPJPE
+> (mm)
+> PA-MPJPE
+> (mm) S1P1 88.85 109.8 55.6 37.36 32.74
+> S1P2 74.56 124.3 55.3 36.0 31.75
+> S1P3 71.02 117.0 57.3 45.17 38.57
+> S2P1 102.5 128.4 58.7 70.63 53.83
+> S2P2 117 142.2 57.4 68.61 54.54
+> S2P3 108 129.7 60.0 72.74 57.09
+> S3P1 -166.2 73.9 87.84 67.55
+> S3P2 -168.0 73.0 93.81 76.1 S3P3 -161.6 73.7 90.79 72.94 7
+
+TABLE V: Result Comparison on MMActivity Dataset for HAR        
+
+> Model Accuracy (%)
+> Radhar [20] 90.47 Tesla-Rapture [50] 96.97 mmPoint-GNN [21] 96.97 Fast HAR [31] 96.99 Noninvasive [30] 97.8 PCFEx (ours) 98.8
+
+TABLE VI: Comparison on model complexity and runtime on S2P2 setting from MMFi [18] dataset.                    
+
+> Model Feature processing time Training time
+> (100 epoch) Trainable parameters MPJPE
+> (mm)
+> PA-MPJPE
+> (mm) Fast-scalable [15] 2m 45s 29m 10s 303,923 88 73 MMFi [18] 1m, 32s 3h, 12m 1,454,515 73.1 57 PCFEx (ours) 1h, 25m 3h, 44m 352,691 67.7 53.7
+
+reduce the PA-MPJPE scores over [18] reported scores, we believe that more improvements are necessary for the real-world applications. 
+
+D. MMActivity [20] for HAR 
+
+MMActivity dataset is introduced in [20]. They divided the dataset into train and test and publicly shared it. We used the same split with a similar setup of sequence length 60 frames with 10 frames interval as mentioned in [20]. The result comparison is shown in TABLE V. During our model training, we found that frame features improved the training significantly. Frame features allow a shortcut path to pass the data from the input point cloud to the frame feature representation vector. It results in good improvement of the model training when subtle information are not essential. 
+
+E. Model complexity analysis 
+
+To enable advanced feature processing, which requires sub-stantial preparation time, we compare feature extraction time, training time, model complexity, and evaluation performance with two other benchmarks. We use the S2P2 setting from the MMFi [18] dataset, used their officially released script for this comparison, and adapt the model from Fast-scalable [15] with slight modification for MMFi dataset. The comparison results are shown in Table VI. Despite having fewer trainable parameters, our approach takes significantly longer for feature processing and requires more training time than the other two models. However, our approach achieves great performance improvement over the other two benchmarks. VI. A BLATION STUDY 
+
+A. Contributions of individual building blocks 
+
+To discuss the individual contributions of different building blocks of our model, We have conducted experimental studies in 5 modes shown in TABLE VII. We used two splits (S2P1 and S2P2) from MMFi dataset [18], whole MARS dataset [14] for HPE and MMActivity dataset [20] for HAR in this study. Our obtained results in TABLE VII suggest that node feature extraction gives large performance boost in our method in HPE tasks. We have also noticed that frame features significantly TABLE VII: Contributions of individual building blocks                                              
+
+> Modes
+> Combinations HPE HAR MMFi-S2P1 MMFi-S2P2 MARS MM Activity
+> MPJPE (mm) PA-MPJPE (mm) MPJPE (mm) PA-MPJPE (mm) MAE (cm) RMSE (cm) Accuracy 1Basic node (5D) 75.63 58.44 76.16 61.79 2.715 4.642 95.01 2Basic node + frame feature 76.63 58.79 75.70 61.73 2.700 4.594 97.72 3Node feature (5D + 14D) 71.05 54.18 68.96 55.04 2.427 4.257 94.47 4Node + Frame feature 72.07 54.67 69.05 54.90 2.574 4.540 98.06 5Node+Edge+Frame feature 70.63 53.83 68.61 54.54 2.454 4.330 98.80
+
+help the model in HAR tasks. From these experiments on HPE, we see a trend that node feature extraction (mode-3) drastically reduces the MPJPE and PA-MPJPE errors over the basic node features (mode-1). Frame features’ impact is less visible on HPE tasks. Combining node, edge and frame features perform the best in most cases for HPE. For HAR, frame features play the key role in enhancing prediction accuracy. Frame features significantly improve accuracy over basic node feature. The node feature extraction shows less impact in mode-3 over mode-1, mode-2 which indicates that HAR requires less details of the point-cloud. Finally, the combination of node, edge and frame features performs the best for HAR. Our assumption is that HPE requires more detailed informa-tion of the point-cloud to accurately predict the pose keypoints where HAR requires less detailed information regarding the point-cloud. Frame features allow the model a shorter prop-agation path (analogous to skip-connections) and helps the model in tasks that require less exploration of point-cloud itself. Hence, we see that frame features significantly improve the performance in HAR task in MMActivity dataset where the impact of frame features is less visible in HPE. 
+
+B. Generalized impact of node feature extraction 
+
+Our node feature extraction can be integrated to any point-cloud modeling approach as a plug-and-play module irrespec-tive of the foundational model architecture such as CNN, Transformer, MLP or GNN-based approach as our technique only extends the feature dimension of input node features with significant performance enhancements. We believe that feature extraction process at the node, edge, and frame levels is a generalizable method, applicable to not only mmWave but also other point cloud data. To test this, we applied our approach to the ShapeNet dataset [42], which includes 3D point cloud data for 55 real-world objects. We split the dataset into 80/20 train-validation ratio for classification. Our results in TABLE VIII show that node and frame feature extraction significantly improves classification accuracy. Given ShapeNet’s dense point clouds, we employed node downsampling with a cell width of (0.01, 0.01, 0.01). We trained the model from scratch, excluding multi-view techniques, vertex normals, surface point cloud sampling, and data augmentation, as these are outside the scope of this study. TABLE VIII: Classification Accuracy on ShapeNet Dataset 
+
+Experiment Accuracy 
+
+Without node & frame feature extraction 74.57 with node & frame feature extraction 78.18 8
+
+TABLE IX: Complexity-Performance Trade-off by Node-sampling                     
+
+> Dataset Observation point Downsampling
+> (Q=1)
+> Downsampling
+> (Q=5)
+> Without node downsampling
+> MMFi-S2P1 Data processing time 36m 44m 1h 46m Feature data storage memory 23.9 GB 69.6 GB 110 GB Model training time 2h 5m 4h 6m 5h 50m MPJPE (mm) 76.83 72.32 70.9 PA-MPJPE (mm) 60.2 55.93 53.64 average GPU usage (Batch=32) 3100 MB 13300 MB 23900 MB
+
+As a result, our classification accuracy is lower than state-of-the-art results (max 85.9% [51]). 
+
+C. Complexity vs performance trade-off 
+
+In TABLE IX, we highlight the effectiveness of node-sampling when resource allocation and data processing time are crucial. Node-sampling allows training a reliable model with limited resources, conceding minimal performance degra-dation. Because of 3.75cm resolution in mmWave radars, we apply node downsampling with a cell width of (0.035m, 0.035m, 0.035m) along x, y, z axes for Q = 1 , Q = 5 and no downsampling, three options all trained for 100 epochs. This process mostly limits the redundant points in the point-cloud. The number of edges drop rapidly which contributes the most in reducing execution time and storage complexity. StatBox backed node and frame feature extraction blocks are affected the most resulting in slight reduction in HPE accuracy. 
+
+D. Other observations 
+
+We have two additional observations: First, fewer frame fusions tend to work better with sequential modeling. When we trained the model for the MMActivity dataset [20], we first noticed this occurrence. We also noticed similar occurrence in HPE training while experimenting sequential modeling for the MARS [14] dataset. Second, while using frame features in se-quential HPE models, we observed slight MPJPE degradation, but we see significant improvement in HAR accuracy. VII. C ONCLUSION 
+
+We propose a graph neural network model for point cloud data, focusing on advanced feature extraction and processing techniques. Our approach shows strong potential along with a few limitations. Compared to existing feature extraction models, our approach offers a flexible, plug-and-play Statbox module that enables semantically meaningful and task-specific feature design—enhancing scalability across diverse tasks (HPE, HAR, point-cloud classification) and varying point-clouds, while reducing susceptibility to background noise and outliers. It currently supports HPE and HAR for a single per-son per frame. Again, all datasets were collected in controlled environments, with only the MMFi dataset [18] providing data across multiple environments, which proved to be the hardest to achieve lower MPJPE scores for HPE. Despite these challenges, we demonstrate the effectiveness of our method on four benchmark datasets, surpassing the previous benchmarks with significant margins. In future works, we aim to address these limitations by incorporating real-world mmWave data, enhancing point cloud processing, and expanding our model to support multi-person HPE and HAR. VIII. A CKNOWLEDGEMENT 
+
+This work was supported by JST ASPIRE Grant Number JPMJAP2326, Japan. REFERENCES [1] Z. Cao, T. Simon, S.-E. Wei, and Y. Sheikh, “Realtime multi-person 2d pose estimation using part affinity fields,” in 2017 IEEE Conference on Computer Vision and Pattern Recognition (CVPR) , 2017, pp. 1302– 1310. [2] J. Wang, K. Sun, T. Cheng, B. Jiang, C. Deng, Y. Zhao, D. Liu, Y. Mu, M. Tan, X. Wang, W. Liu, and B. Xiao, “Deep high-resolution representation learning for visual recognition,” IEEE Transactions on Pattern Analysis & Machine Intelligence , vol. 43, no. 10, pp. 3349– 3364, oct 2021. [3] Z. Cao, G. Hidalgo, T. Simon, S.-E. Wei, and Y. Sheikh, “Openpose: Realtime multi-person 2d pose estimation using part affinity fields,” 
+
+IEEE Trans. Pattern Anal. Mach. Intell. , vol. 43, no. 1, p. 172–186, jan 2021. [Online]. Available: https://doi.org/10.1109/TPAMI.2019.2929257 [4] B. Cheng, B. Xiao, J. Wang, H. Shi, T. S. Huang, and L. Zhang, “Higherhrnet: Scale-aware representation learning for bottom-up human pose estimation,” in 2020 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) . Los Alamitos, CA, USA: IEEE Computer Society, jun 2020, pp. 5385–5394. [Online]. Available: https://doi.ieeecomputersociety.org/10.1109/CVPR42600.2020.00543 [5] X. Sun, B. Xiao, F. Wei, S. Liang, and Y. Wei, “Integral human pose regression,” in Computer Vision – ECCV 2018: 15th European Conference, Munich, Germany, September 8–14, 2018, Proceedings, Part VI . Berlin, Heidelberg: Springer-Verlag, 2018, p. 536–553. [Online]. Available: https://doi.org/10.1007/978-3-030-01231-1 33 [6] D. C. Luvizon, D. Picard, and H. Tabia, “2d/3d pose estimation and action recognition using multitask deep learning,” 2018 IEEE/CVF Conference on Computer Vision and Pattern Recognition , pp. 5137–5146, 2018. [Online]. Available: https://api.semanticscholar.org/ CorpusID:3621625 [7] S. Chun, S. Park, and J. Y. Chang, “Learnable human mesh triangulation for 3d human pose and shape estimation,” 2022. [8] S. Chun, S. Park, and J. Chang, “Representation learning of vertex heatmaps for 3d human mesh reconstruction from multi-view images,” 06 2023. [9] M. R. I. Hossain and J. J. Little, Exploiting Temporal Information for 3D Human Pose Estimation . Springer International Publishing, 2018, p. 69–86. [Online]. Available: http://dx.doi.org/10.1007/978-3-030-01249-6 5 [10] D. Pavllo, C. Feichtenhofer, D. Grangier, and M. Auli, “3d human pose estimation in video with temporal convolutions and semi-supervised training,” 2019. [11] W. Zhu, X. Ma, Z. Liu, L. Liu, W. Wu, and Y. Wang, “Motionbert: A unified perspective on learning human motion representations,” 2023. [12] M. Zhao, Y. Tian, H. Zhao, M. A. Alsheikh, T. Li, R. Hristov, Z. Kabelac, D. Katabi, and A. Torralba, “Rf-based 3d skeletons,” in 
+
+Proceedings of the 2018 Conference of the ACM Special Interest Group on Data Communication , ser. SIGCOMM ’18. New York, NY, USA: Association for Computing Machinery, 2018, p. 267–281. [Online]. Available: https://doi.org/10.1145/3230543.3230579 [13] A. Sengupta, F. Jin, R. Zhang, and S. Cao, “mm-pose: Real-time human skeletal posture estimation using mmwave radars and cnns,” IEEE Sensors Journal , vol. 20, no. 17, pp. 10 032–10 044, 2020. [14] S. An and U. Y. Ogras, “Mars: mmwave-based assistive rehabilitation system for smart healthcare,” ACM Trans. Embed. Comput. Syst. , vol. 20, no. 5s, sep 2021. [Online]. Available: https://doi.org/10.1145/3477003 [15] ——, “Fast and scalable human pose estimation using mmwave point cloud,” in Proceedings of the 59th ACM/IEEE Design Automation Conference , ser. DAC ’22. New York, NY, USA: Association for Computing Machinery, 2022, p. 889–894. [Online]. Available: https://doi.org/10.1145/3489517.3530522 [16] S. An, Y. Li, and U. Ogras, “mri: Multi-modal 3d human pose estima-tion dataset using mmwave, rgb-d, and inertial sensors,” in Advances in Neural Information Processing Systems , S. Koyejo, S. Mohamed, A. Agarwal, D. Belgrave, K. Cho, and A. Oh, Eds., vol. 35. Curran Associates, Inc., 2022, pp. 27 414–27 426. [17] H. Ding, Z. Chen, C. Zhao, F. Wang, G. Wang, W. Xi, and J. Zhao, “Mi-mesh: 3d human mesh construction by fusing image and millimeter wave,” Proceedings of the ACM on Interactive, Mobile, Wearable and Ubiquitous Technologies , vol. 7, no. 1, pp. 1–24, 2023. 9
+
+[18] J. Yang, H. Huang, Y. Zhou, X. Chen, Y. Xu, S. Yuan, H. Zou, C. X. Lu, and L. Xie, “Mm-fi: Multi-modal non-intrusive 4d human dataset for versatile wireless sensing,” 2023. [Online]. Available: https://arxiv.org/abs/2305.10345 [19] S.-P. Lee, N. P. Kini, W.-H. Peng, C.-W. Ma, and J.-N. Hwang, “Hupr: A benchmark for human pose estimation using millimeter wave radar,” 2022. [Online]. Available: https://arxiv.org/abs/2210.12564 [20] A. D. Singh, S. S. Sandha, L. Garcia, and M. Srivastava, “Radhar: Human activity recognition from point clouds generated through a millimeter-wave radar,” in Proceedings of the 3rd ACM Workshop on Millimeter-Wave Networks and Sensing Systems , ser. mmNets’19. New York, NY, USA: Association for Computing Machinery, 2019, p. 51–56. [Online]. Available: https://doi.org/10.1145/3349624.3356768 [21] P. Gong, C. Wang, and L. Zhang, “Mmpoint-gnn: Graph neural network with dynamic edges for human activity recognition through a millimeter-wave radar,” in 2021 International Joint Conference on Neural Networks (IJCNN) , 2021, pp. 1–7. [22] G. Lee and J. Kim, “Improving human activity recognition for sparse radar point clouds: A graph neural network model with pre-trained 3d human-joint coordinates,” Applied Sciences , vol. 12, no. 4, 2022. [Online]. Available: https://www.mdpi.com/2076-3417/12/4/2168 [23] P. Veliˇ ckovi´ c, G. Cucurull, A. Casanova, A. Romero, P. Li` o, and Y. Bengio, “Graph attention networks,” 2018. [Online]. Available: https://arxiv.org/abs/1710.10903 [24] Z. Cao, W. Ding, R. Chen, J. Zhang, X. Guo, and G. Wang, “A joint global–local network for human pose estimation with millimeter wave radar,” IEEE Internet of Things Journal , vol. 10, no. 1, pp. 434–446, 2022. [25] X. Shi and T. Ohtsuki, “A robust multi-frame mmwave radar point cloud-based human skeleton estimation approach with point cloud reliability assessment,” in 2023 IEEE SENSORS , 2023, pp. 1–4. [26] G. W. Kim, S. W. Lee, H. Y. Son, and K. W. Choi, “A study on 3d human pose estimation using through-wall ir-uwb radar and transformer,” IEEE Access , vol. 11, pp. 15 082–15 095, 2023. [27] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, L. u. Kaiser, and I. Polosukhin, “Attention is all you need,” in Advances in Neural Information Processing Systems ,I. Guyon, U. V. Luxburg, S. Bengio, H. Wallach, R. Fergus, S. Vishwanathan, and R. Garnett, Eds., vol. 30. Curran Associates, Inc., 2017. [Online]. Available: https://proceedings.neurips.cc/paper files/paper/2017/file/3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf [28] C. Yu, D. Zhang, Z. Wu, C. Xie, Z. Lu, Y. Hu, and Y. Chen, “Fast 3d human pose estimation using rf signals,” in ICASSP 2023-2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) . IEEE, 2023, pp. 1–5. [29] G. Wei, C. Cui, and X. Dong, “A transformer-based network for human pose estimation using millimeter wave radar data,” in 2023 International Applied Computational Electromagnetics Society Symposium (ACES-China) . IEEE, 2023, pp. 1–4. [30] C. Yu, Z. Xu, K. Yan, Y.-R. Chien, S.-H. Fang, and H.-C. Wu, “Noninvasive human activity recognition using millimeter-wave radar,” 
+
+IEEE Systems Journal , vol. 16, no. 2, pp. 3036–3047, 2022. [31] T. Shao, Z. Du, C. Li, T. Wu, and M. Wang, “Fast human action recognition via millimeter wave radar point cloud sequences learning,” in Proceedings of the 33rd ACM International Conference on Information and Knowledge Management , ser. CIKM ’24. New York, NY, USA: Association for Computing Machinery, 2024, p. 2024–2033. [Online]. Available: https://doi.org/10.1145/3627673.3679787 [32] H. Xue, Y. Ju, C. Miao, Y. Wang, S. Wang, A. Zhang, and L. Su, “mmmesh: Towards 3d real-time dynamic human mesh construction using millimeter-wave,” in Proceedings of the 19th Annual International Conference on Mobile Systems, Applications, and Services , 2021, pp. 269–282. [33] S. Hochreiter and J. Schmidhuber, “Long Short-Term Memory,” Neural Computation , vol. 9, no. 8, pp. 1735–1780, 11 1997. [Online]. Available: https://doi.org/10.1162/neco.1997.9.8.1735 [34] S. Wang, D. Cao, R. Liu, W. Jiang, T. Yao, and C. X. Lu, “Human parsing with joint learning for dynamic mmwave radar point cloud,” 
+
+Proceedings of the ACM on Interactive, Mobile, Wearable and Ubiqui-tous Technologies , vol. 7, no. 1, pp. 1–22, 2023. [35] C. R. Qi, H. Su, K. Mo, and L. J. Guibas, “Pointnet: Deep learning on point sets for 3d classification and segmentation,” 2017. [Online]. Available: https://arxiv.org/abs/1612.00593 [36] L. Chen, X. Guo, G. Wang, and H. Li, “Spatial–temporal multiscale constrained learning for mmwave-based human pose estimation,” IEEE Transactions on Cognitive and Developmental Systems , vol. 16, no. 3, pp. 1108–1120, 2024. [37] W. Li, W. Lei, K. Shi, Z. Shi, Y. Wang, and J. Zhou, “mmskeleton: 3d human skeleton estimation using millimeter wave radar sparse point clouds,” in 2024 IEEE/CIC International Conference on Communica-tions in China (ICCC) , 2024, pp. 307–312. [38] C. R. Qi, L. Yi, H. Su, and L. J. Guibas, “Pointnet++: Deep hierarchical feature learning on point sets in a metric space,” 2017. [Online]. Available: https://arxiv.org/abs/1706.02413 [39] H. Zhao, L. Jiang, J. Jia, P. H. Torr, and V. Koltun, “Point transformer,” in Proceedings of the IEEE/CVF international conference on computer vision , 2021, pp. 16 259–16 268. [40] S. Yan, Y. Xiong, and D. Lin, “Spatial temporal graph convolutional networks for skeleton-based action recognition,” 2018. [Online]. Available: https://arxiv.org/abs/1801.07455 [41] M. Abdullah Al, X. Shi, B. Mondher, and T. Ohtsuki, “mmGAT: Pose Estimation by Graph Attention with Mutual Features from mmWave Radar Point Cloud,” in ICC 2024 - IEEE International Conference on Communications , 2024, pp. 2161–2166. [42] A. X. Chang, T. Funkhouser, L. Guibas, P. Hanrahan, Q. Huang, Z. Li, S. Savarese, M. Savva, S. Song, H. Su, J. Xiao, L. Yi, and F. Yu, “Shapenet: An information-rich 3d model repository,” 2015. [Online]. Available: https://arxiv.org/abs/1512.03012 [43] V. Nair and G. E. Hinton, “Rectified linear units improve restricted boltz-mann machines,” in Proceedings of the 27th international conference on machine learning (ICML-10) , 2010, pp. 807–814. [44] A. L. Maas, A. Y. Hannun, A. Y. Ng et al. , “Rectifier nonlinearities improve neural network acoustic models,” in Proc. icml , vol. 30. Atlanta, GA, 2013, p. 3. [45] N. Srivastava, G. Hinton, A. Krizhevsky, I. Sutskever, and R. Salakhut-dinov, “Dropout: a simple way to prevent neural networks from over-fitting,” The journal of machine learning research , vol. 15, no. 1, pp. 1929–1958, 2014. [46] G. Van Rossum and F. L. Drake, Python 3 Reference Manual . Scotts Valley, CA: CreateSpace, 2009. [47] A. Paszke, S. Gross, F. Massa, A. Lerer, J. Bradbury, G. Chanan, T. Killeen, Z. Lin, N. Gimelshein, L. Antiga, A. Desmaison, A. K¨ opf, E. Yang, Z. DeVito, M. Raison, A. Tejani, S. Chilamkurthy, B. Steiner, L. Fang, J. Bai, and S. Chintala, “Pytorch: An imperative style, high-performance deep learning library,” 2019. [Online]. Available: https://arxiv.org/abs/1912.01703 [48] M. Fey and J. E. Lenssen, “Fast graph representation learning with pytorch geometric,” 2019. [Online]. Available: https://arxiv.org/abs/ 1903.02428 [49] A. Ross, “Procrustes analysis,” Course report, Department of Computer Science and Engineering, University of South Carolina , vol. 26, pp. 1–8, 2004. [50] D. Salami, R. Hasibi, S. Palipana, P. Popovski, T. Michoel, and S. Sigg, “Tesla-rapture: A lightweight gesture recognition system from mmwave radar point clouds,” 2021. [Online]. Available: https://arxiv.org/abs/2109.06448 [51] N. Engel, V. Belagiannis, and K. Dietmayer, “Point transformer,” 
+
+IEEE Access , vol. 9, p. 134826–134840, 2021. [Online]. Available: http://dx.doi.org/10.1109/ACCESS.2021.3116304

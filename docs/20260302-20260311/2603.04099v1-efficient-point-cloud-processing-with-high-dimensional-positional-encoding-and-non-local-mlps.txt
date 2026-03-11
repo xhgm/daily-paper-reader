@@ -1,0 +1,892 @@
+Title: Efficient Point Cloud Processing with High-Dimensional Positional Encoding and Non-Local MLPs
+
+URL Source: https://arxiv.org/pdf/2603.04099v1
+
+Published Time: Thu, 05 Mar 2026 02:15:38 GMT
+
+Number of Pages: 25
+
+Markdown Content:
+1
+
+# Efficient Point Cloud Processing with High-Dimensional Positional Encoding and Non-Local MLPs 
+
+## Yanmei Zou, Hongshan Yu, Yaonan Wang, Zhengeng Yang, Xieyuanli Chen, Kailun Yang, and Naveed Akhtar 
+
+Abstract —Multi-Layer Perceptron (MLP) models are the foundation of contemporary point cloud processing. However, their complex network architectures obscure the source of their strength and limit the application of these models. In this article, we develop a two-stage abstraction and refinement (ABS-REF) view for modular feature extraction in point cloud processing. This view elucidates that whereas the early models focused on ABS stages, the more recent techniques devise sophisticated REF stages to attain performance advantages. Then, we propose a High-dimensional Positional Encoding (HPE) module to explicitly utilize intrinsic positional information, extending the “positional encoding” concept from Transformer literature. HPE can be readily deployed in MLP-based architectures and is compatible with transformer-based methods. Within our ABS-REF view, we rethink local aggregation in MLP-based methods and propose replacing time-consuming local MLP operations, which are used to capture local relationships among neighbors. Instead, we use non-local MLPs for efficient non-local information updates, combined with the proposed HPE for effective local information representation. We leverage our modules to develop HPENets, a suite of MLP networks that follow the ABS-REF paradigm, incorporating a scalable HPE-based REF stage. Extensive experiments on seven public datasets across four different tasks show that HPENets deliver a strong balance between efficiency and effectiveness. Notably, HPENet surpasses PointNeXt, a strong MLP-based counterpart, by 1.1% mAcc, 4.0% mIoU, 1.8% mIoU, and 0.2% Cls. mIoU, with only 50.0%, 21.5%, 23.1%, 44.4% of FLOPs on ScanObjectNN, S3DIS, ScanNet, and ShapeNetPart, respectively. Source code is available at https://github.com/zouyanmei/HPENet v2.git. 
+
+Index Terms —Point Cloud Processing, MLP-based Method, High-dimensional Positional Encoding, Abstraction and Refinement View 
+
+## ✦
+
+## 1 INTRODUCTION 
+
+# THE increasing popularity of 3D sensors is currently fuel-ing a wide use of 3D point clouds in numerous applica-tion domains, such as autonomous driving [1], robotics [2] and geological surveying [3]. Unlike images on regular grids, point clouds consist of irregular 3D points, which pose clear challenges for neural network processing. Existing neural network based point cloud processing methods can be categorized into two broad categories: voxel-based [9], [10] and point-based methods [11], [12]. Voxel-based methods first discretize 3D space into volu-metric units, which improves computational efficiency but inevitably discards fine-grained geometric details. The sem-inal work of PointNet [12] originally demonstrated the pos-sibility of directly processing point clouds with MLP-based neural models. Since PointNet, numerous point-based meth-
+
+• Yanmei Zou, Hongshan Yu, Yaonan Wang and Kailun Yang are with the School of Artificial Intelligence and Robotics, Quanzhou Institute of Industrial Design and Machine Intelligence Innovation, Hunan Uni-versity, Changsha 410082, China. (Yanmei Zou and Hongshan Yu contributed equally to this work. Hongshan Yu is the corresponding author. email: zouyanmei@hnu.edu.cn, yuhongshancn@hotmail.com, yao-nan@hnu.edu.cn, kailun.yang@hnu.edu.cn) 
+
+• Zhengeng Yang is with the College of Engineering and De-sign, Hunan Normal University, Changsha 410081, China. (email: yzg050215@163.com). 
+
+• Xieyuanli Chen is with the College of Intelligence Science and Technology, National University of Defense Technology, Changsha 410073, China. 
+
+• Naveed Akhtar is with the School of Computing and Information Sys-tems, The University of Melbourne, 3052 Victoria, Australia. (email: naveed.akhtar1@unimelb.edu.au). 
+
+Fig. 1. Segmentation performance of HPENet V2 on S3DIS [4]. Bubble diameter is proportional to model parameter and the legend lists ref-erence sizes of 1M, 3M, 20M, and 40M. HPENet V2 achieves higher throughput and competitive or better mIoU than state-of-the-art meth-ods, including PointMetaBase [5], PointNeXt [6], and PointVector [7], while using fewer parameters. Compared with our previous HPENet [8], HPENet V2 delivers comparable performance while using fewer param-eters and achieving about 2.2× faster inference. 
+
+ods have surfaced, e.g., PointNet++ [13], PointConv [14], PointNeXt [6]. A key attribute of these methods is that they employ sophisticated local aggregation mechanisms to encode locality within point clouds. For instance, Point-
+
+> arXiv:2603.04099v1 [cs.CV] 4 Mar 2026 2
+
+Net++ uses a hierarchical network structure for that pur-pose, whereas PointConv employs a density-aware discrete convolution for high-quality local feature aggregation. The more recent PointNeXt introduces an inverted residual bot-tleneck module to enhance the scalability of PointNet++. In recent years, the success of transformers in the natural language processing [15] and computer vision fields [16] has also motivated transformer-based neural models for directly processing 3D point clouds. To that end, Point Transformer [11] and other recent methods, e.g., [17], [18], use transformer architectures for an even more sophisti-cated feature aggregation. These efforts are emerging in parallel to the MLP networks for point clouds [19], [20]. However, these backbones focus on sophisticated, coupled feature extraction pipelines. While PointMetaBase [5] pro-poses a general framework (PointMeta), it focuses on local aggregation and ignores sampling operations. In this paper, we show that the key feature extraction modules used by the conventional MLP-based methods and the emerging transformer-based techniques essentially follow the same two-stage abstraction and refinement (ABS-REF) view. As shown in Fig. 3, the ABS-REF view consists of ABS and REF stages. The ABS stage abstracts lower-resolution features from the input features, and the REF stage refines these ab-stracted features for better scalability and feature represen-tation without altering the resolution. Under our ABS-REF view, it becomes clear that whereas the early works, e.g., PointNet++ [13] and PointConv [14], employ sophisticated local aggregation strategies at the ABS stage, they generally lack the REF stage. Compared with them, the success of the more recent techniques [11], [19] can be attributed to the REF stage, which enables an increased receptive field of the network and a greater extent of context information considerations. These factors are crucial for discriminative feature learning and thereby improving performance. We discuss this unified view of the latest techniques in Sec. 3. Positional information is the key intrinsic geometric property of point clouds, and relative point coordinates can represent the local context between the neighbors and the centroid. However, point-based methods often treat point positions as additional information by concatenating local features with relative point positions, e.g., PointNet++ [13] and PointNeXt [6]. Though useful, this strategy lacks in giving positional information its due attention. Fortu-nately, the notion of positional encoding, which originated in the transformer literature [15], potentially provides an algorithmic solution to this problem by enabling positional information embedding in a feature space. Inspired by this, we propose a High-dimensional Positional Encoding (HPE) for MLP-based point cloud modeling. HPE first projects relative point coordinates into a high-dimensional space, making the encoding translation invariant. This enriched representation is then passed through an MLP to align the high-dimensional vectors to their corresponding feature space. Such high-dimensional projections can improve the performance of coordinate-based MLPs [21]. All processes are packed in an HPE module. Moreover, in MLP-based methods that employ an encoder–decoder architecture, interaction among multi-resolution features is typically unilateral in the decoder, leading to insufficient utilization of contextual information. In this paper, we propose a simple and effective Backward Fusion Module (BFM) to achieve bilateral interaction be-tween multi-resolution features by leveraging the statistical information of high-resolution features. Specifically, BFM first captures contextual information from high-resolution features by using max-pooling and mean-pooling and then embeds captured information into multi-resolution features by inverted residual MLP blocks. Though the ABS-REF framework can delineate the key strengths of high-performance networks, the complex net-work architectures and substantial computational require-ments render MLP-based methods impractical for real-world applications. Inspired by efficient depthwise separa-ble convolution from MobileNet [22], several MLP-based approaches [5], [23] decouple local aggregation in intra-set and inter-set operations, which operate on neighboring point sets. Notably, these methods are also consistent with our ABS-REF perspective. Building on these efficient meth-ods, we first propose removing traditional, time-consuming local MLPs. Then, we reconstruct local aggregation with non-local MLPs, which directly process non-local points before grouping operations, rather than focusing solely on local neighbors as local MLPs do. The improved local aggre-gation significantly reduces FLOPs, but it can compromise performance. Hence, following our ABS-REF perspective, we deploy an effective mix of different local aggregation in the ABS and REF stages to leverage the strengths of various MLP types, rather than relying on the commonly adopted monolithic approach [5], [6]. The proposed HPE and BFM are used to devise our HPENets, see Fig. 2. As shown in Fig. 1, our method surpasses state-of-the-art (SOTA) meth-ods PointMetaBase [5], PointNeXt [6] and PointVector [7] with parameter reduction and higher throughput. A preliminary version of this work appeared in the AAAI Conference on Artificial Intelligence [8], where we first proposed HPENet, a neural model that employs High-dimensional Positional Encoding (HPE). This article sub-stantially extends [8] with a focus on efficiency by intro-ducing HPENet V2. As illustrated in Fig. 1, compared with HPENet, HPENet V2 attains comparable accuracy while markedly reducing computational cost, achieving a 2.2 ×
+
+speedup and requiring only 0.39 × the parameters. In sum-mary, this work extends [8] along the following lines.  
+
+> •
+
+We extend the unified ABS-REF view presented in [8] for efficient point cloud processing, where non-local MLPs are used to update non-local information, and HPE is deployed to effectively represent local geometric information. The ABS-REF paradigm provides an intu-itive framework for characterizing the key strengths of point cloud processing backbones.  
+
+> •
+
+We propose a simple and effective Backward Fu-sion Module (BFM) to leverage contextual information. The BFM enables bilateral interaction between multi-resolution features.  
+
+> •
+
+Experiments on MLP-based models are substantially expanded. We rethink various configurations of local aggregation and propose distinct aggregation strate-gies for different stages, departing from the consis-tent strategies employed across all stages in prior ap-proaches such as PointNeXt [6] and PointMetaBase [5].  
+
+> •
+
+To verify the effectiveness of the proposed modules, we 3
+
+> Fig. 2. HPENet V2 architecture for semantic segmentation. The network delineates between the Abstraction (ABS) and Refinement (REF) stages of feature extraction and employs the proposed High-dimensional Positional Encoding (HPE) module in both stages. The differences between HPENet V2 and HPENet [8] are highlighted with red borders, such as the Backward Fusion Module (BFM) and the non-local MLPs.
+
+integrate them into two Transformer-based backbones, Point Transformer (PT) [11] and Stratified Transformer (ST) [24]. Our experiments indicate that these modules are highly compatible with both backbones and yield mIoU gains of 2.5% on PT and 1.3% on ST.  
+
+> •
+
+Through extensive evaluation, we achieve SOTA re-sults 1 across all tasks studied, including 3D object clas-sification [25], [26], scene semantic segmentation [4], [27], [28], 3D object part segmentation [29], while also being faster and more device-friendly than existing SOTA MLP-based methods. 
+
+## 2 RELATED WORK 
+
+Existing point-based methods can be broadly categorized into four groups, namely, MLP-based [13], [30], [31], convolution-based [32], [33], attention-based [24], [34], and graph-based [35], [36], [37], [38], [39], [40], [41] methods. Key contributions along these categories are discussed below. 
+
+MLP-based methods: MLP-based methods apply MLPs to extract pointwise features and then use a symmetric operation such as max-pooling or mean-pooling on neigh-boring point sets to obtain high-level features. After the pioneering work of PointNet [12], numerous MLP-based techniques have emerged. Most of them focus on devising sophisticated modules to extract the local geometric struc-ture [13]. Inspired by the widely-used SIFT descriptor [42], PointSIFT [43] develops a 3D SIFT descriptor that considers eight crucial orientations and scales for local scale-invariant feature transform. Building on the simplicity and strong performance of MLP-Mixer [30] in image recognition, Point-Mixer [19] adopts a softmax-based approach to effectively mix features within and between point sets, making it highly suitable for the sparse, unordered nature of point clouds. To improve the generalization and performance of MLP-based networks, PointMLP [20] proposes a local geometric affine 
+
+> 1. Our claim is limited to the techniques that, similar to our approach, do not benefit from pre-training, voting, or ensembling.
+
+module to transform point features in local regions adap-tively. More recently, ASSANet [23], PointMetaBase [5], and DeepLA-Net [44] have proposed computationally efficient solutions for point cloud processing. In particular, DeepLA-Net [44] achieves strong performance by using a compact yet effective local aggregation block within a deep architec-ture. Additionally, X-3D [45] explicitly models 3D structure to capture local relationships among neighboring points, and PDNet [46] proposes a deformable point aggregation module for long-range, adaptive information aggregation across points. 
+
+Convolution-based methods: These methods focus on designing a local convolution kernel suitable for point cloud processing. For instance, PointConv [14] proposes a density-aware discrete convolution kernel that comprises weight and density functions, whereas KPConv [47] presents a ker-nel point convolution that uses any number of kernel points to process various point clouds. To overcome the challenges of adapting regular CNNs to irregular point clouds, RS-CNN [48] introduces a novel convolution method that leverages predefined geometric priors to capture geomet-ric relationships between points, thereby enhancing spa-tial reasoning and improving shape awareness. To manage the irregular and unordered nature of point clouds, PA-Conv [33] dynamically constructs convolution kernels by combining basic weight matrices, with combination coef-ficients adaptively learned from point positions through ScoreNet. DPC [32] employs a dilated point convolution to increase the receptive field size of point convolutional networks. Ψ-CNN [49] proposes a spherical kernel that uses an Octree-guided CNN for the point cloud process. Their method is further enhanced in [50] for graph convolution. 
+
+Attention-based methods: Attention-based methods ex-ploit attention mechanisms to model long-range depen-dency between point pairs in a set. These methods are mainly inspired by the attention mechanism [15], which was first introduced in natural language processing. To 4
+
+efficiently process large-scale point clouds, RandLA-Net [51] uses random point sampling to guarantee efficiency and attention-based local feature aggregation for better perfor-mance. Both in natural language processing [15], [52] and computer vision domains [16], [53], the attention mech-anism is currently causing a paradigm shift. Since Point Transformer [11], point cloud processing has also started to benefit from this mechanism considerably using the transformer architectures [24], [54], [55], [56], [57]. To ad-dress overfitting and limitations on the model depth of Point Transformer [11], Point Transformer V2 [58] presents grouped vector attention with a grouped weight encoding layer, an additional position encoding multiplier to enhance spatial information embedding, and lightweight partition-based pooling methods for efficient sampling. Stratified Transformer [24] proposes a stratified key sampling strat-egy to expand the receptive field while keeping compu-tational costs low and a contextual relative position en-coding to adaptively capture spatial information. However, transformer-based architectures are computationally inten-sive, often limiting deployment in real-world applications. 
+
+Graph-based methods: These methods employ graph structure to extract features, which generally treat points as nodes and feature relations as edges. SPG [59] proposes a superpoint graph to deal with large-scale 3D semantic seg-mentation tasks. DGCNN [60] proposes EdgeConv, which incorporates topology through dynamic graph construction in each network layer to capture local neighborhood infor-mation and can be stacked to learn global shape proper-ties. CurveNet [61] pays attention to graph structure and employs a shape descriptor, termed “curves”, using guided walks in point clouds. AGConv [62] designs an adaptive kernel in the graph convolution for point cloud processing based on dynamically learned features, making it more flexible than fixed or isotropic kernels and enabling it to ef-fectively capture diverse relationships between points from different semantic parts. GSLCN [41] introduces a general graph structure learning architecture to replace the classical approach of using the K-nearest neighbor algorithm for graph construction. In summary, point-based methods focus on designing sophisticated modules to effectively capture locality from neighboring point sets. In contrast, we develop a unified and efficient paradigm with effective geometric representation and a simple and effective feature fusion module. 
+
+## 3 PROPOSED METHOD 
+
+Image processing models are currently experiencing aparadigm shift at the hands of transformers [16], [53]. Fol-lowing the suite, many recent works are directly importing the transformer architectures to point cloud modeling [11], [24]. However, point cloud data has its peculiar nature. We envisage that a more systematic delineation of the strengths of the existing point cloud techniques can better guide the adoption of relevant concepts of transformers in the point cloud domain. Hence, we first provide a new perspective on the existing point-based methods, then propose a high-dimensional positional encoding enhancement for MLP-based methods, and finally introduce a simple backward attention module to embed contextual information. Below, we first briefly introduce the mathematical notions used in the remaining paper. A point cloud with N points can be considered com-prising two sets of distinct elements, namely; the point set P = pm ∈ R1×3 Nm=1 and the feature set F =
+
+fm ∈ R1×C Nm=1 , where pm is the position of the m-th point and fm is the corresponding feature with C chan-nels. In a typical neural model, after a sampling layer, a smaller point cloud is generated with N l+1 points, such that 
+
+N l+1 < N l. Here, l is the index of the sampling layer. By using a grouping operation to group k points neighboring a sampled point in a local region, we get grouped point sets 
+
+K = km ∈ Rk×3 Nm=1 and the corresponding feature sets 
+
+D = dm ∈ Rk×C Nm=1 .In the following, we first present the details, extension, and instantiation of the unified abstraction and refinement view in Sec. 3.1. Then, in Sec. 3.2, we describe the pro-posed high-dimensional positional encoding and instantiate it into HP E M LP and HP E SIN using the dimensional space projection method. Next, in Sec. 3.3, we introduce the backward fusion module. Finally, in Sec. 3.4, we present HPENets, incorporating the proposed methods and show-ing the configuration for point cloud processing. A detailed theoretical analysis of the proposed modules is provided in the supplementary material II and III. 
+
+3.1 Abstraction and Refinement View 
+
+In Fig. 3 and Fig. 4, we illustrate the two-stage Abstrac-tion and Refinement (ABS-REF) view of the major existing and the proposed technique. Fig. 3 presents the inspiration behind the ABS-REF view, drawn from image processing. Fig. 4 shows the evolution from a general view to a more balanced view, i.e., the separable ABS-REF view. As previ-ously shown in the image processing domain, traditional feature extractors consist of subsampling and convolutional layers [63]. Similarly, we can identify abstraction and refine-ment layers in point cloud processing methods. However, we find that current point cloud literature generally lacks a clear distinction between the abstraction and refinement processes, which negatively impacts the development of effective and efficient techniques. 
+
+Abstraction (ABS) stage: Analogous to the subsampling operation performed in the image processing networks, we can identify an abstraction (ABS) stage for the point cloud networks. Effectively, this stage eventually abstracts features from the input point cloud and produces a new point cloud with fewer points. The stage can be composed of multiple operations, including a sampling operation (Eq. 1), a group-ing operation (Eq. 2), and an intra-set feature aggregation operation (Eq. 3). Commonly, the sampling operation selects a new point set with fewer elements using Farthest Point Sampling (FPS), which leverages the centroids of local re-gions for subsampling. The grouping operation generally se-lects neighboring points around the centroids to define local region sets using, e.g., K-Nearest Neighbors (KNNs). Since the local aggregation operation in the ABS stage abstracts local context information from a set to the corresponding centroid, we call it an intra-set operation. Concretely, given a point set Pl and its corresponding feature set Fl, we get the 5       
+
+> Fig. 3. Illustration of abstraction and refinement (ABS-REF) perspective. Left: The proposed ABS-REF view of point cloud models is analogous to subsampling and convolution block view in image models. The shown ABS-REF column expands the abstraction and refinement stages. Right:
+> Representative instantiations of the ABS-REF framework. Whereas early methods, e.g., PointNet++ [13], PointConv [14], ignore the REF stage, more recent techniques, e.g., Point Transformer [11] and PointMixer [19], achieve higher performance by accounting for the REF stage in point cloud models. Abbreviations include SOP: Symmetric OPeration, OP: aggregation OPeration, PT: Point Transformer, and HPE: proposed High-dimensional Positional Encoding.
+> Fig. 4. Illustration of separable Abstraction and Refinement (ABS-REF) perspective. Left: The separable ABS-REF view also belongs to the proposed ABS-REF by disentangling the intra-set operation and inter-set operation into non-local MLPs and the reduction operation. Right: Representative instantiations of the separable ABS-REF framework and the evolution of HPENets, i.e., from HPENet to HPENet V2. Please refer to Fig. 3 for the feature propagation in the proposed ABS-REF view.
+
+sampled point set Pl+1 , grouped point sets Kl+1  
+
+> ABS
+
+, and fea-ture sets Dl+1  
+
+> ABS
+
+after sampling and grouping operations. We use the subscript ABS to emphasize the ABStraction stage. In this stage, the intra-set feature aggregation operation 
+
+hABS encodes local region patterns into the feature vectors and aggregates intra-set context information. Overall, the abstraction stage can be mathematically expressed as 
+
+Pl+1 = FPS 
+
+
+
+Pl
+
+, p l+1  
+
+> m
+
+∈ P l+1 , (1) 
+
+Dl+1  
+
+> ABS
+
+(pl+1  
+
+> m
+
+), Kl+1  
+
+> ABS
+
+(pl+1  
+
+> m
+
+) = KNN (pl+1  
+
+> m
+
+, Pl, Fl), (2) 
+
+f l+1  
+
+> m
+
+= hABS 
+
+
+
+Dl+1 
+
+> ABS
+
+
+
+pl+1 
+
+> m
+
+
+
+, Kl+1 
+
+> ABS
+
+
+
+pl+1 
+
+> m
+
+ 
+
+, (3) where Dl+1  
+
+> ABS
+
+(pl+1  
+
+> m
+
+) and Kl+1  
+
+> ABS
+
+(pl+1  
+
+> m
+
+) are the neighbor fea-ture and point sets of the centroid pl+1  
+
+> m
+
+, respectively. Recently, several MLP-based methods [5], [23] have been proposed to disentangle local aggregation, addressing the need for fast and accurate point cloud processing. As shown in Fig. 4, these methods, i.e., ASSANet [23] and PointMetaBase [5], also follow the proposed ABS-REF view. Considering that these methods decouple the Intra-set and Inter-set operations, we refer to these specific instantiations as the separable ABS-REF view. As reported in [23] and [5], these methods have demonstrated impressive potential for processing point clouds in a mobile-friendly manner, which is also desired in this article. The separable ABS-REF view disentangles the Intra-set operation into non-local MLPs on channel dimensions and a reduction operation on spatial dimensions, similar to depthwise separable convolution in MobileNet [22]. Specifically, the non-local MLPs process in-put points prior to grouping operations, while the reduction operation aggregates local context from neighboring point sets generated by grouping operations. 
+
+Refinement (REF) stage: Seizing the scalability of convo-lutional blocks in image processing networks, we can iden-tify a refinement (REF) stage in point cloud networks. This stage aims to refine the centroid features by aggregating local context information without changing the resolution. Specifically, the REF stage further processes the point set 
+
+Pl+1 and features set Fl+1  
+
+> ABS
+
+generated by the ABS stage. In Fig. 3 (left), we illustrate a simplified architecture of the refinement stage in the adopted “ABS-REF” view of the techniques. In the refinement stage, a grouping operation (Eq. 4) is first used to group the local sets in the centroid point cloud. Later, an inter-set feature aggregation operation 
+
+hREF is employed to extract and aggregate the inter-set context information. Mathematically, the REF stage can be expressed as 
+
+Dl+1  
+
+> REF
+
+(pl+1  
+
+> m
+
+), Kl+1  
+
+> REF
+
+(pl+1  
+
+> m
+
+) = KNN (pl+1  
+
+> m
+
+, Pl+1 , Fl+1  
+
+> ABS
+
+), (4) 
+
+f l+1  
+
+> m
+
+= hREF 
+
+
+
+Dl+1 
+
+> REF
+
+
+
+pl+1 
+
+> m
+
+
+
+, Kl+1 
+
+> REF
+
+
+
+pl+1 
+
+> m
+
+ 
+
+, (5) 6
+
+where Dl+1  
+
+> REF
+
+(pl+1  
+
+> m
+
+) and Kl+1  
+
+> REF
+
+(pl+1  
+
+> m
+
+) are the neighbor fea-ture set and point set of the centroid pl+1  
+
+> m
+
+, respectively. As illustrated in Fig. 4 (left), similar to ABS stages, the separable ABS-REF view also decouples the Inter-set opera-tion in REF stages into non-local MLPs and a reduction oper-ation. Compared to methods in the ABS-REF view, methods within the separable ABS-REF view have lower computa-tional costs [23]. For instance, applying MLPs before the grouping operation reduces the FLOPs by C×C×N ×k×LC×C×N ×L = k
+
+times, where k and L are neighborhood size and layer number of MLP, respectively. The benefits of joint application of ABS and REF stages in a network are two-fold. First, the network gains an effective receptive field from the REF stage. Ideally, a centroid’s receptive field is kABS in the ABS stage, while kABS ×kREF 
+
+in the REF stage, where kABS and kREF are the number of neighbor points of a set in the ABS and REF stages. Second, the REF stage helps improve the scalability by increasing the network depth through stacking REF stages, similar to stacking convolutional blocks for images. 
+
+Instantiation of ABS-REF framework: To exemplify a systematic understanding of point cloud models under our ABS-REF perspective, we provide representative examples in Fig. 3 (right) and Fig. 4 (right). It can be seen that early methods like PointNet++ [13] and PointConv [14] only have the ABS stage. Although the two models use different intra-set operations for local feature aggregation, both are single-stage models under our perspective. PointNet++ uses MLPs as intra-set operations, while PointConv utilizes the density-aware discrete convolution. Nevertheless, both models are essentially void of the REF stage. More recently, Point Trans-former [11] and PointMixer [19] have reported impressive results. Incidentally, we can easily identify an additional REF stage in Point Transformer [11] and PointMixer [19], i.e., positional encoding and Point Transformer layer in [11] and Mixer block in [19]. As shown in Fig. 4 (right), the recent ASSANet [23] and PointMetaBase [5] both adhere to the proposed ABS-REF framework, featuring separable intra-set and inter-set operations. Specifically, ASSANet and Point-MetaBase decoupled set operations into non-local MLPs and specific reduction operations. In what follows, we first develop High-dimensional Positional Encoding (HPE) for both ABS and REF stages. Later, we introduce a simple and effective Backward Fusion Module (BFM) to embed contextual information by fusing multi-resolution features. Thereafter, we leverage HPE and BFM to develop HPENets, which are conveniently designed suites of networks for MLP-based point cloud processing. Particularly unique to our models is the inter-set OPeration sub-stage in the REF component, which also distinguishes our technique from the transformer-based methods that employ a REF stage, e.g., Point Transformer [11]. 
+
+3.2 High-Dimensional Positional Encoding 
+
+Positional information is the most important feature of point clouds. It encodes robust geometric details of a scene. Hence, we propose to leverage it fully in both ABS and REF stages of point cloud modeling using explicit Positional Encoding (PE). The notion of PE originated in Transformer literature [15]. In the point cloud context, PE can encode a point coordinate pm = [ pxm, p ym, p zm] ∈ R1×3 into the space of corresponding feature fm ∈ R1×C to embed geometric information. For a transformer-based neural architecture for 3D modeling, sinusoidal PE ( P E SIN ) and learnable PE (P E M LP ) can be formulated as below. 
+
+P E SIN 
+
+
+
+(pm, 6i + 0) = sin 
+
+
+
+100 pxm/1000 6i/C 
+
+
+
+(pm, 6i + 1) = cos 
+
+
+
+100 pxm/1000 6i/C 
+
+
+
+(pm, 6i + 2) = sin 
+
+
+
+100 pym/1000 6i/C 
+
+
+
+,
+
+(pm, 6i + 3) = cos 
+
+
+
+100 pym/1000 6i/C 
+
+
+
+(pm, 6i + 4) = sin 
+
+
+
+100 pzm/1000 6i/C 
+
+
+
+(pm, 6i + 5) = cos 
+
+
+
+100 pzm/1000 6i/C 
+
+
+
+(6) 
+
+P E M LP (pm) = θ3,C (N orm (δ3,3 (pm))) . (7) In the above equations, i = C/ 6 is the index of the sub-group PE vector. The θ and δ denote MLP-based transfor-mations, with subscripts denoting the channel dimensions of their input and output. N orm denotes the normalization, e.g., batch/layer normalization for restricting the PE to [0, 1]. The sine and cosine functions in P E SIN inherently restrict the values in [-1, 1]. Though potentially useful, both 
+
+P E SIN and P E M LP provide low-dimensional encodings, which are inadequate to effectively capture the complex geometric relations among the point pairs of unstructured point clouds. Moreover, P E SIN is not adaptive. To address this limitation, we propose a High-dimensional Positional Encoding (HPE) module. HPE first maps point coordinates into a high-dimensional space to capture fine-grained geometric cues. It then employs alightweight MLP to align the high-dimensional codes with the feature space, enabling flexible integration into different backbones. The high-dimensional projections can improve the performance of coordinate-based MLPs [21], and HPE takes relative point coordinates, which are translation in-variant. We instantiate HPE with either sinusoidal or learn-able encodings, denoted HP E SIN and HP E M LP , respec-tively. Our HP E SIN uses sine and cosine functions to extend the channel dimensions from 3 to (⌊C/ 6⌋ × 6) to get a high-dimensional vector, followed by an MLP to align the vector to the feature space. Following the notational conventions from above, HP E SIN can be formulated as 
+
+HP E SIN (pm) = θ(⌊C/ 6⌋× 6) ,C (P E SIN (pm)) . (8) Our HP E M LP generates the high-dimensional vector in a data-driven manner. Specifically, it uses an MLP to extend channel dimensions from 3 to C in HPENet, but to C/ 4
+
+in HPENet V2 for efficiency, followed by another MLP to transform the high-dimensional vector, formulated as 
+
+HP E M LP (pm) = θC,C mlp 
+
+ N orm  δ3,C mlp (pm) . (9) The channel dimension Cmlp of the high-dimensional vectors in our encoding can be any suitable value. In HPENet V2, the channel dimension Cmlp is reduced to C/ 4
+
+to lower computational costs. Therefore, HP E SIN is not deployed in HPENet V2 since the resulting dimensions C/ 4
+
+are 8 or 16 in the first ABS stage. For a detailed analysis of the effect of HP E SIN , please refer to HPENet [8]. As 7
+
+shown in Fig. 2, we encapsulate the encoding scheme into 
+
+HP E SIN and HP E M LP modules, which can be directly plugged into the ABS and REF stages of MLP-based net-works. Note that, since there is no sampling operation in the REF stage, the geometric structure of the point cloud remains unchanged. To further reduce computational costs, we share the HPE within each REF stage. 
+
+3.3 Backward Fusion Module 
+
+In typical deep neural networks, researchers tend to believe that high-resolution features contain more spatial informa-tion, while low-resolution features include more semantic clues [64]. However, the information interaction of high-resolution feature Fhigh and low-resolution feature Flow is usually unilateral in the decoder of MLP-based methods, re-sulting in insufficient use of contextual information. There-fore, in this paper, we introduce a Backward Fusion Module (BFM) to preserve contextual information by reusing low-resolution feature Flow with a bilateral channel attention mechanism for segmentation tasks. To reduce redundancy from multi-resolution feature fu-sion, we propose the BFM module, which seizes the design of the classic channel attention mechanism SENet [65]. As shown in Fig. 2, BFM first employs max-pooling to capture discriminative global features while maintaining a mean-pooling branch, as in SENet, to represent the common patterns of the high-resolution feature Fhigh . Inspired by MobileNet V2 [66], we utilize MLPs with an expansion layer to refine the statistical contextual information of Fhigh . Sub-sequently, BFM applies a sigmoid activation, element-wise multiplication, and residual connection to integrate con-textual information into the high-resolution feature. Mean-while, captured global information is propagated backward to the low-resolution feature Flow , enabling bilateral inter-action between multi-resolution features. Lastly, BFM con-catenates updated Fhigh and Flow for segmentation tasks. 
+
+3.4 HPENets for Point Cloud Processing 
+
+Based on our ABS-REF view and HPE module, we de-velop MLP-based point cloud processing networks, termed HPENets. To explain, we focus on the more comprehensive encoder-decoder architecture for the semantic segmentation task, as shown in Fig. 2. Other networks can be easily deduced from this explanation (detailed in supplementary material VI). For object classification, the output features of the encoder are sent to a global pooling layer, followed by a classifier. For object part segmentation, we form a class embedding using the given shape category and concatenate it before the decoder. In Fig. 2, the encoder consists of a single point embedding layer and four blocks that follow the ABS-REF view, while incorporating the proposed HPE modules. The point embedding layer is used to enrich the input representation. We denote the output channels of the point embedding layer as Ce, which can be varied. The number of REF layers can also vary in the ABS-REF blocks for scalability purposes. We denote these numbers by a set 
+
+B that consists of four elements. To exemplify, our HPENet V2-XL can use B = [3, 6, 3, 3], which means the number of REF layers in the four ABS-REF blocks is 3, 6, 3, and 3, respectively. The value in B can decrease to 0 to degenerate HPENet into a single-stage method, e.g., HPENet V2-S. As shown in Fig. 3 and Fig. 4, in the ABS stage, we introduce our HPE module after the grouping layer, which uses the grouped points set Kl+1  
+
+> ABS
+
+as the inputs. We first use the grouped feature set Dl+1  
+
+> ABS
+
+to add high-dimensional positional encodings and then follow it with a concatenation of grouped points set as the input of local MLPs in HPENet, or directly follow a reduction layer in HPENet V2. We opt for a similar strategy in the REF stage. As illustrated in Fig. 2, the obvious difference between the ABS and REF stages is the existence of the sampling layer and the design of local aggregation operation (MLPs). In ABS, MLPs are used before the Symmetric OPeration (SOP), i.e., the max pooling operation, as they aim to aggregate local features. In contrast, the SOP is embedded between the MLPs in the REF stage. Specifically, the MLP before the SOP pays attention to capturing inter-set context information, while the MLPs fol-lowing the SOP focus on refining the pointwise features. By varying the hyper-parameters B and Ce, we conveniently construct a range of HPENets with different model sizes to match the training data scales. We develop HPENets with the following configurations in our experiments.  
+
+> •
+
+HPENet V2-S: Ce = 32, B = [0, 0, 0, 0].  
+
+> •
+
+HPENet V2-B: Ce = 32, B = [1, 2, 1, 1].  
+
+> •
+
+HPENet V2-L: Ce = 32, B = [2, 4, 2, 2].  
+
+> •
+
+HPENet V2-XL: Ce = 64, B = [3, 6, 3, 3]. 
+
+## 4 RETHINKING LOCAL AGGREGATION 
+
+4.1 Local Aggregation in MLP-based Methods 
+
+MLP-based methods employ local aggregation operators to aggregate local information from neighboring point sets. For simplicity, we focus on analyzing the local aggregation in the ABS stages, which involve more operations. Based on this analysis, the characteristics of local aggregation in the REF stages can be easily deduced. In general, local aggregation consists of a grouping op-eration G to generate neighboring point sets, a set operation 
+
+S to transform point features, and a reduction layer R
+
+to aggregate features from neighboring points. Based on the different point sets processed by set operations, local aggregation operators can be classified into Conv, Preconv, and ProConv. In Fig. 5, we illustrate the different local aggregation used in the ABS stages. Conv represents the tra-ditional local aggregation employed in classical MLP-based methods, such as PointNet++ [13] and PointMiXer [19], which apply a set operation on neighboring point sets (Eq. 10). PreConv is a balanced local aggregation used in efficient MLP-based methods, such as ASSANet [23] and PointMetaBase [5], which applies set operations on input point sets (Eq. 11). Furthermore, ProConv performs set operations on sampled point sets, as defined in Eq. 11. 
+
+f l+1  
+
+> m
+
+= R(S(G(pl+1  
+
+> m
+
+, Pl, Fl))) , (10) 
+
+f l+1  
+
+> m
+
+= R(G(pl+1  
+
+> m
+
+, Pl, S (Fl))) , (11) 
+
+f l+1  
+
+> m
+
+= S(R(G(pl+1  
+
+> m
+
+, Pl, Fl))) , (12) Next, we compare local-aggregation variants in terms of the input features processed by MLPs, computational efficiency, and parameter count. 8 
+
+> Fig. 5. Illustration of local aggregation in the ABS stages of MLP-based methods. (a) PreConv processes input point sets with non-local MLPs before sampling operations. (b) Traditional Conv processes neighboring point sets generated by grouping operations with local MLPs. (c) ProConv processes sampled point sets with non-local aggregation after reduction operations. Please refer to the text for further notations.
+> •
+
+As shown in Fig. 5, the inputs to PreConv, Conv, and ProConv are, respectively, the input point sets 
+
+Fl = { fm ∈ RC }N l
+
+> m=1
+
+, the grouped neighboring point sets Dl+1 = { dm ∈ Rk×C }N l+1  
+
+> m=1
+
+, and the sampled point sets Fl+1 = { fm ∈ RC }N l+1  
+
+> m=1
+
+. The corresponding oper-ating resolutions are N l, N l+1 ×k, and N l+1 . Therefore, we term Conv a local MLP design, while PreConv and ProConv are categorized as non-local MLPs. PreConv processes the highest-resolution inputs, whereas Conv models local patterns within each neighborhood.  
+
+> •
+
+For efficiency, we use FLOPs as the evaluation metric. To simplify and effectively compare the computational costs of different local aggregation operators, we as-sume that the input and output channels, C, and the number of layers, L, in the MLPs are consistent across all local aggregation. The FLOPs of PreConv, Conv and ProConv are C × C × N l × L, C × C × N l+1 × k × L,and C ×C ×N l+1 ×L, respectively. Under the proposed ABS-REF framework, sampling operations occur exclu-sively in the ABS stages, meaning that scale reduction only takes place within the ABS stages. Therefore, the order of FLOPs in the ABS stage is Conv > PreConv >
+
+ProConv, while in the REF stage, Conv = k× PreConv 
+
+= k× ProConv.  
+
+> •
+
+For parameter count, all local aggregation operations deploy the same parameters of size C × C × L, since the channel dimension remains consistent. In summary, PreConv processes the highest-resolution inputs. Conv captures sophisticated local information that is crucial for point cloud processing, and ProConv provides the most efficient local aggregation design. 
+
+4.2 Experimental Results on Local Aggregation 
+
+In this subsection, we present exploratory experiments on S3DIS Area-5 [4] that examine various local-aggregation strategies under the ABS–REF view, aiming to build an effective and efficient model for point cloud processing. We present details of the S3DIS dataset and the evaluation pro-tocol in Sec. 5. Here, we directly discuss relevant results to highlight interesting observations that guide our technique design. The relevant results are summarized in Tab. 1, where Conv* only uses neighboring point features as the input of MLPs, whereas Conv deploys the concatenation of neigh-boring point features and relative point coordinates, similar to PointNet++ [13]. Below, we summarize the interesting observations. 
+
+Firstly , Conv is the most effective local aggregation, and positional embedding is crucial for point cloud processing. From lines 1 to 8, it is evident that methods that deploy Conv in both the ABS and REF stages achieve the best per-formance compared to methods using other configurations. We think there are two main reasons for the significant performance improvement of Conv. One key factor is the implicit local positional embedding, as Conv outperforms Conv* by 6.1% in mIoU. Another factor is the complex set operations used to capture local information. As shown in lines 2, 7, and 8, Conv* outperforms PreConv and ProConv by 1.7% and 2.6% in mIoU, respectively. However, the impact of the positional embedding is more significant than that of the complex set operators. This observation appears to be inconsistent with the common knowledge that many point-based methods focus on developing new and sophis-ticated modules to extract local structures [6]. Therefore, this finding inspires us to design a more effective positional embedding, i.e., high-dimensional positional encoding. 
+
+Secondly , considering both performance and efficiency, deploying PreConv in the ABS stage is the most balanced choice. Compared to traditional Conv, PreConv and Pro-Conv improve the efficiency of local aggregation, albeit with some performance reduction. As shown in lines 1 and 4, al-though the method with PreConv reduces the performance of Conv by 1.0% mIoU, it uses only 73.4% of the FLOPs required by Conv and is 1.12 × faster. Therefore, we consider that this performance degradation of PreConv is acceptable. Moreover, a comparison of lines 3 and 4 reveals that Pre-Conv is the more balanced choice, as it outperforms Pro-Conv by 0.6% in mIoU. Because PreConv processes features at a higher spatial resolution than ProConv, it preserves finer details and captures more contextual information. 
+
+Thirdly , considering both performance and efficiency, deploying PreConv in the REF stage is the optimal choice. The REF stage enhances scalability by stacking REF stages in a manner similar to stacking convolutional blocks for im-ages. Therefore, the resource-intensive Conv is not suitable for deployment in the REF stage when developing efficient networks. As shown in lines 5 and 6, PreConv and Pro-Conv have the same computational costs, whereas PreConv outperforms ProConv by 2.1% mIoU. The main reason is that PreConv can further optimize the features produced by the ABS stage and integrate the refined information into the inter-set operations, while ProConv only updates the output features of the inter-set operations. 9                                                                                                                        
+
+> TABLE 1 A study of local aggregation on S3DIS Area-5. Conv ,PreConv , and ProConv represent different local aggregation, PE refers to Positional Encoding, and HPE denotes the proposed High-dimensional Positional Encoding. ∆represents the difference in mIoU between the current row and the first row. PreConv †indicates the use of Conv in the first ABS stage. Please refer to Sec. 5 and Sec. 5.2 for the evaluation metrics.
+> Line ABS REF OA (%) mAcc (%) mIoU (%) △Param. (M) FLOPs (G) TP (ins./sec.) 1Conv Conv 89.0 ±0.1 73.0 ±0.4 66.6 ±0.4 -1.58 6.93 317 2Conv* Conv* 86.3 ±0.3 67.4 ±0.6 60.5 ±0.6 -6.1 1.58 6.76 337 3PreConv Conv 88.3 ±0.4 71.9 ±0.3 65.6 ±0.4 -1.0 1.58 5.09 355 4ProConv Conv 88.1 ±0.1 71.7 ±0.5 65.1 ±0.4 -1.5 1.58 4.90 380 5Conv PreConv 88.6 ±0.3 72.1 ±0.4 65.8 ±0.6 -0.8 1.58 3.01 388 6Conv ProConv 87.9 ±0.1 70.4 ±0.4 63.7 ±0.4 -2.9 1.58 3.01 388 7ProConv ProConv 85.5 ±0.3 65.0 ±0.8 57.9 ±0.5 -8.7 1.58 0.98 492 8PreConv PreConv 85.8 ±0.5 65.5 ±0.3 58.8 ±0.6 -7.8 1.58 1.17 452 9PreConv+PE PreConv+PE 89.3 ±0.3 73.4 ±0.3 66.7 ±0.4 +0.1 1.59 1.38 328 ours PreConv †+PE PreConv+PE 89.4 ±0.2 73.6 ±0.6 67.1 ±0.4 +0.5 1.59 1.80 324 ours PreConv †+HPE PreConv+HPE 90.3 ±0.1 75.0 ±0.5 68.6 ±0.4 +2.0 1.76 3.47 308
+
+Despite its balanced nature, PreConv’s performance is impeded by the absence of positional embedding, which is implicitly utilized in Conv. Notably, Positional Encoding (PE), introduced in transformer-based methods [15], offers a viable solution for effectively incorporating positional information. An analysis of lines 8 and 9 demonstrates that incorporating PE enables PreConv to enhance its perfor-mance by 7.9% mIoU, even surpassing Conv. Although PE introduces geometric information into PreConv, its potential is constrained by the limited dimensionality (3 dimensions) of the positional data. We therefore introduce HPE to pro-vide a more effective and robust geometric representation. Additionally, the local context modeling ability of Conv is significantly stronger than that of PreConv, as information communication in Conv occurs within neighboring point clouds. Meanwhile, the loss of detailed information caused by the sampling operation in the ABS stages is inevitable. To enhance the performance of methods deploying PreConv without substantially increasing computational costs, we propose using Conv only in the first ABS stage to pre-serve detailed information. As shown in line 10 of Tab. 1, our proposed hybrid local aggregation operators achieve a balanced performance with efficiency. These notable per-formance improvements also illustrate that different local aggregation operators can be employed in the ABS and REF stages, rather than maintaining consistency as previous methods, such as in PointNeXt [6] and PointMetaBase [5]. By further introducing the proposed HPE, the performance of our method exceeds the original PreConv baseline by 9.8% in mIoU, indicating the effectiveness of our design. 
+
+## 5 EXPERIMENTS 
+
+Our technique is extensively evaluated on seven datasets for four different tasks: 3D object classification, scene semantic segmentation, 3D object part segmentation, and 3D object detection. Due to differences in local aggregation and the dimensions of HPE between HPENet V2 and HPENet [8], we reconducted experiments to eliminate the impact of structural variations. The ablation study on HP E SIN and 
+
+HP E M LP is presented in HPENet [8]. Considering that 
+
+HP E M LP is more adaptive than HP E SIN , we further con-duct more detailed ablation studies on HP E M LP . Specif-ically, for efficiency, we set the channel dimension of 
+
+HP E M LP to C/ 4. For compatibility evaluation, we inte-grate the proposed modules into the Transformer-based backbones Point Transformer [11] and Stratified Trans-former [24]. Details are presented in Sec. 5.6. Unless otherwise specified, we train HPENets using Cross Entropy loss with label smoothing [67] and the AdamW optimizer [68] for all tasks. For synthetic object classification on ModelNet40 [26], HPENets are trained with an initial learning rate of 0.001 and a weight decay of 0.05 for 600 epochs. For real-world object classification on ScanObjectNN [25], following Point-BERT [69], the number of input points is set to 1,024, with points randomly sampled during training and uniformly sampled during testing. The model is trained with an initial learning rate of 0.002 and a weight decay of 0.05 for 250 epochs. For indoor semantic segmentation on S3DIS [4] and ScanNet [27], following Point Transformer [11], we evaluate HPENets using the entire scene in each iteration and use the best-performing model for testing. Training is conducted with an initial learning rate of 0.01 for S3DIS and 0.001 for ScanNet, both with a weight decay of 0.0001. For outdoor semantic segmentation on SemanticKITTI [28], the learning rate and weight decay for HPENet V2 are set to 0.002 and 0.005, respectively, fol-lowing Point Transformer V3 2 [57]. For synthetic object part segmentation on ShapeNetPart [29], HPENets are trained with a batch size of 8 for 300 epochs. For object detection on ScanNet, following VoteNet [70], HPENets are trained from scratch for 36 epochs with an initial learning rate of 0.008. To ensure fair and standard comparisons, we do not conduct any voting [48] on all datasets except ShapeNet-Part. We also compare model parameters (Param.), FLOPs, and inference throughput (TP), measured in instances per second. All baselines are evaluated under a unified protocol. For methods with public implementations, we report the official numbers or recompute them using the released code. For methods without available implementations, the entries are marked with “–”. The TP of all methods is measured using an NVIDIA RTX 4090 24GB GPU and an Intel Xeon Gold 6138 CPU @ 2.00GHz × 80 cores. The input for TP consists of 128 × 1024 (i.e., a batch size of 128 and 1024 points) on ScanObjectNN and ModelNet40, 64 × 2048 on ShapeNetPart, and 16 × 15000 on S3DIS and ScanNet.                                                                  
+
+> 2. code: https://github.com/Pointcept/Pointcept.git 10
+> TABLE 2 3D object classification on ScanObjectNN [25]. The best results are highlighted in bold , while the second-best results are underlined. Results marked with an asterisk (*) indicate released values.
+> Methods OA mAcc Param. FLOPs TP PointNet [12] 68.2 63.4 3.5 0.9 6846 PointCNN [72] 78.5 75.1 0.6 --PointNet++ [13] 77.9 75.4 1.5 1.7 3019 DGCNN [60] 78.1 73.6 1.8 4.8 1093 PRANet [73] 82.1 79.1 2.3 --PointMLP [20] 85.7 84.4 13.2 31.4 370 PointVector [7] 87.8 ±0.4 86.2 ±0.5 1.6 1.7 1484 PointNeXt-S [6] 87.7 ±0.4 85.8 ±0.6 1.4 1.6 4052 PointMetaBase-S [5] 87.9 ±0.2 86.2 ±0.7 1.4 0.6 3140 HPENet [8] 88.9 87.6 1.7 2.2 2700 HPENet (SIN) [8] 88.4 86.9 1.7 2.2 2455 HPENet V2-S 88.4 ±0.3 86.9 ±0.4 1.5 0.8 3989 HPENet V2-S* 88.9 87.4 1.5 0.8 3989
+
+Unless otherwise stated, all reported values are means over at least three random seeds. An asterisk (*) denotes the best single-run result obtained under the same training protocol and hyperparameters as the corresponding non-asterisk model. 
+
+5.1 3D Object Classification 
+
+ScanObjectNN [25] collects real-world objects from 700 unique scenes within the SOTA mesh datasets SceneNN [71] and ScanNet [27]. This dataset includes about 15,000 real scanned objects, categorized into 15 classes with 2,902 unique object instances. Due to occlusions and noise, ScanObjectNN is a highly challenging dataset for the current methods. Following PointMLP [20], we evaluate HPENets on PB T50 RS, the hardest and widely used variant of ScanObjectNN, using the standard metrics of mean accuracy (mAcc) and overall accuracy (OA). As reported in Tab. 2, HPENet V2 significantly improves the efficiency of HPENet with only a slight reduction in performance (a 0.2% mAcc decrease), while being 1.5 ×
+
+faster and using only 36.4% of the FLOPs. Compared with the strong MLP-based method PointNeXt [6], HPENet V2 surpasses it by 0.7% in OA and 1.1% in mAcc, indicating that the proposed HPE can provide effective geometric information and local context for PreConv, which utilizes non-local MLPs. Moreover, HPENet V2 outperforms Point-MetaBase [5], an MLP-based method that belongs to the separable ABS-REF view, by 0.5% and 0.7% in terms of OA and mAcc, respectively. 
+
+ModelNet40 [26] is a widely used dataset for synthetic object classification. It contains 12,311 meshed computer-aided design models across 40 different object categories. Following the standard protocol, our training set consists of 9,843 models, while the testing set includes 2,468 models. For evaluation, we utilize both mAcc and OA as metrics. As shown in Tab. 3, HPENet V2 demonstrates consis-tent improvements over PointNeXt. For instance, HPENet V2-S surpasses PointNeXt-S by 0.3% in OA. Additionally, HPENet V2 achieves greater resource efficiency with asubstantial reduction in FLOPs. Notably, our HPENet V2-S ( Ce=64) variant achieves SOTA performance, with 94.0%                                                                                                
+
+> TABLE 3 3D object classification on ModelNet40 [26].
+> Methods OA mAcc Param. FLOPs TP PointNet [12] 89.2 86.2 3.5 0.9 6848 PointNet++ [13] 91.9 -1.5 1.7 3019 PointCNN [72] 92.2 88.1 0.6 --PointConv [14] 92.5 -18.6 --DGCNN [60] 92.9 90.2 1.8 4.8 1093 DeepGCN [74] 93.6 90.9 2.2 3.9 629 Point Transformer [11] 93.7 90.6 ---PointVector [7] 93.7 91.6 1.6 1.7 1486 CurveNet [61] 93.8 91.1 2.0 --PointMLP [20] 94.1 91.3 13.2 31.4 370 PointNeXt-S [6] 93.2 ±0.1 90.8 ±0.2 1.4 1.6 4050 PointNeXt-S ( Ce=64) [6] 93.7 ±0.3 90.9 ±0.5 4.5 6.5 1952 HPENet [8] 94.0 90.8 5.9 8.7 1308 HPENet (SIN) [8] 94.0 91.3 5.9 8.6 1206 HPENet V2-S 93.5 ±0.2 90.8 ±0.3 1.4 0.8 3859 HPENet V2-S* 93.7 90.8 1.4 0.8 3859 HPENet V2-S ( Ce=64) 93.7 ±0.2 91.2 ±0.4 5.1 3.1 2008 HPENet V2-S ( Ce=64)* 94.0 91.7 5.1 3.1 2008
+
+OA and 91.7% mAcc on ModelNet40. Moreover, compared to PointMLP [20], a strong MLP-based method on Model-Net40, HPENet V2-S ( Ce=64) achieves comparable results with just 5.1M parameters and 3.1G FLOPs, while PointMLP uses 12.6M parameters and 31.4G FLOPs. 
+
+5.2 Scene Semantic Segmentation 
+
+Scene semantic segmentation aims to assign a semantic label to each point in scene point clouds. This task is generally more challenging than 3D object classification. We evaluate HPENet V2 on two popular large-scale indoor datasets, S3DIS [4] and ScanNet [27], as well as on the outdoor dataset SemanticKITTI [28]. The results are summarized in Tables 4, 5, and 6, respectively. We discuss these results below. 
+
+S3DIS [4] comprises 6 large-scale indoor areas and 271 rooms, which are captured from 3 different buildings. A total of 273 million points are annotated and classified into 13 semantic categories. Following PointNeXt [6], we employ two evaluation protocols. The first protocol uses Area-5 as the test scene and all other scenes for training. The second is the standard 6-fold cross-validation. For evaluation, we use the commonly adopted metrics of mean IoU (mIoU), mAcc, and OA. From Tab. 4, it can be observed that HPENet V2 achieves SOTA performance of 72.6% mIoU on S3DIS Area-5 and 78.9% mIoU on S3DIS (6-fold cross-validation). Importantly, no pre-training or voting strategies were used to enhance performance in our results. Detailed semantic segmenta-tion results on S3DIS with 6-fold cross-validation are pre-sented in the supplementary material IV. Despite being an MLP-based approach, HPENet performs on par with or better than Transformer-based methods. On S3DIS Area-5, HPENet V2-XL surpasses Point Transformer V2 [58] by 1.0% mIoU, 0.5% OA, and 0.9% mAcc. Compared with lightweight Transformer-based methods (Fast Point Trans-former and Point Transformer V3), HPENet V2 achieves comparable or superior mIoU with substantially fewer parameters (16.1M vs. 37.9M and 46.2M). Relative to PointNeXt, a strong MLP baseline, HPENet V2 improves 11                                                                                                                                                                                                                                                                         
+
+> TABLE 4 Scene semantic segmentation on S3DIS [4].
+> Methods S3DIS Area-5 S3DIS 6-fold Param. FLOPs TP mIoU OA mAcc mIoU OA mAcc MGins./sec. PointNet++ [13] 53.5 83.0 -54.5 81.0 67.1 1.0 7.2 332 PointCNN [72] 57.3 85.9 63.9 65.4 88.1 75.6 0.6 --KPConv [47] 67.1 -72.8 70.6 -79.1 15.0 --RepSurf-U [75] 68.9 90.2 76.0 74.3 89.9 82.6 1.0 1.0 -ASSANet [23] 68.0 89.7 74.3 ---115.6 36.2 -Fast Point Transformer [54] 70.1 -77.4 ---37.9 --BAAF-Net [76] 65.4 88.9 73.1 72.2 88.9 83.1 5.0 --CBL [77] 69.4 90.6 75.2 73.1 89.6 79.4 18.6 --Point Transformer [11] 70.4 90.8 76.5 73.5 90.2 81.9 7.8 5.6 -Stratified Transformer [24] 72.0 91.5 78.1 ---8.0 12.3 -PointVector-L [7] 71.2 90.8 77.3 77.4 91.4 85.5 4.2 10.7 209 PointVector-XL [7] 72.3 91.0 78.1 78.4 91.9 86.1 24.1 58.5 90 Point Transformer V2 [58] 71.6 91.1 77.9 ---4.4 14.1 -Point Transformer V3 [57] 73.4 91.7 78.9 77.7 91.5 85.3 46.2 5.2 -PointNeXt-S [6] 63.4 ±0.8 87.9 ±0.3 70.0 ±0.7 68.0 87.4 77.3 0.8 3.6 410 PointNeXt-B [6] 67.3 ±0.2 89.4 ±0.1 73.7 ±0.6 71.5 88.8 80.2 3.8 8.9 293 PointNeXt-L [6] 69.0 ±0.5 90.0 ±0.1 75.3 ±0.8 73.9 89.8 82.2 7.1 15.2 221 PointNeXt-XL [6] 70.5 ±0.3 90.6 ±0.2 76.8 ±0.7 74.9 90.3 83.0 41.6 84.8 98 PointMetaBase-L [5] 69.5 ±0.3 90.5 ±0.1 -75.6 90.6 -2.7 2.0 245 PointMetaBase-XL [5] 71.1 ±0.4 90.9 ±0.1 -76.3 91.0 -15.3 9.2 130 PointMetaBase-XXL [5] 71.3 ±0.7 90.8 ±0.6 -77.0 91.3 -19.7 11.0 114 HPENet [8] 72.7 91.5 78.5 78.7 91.9 86.2 46.3 148.8 57 HPENet (SIN) [8] 72.4 91.0 78.9 78.2 91.7 86.1 46.3 147.2 50 HPENet V2-S 65.2 ±0.3 89.1 ±0.2 71.8 ±0.4 70.5 88.7 79.6 0.7 2.6 323 HPENet V2-B 69.7 ±0.3 90.4 ±0.1 76.0 ±0.4 76.0 91.0 84.3 1.8 3.7 260 HPENet V2-L 71.0 ±0.1 91.2 ±0.2 77.0 ±0.3 77.5 91.6 85.3 2.9 4.2 231 HPENet V2-XL 72.3 ±0.2 91.5 ±0.1 78.4 ±0.5 78.9 91.9 86.3 16.1 18.2 128 HPENet V2-XL* 72.6 91.6 78.8 78.9 91.9 86.3 16.1 18.2 128
+> Fig. 6. Representative visual comparison of semantic segmentation results on S3DIS Area-5. “ST” denotes Stratified Transformer.
+
+mIoU/OA/mAcc by 1.8%/0.9%/1.6% while being 1.3 ×
+
+faster on Area-5. In the 6-fold setting, HPENet V2 fur-ther gains 4.0% mIoU, 1.6% OA, and 3.3% mAcc. More-over, HPENet V2-L delivers performance comparable to PointMetaBase-XXL while using only 14.7% of the param-eters and 38.2% of the FLOPs, and it also achieves faster inference. Fig. 6 presents a representative qualitative comparison on S3DIS Area-5 among HPENet V2, the MLP-based Point-MetaBase [5], and the transformer-based Stratified Trans-former (ST) [24]. Relative to these baselines, HPENet V2 more accurately delineates object categories such as walls (2nd and 5th rows), bookcases ( 2nd , 4th , and 5th rows), clut-ter ( 1st and 2nd rows), and columns ( 3rd and 4th rows). We attribute these improvements to effective modeling of posi-tional information via HPE and fusion of multi-resolution features via BFM. 
+
+ScanNet V2 [27] consists of 3D indoor scenes with 2.5 million RGB-D frames from over 1,500 scans, annotated with 20 semantic classes. We follow the standard training and validation splits, using 1,201 scenes for training and 312 scenes for validation. The evaluation metric for the validation set is mIoU, following the standard protocol. As shown in Tab. 5, HPENet achieves highly compet-itive performance with 74.0% mIoU, outperforming Point-NeXt by 2.5% mIoU, though at a higher computational cost. With non-local MLPs, HPENet V2-XL exceeds HPENet (SIN) by 0.5% mIoU, while using only 21.8% of the pa-rameters, 9.0% of the FLOPs, and is 3.6 × faster. Com-pared to other strong MLP-based methods like PointNeXt and PointMetaBase, our HPENet V2 shows consistent per-formance gains and is faster. Moreover, compared with the lightweight Transformer-based Fast Point Transformer (FPT) [54], HPENet V2 is higher by 0.6% in mIoU while using less than half the parameters. Fig. 7 presents representative qualitative results on the ScanNet validation set, comparing HPENet V2 with the MLP-based PointMetaBase [5] and the transformer-based Fast Point Transformer (FPT) [54]. As shown in Fig. 7, HPENet V2 segments walls ( 1st , 2nd , 4th and 5th rows) and tables ( 2nd and 3rd rows) more accurately. 
+
+SemanticKITTI [28] is derived from the KITTI Odom-etry Benchmark and comprises 22 sequences. Sequences 12 
+
+TABLE 5 Scene semantic segmentation on ScanNet V2 [27] val. set. 
+
+Methods mIoU Param. FLOPs TP PointNet++ [13] 53.5 1.0 7.2 332 RepSurf-U [75] 70.0 1.0 1.0 -Point Transformer [11] 70.6 7.8 5.6 -MinkowskiNet [9] 72.2 37.9 4.7 -Fast Point Transformer [54] 72.5 37.9 - -Stratified Transformer [24] 74.3 18.8 16.1 -Point Transformer V2 [58] 75.4 12.8 18.2 -PointNeXt-S [6] 64.5 0.7 4.7 357 PointNeXt-B [6] 68.4 3.8 9.1 289 PointNeXt-L [6] 69.4 7.1 15.4 219 PointNeXt-XL [6] 71.5 41.6 85.2 97 PointMetaBase-L [5] 71.0 2.7 2.1 242 PointMetaBase-XL [5] 71.8 15.3 9.6 129 PointMetaBase-XXL [5] 72.8 19.7 11.5 113 HPENet [8] 74.0 74.3 220.9 40 HPENet (SIN) [8] 72.8 74.2 218.6 35 HPENet V2-S 66.3 0.8 3.3 302 HPENet V2-B 70.6 1.9 4.1 255 HPENet V2-L 71.4 3.0 4.6 227 HPENet V2-XL 73.3 16.2 19.7 125 
+
+TABLE 6 Scene semantic segmentation on SemanticKITTI [28] val. set. 
+
+Methods mIoU Param. FLOPs SPVNAS [79] 64.7 10.8 64.5 Cylinder3D [80] 64.3 55.8 134.2 WaffleIron [81] 68.0 - -SphereFormer [78] 67.8 32.3 89.8 RangeFormer [82] 67.6 24.3 -MinkowskiNet [9] 63.8 37.9 -OA-CNNs [10] 70.6 - -Point Transformer V2 [58] 70.3 - -HPENet V2-S 66.9 0.8 2.9 HPENet V2-B 67.0 2.2 4.5 HPENet V2-L 67.4 3.3 4.9 HPENet V2-XL 69.3 16.1 18.1 
+
+00–10 are used for training, and following common prac-tice [57] we use 08 for validation. Sequences 11–21 are used for testing. Ground-truth labels are released only for the training sequences. The dataset provides dense pointwise annotations for 28 semantic classes on 360 ◦ LiDAR scans. Following the official evaluation protocol, we report mIoU over the 19 valid classes. As shown in Tab. 6, HPENet V2-XL achieves 69.3% mIoU on SemanticKITTI with 18.1G FLOPs. Compared with the transformer-based SphereFormer [78], it gains 1.5% mIoU while using about 5× fewer FLOPs (18.1G vs. 89.8G) and roughly half the parameters (16.1M vs. 32.3M). These results show that HPENet V2 delivers competitive accuracy at substantially lower computational cost for outdoor semantic segmentation. 
+
+5.3 3D Object Part Segmentation 
+
+ShapeNetPart [29] is an object-level dataset for object part segmentation, consisting of 16,881 objects from 16 shape categories and 50 part labels. Following PointNet++ [13], we randomly select 2,048 points as input and evaluate 
+
+TABLE 7 3D object part segmentation on ShapeNetPart [29]. 
+
+Methods Cls. mIoU Ins. mIoU Param. FLOPs TP PointNet [12] 80.4 83.7 3.6 4.9 -PointNet++ [13] 81.9 85.1 1.1 5.5 -DGCNN [60] 82.3 85.2 1.3 12.4 -KPConv [47] 85.1 86.4 - - -PointMLP [20] 84.6 86.1 - - -DTNet [83] - 86.2 - - -AGConv [62] 83.4 86.4 - - -Point Transformer [11] 83.7 86.6 - - -Stratified Transformer [24] 85.1 86.6 - - -PointNeXt-S [6] 84.4 ±0.2 86.7 ±0.0 1.0 4.5 1442 PointNeXt-S (c=64) [6] 84.8 ±0.5 86.9 ±0.1 3.7 17.8 717 PointNeXt-S (c=160) [6] 85.2 ±0.1 87.0 ±0.1 22.5 110.2 225 PointMetaBase-S [5] 84.3 ±0.1 86.7 ±0.0 1.0 1.4 1402 PointMetaBase-S(c=64) [5] 84.9 ±0.2 86.9 ±0.1 3.8 3.9 797 PointMetaBase-S(c=160) [5] 85.1 ±0.3 87.1 ±0.0 22.7 18.5 314 HPENet [8] 85.3 87.0 24.7 135.6 171 HPENet (SIN) [8] 85.5 87.1 24.7 135.3 158 HPENet V2-S 84.6 ±0.1 86.8 ±0.1 1.1 2.1 1567 HPENet V2-S(c=64) 84.8 ±0.4 86.8 ±0.0 4.3 8.0 823 HPENet V2-S(c=160) 85.4 ±0.1 87.2 ±0.1 26.3 48.9 293 HPENet V2-S* 85.4 87.3 26.3 48.9 293 
+
+Fig. 7. Representative qualitative comparison of semantic segmentation on ScanNet. Visualizations for Fast Point Transformer (FPT) exclude points annotated with the ignore label. 
+
+performance using class mean IoU (Cls. mIoU) and instance mean IoU (Ins. mIoU). In Tab. 7, we report the results of the top-performing approaches. HPENet V2 outperforms the SOTA method and is also faster on this dataset. Our HPENet V2 reaches 87.3% Ins. mIoU, while the performance of MLP-based methods has remained stagnant below this value for years. Notably, HPENet outperforms the strong transformer-based method Stratified Transformer [24] not only on S3DIS but also on ShapeNetPart. Fig. 8 presents qualitative results of PoinMetaBase [5] and HPENet V2 on ShapeNetPart. In Fig. 8, HPENet V2 produces predictions that are closer to the ground truth compared to PointMetaBase. Specifically, HPENet V2 accu-13                                                                                                                        
+
+> TABLE 8 3D object detection results on SUN RGB-D validation set with mAP@0.25. ‡donates that the model is implemented on MMDetection3D [84].
+> Model mAP@0.25 bed table sofa chair toilet desk dresser nightstand shelf bathtub VoteNet [70] 57.7 83.0 47.3 64.0 75.3 90.1 22.0 29.8 62.2 28.8 74.4 VoteNet ‡[70] 59.7 84.8 49.6 67.8 77.6 87.4 24.3 29.3 61.9 32.1 82.1 BRNet [85] 61.1 86.9 51.8 66.4 77.4 91.3 29.6 35.9 65.9 29.7 76.2 3DETR [86] 59.1 84.6 52.6 65.3 72.4 91.0 34.3 29.6 61.4 28.5 69.8 VoteNet ‡+HP E M LP 61.2 85.0 50.5 67.7 78.5 91.1 28.5 35.0 64.1 34.3 77.1
+> TABLE 9 Ablation study on S3DIS Area-5 demonstrating the efficacy of ABS-REF view, and contribution of HPE modules. ∆represents the difference in mIoU between the current row and the first row.
+> Networks( Ce,B)HPE OA mAcc mIoU △Param. FLOPs TP HPENet dv (32, [0, 0, 0, 0]) 82.7 ±0.6 58.3 ±0.7 51.5 ±0.2 -0.5 0.8 509 HPENet dv (32, [1, 1, 1, 1]) 85.8 ±0.5 65.5 ±0.3 58.8 ±0.6 +7.3 1.6 1.2 452 HPENet dv (32, [1, 1, 1, 1]) PE 89.3 ±0.3 73.4 ±0.3 66.7 ±0.4 +15.2 1.6 1.4 328 HPENet dv (32, [1, 1, 1, 1]) HPE 90.0 ±0.1 74.5 ±0.8 68.1 ±0.4 +16.6 1.8 3.2 309 HPENet dv ⋆83.5 ±0.5 60.1 ±0.8 53.2 ±0.7 -5.6 1.6 1.2 507
+> Fig. 8. Qualitative comparisons among PointMetaBase [5] (first row), HPENet (second row), and Ground Truth (third row) on ShapeNet-Part [29] for 3D object part segmentation.
+
+rately segments the wings ( 1st column), bodies and engines (2nd column) of airplanes, roofs ( 3rd and 4th columns) of cars, handles ( 5th and 6th columns) of knifes, and bearing (7th column) of a skateboard. 
+
+5.4 3D Object Detection 
+
+The key building block of HPENets, i.e., the HPE module, is inherently compatible with MLP-based backbones. To exam-ine its flexibility, we also extend the competitive techniques of VoteNet [70] and GroupFree3D [87] with HP E M LP . In Tab. 8 and Tab. 10, we summarize the results of our ex-tension following standard evaluation protocols on ScanNet V2 [27] and SUN-RGB-D [88] for 3D object detection. ScanNet V2 contains richly annotated 3D reconstructed indoor scenes with axis-aligned bounding boxes for object detection. It includes 1,201 training samples and 312 scans for validation. SUN-RGB-D is a single-view indoor dataset consisting of 10,355 RGB-D images and contains 5,000 train-ing images annotated with oriented 3D bounding boxes. As shown in Tab. 8 and Tab. 10, a consistent gain across the board is achieved with our HP E M LP extension. 
+
+5.5 Ablation Study 
+
+ABS-REF efficacy: In Tab.9, we establish the contribution of the REF stage in our HPENet V2, which follows the                              
+
+> TABLE 10 3D object detection on ScanNet V2 validation set. ‡donates that the model is implemented on MMDetection3D [84].
+> Method mAP@0.25 mAP@0.5 VoteNet [70] 58.6 33.5 VoteNet ‡[70] 63.8 44.2 MLCVNet [89] 64.5 41.4 3DETR [86] 65.0 47.0 GroupFree3D ‡[87] 68.2 52.6 GroupFree3D + X-3D [45] 69.0 51.1 VoteNet + HP E M LP 60.9 37.4 VoteNet ‡+HP E M LP 65.0 45.6 GroupFree3D ‡+HP E M LP 69.1 53.0
+
+separable ABS-REF paradigm with non-local MLPs. By removing the REF stage, HPENet V2 degenerates into a single-stage method, which we refer to as HPENet-dv in the table. We chose HPENet-dv as the baseline and expanded it by adding a REF stage behind each ABS stage, resulting in a 7.3% mIoU performance gain. Further application of PE schemes to HPENet-dv yields a performance gain of 7.9% mIoU, demonstrating that positional encoding is cru-cial for local aggregation. Finally, replacing the traditional PE with the proposed HPE achieves a performance gain of 1.4% mIoU. These results confirm that while PE can introduce geometric information into local aggregation, it limits performance due to the restricted dimensionality of positional information. To verify the impact of parameters, we removed the grouping operation in the REF stage of HPENet-dv (32, [1, 1, 1, 1]), resulting in a model with only the ABS stage and the same number of parameters, termed HPENet-dv ⋆. However, HPENet-dv ⋆ only achieves 53.2% mIoU, significantly underperforming HPENet-dv(32, [1, 1, 1, 1]). These results validate that the REF stage is a crucial component in our ABS-REF framework and that our HPE effectively supports this framework. 
+
+More analyses on positional encoding: In Tab. 11, we evaluate the influence of different positional encodings at different stages of HPENet V2-XL on S3DIS Area-5. We com-14                                                                                                                                          
+
+> TABLE 11 Ablation study for positional encoding and backward fusion module with HPENet V2-XL on S3DIS Area-5 justifying HPE use in both ABS and REF stages. ∆in lines 1 through 5 indicates the difference in mIoU between the corresponding row and the first row, while ∆in lines 6 through 8 represents the difference in mIoU between the corresponding row and the fourth row.
+> Line Type ABS REF BFM OA mAcc mIoU △Param.(M) FLOPs(G) TP(ins./sec.) 187.5 ±0.4 70.4 ±0.5 63.9 ±0.3 -15.4 10.4 176 2HPE √90.2 ±0.1 76.1 ±0.4 70.0 ±0.4 +6.1 15.8 13.7 160 3HPE √91.0 ±0.1 76.9 ±0.6 70.7 ±0.5 +6.8 15.8 14.5 148 4HPE √√91.5 ±0.2 77.9 ±0.3 72.2 ±0.2 +8.3 16.0 17.7 137 5HPE √√√91.5 ±0.1 78.4 ±0.5 72.3 ±0.2 +8.4 16.1 18.2 128 6PE √√90.9 ±0.2 77.0 ±0.5 70.9 ±0.5 -1.3 15.4 10.8 144 7HPE (mul) √√90.9 ±0.1 76.8 ±0.2 71.0 ±0.5 -1.2 16.0 17.7 137 8HPE (abs) √√78.3 ±1.8 63.2 ±1.0 54.6 ±1.6 -17.6 16.0 10.7 175
+> TABLE 12 Ablation study on dimension of HP E M LP with HPENet V2-XL on S3DIS Area-5. ‘C’ denotes the feature channel number. ∆represents the difference in mIoU between the current row and the first row.
+> Dimension OA mAcc mIoU △Param. FLOPs TP 390.9 ±0.2 77.0 ±0.5 70.9 ±0.5 -15.3 10.8 144 C/8 91.6 ±0.2 77.9 ±0.2 71.9 ±0.3 +1.0 15.6 14.1 141 C/4 91.5 ±0.2 77.9 ±0.3 72.2 ±0.2 +1.3 16.0 17.7 137 C/2 91.4 ±0.1 77.4 ±0.2 71.5 ±0.1 +0.6 16.7 24.9 129 C91.4 ±0.3 78.2 ±0.7 71.8 ±0.4 +0.9 18.1 39.3 116
+
+pare the proposed High-dimensional Positional Encoding (HPE) with a conventional learnable positional encoding (PE). To study the effect of absolute coordinates, we feed absolute point positions into HPE, denoted HPE (abs). We also replace the standard element-wise addition used to fuse positional cues with element-wise multiplication, denoted HPE (mul), which treats the positional signal as a dynamic feature weight. Note that relative positional encodings are translation invariant, whereas absolute encodings are not. Below, we summarize interesting observations regarding our results in Tab. 11. Firstly , applying HPE in both the ABS and REF stages consistently outperforms using it in either stage alone. This supports our claim that positional encoding is beneficial for both ABS and REF stages, which is a distinctive property of our framework. Secondly , HPE (abs) incurs 17.6% mIoU absolute performance reductions, as compared to HPE. It suggests that absolute positional encoding is unsuitable for 3D semantic segmentation tasks since it can not capture local context information which is crucial for point cloud processing. Thirdly , HPE (mul) in-curs 1.12% mIoU reduction as compared to HPE. Therefore, we use element-wise addition to fuse positional encoding into features. For a deeper analysis of positional encoding variants, Fig. 9 shows t-distributed stochastic neighbor embedding (t-SNE) visualizations of the final-layer features from HPENet-dv. Relative to the baseline, HPE (abs) still yields fragmented clusters with noticeable class overlap, indicating weak dis-criminative power. HPE (mul) improves local cohesion but often forms elongated clusters with scattered islands. In contrast, the proposed HPE produces compact intra-class groupings, wider inter-class margins, and fewer outliers with cleaner boundaries. These patterns indicate that en-coding relative coordinates reduces inter-class similarity and that additive fusion further strengthens within-class (a) Baseline  (b) HPE (abs)  (c) HPE (mal)  (d) HPE           
+
+> bookcase bookcase door door wall wall clutter clutter chair chair window window floor floor board board table table column column ceiling ceiling
+> Fig. 9. t-SNE comparison of positional encoding variants for HPENet-dv. Left to right: (a) Baseline, (b) HPE (abs), (c) HPE (mal), (d) HPE.
+
+compactness, making the proposed HPE the most effective variant. In Tab. 12, we further analyze the effects of dimension variation of high-dimensional projected space with HPE on S3DIS Area-5. The results indicate that high-dimensional representation is crucial for positional encoding. When the feature dimension of high-dimensional representation in-creases from 3 to C/ 4, the network performance continues to improve, but when the feature dimension reaches over 
+
+C/ 4, the performance tends to saturate. These results are also consistent with common sense that network perfor-mance tends to saturate with an increase in network width. Therefore, we set the dimension to C/ 4 in HPENet V2. 
+
+Backward Fusion Module: In Tab. 11, we evaluate the influence of the proposed Backward Fusion Module (BFM). As shown in lines 4 and 5 in Tab. 11, HPENet V2 achieves a 0.5% mAcc performance gain by further introducing BFM, indicating that embedding contextual information can im-prove the performance balance across categories in HPENet and enhance its generalization. 
+
+Different configurations of HPENet V2: In Fig. 10, we visualize feature-to-label similarity matrices for HPENet V2 variants with varying depth and width. The baseline and a label-to-label matrix are included for reference. Each matrix is computed using cosine similarity between final-layer point features and one-hot class vectors. Rows are ordered by the predicted categories, and columns follow the class index order. The results indicate that introducing the proposed HPE and BFM (baseline vs. HPENet V2-S) signif-icantly enhances feature separability. Moreover, increasing the network depth and width further yields a sharper block-diagonal structure and lower off-diagonal responses in the similarity matrix compared with the baseline, reflecting stronger feature discrimination and improved segmentation performance. 15 
+
+TABLE 13 Ablation of the proposed modules on Point Transformer (PT) [11] and Stratified Transformer (ST) [24] for S3DIS Area-5. ∆ denotes the mIoU difference relative to the baseline row. cRPE (Contextual Relative Position Encoding) is a spatial relative positional encoding used in ST. 
+
+Methods ABS (MLPs) REF (PT layers) BFM OA mACC mIoU △ Param.(M) FLOPs(G) Point Transformer [11] Local MLPs PE 90.4 74.8 68.2 - 7.8 5.6 +Non-local MLPs Non-local MLPs PE 90.7 76.3 69.7 +1.5 7.8 4.9 +HPE Non-local MLPs + HPE HPE 90.5 76.4 70.3 +2.1 7.8 5.2 +BFM Non-local MLPs + HPE HPE √ 90.9 76.6 70.7 +2.5 7.9 5.3 Stratified Transformer [24] Local MLPs cRPE 91.7 77.4 71.4 - 8.0 12.3 +Non-local MLPs Non-local MLPs cRPE 90.9 78.9 72.0 +0.6 8.0 11.1 +HPE Non-local MLPs + HPE cRPE 92.2 78.7 72.5 +1.1 8.1 11.9 +BFM Non-local MLPs + HPE cRPE √ 91.9 78.7 72.7 +1.3 8.2 12.0 
+
+Fig. 10. Visual comparison of feature-to-label similarity matrices for HPENet V2 variants. The baseline and label matrix are shown for reference. 
+
+5.6 When HPENet Meets Transformer-based Methods 
+
+The above experimental results indicate that the proposed High-dimensional Positional Encoding (HPE), non-local MLPs, and Backward Fusion Module (BFM) substantially improve MLP-based models. Recently, transformer-based methods have caused a paradigm shift in point cloud pro-cessing. As shown in Fig. 3, the traditional transformer-based method, Point Transformer (PT) [11], also follows the proposed ABS-REF framework. Stratified Transformer (ST) [24] follows the same perspective. Therefore, we fur-ther integrate the proposed modules into Transformer-based methods and evaluate their effectiveness. Results on S3DIS Area-5 for PT and ST are reported in Tab. 13, and detailed results are provided in the supplementary material IV. Tab. 13 shows all proposed modules achieve significant gains over PT and ST. First, replacing the traditional lo-cal MLPs with non-local MLPs in the ABS stage reduces FLOPs. While a reduction in FLOPs is expected, it is sur-prising that the performance improves by 1.5% and 0.6% mIoU for PT and ST, respectively. We attribute this to the Transformer layers in the REF stage capturing abundant contextual information from neighboring point sets, and the non-local MLP in the ABS stage providing complementary non-local updates across input point sets. We next evaluate the proposed HPE. As shown in Tab. 13, adding HPE to the modified PT yields a further 0.6% mIoU improvement. This result also indicates that projecting the relative point coordinates into high-dimensional spaces is crucial. Finally, incorporating BFM to model contextual information yields a PointNeXt                      
+
+> PointMetaBase
+> HPENet V2
+> PointNeXt
+> PointMetaBase
+> HPENet V2
+> PointNeXt
+> PointMetaBase
+> HPENet V2
+> PointNeXt
+> PointMetaBase
+> HPENet V2
+> 1024 768 512 384 256 128 1024 768 512 384 256 128
+> 1024 768 512 384 256 128 2048 1024 768 512 384 256 128 2048
+> 90
+> 80
+> 70
+> 60
+> 50
+> 40
+> 30
+> 20
+> 90
+> 80
+> 70
+> 60
+> 50
+> 40
+> 30
+> 20
+> 87.5
+> 85.0
+> 82.5
+> 80.0
+> 77.5
+> 75.0
+> 72.5
+> 87.5
+> 85.0
+> 82.5
+> 80.0
+> 77.5
+> 75.0
+> 72.5
+> 67.5
+> 70.0
+> OA (%)  OA (%)
+> mAcc (%)  mAcc (%)
+> Points per training sample Points per training sample
+> Points per testing sample Points per testing sample
+
+Fig. 11. Robustness to point density during training and testing on ScanObjectNN across PointNeXt, PointMetaBase, and HPENet V2. 
+
+further 0.4% mIoU gain. Overall, incorporating our modules improves PT by 2.5% mIoU while reducing compute by 0.4G FLOPs, and improves ST by 1.3% mIoU with a 0.3G FLOP reduction. These results demonstrate the compatibility of our modules with Transformer-based methods. 
+
+5.7 Robustness test 
+
+We further evaluate the robustness of HPENet V2 to point cloud density on ScanObjectNN [25] . PointNeXt [6] and PointMetaBase [5] serve as baselines, where PointNeXt uses local MLPs for local aggregation, whereas PointMetaBase employs only non-local MLPs. Except for the number of points, all configurations are identical. We use farthest point sampling to generate inputs with a range of point counts for both training and testing. As shown in the first row of Fig. 11, HPENet V2 maintains strong accuracy across densities and remains robust to sparse inputs. With only 256 points per sample during training, HPENet V2 achieves 84.0% OA and 82.0% mAcc. Under conditions with missing points, HPENet V2 also shows robust performance, which we attribute to the presence of local MLPs in the first ABS stage. These results indicate that local MLPs are resilient to variations in point cloud density and that using them in the first ABS stage improves the robustness of HPENet V2. 
+
+## 6 CONCLUSION 
+
+Inspired by the distinct subsampling and convolution stages in image processing models, we provide a two-stage ab-straction and refinement (ABS-REF) view for point cloud 16 
+
+neural processing. This view offers an intuitive way to highlight the key strengths of existing methods. Addition-ally, we propose a High-dimensional Positional Encoding (HPE) scheme that effectively captures local geometric infor-mation, which is compatible with the ABS-REF paradigm. Furthermore, we design a simple and effective Backward Fusion Module (BFM) to embed context information into the processing pipeline. Within our ABS-REF framework, we rethink the local aggregation in MLP-based methods. We propose removing expensive set operations in local aggrega-tion and introducing non-local MLPs to process input point sets directly. To leverage the advantages and potential of various local aggregation, we propose to use different local aggregation in the ABS and REF stages. With the proposed ABS-REF view, HPE, and BFM, we have devised a suite of HPENets that leverage HPE for MLP-based modeling in object classification, object part segmentation, seman-tic segmentation, and object detection, largely improving SOTA performance across the board. Extensive experiments demonstrate that HPENets not only achieve impressive performance but are also highly efficient. Moreover, our proposed modules can enhance MLP-based architectures and are also compatible with Transformer-based methods, such as Point Transformer and Stratified Transformer. 
+
+## ACKNOWLEDGMENTS 
+
+This work was supported by National Natural Science Foundation of China under Grant (62373140, U21A20487, U2013203), National Key R&D Program (2023YFB4704500), Leading Talents in Science and Technology Innovation of Hunan Province (2023RC1040), the Project of Science Fund of Hunan Province (2022JJ30024); the Project of Talent Inno-vation and Sharing Alliance of Quanzhou City (2021C062L). 
+
+## REFERENCES 
+
+[1] H. Shi, J. Wei, R. Li, F. Liu, and G. Lin, “Weakly supervised segmentation on outdoor 4D point clouds with temporal matching and spatial graph propagation,” in Proc. CVPR , 2022, pp. 11 830– 11 839. [2] J. Li, R. Li, J. Li, J. Wang, Q. Wu, and X. Liu, “Dual-view 3D object recognition and detection via lidar point cloud and camera image,” Robotics and Autonomous Systems , vol. 150, p. 103999, 2022. [3] D. Kong, F. Wu, and C. Saroglou, “Automatic identification and characterization of discontinuities in rock masses from 3D point clouds,” Engineering Geology , vol. 265, p. 105442, 2020. [4] I. Armeni, O. Sener, A. R. Zamir, H. Jiang, I. K. Brilakis, M. Fis-cher, and S. Savarese, “3d semantic parsing of large-scale indoor spaces,” in Proc. CVPR , 2016, pp. 1534–1543. [5] H. Lin, X. Zheng, L. Li, F. Chao, S. Wang, Y. Wang, Y. Tian, and R. Ji, “Meta architecture for point cloud analysis,” in Proc. CVPR ,2023, pp. 17 682–17 691. [6] G. Qian, Y. Li, H. Peng, J. Mai, H. Hammoud, M. Elhoseiny, and B. Ghanem, “PointNeXt: Revisiting PointNet++ with improved training and scaling strategies,” in Proc. NeurIPS , vol. 35, 2022, pp. 23 192–23 204. [7] X. Deng, W. Zhang, Q. Ding, and X. Zhang, “PointVector: A vector representation in point cloud analysis,” in Proc. CVPR , 2023, pp. 9455–9465. [8] Y. Zou, H. Yu, Z. Yang, Z. Li, and N. Akhtar, “Improved MLP point cloud processing with high-dimensional positional encoding,” in 
+
+Proc. AAAI , vol. 38, no. 7, 2024, pp. 7891–7899. [9] C. Choy, J. Gwak, and S. Savarese, “4d spatio-temporal convnets: Minkowski convolutional neural networks,” in Proc. CVPR , 2019, pp. 3075–3084. [10] B. Peng, X. Wu, L. Jiang, Y. Chen, H. Zhao, Z. Tian, and J. Jia, “OA-CNNs: Omni-adaptive sparse CNNs for 3D semantic seg-mentation,” in Proc. CVPR , 2024, pp. 21 305–21 315. [11] H. Zhao, L. Jiang, J. Jia, P. H. S. Torr, and V. Koltun, “Point transformer,” in Proc. ICCV , 2021, pp. 16 239–16 248. [12] C. R. Qi, H. Su, K. Mo, and L. J. Guibas, “PointNet: Deep learning on point sets for 3D classification and segmentation,” in Proc. CVPR , 2017, pp. 77–85. [13] C. R. Qi, L. Yi, H. Su, and L. J. Guibas, “PointNet++: Deep hierarchical feature learning on point sets in a metric space,” in 
+
+Proc. NeurIPS , vol. 30, 2017, pp. 5099–5108. [14] W. Wu, Z. Qi, and L. Fuxin, “PointConv: Deep convolutional networks on 3D point clouds,” in Proc. CVPR , 2019, pp. 9621–9630. [15] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, Ł. Kaiser, and I. Polosukhin, “Attention is all you need,” in Proc. NeurIPS , vol. 30, 2017, pp. 5998–6008. [16] Z. Liu, Y. Lin, Y. Cao, H. Hu, Y. Wei, Z. Zhang, S. Lin, and B. Guo, “Swin transformer: Hierarchical vision transformer using shifted windows,” in Proc. ICCV , 2021, pp. 9992–10 002. [17] Z. Li, H. Yu, Z. Yang, T. Chen, and N. Akhtar, “AShapeFormer: Semantics-guided object-level active shape encoding for 3D object detection via transformers,” in Proc. CVPR , 2023, pp. 1012–1021. [18] N. Engel, V. Belagiannis, and K. Dietmayer, “Point transformer,” 
+
+IEEE Access , vol. 9, pp. 134 826–134 840, 2021. [19] J. Choe, C. Park, F. Rameau, J. Park, and I. S. Kweon, “PointMixer: MLP-Mixer for point cloud understanding,” in Proc. ECCV , vol. 13687, 2022, pp. 620–640. [20] X. Ma, C. Qin, H. You, H. Ran, and Y. Fu, “Rethinking network design and local geometry in point cloud: A simple residual MLP framework,” in Proc. ICLR , 2022. [21] M. Tancik, P. Srinivasan, B. Mildenhall, S. Fridovich-Keil, N. Raghavan, U. Singhal, R. Ramamoorthi, J. Barron, and R. Ng, “Fourier features let networks learn high frequency functions in low dimensional domains,” Proc. NeurIPS , vol. 33, pp. 7537–7547, 2020. [22] A. G. Howard, M. Zhu, B. Chen, D. Kalenichenko, W. Wang, T. Weyand, M. Andreetto, and H. Adam, “Mobilenets: Efficient convolutional neural networks for mobile vision applications,” 
+
+arXiv preprint arXiv:1704.04861 , 2017. [23] G. Qian, H. Hammoud, G. Li, A. Thabet, and B. Ghanem, “AS-SANet: An anisotropic separable set abstraction for efficient point cloud representation learning,” in Proc. NeurIPS , vol. 34, 2021, pp. 28 119–28 130. [24] X. Lai, J. Liu, L. Jiang, L. Wang, H. Zhao, S. Liu, X. Qi, and J. Jia, “Stratified transformer for 3D point cloud segmentation,” in Proc. CVPR , 2022, pp. 8490–8499. [25] M. A. Uy, Q.-H. Pham, B.-S. Hua, T. Nguyen, and S.-K. Yeung, “Revisiting point cloud classification: A new benchmark dataset and classification model on real-world data,” in Proc. ICCV , 2019, pp. 1588–1597. [26] Z. Wu, S. Song, A. Khosla, F. Yu, L. Zhang, X. Tang, and J. Xiao, “3D ShapeNets: A deep representation for volumetric shapes,” in 
+
+Proc. CVPR , 2015, pp. 1912–1920. [27] A. Dai, A. X. Chang, M. Savva, M. Halber, T. Funkhouser, and M. Nießner, “ScanNet: Richly-annotated 3D reconstructions of indoor scenes,” in Proc. CVPR , 2017, pp. 2432–2443. [28] J. Behley, M. Garbade, A. Milioto, J. Quenzel, S. Behnke, C. Stach-niss, and J. Gall, “Semantickitti: A dataset for semantic scene understanding of lidar sequences,” in Proc. ICCV , 2019, pp. 9297– 9307. [29] L. Yi, V. G. Kim, D. Ceylan, I.-C. Shen, M. Yan, H. Su, C. Lu, Q. Huang, A. Sheffer, and L. Guibas, “A scalable active framework for region annotation in 3D shape collections,” ACM Transactions on Graphics , vol. 35, no. 6, pp. 1–12, 2016. [30] I. O. Tolstikhin, N. Houlsby, A. Kolesnikov, L. Beyer, X. Zhai, T. Unterthiner, J. Yung, A. Steiner, D. Keysers, J. Uszkoreit 
+
+et al. , “MLP-Mixer: An all-MLP architecture for vision,” in Proc. NeurIPS , vol. 34, 2021, pp. 24 261–24 272. [31] H. Deng, S. Chen, X. Zhu, B. Jiang, K. Jing, and L. Wang, “EP-Net: Improving point cloud learning efficiency through feature de-coupling,” IEEE Transactions on Instrumentation and Measurement ,vol. 73, pp. 1–14, 2024. [32] F. Engelmann, T. Kontogianni, and B. Leibe, “Dilated point con-volutions: On the receptive field size of point convolutions on 3D point clouds,” in Proc. ICRA , 2020, pp. 9463–9469. 17 
+
+[33] M. Xu, R. Ding, H. Zhao, and X. Qi, “PAConv: Position adaptive convolution with dynamic kernel assembling on point clouds,” in 
+
+Proc. CVPR , 2021, pp. 3173–3182. [34] Y. He, H. Yu, Z. Yang, X. Liu, W. Sun, and A. Mian, “Full point encoding for local feature aggregation in 3-D point clouds,” IEEE Transactions on Neural Networks and Learning Systems , 2024. [35] Y. Shen, C. Feng, Y. Yang, and D. Tian, “Mining point cloud local structures by kernel correlation and graph pooling,” in Proc. CVPR , 2018, pp. 4548–4557. [36] Z. Du, J. Liang, J. Liang, K. Yao, and F. Cao, “Graph regulation network for point cloud segmentation,” IEEE Transactions on Pat-tern Analysis and Machine Intelligence , vol. 46, no. 12, pp. 7940–7955, 2024. [37] H. Pei, B. Wei, K. C.-C. Chang, Y. Lei, and B. Yang, “Geom-GCN: Geometric graph convolutional networks,” in Proc. ICLR , 2020. [38] J. Zhu, R. A. Rossi, A. Rao, T. Mai, N. Lipka, N. K. Ahmed, and D. Koutra, “Graph neural networks with heterophily,” in Proc. AAAI , vol. 35, no. 12, 2021, pp. 11 168–11 176. [39] J. Zhu, Y. Yan, L. Zhao, M. Heimann, L. Akoglu, and D. Koutra, “Beyond homophily in graph neural networks: Current limitations and effective designs,” in Proc. NeurIPS , vol. 33, 2020, pp. 7793– 7804. [40] Z.-H. Lin, S.-Y. Huang, and Y.-C. F. Wang, “Learning of 3D graph convolution networks for point cloud analysis,” IEEE Transactions on Pattern Analysis and Machine Intelligence , vol. 44, no. 8, pp. 4212– 4224, 2022. [41] J. Liang, Z. Du, J. Liang, K. Yao, and F. Cao, “Long and short-range dependency graph structure learning framework on point cloud,” IEEE Transactions on Pattern Analysis and Machine Intelli-gence , vol. 45, no. 12, pp. 14 975–14 989, 2023. [42] D. G. Lowe, “Distinctive image features from scale-invariant key-points,” International Journal of Computer Vision , vol. 60, pp. 91–110, 2004. [43] M. Jiang, Y. Wu, T. Zhao, Z. Zhao, and C. Lu, “PointSIFT: A SIFT-like network module for 3D point cloud semantic segmentation,” 
+
+arXiv preprint arXiv:1807.00652 , 2018. [44] Z. Zeng, M. Dong, J. Zhou, H. Qiu, Z. Dong, M. Luo, and B. Li, “Deepla-net: Very deep local aggregation networks for point cloud analysis,” in Proc. CVPR , 2025, pp. 1330–1341. [45] S. Sun, Y. Rao, J. Lu, and H. Yan, “X-3D: Explicit 3D structure modeling for point cloud recognition,” in Proc. CVPR , 2024, pp. 5074–5083. [46] X. Yin, X. Yang, L. Liu, N. Wang, and X. Gao, “Point deformable network with enhanced normal embedding for point cloud analy-sis,” in Proc. AAAI , vol. 38, no. 7, 2024, pp. 6738–6746. [47] H. Thomas, C. R. Qi, J.-E. Deschaud, B. Marcotegui, F. Goulette, and L. J. Guibas, “KPConv: Flexible and deformable convolution for point clouds,” in Proc. ICCV , 2019, pp. 6410–6419. [48] Y. Liu, B. Fan, S. Xiang, and C. Pan, “Relation-shape convolutional neural network for point cloud analysis,” in Proc. CVPR , 2019, pp. 8895–8904. [49] H. Lei, N. Akhtar, and A. Mian, “Octree guided CNN with spherical kernels for 3D point clouds,” in Proc. CVPR , 2019, pp. 9631–9640. [50] ——, “Spherical kernel for efficient graph convolution on 3D point clouds,” IEEE Transactions on Pattern Analysis and Machine Intelligence , vol. 43, no. 10, pp. 3664–3680, 2021. [51] Q. Hu, B. Yang, L. Xie, S. Rosa, Y. Guo, Z. Wang, N. Trigoni, and A. Markham, “RandLA-Net: Efficient semantic segmentation of large-scale point clouds,” in Proc. CVPR , 2020, pp. 11 105–11 114. [52] J. Devlin, M.-W. Chang, K. Lee, and K. Toutanova, “BERT: Pre-training of deep bidirectional transformers for language under-standing,” in Proc. NAACL-HLT , 2019, pp. 4171–4186. [53] A. Dosovitskiy, L. Beyer, A. Kolesnikov, D. Weissenborn, X. Zhai, T. Unterthiner, M. Dehghani, M. Minderer, G. Heigold, S. Gelly 
+
+et al. , “An image is worth 16x16 words: Transformers for image recognition at scale,” in Proc. ICLR , 2020. [54] C. Park, Y. Jeong, M. Cho, and J. Park, “Fast point transformer,” in 
+
+Proc. CVPR , 2022, pp. 16 928–16 937. [55] Z. Zeng, H. Qiu, J. Zhou, Z. Dong, J. Xiao, and B. Li, “Pointnat: large-scale point cloud semantic segmentation via neighbor ag-gregation with transformer,” IEEE Transactions on Geoscience and Remote Sensing , vol. 62, pp. 1–18, 2024. [56] M.-H. Guo, J.-X. Cai, Z.-N. Liu, T.-J. Mu, R. R. Martin, and S.-M. Hu, “PCT: Point cloud transformer,” Computational Visual Media ,vol. 7, no. 2, pp. 187–199, 2021. [57] X. Wu, L. Jiang, P.-S. Wang, Z. Liu, X. Liu, Y. Qiao, W. Ouyang, T. He, and H. Zhao, “Point transformer V3: Simpler, faster, stronger,” in Proc. CVPR , 2024, pp. 4840–4851. [58] X. Wu, Y. Lao, L. Jiang, X. Liu, and H. Zhao, “Point transformer V2: Grouped vector attention and partition-based pooling,” in Proc. NeurIPS , vol. 35, 2022, pp. 33 330–33 342. [59] L. Landrieu and M. Simonovsky, “Large-scale point cloud seman-tic segmentation with superpoint graphs,” in Proc. CVPR , 2018, pp. 4558–4567. [60] Y. Wang, Y. Sun, Z. Liu, S. E. Sarma, M. M. Bronstein, and J. M. Solomon, “Dynamic graph CNN for learning on point clouds,” 
+
+ACM Transactions on Graphics , vol. 38, no. 5, pp. 1–12, 2019. [61] T. Xiang, C. Zhang, Y. Song, J. Yu, and W. Cai, “Walk in the cloud: Learning curves for point clouds shape analysis,” in Proc. ICCV ,2021, pp. 895–904. [62] M. Wei, Z. Wei, H. Zhou, F. Hu, H. Si, Z. Chen, Z. Zhu, J. Qiu, X. Yan, Y. Guo et al. , “AGConv: Adaptive graph convolution on 3D point clouds,” IEEE Transactions on Pattern Analysis and Machine Intelligence , vol. 45, no. 8, pp. 9374–9392, 2023. [63] Z. Liu, H. Mao, C.-Y. Wu, C. Feichtenhofer, T. Darrell, and S. Xie, “A ConvNet for the 2020s,” in Proc. CVPR , 2022, pp. 11 966–11 976. [64] H. Qiu, B. Yu, Y. Chen, and D. Tao, “PointHR: Exploring high-resolution architectures for 3d point cloud segmentation,” arXiv preprint arXiv:2310.07743 , 2023. [65] J. Hu, L. Shen, and G. Sun, “Squeeze-and-excitation networks,” in 
+
+Proc. CVPR , 2018, pp. 7132–7141. [66] M. Sandler, A. Howard, M. Zhu, A. Zhmoginov, and L.-C. Chen, “MobileNetV2: Inverted residuals and linear bottlenecks,” in Proc. CVPR , 2018, pp. 4510–4520. [67] C. Szegedy, V. Vanhoucke, S. Ioffe, J. Shlens, and Z. Wojna, “Re-thinking the inception architecture for computer vision,” in Proc. CVPR , 2016, pp. 2818–2826. [68] I. Loshchilov and F. Hutter, “Decoupled weight decay regulariza-tion,” in Proc. ICLR , 2019. [69] X. Yu, L. Tang, Y. Rao, T. Huang, J. Zhou, and J. Lu, “Point-BERT: Pre-training 3D point cloud transformers with masked point modeling,” in Proc. CVPR , 2022, pp. 19 291–19 300. [70] C. R. Qi, O. Litany, K. He, and L. J. Guibas, “Deep hough voting for 3D object detection in point clouds,” in Proc. ICCV , 2019, pp. 9276–9285. [71] B.-S. Hua, Q.-H. Pham, D. T. Nguyen, M.-K. Tran, L.-F. Yu, and S.-K. Yeung, “SceneNN: A scene meshes dataset with annotations,” in Proc. 3DV , 2016, pp. 92–101. [72] Y. Li, R. Bu, M. Sun, W. Wu, X. Di, and B. Chen, “PointCNN: Convolution on X-Transformed points,” in Proc. NeurIPS , vol. 31, 2018, pp. 828–838. [73] S. Cheng, X. Chen, X. He, Z. Liu, and X. Bai, “PRA-Net: Point relation-aware network for 3D point cloud analysis,” IEEE Trans-actions on Image Processing , vol. 30, pp. 4436–4448, 2021. [74] G. Li, M. M ¨ uller, G. Qian, I. C. D. Perez, A. Abualshour, A. K. Thabet, and B. Ghanem, “DeepGCNs: Making GCNs go as deep as CNNs,” IEEE Transactions on Pattern Analysis and Machine Intel-ligence , vol. 45, no. 6, pp. 6923–6939, 2023. [75] H. Ran, J. Liu, and C. Wang, “Surface representation for point clouds,” in Proc. CVPR , 2022, pp. 18 920–18 930. [76] S. Qiu, S. Anwar, and N. Barnes, “Semantic segmentation for real point cloud scenes via bilateral augmentation and adaptive fusion,” in Proc. CVPR , 2021, pp. 1757–1767. [77] L. Tang, Y. Zhan, Z. Chen, B. Yu, and D. Tao, “Contrastive bound-ary learning for point cloud segmentation,” in Proc. CVPR , 2022, pp. 8479–8489. [78] X. Lai, Y. Chen, F. Lu, J. Liu, and J. Jia, “Spherical transformer for lidar-based 3d recognition,” in Proc. CVPR , 2023, pp. 17 545–17 555. [79] H. Tang, Z. Liu, S. Zhao, Y. Lin, J. Lin, H. Wang, and S. Han, “Searching efficient 3d architectures with sparse point-voxel con-volution,” in Proc. ECCV . Springer, 2020, pp. 685–702. [80] X. Zhu, H. Zhou, T. Wang, F. Hong, Y. Ma, W. Li, H. Li, and D. Lin, “Cylindrical and asymmetrical 3d convolution networks for lidar segmentation,” in Proc. CVPR , 2021, pp. 9939–9948. [81] G. Puy, A. Boulch, and R. Marlet, “Using a waffle iron for automo-tive point cloud semantic segmentation,” in Proc. ICCV , 2023, pp. 3379–3389. [82] L. Kong, Y. Liu, R. Chen, Y. Ma, X. Zhu, Y. Li, Y. Hou, Y. Qiao, and Z. Liu, “Rethinking range view representation for lidar segmenta-tion,” in Proc. ICCV , 2023, pp. 228–240. 18 
+
+[83] X.-F. Han, Y.-F. Jin, H.-X. Cheng, and G.-Q. Xiao, “Dual trans-former for point cloud analysis,” IEEE Transactions on Multimedia ,vol. 25, pp. 5638–5648, 2023. [84] M. Contributors, “MMDetection3D: OpenMMLab next-generation platform for general 3D object detection,” https://github.com/ open-mmlab/mmdetection3d, 2020. [85] B. Cheng, L. Sheng, S. Shi, M. Yang, and D. Xu, “Back-tracing representative points for voting-based 3d object detection in point clouds,” in Proc. CVPR , 2021, pp. 8963–8972. [86] I. Misra, R. Girdhar, and A. Joulin, “An end-to-end transformer model for 3D object detection,” in Proc. ICCV , 2021, pp. 2886–2897. [87] Z. Liu, Z. Zhang, Y. Cao, H. Hu, and X. Tong, “Group-free 3D object detection via transformers,” in Proc. ICCV , 2021, pp. 2929– 2938. [88] S. Song, S. P. Lichtenberg, and J. Xiao, “SUN RGB-D: A RGB-D scene understanding benchmark suite,” in Proc. CVPR , 2015, pp. 567–576. [89] Q. Xie, Y.-K. Lai, J. Wu, Z. Wang, Y. Zhang, K. Xu, and J. Wang, “MLCVNet: Multi-level context VoteNet for 3D object detection,” in Proc. CVPR , 2020, pp. 10 444–10 453. [90] M. M. Bronstein, J. Bruna, Y. LeCun, A. Szlam, and P. Van-dergheynst, “Geometric deep learning: going beyond euclidean data,” IEEE Signal Processing Magazine , vol. 34, no. 4, pp. 18–42, 2017. [91] M. Zaheer, S. Kottur, S. Ravanbakhsh, B. Poczos, R. R. Salakhutdi-nov, and A. J. Smola, “Deep sets,” Proc. NeurIPS , vol. 30, 2017. 19 
+
+## APPENDIX 
+
+This supplementary material provides additional content to complement the main manuscript and is divided into the following sections.  
+
+> •
+
+The architecture of HPENet V2 for 3D object classifica-tion.  
+
+> •
+
+Theoretical analysis of Abstraction and Refinement (ABS-REF) View.  
+
+> •
+
+Theoretical analysis of High-dimensional Positional En-coding.  
+
+> •
+
+Details of experimental results on S3DIS for indoor scene semantic segmentation.  
+
+> •
+
+Details of experimental results on SemanticKITTI for outdoor scene semantic segmentation.  
+
+> •
+
+More instantiations of the proposed ABS-REF frame-work.  
+
+> •
+
+Limitation and future work.  
+
+> •
+
+More qualitative comparisons on S3DIS and ScanNet V2. Note that the supplementary material will be made public through arXiv after acceptance. 
+
+## I 3D O BJECT CLASSIFICATION ARCHITECTURE 
+
+Fig. 12 illustrates the classification architecture of HPENet V2. As shown in Fig. 12, the classification architecture has the same encoder structure as the semantic segmentation model (Fig. 2 in the manuscript). However, since the input points are typically small in classification and part seg-mentation tasks (e.g., 1024 or 2048 points), the points are downsampled only twice, compared to four times in scene semantic segmentation tasks. A symmetric operation is then applied to aggregate the output features of the encoder into a global shape representation for classification tasks.   
+
+> Fig. 12. 3D object classification architecture of HPENet V2. The clas-sification architecture has the same encoder structure as the semantic segmentation model (Fig. 2 in the manuscript).
+
+## II THEORETICAL ANALYSIS OF ABSTRACTION AND 
+
+## REFINEMENT VIEW 
+
+II.1 ABS-REF view is Modular 
+
+Conventional point-cloud backbones often treat feature ab-straction and feature refinement as loosely coupled steps within a single encoder. Although PointMetaBase proposes a general framework (PointMeta), it primarily emphasizes local aggregation and does not explicitly model the sam-pling operations that modify spatial resolution. Under our ABS–REF view, the encoder consists of an ABS stage fol-lowed by an REF stage. The ABS stage abstracts features from the input point cloud and produces a downsampled set of points via sampling and local aggregation opera-tions. The REF stage refines these abstracted features using stacked resolution-preserving blocks to improve representa-tion quality and scalability without changing the number of points. 
+
+II.2 ABS-REF view is clear 
+
+Beyond disentangling the encoder, the ABS–REF view pro-vides an intuitive lens to characterize the key strengths of existing backbones. As illustrated in Fig. 3 in the manuscript, early methods such as PointNet++ [13] and PointConv [14] consist only of the ABS stage. They employ different intra-set operators for local aggregation (MLPs in PointNet++ and density-aware discrete convolution in PointConv), yet they are single-stage models in our perspec-tive and essentially lack a REF stage. More recent techniques report stronger performance by introducing an explicit REF stage. Within the ABS–REF view, Point Transformer [11] in-cludes positional encoding together with Point Transformer layers as its refinement component, while PointMixer [19] refines through the Mixer block. This interpretation clari-fies that gains arise not only from better local aggregation in ABS but also from resolution-preserving refinement in REF that expands contextual reasoning and deepens the network. 
+
+II.3 ABS-REF view is compatible 
+
+The ABS–REF view further unifies diverse MLP- and Transformer-based point-cloud models under a single com-patible paradigm. Modules designed for MLP backbones can be transferred to Transformer backbones when they are positioned according to their roles in ABS or REF. See Sec. 5.6 of the manuscript for empirical validation. 
+
+## III THEORETICAL ANALYSIS OF HIGH - 
+
+> DIMENSIONAL
+
+## POSITIONAL ENCODING 
+
+III.1 HPE is translation invariant. 
+
+High-dimensional positional encoding (HPE) is constructed on relative point positions, ∆pmj = pj − pm. Consequently, local operators that depend on HPE are insensitive to global translations of the point cloud, since a shift pm 7 → pm + t
+
+leaves all ∆pmj unchanged. This follows the symmetry principles in geometric deep learning on Euclidean do-mains [90], where point-cloud networks should be insen-sitive to global translations while still exploiting local geo-metric structure. 20 
+
+TABLE 14 Detailed semantic segmentation results (%) on S3DIS [4] with 6-fold cross-validation. 
+
+Methods Area OA mACC mIoU Ceiling Floor Wall Beam Column Window Door Chair Table Bookcase Sofa Board Clutter HPENet V2-S 1 90.8 85.9 77.4 96.3 96.0 84.5 64.9 60.9 81.4 88.0 73.2 83.0 74.5 61.7 71.8 70.3 2 81.9 66.2 51.9 90.4 86.9 80.1 9.0 44.5 17.5 63.4 49.6 43.5 69.3 49.7 30.0 41.1 3 91.4 85.2 76.5 96.3 98.2 84.4 66.8 60.5 48.8 87.7 72.2 81.5 74.0 68.5 82.1 73.4 4 86.9 71.7 60.9 92.0 97.6 82.5 9.0 45.7 36.5 68.2 66.3 76.1 51.6 56.2 52.7 57.9 5 89.4 72.4 65.6 93.6 98.5 83.4 0.0 32.3 52.7 68.0 81.7 88.8 57.9 72.4 66.2 57.4 6 93.5 90.7 83.6 96.7 97.9 88.2 77.7 77.2 86.3 91.2 79.7 88.2 72.4 76.2 79.3 75.8 
+
+6-fold 88.7 79.6 70.5 93.8 95.5 83.6 59.5 52.7 58.4 75.3 74.1 68.7 65.6 66.1 64.1 59.1 HPENet V2-B 1 91.4 87.0 79.5 96.5 96.2 83.9 59.9 68.1 87.1 90.3 74.3 87.1 79.9 64.2 71.5 74.7 2 89.0 77.7 66.5 91.3 95.8 84.7 40.7 69.5 74.6 74.9 57.7 71.6 68.1 56.9 20.1 58.5 3 93.4 92.3 83.7 95.9 98.5 87.9 75.0 54.6 88.8 92.2 76.6 86.7 89.2 74.5 90.2 77.9 4 89.8 81.8 69.4 95.7 98.0 84.6 44.4 66.5 38.6 71.2 66.1 83.6 62.5 66.1 57.5 66.8 5 90.4 76.5 70.1 94.7 98.6 83.6 0.0 35.9 56.8 74.8 83.1 91.5 76.5 77.2 76.9 61.7 6 94.4 92.3 86.2 97.0 98.0 90.2 84.5 83.1 89.0 91.7 80.8 88.8 82.9 77.6 80.7 76.9 
+
+6-fold 91.0 84.3 76.0 94.9 97.5 85.2 61.0 60.7 67.3 80.3 75.9 81.7 75.5 71.8 68.3 67.5 HPENet V2-L 1 92.0 87.9 80.5 96.9 96.3 85.6 71.0 69.7 85.9 86.5 74.1 85.6 81.5 63.4 74.6 75.3 2 90.0 77.5 67.4 90.3 97.5 85.7 41.2 68.9 81.8 83.4 65.5 77.7 52.1 58.9 14.7 59.0 3 93.6 91.5 84.3 96.0 98.5 88.0 76.4 55.2 89.7 93.2 78.9 87.2 90.7 75.2 88.9 77.6 4 90.4 83.5 72.2 96.1 98.2 85.1 55.9 75.4 41.5 76.3 70.3 82.3 66.6 65.8 58.1 67.2 5 91.2 77.3 71.1 95.2 98.6 84.9 0.0 42.5 56.9 74.4 81.8 90.5 74.8 80.2 80.0 64.8 6 94.3 92.2 86.7 97.1 98.0 90.0 83.6 81.2 89.4 92.3 79.9 87.2 92.5 76.4 83.2 76.7 
+
+6-fold 91.6 85.3 77.5 95.0 97.9 86.1 68.1 64.4 67.9 82.7 76.9 83.3 74.3 73.0 69.3 68.5 HPENet V2-XL 1 92.3 88.7 81.7 96.6 96.1 86.2 74.0 70.4 84.5 91.4 74.4 87.8 82.7 65.4 77.7 75.0 2 89.6 77.9 69.0 92.5 96.8 84.5 46.3 74.8 82.7 76.8 57.4 74.1 78.9 54.6 18.2 59.8 3 94.2 92.6 86.0 96.3 98.6 89.3 80.1 65.8 91.4 93.4 78.2 87.8 91.5 76.3 90.7 78.0 4 91.2 83.7 72.8 95.8 98.4 87.4 43.6 77.5 47.3 75.9 73.1 83.9 72.9 68.0 53.3 68.9 5 91.6 78.8 72.6 94.7 98.6 86.8 0.0 44.2 61.3 73.9 83.2 92.1 82.4 79.6 83.8 62.9 6 94.5 92.7 87.5 97.1 97.9 91.1 86.8 87.9 87.5 92.3 79.3 89.1 92.0 77.3 82.5 76.0 
+
+6-fold 91.9 86.3 78.9 95.2 97.7 87.2 71.0 68.3 69.9 81.9 76.9 82.9 82.7 73.1 71.0 68.4 Point Transformer [11] 5 90.4 74.8 68.2 93.9 98.5 85.8 0.1 33.4 61.4 74.6 82.0 90.7 65.7 74.4 67.1 59.1 +Non-local MLPs 5 90.7 76.3 69.7 94.7 97.6 86.4 0.0 38.7 62.0 75.0 80.2 90.3 73.2 72.7 75.2 60.1 +HPE 5 90.5 76.4 70.3 93.5 98.3 86.1 0.0 36.2 63.4 78.3 81.8 91.5 76.9 73.0 77.0 57.8 +BFM 5 90.9 76.6 70.7 94.3 98.5 86.7 0.0 36.7 62.1 77.2 82.4 89.2 76.0 74.6 81.7 59.3 Stratified Transformer [24] 5 91.7 77.4 71.4 95.3 98.8 86.8 0.0 45.8 63.0 73.8 84.6 91.2 68.3 78.3 78.5 63.3 +Non-local MLPs 5 90.9 78.9 72.0 95.6 98.6 84.6 0.0 52.5 62.9 72.6 84.2 91.1 72.7 77.1 79.5 64.3 +HPE 5 92.2 78.7 72.5 95.3 98.7 87.7 0.0 48.6 62.0 77.7 85.6 91.1 68.7 80.5 79.9 66.2 +BFM 5 91.9 78.7 72.7 95.0 98.8 87.6 0.0 53.4 63.3 72.8 84.7 91.3 74.2 78.6 81.6 64.3 
+
+TABLE 15 Detailed semantic segmentation results (%) on SemanticKITTI. 
+
+> Method
+> mIoU
+> car
+> bicycle
+> motorcycle
+> truck
+> other-vehicle
+> person
+> bicyclist
+> motorcyclist
+> road
+> parking
+> sidewalk
+> other-ground
+> building
+> fence
+> vegetation
+> trunk
+> terrain
+> pole
+> traffic-sign
+
+HPENet V2-S 66.9 95.5 49.9 79.3 85.7 52.2 75.3 90.8 3.6 93.9 49.9 82.8 0.7 90.0 62.8 90.0 72.7 79.4 65.5 50.4 HPENet V2-B 67.0 95.7 43.8 77.3 91.7 55.0 75.6 91.5 2.1 94.0 49.0 82.7 6.8 90.6 66.0 88.5 70.4 75.4 65.4 51.6 HPENet V2-L 67.4 96.2 52.7 77.1 88.1 64.2 73.6 88.3 0.1 94.0 54.9 82.0 0.4 91.1 67.6 88.6 70.3 75.8 64.8 51.4 HPENet V2-XL 69.3 96.5 55.3 78.8 92.8 66.2 78.4 86.1 25.2 94.6 48.6 83.9 0.3 91.7 69.2 87.7 69.8 74.0 65.4 51.7 21   
+
+> Fig. 13. More recent representative instantiations of the ABS-REF framework. Abbreviations include SOP: Symmetric OPeration, OP: aggregation OPeration, Two SST blocks: Two Successive Stratified Transformer Blocks.
+
+III.2 The use of HPE is permutation invariance 
+
+The use of HPE in HPENet V2 can be written as 
+
+fm = MaxPool j∈N (m)
+
+ fj + HPE(∆ pmj ),
+
+where fj ∈ RC denotes the feature of a neighbor point 
+
+j, HPE(∆ pmj ) ∈ RC is the high-dimensional positional encoding computed from the relative coordinate ∆pmj =
+
+pj − pm, and MaxPool denotes max pooling over the neigh-bor dimension (aggregating an N × K × C tensor into 
+
+N × C). From a geometric deep learning perspective, this is a local message-passing operator in which the message from j to m is modulated by a learnable function of their relative position ∆pmj . Using relative coordinates preserves translation structure, and the subsequent max pooling pro-vides a symmetric , permutation-invariant aggregation over the unordered neighbor set N (m), consistent with standard set- and point-cloud frameworks [91]. 
+
+III.3 Why higher dimensionality helps 
+
+Mapping input coordinates to higher-frequency (higher-dimensional) vectors and then passing them to an MLP can substantially improve the performance of coordinate-based MLPs. As shown in [21], a Fourier-feature mapping alleviates the spectral bias of coordinate MLPs toward low frequencies, enabling the learning of higher-frequency sig-nals and thus improving accuracy. Our HP E SIN follows this principle by first using sinusoidal functions to project 3D relative coordinates into a high-dimensional space, while 
+
+HP E M LP learns such a high-dimensional geometric expan-sion via a shared MLP. 
+
+## IV DETAILED RESULTS ON S3DIS 
+
+As mentioned in the manuscript, we perform the standard 6-fold cross-validation on S3DIS [4]. For each area, we use the remaining five areas as the training set. Specifically, Tab. 14 shows our results for each area in S3DIS, including overall accuracy (OA), mean accuracy (mAcc), and mean Intersection-over-Union (mIoU) for the 13 semantic classes. We not only provide detailed results for our HPENet V2, but also present the details of the ablation study on Point Transformer [11] and Stratified Transformer [24], as related to Tab. 13 in the manuscript. 
+
+## V DETAILED RESULTS ON SEMANTIC KITTI 
+
+In this section, we present detailed results on Se-manticKITTI [28]. Tab. 15 reports per-class IoU together with OA, mAcc, and mIoU for the 19 semantic classes. 
+
+## VI INSTANTIATION OF ABS-REF F RAMEWORK 
+
+In this section, we present more recent representative in-stantiations of the ABS-REF framework in Fig. 13, such as PAConv [33], RepSurf [75], Stratified Transformer [24], and PointNeXt [6]. In our ABS-REF view, PAConv and RepSurf are single-stage methods that only include the ABS stage, whereas the others are two-stage methods. The key dis-tinction between the single-stage methods lies in the intra-set operations within the ABS stage. For instance, PAConv dynamically assembles basic weight matrices stored in a weight bank to create a flexible convolution kernel, while RepSurf introduces a novel explicit representation of local structure. As for the two-stage methods, such as Strati-fied Transformer and PointNeXt, they focus on the inter-set OP sub-stage in the REF stage. For example, Stratified Transformer employs two successive Stratified Transformer blocks to capture long-range dependencies in point clouds. PointNeXt introduces an inverted residual bottleneck mod-ule as the inter-set OP to further enhance the scalability of PointNet++ [13]. 22 
+
+## VII LIMITATION AND FUTURE WORK 
+
+Limitation analysis. HPENet V2 demonstrates both effi-cient and impressive performance on real-world datasets, particularly S3DIS [4] and ScanObjectNN [25]. However, it may be suboptimal for synthetic object classification on ModelNet40 [26] and ShapeNetPart [29], as the point distributions are similar, making it challenging to capture geometric information from relative point coordinates using high-dimensional positional encoding (HPE). HPENets are MLP-based methods that achieve state-of-the-art performance on S3DIS [4] while yielding comparable results on ScanNet [27]. The advantages of HPENet stem from the powerful geometric representation provided by HPE, while its limitations arise from the lack of long-range dependency modeling due to the simple feature aggregation operations used in HPENet, such as max pooling. 
+
+Future work. We plan to extend HPENet V2 to broader application scenarios, including industrial settings, and to additional 3D point cloud processing tasks such as 3D instance segmentation. 
+
+## VIII QUALITATIVE RESULTS 
+
+More qualitative results on S3DIS. Fig. 14 and Fig. 15 show additional qualitative results produced by HPENet V2 on S3DIS. As seen in Fig. 14, HPENet V2 provides predictions closer to the ground truth compared to the balanced MLP-based method PointMetaBase [5]. Specifically, HPENet V2 successfully segments the wall ( 1st , 3rd , and 4th rows), board ( 1st and 2nd rows), door ( 3rd row) and bookcase ( 5th 
+
+row), whereas PointMetaBase fails to segment these objects accurately in some cases. Fig. 15 further highlights the advantages of HPENet V2 on S3DIS compared to PointMetaBase. For example, HPENet V2 is able to segment wall ( 1st , 3rd , 4th , and 5th 
+
+rows), clutter ( 1st , 2nd , 5th and 6th rows), bookcase ( 4th and 
+
+6th rows), and door ( 2nd row), while PointMetaBase fails to segment appropriately to some extent. 
+
+More qualitative results on ScanNet V2. Fig. 16 shows more qualitative results produced by HPENet V2 on ScanNet V2. As shown in Fig. 16, HPENet V2 makes predictions closer to the ground truth compared to the balanced MLP-based method PointMetaBase [5]. Specifically, HPENet V2 is able to segment wall ( 2nd , 3rd , and 5th rows), chair (2nd and 8th rows), and table ( 4th , and 5th rows), while PointMetaBase fails to segment these objects appropriately in some instances. 23 
+
+Fig. 14. Representative qualitative results of HPENet V2 and the balanced MLP-based method PointMetaBase [5] on S3DIS Area-5. The main differences are highlighted in red frames. 24 
+
+Fig. 15. Representative qualitative results of HPENet V2 and the balanced MLP-based method PointMetaBase [5] on S3DIS Area-5. The main differences are highlighted in red frames. 25 
+
+Fig. 16. Representative qualitative results of HPENet V2 and the balanced MLP-based method PointMetaBase [5] on ScanNet V2. The main differences are highlighted in red frames.

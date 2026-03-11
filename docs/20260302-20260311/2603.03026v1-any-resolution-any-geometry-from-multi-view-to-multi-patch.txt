@@ -1,0 +1,467 @@
+Title: Any Resolution Any Geometry: From Multi-View To Multi-Patch
+
+URL Source: https://arxiv.org/pdf/2603.03026v1
+
+Published Time: Wed, 04 Mar 2026 02:29:08 GMT
+
+Number of Pages: 16
+
+Markdown Content:
+# Any Resolution Any Geometry: From Multi-View To Multi-Patch 
+
+## Wenqing Cui 1, Zhenyu Li 1†, Mykola Lavreniuk 2†, Jian Shi 1, Ramzi Idoughi 1,Xiangjun Tang 1, Peter Wonka 11KAUST, 2Space Research Institute NASU-SSAU 
+
+> †
+
+Equal contribution 
+
+https://dreamaker-mrc.github.io/Any-Resolution-Any-Geometry Metric3d V2 
+
+> Ours
+> Ours
+> Normal
+> Ours Depth Anything V2
+> Depth
+> 8K Image
+> Depth
+> Ours
+> Depth Anything v2
+> Ours
+> Metric3d v2
+> Ours
+> Norma l
+
+Figure 1. Teaser. On an in-the-wild 8K image, our method produces high-resolution depth and normal maps with sharp boundaries and globally consistent geometry. Compared to zero-shot foundation models such as DepthAnything V2 [28] and Metric3D V2 [7], our approach better recovers thin structures and high-frequency textures. The zoom-in regions below highlight the improved fine-detail preservation and depth–normal consistency achieved by our method. 
+
+## Abstract 
+
+Joint estimation of surface normals and depth is essen-tial for holistic 3D scene understanding, yet high-resolution prediction remains difficult due to the trade-off between pre-serving fine local detail and maintaining global consistency. To address this challenge, we propose the Ultra Resolution 
+
+Geometry Transformer (URGT) , which adapts the Vi-sual Geometry Grounded Transformer (VGGT) into a uni-fied multi-patch transformer for monocular high-resolution depth–normal estimation. A single high-resolution image is partitioned into patches that are augmented with coarse depth and normal priors from pre-trained models, and jointly processed in a single forward pass to predict refined geometric outputs. Global coherence is enforced through 
+
+cross-patch attention , which enables long-range geometric reasoning and seamless propagation of information across patches within a shared backbone. To further enhance spa-tial robustness, we introduce a GridMix patch sampling 
+
+strategy that probabilistically samples grid configurations during training, improving inter-patch consistency and gen-eralization. Our method achieves state-of-the-art results on UnrealStereo4K, jointly improving depth and normal es-timation, reducing AbsRel from 0.0582 to 0.0291, RMSE from 2.17 to 1.31, and lowering mean angular error from 23.36 ◦ to 18.51 ◦, while producing sharper and more sta-ble geometry. The proposed multi-patch framework also demonstrates strong zero-shot and cross-domain general-ization and scales effectively to very high resolutions, of-fering an efficient and extensible solution for high-quality geometry refinement. 
+
+## 1. Introduction 
+
+High-resolution prediction of depth maps and surface normals is crucial for modern 3D scene understanding, yet remains fundamentally challenging. Depth maps capture the global spatial layout of a scene, while surface normals encode fine-grained surface orientations; together, these complementary cues support a wide range of downstream tasks such as 3D reconstruction [3, 24] and scene segmen-tation [5]. However, producing high-resolution geometry requires simultaneously preserving sharp object boundaries 
+
+> arXiv:2603.03026v1 [cs.CV] 3 Mar 2026
+
+and thin structures while maintaining globally consistent depth and normal fields across the image. In practice, most recent joint depth–normal estimation models [6, 7] operate at relatively low input resolutions due to memory and com-putational constraints, which limits their ability to recover fine-scale details and leads to noticeable degradation when applied to high-resolution imagery. Patch-based refinement methods, such as PatchFu-sion [10] and PatchRefiner [11], have been developed to leverage high-resolution imagery and enhance geometric quality. Nonetheless, these approaches remain limited: PatchRefiner refines patches iteratively and largely in iso-lation, leading to inconsistent boundaries across neighbor-ing patches. In addition, existing high-resolution pipelines are typically designed for a depth prediction only, making joint depth–normal estimation difficult to realize at scale. These limitations highlight the need for a unified, efficient 
+
+high-resolution joint depth–normal model that goes beyond depth-only patch refinement, performing global reasoning across all regions while maintaining pixel-level geometric precision and seamless inter-patch continuity. In parallel, multi-view transformer architectures have re-cently achieved strong results in dense geometry estima-tion. Models such as DUSt3R and the Visual Geome-try Grounded Transformer (VGGT) [25, 26] jointly encode many views within a unified backbone and use attention to propagate information globally, enabling accurate 3D reconstruction while efficiently handling multiple inputs. This set-based formulation demonstrates that geometry pre-diction can scale by reasoning across a collection of inputs rather than processing each one independently. However, these models are primarily designed for multi-view scenar-ios at moderate resolutions and do not directly tackle joint high-resolution depth–normal estimation from a single im-age. In this work, we draw inspiration from their design and reinterpret a single high-resolution image as a set of patches, effectively treating patches as virtual views , and transfer the multi-view paradigm to a multi-patch setting that enables global reasoning across all regions while pre-serving high-fidelity local geometry. We address these challenges by adapting VGGT [25] into a unified backbone for predicting geometric coupled high-resolution depth and normal from a single image. On top of the matured multi-view frameworks, we propose a 
+
+multi-patch formulation, where a high-resolution image is partitioned into patches that are jointly processed in a single forward pass. Each patch is augmented with coarse depth and normal priors from pre-trained models, and the trans-former refines these into high-resolution geometric outputs. Crucially, cross-patch attention enables long-range infor-mation exchange across all patches, allowing the network to enforce global consistency while recovering fine-grained details. Building on this design, we propose a unified model 
+
+Ultra Resolution Geometry Transformer (URGT) that si-multaneously predicts geometric coupled depth and sur-face normals, leveraging their inherent geometric relation-ships to improve accuracy and enforce physically consistent scene geometry. The main contributions of this paper are as follows: • A Unified Model for geometric coupled High-Resolution Geometry Prediction . We propose a novel multi-patch transformer that predicts geometric coupled high-resolution depth and surface normals from a single high-resolution image ( e.g . 4K). • GridMix Patch Sampling Strategy . Due to the scarcity of high-resolution data, we introduce a GridMix patch sampling strategy that probabilistically samples different patch grid configurations during training. • Scalability to Arbitrary Resolutions : Our method sup-ports the prediction of geometric coupled high-resolution (e.g . 4K, 6K, 8K) depth maps and surface normals, offer-ing flexibility and practicality for real-world applications without compromising accuracy or requiring resolution-specific training. • Empirical Validation and Insights . Through extensive experiments, we demonstrate that our approach outper-forms state-of-the-art methods in both estimation quality and computational efficiency on high-resolution bench-marks, and we provide ablation studies that highlight the benefits of multi-patch reasoning, cross-patch attention, and GridMix training. 
+
+## 2. Related work 
+
+2.1. High-Resolution Depth Estimation 
+
+High-resolution depth estimation seeks to recover fine details while maintaining globally consistent scene geom-etry. SMD-Net [23] employed local implicit functions [2] to enhance boundary accuracy, while Dai et al. [4] intro-duced Poisson-based fusion in a self-supervised framework. SDDR [9] leveraged self-distilled edge refinement to reduce local noise and improve structural consistency. Patch-based strategies have become a dominant solution for scaling to 2K–4K inputs. BoostingDepth [13], PatchFu-sion [10], PatchRefiner [11], and PatchRefiner V2 [12] di-vide images into patches and merge their predictions. While effective, such methods often produce depth discontinu-ities near patch boundaries due to limited cross-patch in-teraction. Existing remedies, such as test-time ensembles, heuristic blending, or consistency losses, help reduce arti-facts but significantly increase inference cost. PRO [8] jointly processes grouped overlapping patches and introduces patch-consistency supervision with bias-free masking, enabling single-pass inference per patch and re-ducing boundary artifacts. Although this improves local continuity, its ability to enforce global geometric coherence remains constrained by the limited receptive field of patch groups. 
+
+2.2. Joint Estimation of Depth and Surface Normal 
+
+Depth and surface normal provide complementary geo-metric cues: depth represents global scene structure, while normals encode local surface orientation. Their joint esti-mation enhances geometric consistency and benefits down-stream tasks such as 3D reconstruction and relighting. Early supervised approaches [1, 16, 17] enforced explicit depth-normal consistency terms or iterative mutual refinement, but performance was limited by small datasets with sparse or noisy normal annotations. Large-scale zero-shot approaches have revitalized joint estimation by leveraging stronger geometric priors. Ge-oWizard [6] employs diffusion-based priors to simultane-ously infer depth and normals from a single image, yield-ing coherent geometry at the cost of high computational overhead. Metric3D v2 [7] proposes a geometry foun-dation model that jointly estimates metric depth and nor-mals using a canonical camera transformation and a learned depth–normal optimization module. By learning normal cues from large-scale depth data, it achieves efficient train-ing and strong generalization across domains. Overall, recent advances move toward unified architec-tures that leverage geometric coupling to achieve glob-ally consistent and detail-preserving predictions. However, most existing models still operate at low resolutions or rely on patch-wise refinement without global reasoning, moti-vating methods that can jointly estimate depth and normals with seamless continuity at high resolutions. 
+
+## 3. Method 
+
+Our proposed geometry refiner URGT takes a single high-resolution RGB image as input and jointly predicts its corresponding high-resolution depth and surface normal maps. Following [10, 11], we adapt a multi-patch process-ing strategy, enabling efficient handling of high-resolution imagery, where the image is divided into patches, and coarse geometry estimates are incorporated to refine pre-dictions. To jointly process multi-patch inputs, we lever-age the strengths of VGGT’s unified transformer-based de-sign. Unlike VGGT, which is designed for multi-view im-age processing, we focus on a single-view setting where the model reasons both within and across patches to recover de-tailed 3D attributes and enforce cross-patch geometric con-sistency. 
+
+3.1. Formulation 
+
+The input consists of a single high-resolution RGB image I ∈ R3×H×W and coarse estimates for depth 
+
+Dcoarse ∈ Rh×w and surface normal ncoarse ∈ R3×h×w.In our implementation, the coarse depth map is gener-ated using Depth-Anything v2 [28], while the coarse sur-face normal is obtained by running Metric3D v2 [7]. As these models output lower-resolution results compared to the original image, we apply bilinear upsampling to match their resolutions with that of I. These coarse predictions are used as conditional inputs to guide the network. We denote k-th RGB patch using Jk ∈ R3×H′×W ′
+
+and its aligned coarse depth crop Dcoarse k and normal crop ncoarse k .Each of these inputs is then independently encoded using the DINOv2 [14] to obtain visual tokens tJk , depth to-kens tDcoarse k , and normal tokens tncoarse k . To construct geometry-aware representations, we sum all encoded tokens to form a unified representation: 
+
+tkjoint = tJk + tDcoarse k + tncoarse k (1) These fused tokens are then concatenated across all patches to form a unified input sequence, enabling the model to integrate visual and geometric information seam-lessly. This sequence is fed into our model, which con-sisting of L blocks that combine intra-patch attention (for intra-patch reasoning, focusing on local features within each patch) with cross-patch attention (for cross-patch in-teractions, promoting geometric consistency and continu-ity across patch boundaries). Finally, lightweight prediction heads, inspired by DPT-style architectures [19], are applied to the transformer’s output, generating offsets relative to the coarse estimates. For the depth estimation, the head pro-duces an offset that is added to the coarse depth map to yield the refined depth map Dref ined k = Dcoarse k +∆ Depth k . Like-wise, for the surface normal prediction, the head generates an offset to produce the refined surface normals nref ined k =
+
+ncoarse k + ∆ N ormal k , leveraging the fused tokens to deliver high-fidelity estimates that correct and enhance the initial coarse predictions. By combining these outputs, we obtain the high-resolution prediction of the geometry assets. 
+
+3.2. Globally Consistent Multi-Patch Attention 
+
+3.2.1. Global Positional Encoding 
+
+To maintain spatial correlation between patches, each patch Jk is indexed by a global spatial coordinate (xk, y k),defined as the top-left pixel position of Jk in the source high-resolution image I. Within each patch, let pi =(ui, v i) denote the local coordinate of the i-th token, where 
+
+(ui, v i) specifies its position relative to the top-left corner of the patch. To unify all tokens under a common reference frame, we assign each token a corresponding global spatial coordinate pgi by offsetting its local position by the patch’s global origin: 
+
+pgi = ( ui + xk, v i + yk), (2) which maps every token back to its precise location in the original high-resolution image. This global indexing en-sures that tokens describing the same physical region are consistently aligned across different patches and crops. HR Image   
+
+> Coarse predictions
+> Patchify
+> Global Positional Encoding  Cross -Patch
+> Attention
+> Intra -Patch
+> Attention
+> ×𝐿 Blocks
+> DPT Head
+> Refined maps
+> Predicted offsets
+> Base Model s
+> DINOv2
+> Split
+> Cat
+> Upsample
+
+Figure 2. Multi-patch transformer pipeline for high-resolution geometry refinement. A coarse depth/normal prediction is first obtained and upsampled, after which the image and coarse outputs are patchified and encoded with DINOv2 and global positional embeddings. All patch tokens are jointly processed through transformer blocks with intra- and cross-patch attention, enabling global geometric reasoning. A DPT head predicts offsets that are fused with the coarse input to produce a globally consistent, detail-preserving high-resolution output. 
+
+Figure 3. Illustration of the four GridMix patch sampling strategy configurations used in the training strategy: (from left to right) a single randomly sampled patch, a 2 × 2 grid of patches, a 3 × 3 grid of patches, and a 4 × 4 grid covering the entire image. The red grids represent the patch arrangements, while the green regions indicate the valid areas for randomly selecting the top-left corner of the grid, ensuring the entire grid remains fully within the image boundaries. 
+
+3.2.2. Intra- and Cross-Patch Attention 
+
+Let tci denote the i-th token extracted from patch Jc, and let qci , kci , vci be the corresponding query, key, and value vectors obtained by linear projection. We apply RoPE [22] using the global coordinate pgi of the token: 
+
+˜qci = RoPE( qci , pgi ), ˜kci = RoPE( kci , pgi ), (3) while the value vectors remain unchanged, ˜vki = vki .
+
+Intra-patch attention. To capture fine-grained local structure, we first restrict self-attention to tokens within the same patch. Let ˜Qc, ˜Kc, ˜Vc denote the matrices obtained by stacking ˜qci , ˜kci , ˜vci over all tokens in patch c. An intra-patch attention layer computes: 
+
+Attn intra ( ˜Qc, ˜Kc, ˜Vc) = softmax ˜Qc ˜K⊤
+
+> c
+
+√d
+
+!
+
+˜Vc, (4) where d is the feature dimension. This operation focuses on local context within Jc, refining details and boundaries using information confined to each patch. 
+
+Cross-patch attention. To propagate information glob-ally, we perform cross-patch attention over the concatenated token sequence from all patches. Let ˜Q, ˜K, ˜V denote the matrices collecting the RoPE-encoded ˜Qc, ˜Kc, ˜V c from ev-ery patch. A cross-patch attention layer is then given by: 
+
+Attn cross ( ˜Q, ˜K, ˜V ) = softmax ˜Q ˜K⊤
+
+√d
+
+!
+
+˜V , (5) so that each token can attend not only to tokens within its own patch but also to tokens in all other patches. By alternating intra-patch and cross-patch attention blocks via Eq. 3, the network first consolidates local detail within each patch and then exchanges information across patches at the full-image scale. 
+
+3.3. GridMix Patch Sampling 
+
+We employ a GridMix patch sampling strategy that in-corporates different grid configurations for training our models effectively. This approach utilizes patches of a fixed size but sampled in various spatial configurations. Specif-ically, for an input RGB image I ∈ R3×H×W , we ex-tract at each iteration M × M patches of fixed size Jk ∈
+
+R3× H   
+
+> 4×W
+> 4
+
+, k = 1 . . . M 2, for M ∈ { 1, 2, 3, 4}. Thus, the four configurations that we employ to generate the patches are: 1) if M = 1 , a single patch randomly sampled from the image, 2) if M ∈ { 2, 3}, a M × M grid of patches will be randomly sampled from the image, and 3) if M = 4 ,Depth Anything V2 [28] PatchRefiner [11] Ours GT, Input   
+
+> Figure 4. Qualitative comparison on the UnrealStereo4K[23] dataset. Red rectangles indicate the bounding boxes of zoomed-in regions. The second and fourth rows show close-up (zoom-in) views corresponding to the first and third rows, respectively. The rightmost column presents the RGB input and ground-truth depth maps. Compared to previous methods, our predictions exhibit smoother depth continuity and sharper geometry boundaries.
+
+a fixed 4 × 4 grid of patches that covers the entire image. Figure 3 illustrates the GridMix patch sampling strategy by visualizing the four distinct configurations applied to an in-put image, including the valid regions (green areas) of the top-left point for random sampling to ensure full grid con-tainment. In our training procedure, at each iteration, one of the four configurations is selected according to a predefined probability distribution: 
+
+P config = M × M   
+
+> M=1 .. 4
+
+= pM ,
+
+> 4
+
+X 
+
+> M=1
+
+pM = 1 (6) where  pk
+
+ 
+
+> k=1 ... 4
+
+are hyperparameters to control the probability of choosing each of the configurations. This probabilistic selection promotes diversity in how the image is partitioned, enabling the model to encounter various sam-pling strategies while keeping all patches at a fixed size. As demonstrated in the experiment section, the GridMix patch sampling strategy functions as an effective data augmenta-tion technique by offering multiple ways to divide and sam-ple the image. Our experiments show that this strategy leads to significant improvements in high-resolution depth esti-mation compared to training with only a fixed grid. 
+
+3.4. Geometrically Consistent Supervision 
+
+We supervise both depth and normals in a unified man-ner so that the two predictions are constrained by the same underlying geometry. 
+
+Depth loss. Let Dref ined denote the refined depth predic-tion and Dgt the ground-truth depth. We combine a point-wise reconstruction term with a gradient term to encourage both accurate values and sharp depth predictions. In com-pact form, the depth loss is written as 
+
+Ldepth = LMSE 
+
+ Dref ined , D gt 
+
++ λgrad Lgrad 
+
+ Dref ined , D gt , (7) where LMSE denotes a pixel-wise mean squared error and 
+
+Lgrad measures horizontal and vertical depth gradients, with 
+
+λgrad balancing the two terms. 
+
+Normal loss. To enable geometrically consistent supervi-sion, we derive a pseudo-normal field npseudo from Dgt us-Table 1. Quantitative comparison on the UnrealStereo4K [23] dataset. Top: depth estimation results (AbsRel, δ1, RMSE, CE, PDBE). Bottom: surface normal estimation results (Mean/Median/RMSE angular errors and threshold accuracies).                                                                                            
+
+> Method (Depth) Infer Time ↓AbsRel ↓δ1↑RMSE ↓CE ↓ϵacc PDBE ↓ϵcompl PDBE ↓
+> Depth-Anything v2 [28] –0.0812 0.924 2.86 –2.46 189.0 PatchRefiner p=16 [11] 1.02s 0.0633 0.950 2.28 0.0753 1.98 55.66
+> PatchRefiner p=49 [11] 4.12s 0.0582 0.956 2.17 0.0715 1.50 169.81 PRO [8] 1.88 0.0771 0.927 2.73 0.0549 2.74 417.7
+> Ours Separate 0.94s 0.0295 0.982 1.38 0.0418 1.73 72.8
+> Ours Joint 0.97s 0.0291 0.983 1.31 0.0415 1.40 64.21
+> Method (Normal) Infer Time ↓Median ↓Mean ↓RMSE ↓5◦↑11 .25 ◦↑30 ◦↑
+> Metric3D v2 [7] 0.64s 33.15 23.36 13.90 11.74 44.96 79.77
+> Ours Joint 0.97s 28.83 18.51 9.60 29.37 59.43 85.06
+
+Depth Anything V2 PatchRefiner Ours Input 
+
+Figure 5. Qualitative comparison on the Zero-Shot depth estimation task. Each row shows samples from different scenes. The rightmost column presents the RGB input. Compared to previous models, our zero-shot predictions demonstrate improved geometric consistency and sharper depth boundaries across diverse domains. 
+
+ing a standard least-squares method on local depth neigh-borhoods [16]. Let nref ined denote the predicted normal map produced by our network. We define the normal super-vision term in an abstract form as 
+
+Lnormal = Langle 
+
+ nref ined , npseudo 
+
++ λmse LMSE 
+
+ nref ined , npseudo , (8) where Langle penalizes orientation differences and LMSE en-forces per-pixel alignment, with λmse controlling their rela-tive weight. The final training objective combines the depth and nor-mal losses: 
+
+Ltotal = λdepth Ldepth 
+
+ Dref ined , D gt 
+
++ λnormal Lnormal 
+
+ nref ined , npseudo , (9) with λdepth and λnormal controlling the relative contribution of each term. Since npseudo is fully determined by the ground-truth depth, both depth and normal heads are ulti-mately constrained by the same underlying 3D geometry, which encourages their predictions to remain geometrically consistent. The model supports separate training modes to predict depth alone by disabling the normal loss, or vice versa by disabling the depth loss. 
+
+## 4. Experiments 
+
+4.1. Experimental Setup 
+
+Datasets. We conduct experiments on Unreal-Stereo4K [23], Booster [18], ETH3D [21], and Middlebury 2014 [20]; see the supplementary material (Sec. A) for more details. 
+
+Evaluation metrics. For depth estimation, we adopt standard metrics including Absolute Relative Error (Ab-sRel), Root Mean Squared Error (RMSE), and the accuracy threshold δ1. To assess the spatial consistency of depth pre-dictions across patches, we additionally employ the Consis-tency Error (CE) [10]. Following SharpDepth [15], we fur-ther evaluate boundary sharpness using the Pseudo Depth Boundary Error (PDBE). Since annotated depth edges are unavailable for synthetic datasets, we extract edges from both predicted and ground-truth depth maps using the Canny operator, and compute PDBE accuracy ϵacc PDBE and completeness ϵcompl PDBE . For surface normal estimation, we re-port the mean, median, and root mean squared (RMS) angu-lar error, along with the percentage of pixels whose angular error falls below 5◦, 11 .25 ◦, and 30 ◦.
+
+Implementation details. All implementation details are Metric3D V2 [7] Ours GT Normal RGB Input 
+
+Figure 6. Qualitative comparison of surface normal estimation on the UnrealStereo4K [23] dataset. Our method produces more accurate and spatially consistent surface normals compared to Metric3D V2. Table 2. Zero-shot depth estimation benchmark across mul-tiple real-world datasets. We evaluate depth accuracy on Booster [18], ETH3D [21], and Middlebury 2014 [20]. DAV2 and PR are short for DepthAnythingV2 and PatchRefiner, respectively. Best results are shown in bold .                                                   
+
+> Methods Booster ETH3D Middle2014
+> AbsRel ↓δ1↑AbsRel ↓δ1↑AbsRel ↓δ1↑
+> DAV2 [28] 0.0274 0.996 0.0507 0.978 0.0307 0.994 PR p=16 [11] 0.0404 0.988 0.0608 0.968 0.0380 0.987 PR p=49 [11] 0.0382 0.989 0.0577 0.972 0.0376 0.987 PRO [8] 0.0287 0.997 0.0448 0.981 0.0287 0.996 Ours Separate 0.0269 0.996 0.0446 0.981 0.0291 0.996 Ours Joint 0.0248 0.997 0.0434 0.983 0.0280 0.996
+
+provided in the supplementary material (Sec. A). 
+
+4.2. Results 
+
+Depth Estimation. Table 1 summarizes the quantitative re-sults on the UnrealStereo4K dataset. Our separate depth model achieves state-of-the-art performance across all met-rics, reaching 0.0295 AbsRel, 0.982 δ1, and 1.38 RMSE at only 0.94 s per 4K image. Joint depth–normal model fur-ther achieves accuracy to 0.0291 AbsRel, 0.983 δ1, and 
+
+1.31 RMSE. Compared with PatchRefiner [11], our ap-proach reduces AbsRel by over 49% and RMSE by more than 35% , highlighting the effectiveness of multi-patch rea-soning and cross-patch attention in capturing both global structure and fine local geometry. Our model also achieves the lowest Consistency Error (CE, 0.0415 ) and improved PDBE sharpness ( ϵacc PDBE =1 .40 , ϵcompl PDBE =64 .21 ), producing smoother boundaries and crisper depth edges. Qualitative examples in Fig. 4 further show that our method preserves thin structures and avoids the block-wise artifacts common in patch-based refinement pipelines. 
+
+Zero-shot Evaluation. We additionally assess zero-shot generalization on Booster, ETH3D, and Middlebury 2014 (Table 2). Our method delivers strong and consistent per-formance across all benchmarks, outperforming prior re-finement approaches. On Booster, the joint model achieves the lowest AbsRel ( 0.0248 ) while matching PRO on δ1
+
+Table 3. Ablation on GridMix Patch Sampling Strategy.                             
+
+> Configurations (p1, p 2, p 3, p 4)AbsRel ↓δ1↑RMSE ↓CE ↓
+> Depth-Anything v2 0.0812 0.924 2.86 –(1,0,0,0) 0.0500 0.963 2.01 0.0648 (0.5,0.5,0,0) 0.0473 0.966 1.79 0.0436 (0.1,0.2,0.3,0.4) 0.0295 0.982 1.35 0.0418
+> (0,0,0,1) 0.0321 0.980 1.42 0.0635
+
+(0.997 ). On ETH3D and Middlebury 2014, our model also outperforms PRO, obtaining the best AbsRel ( 0.0434 vs. 
+
+0.0448 on ETH3D, 0.0280 vs. 0.0287 on Middlebury) and 
+
+δ1 (0.983 vs. 0.981 , 0.996 vs. 0.996 ), while consistently improving over both PatchRefiner variants and the sepa-rate variant. Joint training offers mutual benefits, exploiting depth-normal coupling to achieve better refinement. These results demonstrate that the proposed multi-patch trans-former retains robust zero-shot generalization and produces reliable geometry across diverse real-world scenes. 
+
+Surface Normal Estimation. We also evaluate the model’s ability to predict dense surface normals (Table 1, bottom). Under the joint training setting, our method achieves sub-stantial improvements over Metric3D v2 [7], reducing the mean angular error from 23.36 to 18.27 and RMS from 
+
+13.90 to 9.42 . Our model also yields markedly higher threshold accuracies, achieving 29.88% within 5◦, 59.79% 
+
+within 11 .25 ◦, and 85.43% within 30 ◦. These results confirm that jointly modeling depth and normals within the multi-patch transformer framework enhances geomet-ric consistency and produces sharper, more stable high-frequency surface details. 
+
+Extension to Any Resolution. To demonstrate the scalabil-ity of our approach to estimate high-resolution depth maps and surface normals at arbitrary input resolutions, we run an experiment on an 8K in-the-wild image as illustrated in the Teaser figure. Leveraging the adaptive multi-patch framework, our method seamlessly handles varying scales without compromising accuracy or necessitating resolution-(a) Offset w/ Local RoPE (b) Offset w/ Global RoPE      
+
+> Figure 7. Ablation study on Global Positional Encoding. Com-parison of offset predictions under different positional encoding strategies. The Global RoPE enhances cross-patch geometric alignment and yields smoother transitions across patch boundaries compared to the local variant. Table 4. Ablation study on Global Postional Encoding.
+
+Position Embedding AbsRel ↓ δ1 ↑ RMSE ↓ CE ↓
+
+Local RoPE 0.0343 0.976 1.60 0.2830 Global RoPE 0.0321 0.980 1.42 0.0635 
+
+specific training, enabling robust performance across di-verse real-world scenarios. This is evident in the enhanced preservation of fine details, such as thin structures (e.g., the metallic box) and high-frequency textures (e.g., plant in the first plane), where our outputs surpass those of zero-shot baselines, while maintaining global geometric consistency. 
+
+4.3. Ablation Studies 
+
+GridMix Patch Sampling Strategy. Table 3 shows that using a single grid configuration (e.g., 1×1 or 4×4) lim-its performance and generalization. Mixing multiple grid sizes yields clear improvements, with the best results ob-tained when sampling with probabilities (0 .1, 0.2, 0.3, 0.4) ,achieving 0.0295 AbsRel and 0.982 δ1. This setting also reduces RMSE to 1.35 and maintains low CE ( 0.0418 ), un-like the fixed 4×4 grid which suffers from poor consistency. These results indicate that probabilistic grid sampling effec-tively enhances inter-patch coherence while preserving fine geometric details. More details are provided in the supple-mentary material (Sec. B). 
+
+Global Positional Encoding. We compare local and global RoPE variants in Table 4 and Fig. 7. Global RoPE not only improves numerical accuracy (AbsRel from 0.0343 to 
+
+0.0321 , RMSE from 1.60 to 1.42 ) but also yields a sig-nificantly lower CE (0.2830 → 0.0635 ), indicating much stronger cross-patch geometric consistency. As shown in Fig. 7, the offsets predicted with Global RoPE exhibit smoother transitions across patch boundaries and fewer dis-continuities, whereas the local variant shows visible mis-alignment artifacts. These results demonstrate that incorpo-rating global positional context helps the transformer rea-son over long-range spatial relationships, leading to more coherent geometry reconstruction. 
+
+Cross-Patch Attention. We evaluate the effect of cross-patch attention, which enables long-range interaction     
+
+> (a) Pred w/o Cross-Patch Attention (b) Pred w/ Cross-Patch Attention
+> (c) Offset w/o Cross-Patch Attention (d) Offset w/ Cross-Patch Attention
+> Figure 8. Ablation on Cross-Patch Attention. Visual compar-ison of both depth predictions and offset maps with and with-out cross-patch attention. Cross-patch attention significantly im-proves inter-patch geometric coherence, yielding smoother transi-tions and more stable boundary structures across patch regions. Table 5. Ablation on Cross-Patch Attention.
+
+Attention Setting AbsRel ↓ δ1 ↑ RMSE ↓
+
+w/o Cross-Patch Attention 0.0678 0.945 2.51 w/ Cross-Patch Attention 0.0500 0.963 2.01 
+
+among spatially separated patches. As shown in Table 5 and Fig. 8, disabling this module results in higher errors (AbsRel 0.0678 → 0.0500 , RMSE 2.51 → 2.01 ) and visi-ble boundary discontinuities between neighboring regions. The predicted offset maps further highlight these artifacts: without cross-patch attention, patch seams remain strongly pronounced, whereas our full model produces smooth tran-sitions and coherent structures. These results confirm that global token communication is essential for maintaining inter-patch geometric consistency and generating seamless high-resolution depth maps. 
+
+## 5. Conclusion 
+
+We presented a unified transformer framework that adapts VGGT from multi-view 3D reconstruction to high-resolution single-image geometry prediction. By reformu-lating the input as a set of spatially distributed patches with coarse geometric priors, our model effectively combines lo-cal detail preservation with global structural reasoning. The proposed GridMix patch sampling strategy further enhances spatial robustness and inter-patch consistency. Extensive experiments demonstrate clear advantages over prior high-resolution refinement approaches, achieving sharper bound-aries, smoother transitions, and improved geometric coher-ence. Our results highlight the potential of global-context transformers for scalable, high-fidelity 3D geometry esti-mation across arbitrary resolutions. Acknowledgment 
+
+The research reported in this publication was supported by funding from King Abdullah University of Science and Technology (KAUST) – Center of Excellence for Genera-tive AI, under award number 5940 and a gift from Google. 
+
+## References 
+
+[1] Gwangbin Bae, Ignas Budvytis, and Roberto Cipolla. Es-timating and exploiting the aleatoric uncertainty in surface normal estimation. ICCV , 2021. 3 [2] Yinbo Chen, Sifei Liu, and Xiaolong Wang. Learning con-tinuous image representation with local implicit image func-tion. In CVPR , 2021. 2 [3] Pinxuan Dai, Jiamin Xu, Wenxiang Xie, Xinguo Liu, Huamin Wang, and Weiwei Xu. High-quality surface recon-struction using gaussian surfels. In ACM SIGGRAPH 2024 conference papers , pages 1–11, 2024. 1 [4] Yaqiao Dai, Renjiao Yi, Chenyang Zhu, Hongjun He, and Kai Xu. Multi-resolution monocular depth map fusion by self-supervised gradient-based composition. In AAAI , 2023. 2[5] Rui Fan, Hengli Wang, Peide Cai, and Ming Liu. Sne-roadseg: Incorporating surface normal information into se-mantic segmentation for accurate freespace detection. In 
+
+ECCV , pages 340–356. Springer, 2020. 1 [6] Xiao Fu, Wei Yin, Mu Hu, Kaixuan Wang, Yuexin Ma, Ping Tan, Shaojie Shen, Dahua Lin, and Xiaoxiao Long. Geowiz-ard: Unleashing the diffusion priors for 3d geometry estima-tion from a single image. In ECCV , 2024. 2, 3 [7] Mu Hu, Wei Yin, Chi Zhang, Zhipeng Cai, Xiaoxiao Long, Hao Chen, Kaixuan Wang, Gang Yu, Chunhua Shen, and Shaojie Shen. Metric3d v2: A versatile monocular geomet-ric foundation model for zero-shot metric depth and surface normal estimation. IEEE Transactions on Pattern Analysis and Machine Intelligence , 2024. 1, 2, 3, 6, 7 [8] Byeongjun Kwon and Munchurl Kim. One look is enough: Seamless patchwise refinement for zero-shot monocular depth estimation on high-resolution images, 2025. 2, 6, 7, 1[9] Jiaqi Li, Yiran Wang, Jinghong Zheng, Zihao Huang, Ke Xian, Zhiguo Cao, and Jianming Zhang. Self-distilled depth refinement with noisy poisson fusion, 2024. 2 [10] Zhenyu Li, Shariq Farooq Bhat, and Peter Wonka. Patch-fusion: An end-to-end tile-based framework for high-resolution monocular metric depth estimation. In CVPR ,2024. 2, 3, 6, 1 [11] Zhenyu Li, Shariq Farooq Bhat, and Peter Wonka. Patchre-finer: Leveraging synthetic data for real-domain high-resolution monocular metric depth estimation. In ECCV ,2024. 2, 3, 5, 6, 7, 1 [12] Zhenyu Li, Wenqing Cui, Shariq Farooq Bhat, and Peter Wonka. Patchrefiner v2: Fast and lightweight real-domain high-resolution metric depth estimation, 2025. 2 [13] S Mahdi H Miangoleh, Sebastian Dille, Long Mai, Sylvain Paris, and Yagiz Aksoy. Boosting monocular depth estima-tion models to high-resolution via content-adaptive multi-resolution merging. In CVPR , 2021. 2 [14] Maxime Oquab, Timoth´ ee Darcet, Th´ eo Moutakanni, Huy Vo, Marc Szafraniec, Vasil Khalidov, Pierre Fernandez, Daniel Haziza, Francisco Massa, Alaaeldin El-Nouby, Mah-moud Assran, Nicolas Ballas, Wojciech Galuba, Russell Howes, Po-Yao Huang, Shang-Wen Li, Ishan Misra, Michael Rabbat, Vasu Sharma, Gabriel Synnaeve, Hu Xu, Herv´ e Je-gou, Julien Mairal, Patrick Labatut, Armand Joulin, and Piotr Bojanowski. Dinov2: Learning robust visual features with-out supervision, 2024. 3 [15] Duc-Hai Pham, Tung Do, Phong Nguyen, Binh-Son Hua, Khoi Nguyen, and Rang Nguyen. Sharpdepth: Sharpening metric depth predictions using diffusion distillation, 2024. 6, 1[16] Xiaojuan Qi, Renjie Liao, Zhengzhe Liu, Raquel Urtasun, and Jiaya Jia. Geonet: Geometric neural network for joint depth and surface normal estimation. In Proceedings of the IEEE Conference on Computer Vision and Pattern Recogni-tion , pages 283–291, 2018. 3, 6 [17] Xiaojuan Qi, Zhengzhe Liu, Renjie Liao, Philip HS Torr, Raquel Urtasun, and Jiaya Jia. Geonet++: Iterative geo-metric neural network with edge-aware refinement for joint depth and surface normal estimation. IEEE Transactions on Pattern Analysis and Machine Intelligence , 2020. 3 [18] Pierluigi Zama Ramirez, Fabio Tosi, Matteo Poggi, Samuele Salti, Stefano Mattoccia, and Luigi Di Stefano. Open chal-lenges in deep stereo: the booster dataset. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 21168–21178, 2022. 6, 7, 1 [19] Ren´ e Ranftl, Alexey Bochkovskiy, and Vladlen Koltun. Vi-sion transformers for dense prediction. In ICCV , 2021. 3 [20] Daniel Scharstein, Heiko Hirschm¨ uller, York Kitajima, Greg Krathwohl, Nera Neˇ si´ c, Xi Wang, and Porter West-ling. High-resolution stereo datasets with subpixel-accurate ground truth. In German conference on pattern recognition ,pages 31–42. Springer, 2014. 6, 7, 1 [21] Thomas Schops, Johannes L Schonberger, Silvano Galliani, Torsten Sattler, Konrad Schindler, Marc Pollefeys, and An-dreas Geiger. A multi-view stereo benchmark with high-resolution images and multi-camera videos. In Proceed-ings of the IEEE conference on computer vision and pattern recognition , pages 3260–3269, 2017. 6, 7, 1 [22] Jianlin Su, Yu Lu, Shengfeng Pan, Ahmed Murtadha, Bo Wen, and Yunfeng Liu. Roformer: Enhanced transformer with rotary position embedding, 2023. 4 [23] Fabio Tosi, Yiyi Liao, Carolin Schmitt, and Andreas Geiger. Smd-nets: Stereo mixture density networks. In Conference on Computer Vision and Pattern Recognition (CVPR) , 2021. 2, 5, 6, 7, 1 [24] Matias Turkulainen, Xuqian Ren, Iaroslav Melekhov, Otto Seiskari, Esa Rahtu, and Juho Kannala. Dn-splatter: Depth and normal priors for gaussian splatting and meshing. In 
+
+WACV , pages 2421–2431, 2025. 1 [25] Jianyuan Wang, Minghao Chen, Nikita Karaev, Andrea Vedaldi, Christian Rupprecht, and David Novotny. Vggt: Vi-sual geometry grounded transformer. In Conference on Com-puter Vision and Pattern Recognition (CVPR) , pages 5294– 5306, 2025. 2 [26] Shuzhe Wang, Vincent Leroy, Yohann Cabon, Boris Chidlovskii, and Jerome Revaud. Dust3r: Geometric 3d vi-sion made easy, 2024. 2 [27] Zhou Wang, A.C. Bovik, H.R. Sheikh, and E.P. Simoncelli. Image quality assessment: from error visibility to structural similarity. IEEE Transactions on Image Processing , 13(4): 600–612, 2004. 1 [28] Lihe Yang, Bingyi Kang, Zilong Huang, Zhen Zhao, Xiao-gang Xu, Jiashi Feng, and Hengshuang Zhao. Depth any-thing v2. NeurIPS , 2025. 1, 3, 5, 6, 7, 2 Any Resolution Any Geometry: From Multi-View To Multi-Patch 
+
+# Supplementary Material 
+
+In this supplementary material, we provide additional implementation and dataset details (including training hyper-parameters, evaluation protocols, and metric defini-tions), extended ablation studies on data augmentation and GridMix sampling, more qualitative visualizations at mul-tiple resolutions (2K–8K) and out-of-domain images, and a discussion of current limitations and directions for future work. We also refer readers to our website ( https:// dreamaker-mrc.github.io/Any-Resolution-Any-Geometry ), which provides an interactive compari-son of our predictions. 
+
+## A. Implementation Details 
+
+A.1. Training Details 
+
+We adopt Depth-Anything V2 (DA2) [28] and Metric3D V2 [7] as the coarse prediction backbones. Training is conducted on 7,592 samples from the UnrealStereo4K [23] dataset for 80K iterations using 4 NVIDIA A100 GPUs with a batch size of 1. We use the AdamW optimizer with a learning rate of 1 × 10 −5, weight decay of 1 × 10 −6, and apply gradient norm clipping with a maximum ℓ2 norm of 35 to stabilize training; gradient checkpointing is enabled to reduce memory consumption. During training, we operate on fixed-size patches with a resolution of 540 × 960 . Our multi-task objective combines a depth loss Ldepth with a normal loss Lnormal , and the final loss is given by 
+
+Ltotal = λdepth Ldepth 
+
+ Dref ined , D gt 
+
++ λnormal Lnormal 
+
+ nref ined , npseudo , (10) where we set λdepth = 1 , λnormal = 0 .01 to balance the contribution of the normal supervision. 
+
+A.2. Datasets 
+
+UnrealStereo4K. The UnrealStereo4K dataset [23] pro-vides stereo image pairs at 4K resolution (2160 ×3840), each with dense and boundary-preserving ground-truth an-notations. All scenes are rendered in Unreal Engine using the UnrealCV plugin across eight virtual environments, of-fering diverse geometry, materials, and lighting conditions. Following [10, 11], we first remove mislabeled samples us-ing the Structural Similarity Index (SSIM) [27]. Following PRO [8], we employ the same Bias-Free Mask during train-ing to ensure a fair comparison. The final depth ground truth is then computed from the provided disparity maps using the calibrated camera baseline and focal length. 
+
+Middlebury. The Middlebury 2014 dataset [20] provides high-resolution indoor scenes with accurate ground-truth disparity and depth annotations. Following common prac-tice, we select 23 stereo pairs with valid ground truth and convert the provided disparity maps into depth maps using the calibrated camera parameters. 
+
+Booster. The Booster dataset [18] contains high-resolution indoor images (3008 ×4112) featuring challenging specu-lar, reflective, and transparent surfaces. We use the whole training set with GT for evaluation, resulting in 228 images. 
+
+ETH3D. The ETH3D high-resolution dataset [21] includes both indoor and outdoor scenes (6048 ×4032) with accurate ground-truth depth maps captured using LiDAR sensors. 
+
+A.3. Evaluation Details 
+
+PatchRefiner. We retrained PatchRefiner [11] on top of DA2 for a fair comparison. We evaluate under two configu-rations: (i) p = 16 , which uses the same number of patches as our method, and (ii) p = 49 , where additional patches are employed for test-time ensembling. Here, p denotes the number of patches used to reassemble the final depth map during inference. 
+
+Consistency Error (CE). When computing the consis-tency error (CE) between neighboring patches, we evaluate the discrepancy only within a 270 -pixel-wide overlapping region at the patch boundaries. 
+
+Pseudo Depth Boundary Error (PDBE). Following SharpDepth [15], we evaluate depth boundary quality us-ing the Pseudo Depth Boundary Error, decomposed into an accuracy term ϵacc PDBE and a completeness term ϵcompl PDBE .Given a predicted depth map Dref ined and ground-truth depth Dgt , we first normalize each map to [0 , 1] and ap-ply a Canny edge detector to obtain depth edges Eref ined 
+
+> depth
+
+and Egt 
+
+> depth
+
+. In addition, we convert depth to disparity, nor-malize them, and run Canny again to extract disparity edges 
+
+Eref ined  
+
+> disp
+
+and Egt 
+
+> disp
+
+. The final ground-truth and predicted edge maps are then defined as the union of depth and dis-parity edges, i.e., Eref ined = Eref ined  
+
+> depth
+
+∨ Eref ined  
+
+> disp
+
+and 
+
+Egt = Egt  
+
+> depth
+
+∨ Egt 
+
+> disp
+
+.We compute Euclidean distance transforms T ref ined and 
+
+T gt on the complements of Eref ined and Egt , respectively, truncated to a local neighborhood of 10 pixels. The PDBE accuracy ϵacc PDBE measures how close each predicted edge is to the nearest ground-truth edge: 
+
+ϵacc PDBE =
+
+P 
+
+> x
+
+T ref ined (x) Egt (x)
+
+P 
+
+> x
+
+Egt (x) , (11) Table 6. Ablation on GridMix Patch Sampling Strategy.                                                 
+
+> Configurations (p1, p 2, p 3, p 4)AbsRel ↓δ1↑RMSE ↓CE ↓
+> Depth-Anything v2 0.0812 0.924 2.86 –(1,0,0,0) 0.0500 0.963 2.01 0.0648 (0.5,0.5,0,0) 0.0473 0.966 1.79 0.0436 (0,1,0,0) 0.0405 0.973 1.72 0.0447 (0.5,0,0.5,0) 0.0365 0.975 1.58 0.0440 (0,0,1,0) 0.0350 0.976 1.57 0.0443 (0.4,0.3,0.3,0) 0.0343 0.977 1.52 0.0457 (0.1,0.2,0.3,0.4) 0.0295 0.982 1.35 0.0418
+> (0,0,0.5,0.5) 0.0311 0.981 1.38 0.0435 (0,0,0,1) 0.0321 0.980 1.42 0.0635
+
+while the PDBE completeness ϵcompl PDBE quantifies how well ground-truth edges are recovered by the prediction: 
+
+ϵcompl PDBE =
+
+P 
+
+> x
+
+T gt (x) Eref ined (x)
+
+P 
+
+> x
+
+Eref ined (x) . (12) In both cases, lower values indicate sharper and better aligned depth boundaries. 
+
+## B. More Ablation Study 
+
+To empirically determine the optimal configuration for our proposed GridMix, we conduct a series of experi-ments focusing on different patch sampling probabilities 
+
+(p1, p 2, p 3, p 4). As shown in Table 6, the configuration 
+
+(0 .1, 0.2, 0.3, 0.4) consistently outperforms other variants across all evaluated metrics. Specifically, it achieves the best performance not only in depth accuracy—indicated by AbsRel ↓, δ1 ↑, and RMSE ↓—but also in the consistency metric CE ↓. These results indicate that probabilistic grid sampling effectively enhances inter-patch coherence while preserving fine geometric detail, leading to a more robust representation compared to the Depth-Anything v2 base-line. 
+
+## C. Extension to Any Resolution 
+
+Our patch-based formulation naturally supports arbitrary input resolutions at test time. Given a high-resolution im-age, we keep both the patch size and the transformer back-bone fixed, and only scale the patch grid to cover the full im-age domain. This enables our model to handle 2K, 4K, 8K, and even higher resolutions without any resolution-specific retraining, while preserving local fine details and maintain-ing global geometric consistency across all patches. As shown in Fig. 10, we apply the same model to in-the-wild images at 2K, 4K, and 8K resolutions. Across these settings, our approach consistently sharpens thin structures, refines object boundaries, and produces smoother, more co-herent normal fields compared to the coarse predictions from Depth-Anything V2 and Metric3D V2. In addition, Fig. 13 illustrates an 8K manga-style image that lies far outside the training domain. Even under this highly styl-ized, out-of-domain scenario, the model still recovers ge-ometrically plausible depth and normals, highlighting the strong generalization ability of our multi-patch transformer for high-resolution single-image geometry estimation.     
+
+> RGB Depth (ours) Normal (ours)
+> Figure 9. Failure case on reflective surfaces. Our model strug-gles to handle strongly reflective objects such as mirrors: the mir-ror region is incorrectly interpreted as a continuation of the sur-rounding geometry.
+
+## D. More Qualitative Results 
+
+We further provide qualitative results on the Unreal-Stereo4K [23] dataset. Figure 14 shows three representa-tive scenes, where each column corresponds to one sample and the rows visualize the RGB input, coarse depth from Depth-Anything V2 [28], depth refinements from PatchRe-finer [11] and PRO [8], our refined depth, coarse normals from Metric3D V2 [7], and our refined normals. Across diverse scenes and lighting conditions, our method consis-tently sharpens depth, cleans up noisy regions, and recovers fine geometric structures such as thin objects, furniture de-tails, and small decorations. On the normal estimation side, our model produces smoother and more coherent normal fields and better fine-details. 
+
+D.1. Improvement over Base Models 
+
+While base models provide an accurate global scale, they are trained on low resolutions and lack the high-frequency details necessary to be good initial models for fine ge-ometry. The marginal numerical gain stems from metrics like AbsRel/ δ1 being dominated by global scale and fail-ing to reflect local precision. Furthermore, since real-world Ground Truth is highly sparse, edge-quality metrics cannot be applied to quantify our gains. Our method provides a critical geometric correction of over-smoothed boundaries (see Fig. 11) that global pixel-wise averages fail to capture. In general, qualitative comparisons better highlight the key gains of our method. RGB Depth-Anything V2 Our Depth Metric3D V2 Our Normal     
+
+> 2K 4K 8K Figure 10. Extension to arbitrary resolutions. Each column shows a different input resolution (2K, 4K, 8K), and each row corresponds to the RGB input, coarse depth prediction by Depth-Anything V2, our refined depth prediction, coarse normal prediction by Metric3D V2, and our refined normal prediction, respectively.
+
+D.2. Applications: Lens Blur 
+
+We simulate a lens blur effect using depth maps pre-dicted by DepthAnything (DA)-v2 and our method to blur the background. As shown in Fig. 12 and in Fig. 4 of the main paper, our method produces sharper fine-grained details (see highlighted regions), which allows part of the plants to be blurred while other parts remain in focus. In contrast, due to over-smoothed depth predictions, DA-v2 fails to separate these structures and thus cannot achieve the same blur effect. 
+
+## E. Limitations and Future Work 
+
+While our framework demonstrates strong performance for high-resolution depth and normal estimation, it still has several limitations. First, our model assumes mostly dif-fuse surfaces and struggles with strongly reflective objects such as mirrors, where the mirror region is misinterpreted as a continuation of the surrounding geometry and yields local depth and normal errors (Fig. 9). Second, our cur-rent framework is coupled with two specific coarse geom-etry backbones, namely Depth-Anything V2 for depth and Metric3D V2 for surface normals. As a result, the quality and characteristics of these coarse predictors directly influ-ence the final refined outputs. (a) Metric3d v2 (b) Ours  
+
+> Figure 11. Surface Normal estimation example from ETH3D.
+
+(a) Depth-Anything v2 (b) Ours  
+
+> Figure 12. Application: Lens blur.
+
+In future work, we aim to relax this dependency and turn our approach into a more generic, plug-and-play refinement module that can be seamlessly attached to a wide range of coarse predictors. We believe such a flexible refinement framework would further broaden the applicability of our method across different tasks, datasets, and deployment sce-narios. Figure 13. Out-of-domain 8K manga-style example. We show an in-the-wild 8K manga-style image, which lies far outside the training distribution, together with our depth and normal predictions. Even under this stylized, out-of-domain setting, our model produces geomet-rically coherent depth and normals, and the full-resolution visualization allows inspection of fine structures and large-scale consistency. RGB Depth-Anything V2 PatchRefiner PRO Our Depth Metric3D V2 Our Normal 
+
+Sample 1 Sample 2 Sample 3 Figure 14. More qualitative results on UnrealStereo4K. We show samples from the UnrealStereo4K [23] dataset. Each column cor-responds to one scene, and rows show the RGB input, coarse depth prediction by Depth-Anything V2 [28], depth refinements from PatchRefiner [11] and PRO [8], our refined depth prediction, coarse normal prediction by Metric3D V2 [7], and our refined normal predic-tion. For each column, a consistent zoom-in inset highlights a region of interest across all methods.

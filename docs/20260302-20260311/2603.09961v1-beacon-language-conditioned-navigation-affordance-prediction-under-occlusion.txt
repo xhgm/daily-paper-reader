@@ -1,0 +1,305 @@
+Title: BEACON: Language-Conditioned Navigation Affordance Prediction under Occlusion
+
+URL Source: https://arxiv.org/pdf/2603.09961v1
+
+Published Time: Wed, 11 Mar 2026 01:29:37 GMT
+
+Number of Pages: 8
+
+Markdown Content:
+# BEACON: Language-Conditioned Navigation Affordance Prediction under Occlusion 
+
+Xinyu Gao, Gang Chen †, Javier Alonso-Mora Take left, walk behind the dinning table.    
+
+> Robot Target Free Space Occlusion
+> (c) BEACON: Ego-centric BEV affordance prediction (b) Image-space grounding struggles with occluded targets
+> Projection
+> Vision-Language Model
+> Ego-Aligned Vision-Language Model
+> Geometry-Aware Bird’s-Eye View Encoder
+> Single-View RGB-D
+> (Oracle Selected)
+> Surround-View RGB-D
+> (a) Language-conditioned navigation under occlusion
+
+Fig. 1: BEACON predicts an ego-centric Bird’s-Eye View (BEV) affordance heatmap for language-conditioned local navigation, which is better suited to occluded targets than the state-of-the-art image-space grounding method. 
+
+Abstract — Language-conditioned local navigation requires a robot to infer a nearby traversable target location from its cur-rent observation and an open-vocabulary, relational instruction. Existing vision-language spatial grounding methods usually rely on vision–language models (VLMs) to reason in image space, producing 2D predictions tied to visible pixels. As a result, they struggle to infer target locations in occluded regions, typically caused by furniture or moving humans. To address this issue, we propose BEACON, which predicts an ego-centric Bird’s-Eye View (BEV) affordance heatmap over a bounded local region including occluded areas. Given an instruction and surround-view RGB-D observations from four directions around the robot, BEACON predicts the BEV heatmap by injecting spatial cues into a VLM and fusing the VLM’s output with depth-derived BEV features. Using an occlusion-aware dataset built in the Habitat simulator, we conduct detailed experimental analysis to validate both our BEV space formulation and the design choices of each module. Our method improves the accuracy averaged across geodesic thresholds by 22.74 percentage points over the state-of-the-art image-space baseline on the validation subset with occluded target locations. Our project page is: https://xin-yu-gao.github.io/beacon. 
+
+I. I NTRODUCTION 
+
+Language-conditioned local navigation requires a robot to decide where to go from natural instructions that describe a nearby traversable target location through ego-centric direc-tions, landmarks, or scene layout (e.g., “go behind the table,” “turn left and move forward,” or “go down the hallway”). Unlike tasks that can be addressed by detecting a single ob-ject instance, it requires spatial understanding and grounding to a precise traversable target location. In cluttered indoor environments, the target location can be hard to ground from the current observations due to occlusions caused by     
+
+> †Corresponding author The authors are with the Department of Cognitive Robotics (CoR), Delft University of Technology
+
+x.gao-14@student.tudelft.nl; 
+
+{g.chen-5; j.alonsomora }@tudelft.nl 
+
+furniture or people, yet in many cases the robot still needs to choose a feasible local target. This setting requires the robot to infer, from language and current observations, a local target location in its ego-centric frame that is traversable, even when the target is occluded. Recent vision-language spatial grounding methods [1]–[3] use vision-language models (VLMs) to map observations and instructions to spatial targets and represent the closest existing setup to our problem. These models typically pro-duce image-space point predictions and demonstrate strong open-vocabulary spatial understanding across diverse scenes. However, because image-space outputs are tied to what is directly visible in a particular view, these models struggle to predict target locations under occlusion in the current observations. Occlusion-aware spatial perception for robots has been studied [4], [5], but generally not as a language-conditioned local target prediction problem. Meanwhile, ego-centric Bird’s-Eye-View (BEV) representations have proven effective for producing ground-plane outputs under occlu-sion [6], and recent works show that injecting BEV feature or 3D cues to VLM can improve its performance on ego-centric tasks [7]–[9]. Together, these developments motivate combining VLM-based spatial grounding with ego-centric 3D cues and a robot-centric BEV output for local navigation target prediction under occlusion. In this work, we propose BEACON , a BEV-enhanced affordance prediction model for language-conditioned lo-cal navigation under occlusion, shown in Figure 1. Given single-timestep surround-view RGB-D observations and a natural language instruction, BEACON predicts an ego-centric BEV affordance heatmap over nearby ground lo-cations. Here, affordance denotes the score indicating how suitable each location is as a local navigation target. BEA-CON combines an Ego-Aligned Vision-Language Model for 
+
+> arXiv:2603.09961v1 [cs.RO] 10 Mar 2026
+
+instruction-conditioned ego-centric scene understanding with a Geometry-Aware Bird’s-Eye View Encoder that provides metric spatial structure from RGB-D observations, allowing the model to infer traversable local targets even when they are occluded in the current views. In detail, our main contributions are as follows: We propose a single-timestep ego-centric BEV navigation af-fordance prediction method that grounds open-vocabulary instructions into a local BEV affordance heatmap, making it better suited to occluded targets than image-space spatial grounding. We propose an Ego-Aligned VLM that incorpo-rates 3D positional cues to improve language-conditioned target prediction, together with a BEV-space affordance for-mulation trained with explicit negatives over non-traversable regions to encourage structural validity. Systematic exper-iments on an occlusion-aware dataset in the Habitat [10] simulator show consistent gains over zero-shot image-space baselines and trained architecture variants under occlusion, validating the role of each design component. II. R ELATED WORK 
+
+A. Vision-Language Spatial Grounding in Robotics 
+
+The most relevant line of work to our problem is vision-language spatial grounding in robotics, where models map observations and instructions to spatial intermediate outputs that can be consumed by downstream planners. A non-VLM method [11] struggles with non-object descriptions due to its object-centric design. VLM-based methods typically predict one or a few 2D coordinates as target points, often projecting them to 3D using depth for execution. RoboPoint [1] shows that instruction-tuning with synthetic object-reference and free-space reference data enables a general VLM to output image-space points satisfying spatial relations, and demon-strates downstream use in navigation and manipulation. Follow-up directions improve spatial capability via richer supervision [12], explicit reasoning [2], [3], or additional geometric cues [2], often explicitly considering navigation as a downstream use [1]–[3], [12]–[15]. These approaches are effective as general-purpose spa-tial interfaces because they leverage web-scale pretrained visual semantics and language reasoning. However, robot navigation in cluttered indoor scenes often involves occlu-sions and indirect cues, where the instruction may imply a landmark or target location behind people or structures. Many existing formulations express outputs in image co-ordinates or prioritize directly observable evidence during inference and evaluation, and they typically do not explicitly target robot-centric local goal inference under occlusions or enforce structural feasibility (e.g., avoiding walls) for local navigation targets. Our work focuses on this navigation-centric regime and leverages 3D cues with a robot-centric spatial representation to predict targets under occlusion while promoting traversability. 
+
+B. VLMs with Local 3D or Ego-Centric Multi-View Inputs 
+
+Robots often operate with richer geometric observations than a single RGB image, such as depth or multiple ego-centric views, motivating efforts to extend vision-language models with local 3D or ego-centric multi-view inputs for improved spatial understanding. Some approaches inject 3D cues directly into the 2D vision tokens [7], [8], [16], whereas others introduce a separate depth or 3D branch [2], [17]–[21]. While they demonstrate strong 3D understanding across captioning, question answering, and grounding tasks, these models are not typically designed to output robot-centric local navigation targets, nor are they commonly evaluated in tasks where the referred target is occluded in the current view. Recent work also explores ego-centric multi-view spatial reasoning in vision-language models, but remains focused on reasoning-oriented tasks such as question answering rather than local navigation target prediction [22]. 
+
+C. BEV Representations and VLM Alignment 
+
+BEV representations provide a geometry-centric interface that inherently preserves metric spatial structure and are widely used in occlusion-heavy perception settings [23]– [26], mainly in the self-driving domain. BEV-based methods usually convert visual features to the ground plane using depth or point clouds to produce dense top-down features for various tasks (e.g., detection and segmentation), pro-viding a natural spatial basis for modeling targets behind occlusions while respecting local traversability constraints. In natural language-conditioned tasks, recent advances in self-driving typically provide BEV features as input to the language model, sometimes compressing BEV information into a small set of tokens through adapter modules like [27] and not passing raw images to the downstream language model [9], [28], [29]. While effective for driving objectives, this design may obscure fine-grained spatial structure that is important for precise local goal selection in cluttered indoor environments and may reduce the benefit of web-scale knowledge priors from pretrained vision–language models. Motivated by these gaps, BEACON aims to retain raw im-age inputs for VLM-based scene understanding while using depth-derived robot-centric BEV features to preserve local geometry. It then combines language understanding with dense spatial representation to predict instruction-consistent navigation affordance under occlusion while respecting local traversability constraints. III. P ROBLEM FORMULATION 
+
+Given four surround RGB-D views o and a human lan-guage instruction x, we aim to infer an ego-centric local navigation target that matches the instruction and lies in traversable free space. This setting requires grounding open-vocabulary instructions, expressed through landmarks, scene structure, or ego-centric directions, to a local destination rather than detecting a single visible object. The intended target may be partially or fully occluded by static structures and/or transient obstacles while still lying within a bounded local area that does not require exploration. Figure 2 illus-trates this setting: the left panel shows the task setup under occlusion (isometric view), the middle panel shows the ego-centric top-down local grid with a target region visualization, In the living area you will see a large couch in the center with two ottomans. Go around the ottomans and stop once you are on the other side .  
+
+> /home/gxy/Datasets/MP3D/Falcon/paper_vis/d2dbbc746ddd4834aed244263d559c84_iso (copy).png
+> Once in the hallway take a right , head down the hallway .
+
+Fig. 2: Examples of language-conditioned local navigation under occlusion. The blue boxes mark the robot, the red boxes highlight humans and objects that cause occlusions, and the green boxes indicate target regions. and the right panel overlays the same target region on a simulator top-down view. We formulate local target inference as dense prediction in the ego-centric BEV space. The model outputs an ego-centric BEV navigation affordance map ˆA, where higher values indicate more likely instruction-relevant target locations, and a single target point for evaluation is obtained by taking the argmax of ˆA and mapping the selected BEV cell to its metric location. Formally, we learn a model fθ that maps observation and instruction to the affordance map: 
+
+fθ (o, x ) → ˆA. (1) During training, ˆA is supervised with a target region mask around the annotated target point, as defined in Section IV-D. Dynamic obstacle avoidance and social navigation behaviors (e.g., yielding to pedestrians) are outside the scope. IV. M ETHODOLOGY 
+
+Figure 3 summarizes BEACON, which consists of two stages. Stage 1 adapts a pretrained Ego-Aligned VLM 
+
+(Section IV-A) for ego-centric scene understanding from surround-view observations and natural language instruc-tions. To support this adaptation, we incorporate ego-centric 3D position encoding and perform auto-derived ego-centric instruction tuning, so that the model better interprets spatial language in the agent frame under the surround-view setting. Stage 2 then initializes from the Stage 1 Ego-Aligned VLM weights and builds the full navigation affordance predictor by combining the instruction-conditioned VLM output with a 
+
+Geometry-Aware BEV Encoder (Section IV-B) and a Post-Fusion Affordance Decoder (Section IV-C). The Geometry-Aware BEV Encoder provides metric spatial features in the BEV frame for grounding local targets under occlusion, while the Post-Fusion Affordance Decoder combines these features with the VLM output to predict a dense ego-centric BEV navigation affordance heatmap. To encourage struc-turally valid target prediction in traversable space and reduce sensitivity to imprecise target annotations, Stage 2 is trained with Geodesic Target Region Supervision (Section IV-D). At inference time, the final navigation target is obtained by taking the argmax of the predicted heatmap. 
+
+A. Ego-Aligned Vision-Language Model 
+
+The Ego-Aligned VLM provides instruction-conditioned ego-centric scene understanding from surround-view RGB inputs. It interprets spatial language in the agent frame and outputs a compact signal for BEV target prediction. 
+
+1) Ego-Centric 3D Position Encoding: To improve ego-centric scene understanding, we incorporate ego-centric 3D position information into visual tokens following LLaVA-3D [7] and SpatialVLA [8], adapted to a surround-view setting. Given a 2D image patch token vi from the frozen vision transformer image encoder, we compute its depth-derived 3D position pi = ( xi, y i, z i) in the agent frame. A learnable embedding function E3D (·), implemented as a lightweight two-layer multi-layer perceptron (MLP), maps 
+
+pi to the visual feature dimension and is added to the corresponding visual token before the vision-to-language MLP projector: 
+
+˜vi = vi + E3D (pi) (2) Then, the MLP projector maps ˜vi into the language model embedding space. 
+
+2) Navigation Task Token Interface: To obtain a sin-gle instruction-dependent signal for downstream Bird’s-Eye-View prediction, we append a special token [NAV] to the prompt and use its final hidden state as a summary em-bedding following the common practice in vision-language robotic systems like TrackVLA [30], and the embedding is used as the vision-language input to the post-fusion affordance decoder. 
+
+3) Stage-1 Auto-Derived Ego-Centric Instruction Tuning: 
+
+In Stage 1, we perform auto-derived ego-centric instruc-tion tuning with a standard language modeling objective, optimizing the vision-to-language MLP projector, the ego-centric 3D position embedding E3D , the language model’s low-rank adaptation (LoRA) [31] parameters. Supervision is constructed automatically from the annotated target in the agent frame as coarse direction-and-range answers. Con-cretely, direction is discretized into eight 45 ◦ bins (e.g. Front, FrontLeft, etc.), and range is split into small or big by a fixed threshold drange . These labels are expressed as short templated textual answers (e.g., “Move towards the FrontLeft region with a small step.”), enabling the model to learn the ego-centric convention and integrate surround-view evidence. In Stage 2, the trained model provides the [NAV] sum-mary embedding while the full BEV affordance prediction is trained with geodesic target region supervision. 
+
+B. Geometry-Aware Bird’s-Eye View Encoder 
+
+The Geometry-Aware BEV Encoder constructs an ego-centric BEV feature map FBEV from two complementary sources: (i) dense image features projected to the ground Bird's-Eye  
+
+> View Pooling
+
+Stage 1 
+
+> Surround-View RGB-D
+> Supervision
+> Langauge Modeling Head
+> Auto-Derived Egocentric Instruction Tuning
+
+Stage 2 & Inference 
+
+> Surround-View RGB-D
+> 3D Position
+> Embedding
+
+Pretrained LLM  
+
+> MLP Projector
+> Image Encoder
+> LoRA
+> [NAV] Special Token
+> Geometry-Aware Bird’s-Eye View Encoder
+
+Post-Fusion Affordance Decoder          
+
+> Depth Encoder Ray Casting
+> Adaptive Bird’s-Eye-View Feature Weighting
+> Geometry-Aware
+> Bird’s-Eye-View Encoder
+> Depth
+> Bird's-Eye
+> View Pooling
+> Images
+> Post-Fusion Affordance Decoder
+> [NAV] Token Embedding
+> Upsampling Projection
+> Fusion Module
+> "Hop over that table and you will land directly in front of the fireplace"
+> Geodesic Target Region Supervision
+> Egocentric 3D Patch Token
+> Text Token
+> [NAV] Special Token
+> "Move towards the Front Region with a Big step."
+> FrontLeft, Left, BackLeft, ... Small Binary Cross-Entropy Loss
+> Argmax
+> Supervision
+> Ego-Aligned Vision-Language Model
+> 3D Position
+> Embedding
+
+Pretrained LLM 
+
+> MLP Projector
+> Image Encoder
+> LoRA
+> "Hop over that table and you will land directly in front of the fireplace"
+> Ego-Aligned Vision-Language Model
+> Initialize
+> Image Encoder
+
+Fig. 3: BEACON overview. Stage 1 performs auto-derived ego-centric instruction tuning with ego-centric 3D position encoding to train the Ego-Aligned VLM. Stage 2 initializes the Ego-Aligned VLM weights from Stage 1, combines the resulting instruction-conditioned output with Geometry-Aware BEV features, and predicts an ego-centric BEV navigation affordance heatmap via a Post-Fusion Affordance Decoder. The two stages use different supervision signals, and inference selects the navigation target by taking the argmax. plane using depth, camera calibration, and Bird’s-Eye-View pooling; and (ii) depth geometry features produced by vox-elizing depth points and encoding them with a 3D con-volutional depth encoder based on SECOND [32]. Dense image features are extracted using a separate frozen vision backbone DINOv2 [33], distinct from the vision encoder inside the VLM, to preserve high-resolution detail for BEV projection. We also compute an auxiliary BEV free-space cue M from the current depth observation via ray casting, summarizing which cells are directly observed as free space. This cue is used to predict a per-cell gate G ∈ [0 , 1] that controls the relative contribution of image features and geometry features. Concretely, the two BEV sources are mixed and projected as: 
+
+FBEV = ϕ
+
+(1 − G) ⊙ F Img BEV , M, G ⊙ F Geom BEV 
+
+
+
+, (3) where F Img BEV denotes the depth-projected BEV image fea-tures, F Geom BEV denotes the BEV geometry features from the depth encoder, ⊙ is element-wise multiplication, [·] is channel-wise concatenation, and ϕ(·) is a 1 × 1 projection. 
+
+C. Post-Fusion Affordance Decoder 
+
+The Post-Fusion Affordance Decoder predicts a dense ego-centric BEV navigation affordance heatmap ˆA by fusing the BEV feature map FBEV with the compact embedding 
+
+F[NAV] produced by the Ego-Aligned VLM. We map F[NAV] 
+
+to a Bird’s-Eye-View-aligned feature map via a convolutional upsampling projection to match the BEV grid, concatenate it with FBEV , and predict the BEV affordance heatmap with a standard BEV feature fusion module from BEVFusion [26] followed by convolutional layers. 
+
+D. Geodesic Target Region Supervision 
+
+Point-only supervision provides weak guidance for dense BEV affordance prediction because it marks a single target location but does not explicitly indicate where not to predict. We adopt BEV target region supervision by aggregating depth observations from a small temporal window around the annotated target to obtain a local traversability estimate. This assumes reasonable depth quality and local pose consistency, and does not rely on simulator ground-truth maps. Given an annotated target point p∗ on the BEV grid, the target region is defined as cells within a geodesic radius r:
+
+R(p∗) = {u | dgeo (u, p ∗) ≤ r}, (4) where dgeo is the geodesic distance. Cells in R(p∗) are treated as positives and all other cells as negatives, and we train with a binary cross-entropy loss between ˆA and the target region mask. V. E XPERIMENTAL SETUP 
+
+We evaluate BEACON on language-conditioned local nav-igation target prediction, and additionally analyze perfor-mance on an occluded-target subset. This section describes the experimental setup, including data construction in the Habitat simulator [10] (Section V-A), the compared baselines (Section V-B), the evaluation metrics (Section V-C), and implementation details (Section V-D). Results are presented in Section VI. A. Data Construction 
+
+We derive local navigation samples from Landmark-RxR [34], [35] by converting each instruction segment into (start viewpoint, instruction, target), where the target is the segment endpoint viewpoint. At each start viewpoint, we render 4 surround-view RGB-D cameras ( 448 × 448 , 90 ◦
+
+FOV each). We restrict targets to a bounded local region (±6.4 m) and filter out samples outside this bound, requiring exploration beyond the local area (approximated by horizon-tal raycasts on the scene mesh), or with large height changes (> 0.5 m). The resulting split contains 70 scenes with 75K training samples and 12K unseen validation samples. 
+
+Occluded-target subset. We define an occluded-target subset using a depth-consistency test: the target is projected into each rendered view and marked occluded if its pro-jected depth exceeds the rendered depth by more than 0.1 min all views. Under this definition, 35.84% / 34.37% of train/validation samples are in this subset. To better reflect realistic occlusions from both scene structure and people, we also introduce non-interactive moving pedestrians, imple-mented with the simulator extension from Social-MP3D [36]. Pedestrian motion is randomized and collision-avoiding. The resulting subset has a slightly larger median target distance than the full validation set (3.12 m vs. 2.32 m). 
+
+B. Baselines 
+
+We compare BEACON with three groups of methods: general-purpose VLM baselines, spatial-grounding VLM baselines evaluated with oracle-view selection, and a trained task-specific model. The general-purpose VLM baseline is ChatGPT-4o, which we prompt to output image-space points following the RoboRefer [2] prompting setup, and evaluate either on all four views jointly or with oracle-view selection. The spatial-grounding VLM baselines are RoboPoint [1] and RoboRefer, which include navigation-related target ground-ing as part of their capabilities. In our experiments, we use the RoboPoint-13B checkpoint and the largest publicly released RoboRefer checkpoint, denoted as RoboRefer-8B-SFT. RoboRefer-8B-SFT is our strongest open-source image-space baseline in this setting. Because they use a single-view image-space interface, we evaluate them with oracle-view selection. We additionally report RoboPoint-13B (best point) as a diagnostic upper bound on candidate selection, as RoboPoint outputs multiple point candidates per query. These methods output image-space predictions, so we evaluate them in zero-shot transfer rather than retraining them under our ground-plane target supervision, because occluded navi-gation targets do not have a well-defined image-space label in the current observation. Finally, as the most straightforward supervised alternative, we train the same VLM with an MLP head to regress a single target point in BEV space from the images and instruction, testing whether BEACON’s gains can be explained by straightforward supervised adaptation alone. 
+
+C. Evaluation Metrics 
+
+Following RoboPoint, we report thresholded target accu-racy as the percentage of predicted points that fall within a target region. Because each sample provides a single annotated target point, we evaluate against a radius-t re-gion rather than exact point equality, reducing sensitivity to annotation imprecision and local endpoint ambiguity. We instantiate this in two ways: GeoAcc@ t and EucAcc@ t at 
+
+t ∈ { 0.5, 1.0, 1.5} m, where GeoAcc uses a geodesic target region of radius t in traversable free space and EucAcc uses a Euclidean target region of radius t on the ground plane. GeoAcc is the main metric because it reflects both localization and traversability, while EucAcc isolates spatial proximity even when a prediction falls inside static structure. We also report SIR (structural invalid rate), the fraction of predictions inside non-traversable static structure, to measure geometric validity directly. In the main tables, we report the average over thresholds, denoted by GeoAcc and EucAcc .
+
+D. Implementation 
+
+We train BEACON in two stages for one epoch each. Stage 1 uses learning rate 3 × 10 −5, with drange = 2 .4 mas defined in Section IV-A. Stage 2 uses base learning rate 
+
+2 × 10 −5, with a 5× multiplier for the BEV encoder and the post-fusion decoder. We use InternVL2-2B [37] as the VLM throughout the experiments, optimizing the vision-to-language MLP projector, token embeddings, and the lan-guage model with LoRA (rank 16, alpha 256, dropout 0.05) while keeping the vision encoder frozen. All experiments run on a single NVIDIA A40 GPU with batch size 4 and gradient accumulation 2. The target geodesic radius r is set to 1 m. VI. R ESULTS 
+
+We analyze experiment results to answer three primary questions:  
+
+> •
+
+How does BEACON compare with image-space base-lines and the most straightforward trained alternative on local navigation target prediction under occlusion?  
+
+> •
+
+To what extent does each proposed design choice con-tribute to accuracy and structural validity?  
+
+> •
+
+What qualitative behaviors and failure modes does BEACON exhibit in challenging navigation cases? We answer these via quantitative results (Section VI-A) and qualitative analysis (Section VI-B) respectively. 
+
+A. Quantitative Results 
+
+Table I reports the main comparison against the baselines defined in Section V-B on the full validation set and the occluded-target subset, while Table II analyzes the contribu-tion of the Ego-Aligned VLM and BEV-space design choices with an ablation study. In Table II, removing both BEV Encoder and BEV Output gives an Ego-Aligned VLM with an MLP point head; removing only BEV Encoder gives an Ego-Aligned VLM with an MLP heatmap head; and removing only BEV Output gives an Ego-Aligned VLM whose output is updated by attending to BEV features through cross-attention before an MLP point head. Based on these results, we draw the following findings: TABLE I: Overall quantitative results on local navigation target prediction, comparing image-space baselines, straightforward trained alternative, and BEACON on the full validation set and occluded-target subset. Best results are shown in bold .                                                                                     
+
+> Method Input Output Full Validation Set (%) Occluded-Target Subset (%)
+> GeoAcc ↑EucAcc ↑SIR ↓GeoAcc †
+> snap ↑GeoAcc ↑EucAcc ↑SIR ↓GeoAcc †
+> snap ↑
+> General-purpose VLM baselines
+> ChatGPT-4o [38] RGB image point 9.69 20.65 57.25 18.94 5.69 11.55 54.03 10.39 ChatGPT-4o [38] (oracle-view) RGB image point 15.97 30.79 48.20 28.28 9.52 17.11 41.68 15.31
+> Spatial-grounding VLM baselines with oracle-view selection
+> RoboPoint-13B [1] RGB image point 20.86 32.59 39.34 30.96 15.43 23.46 35.18 21.88 RoboPoint-13B [1] (best point) RGB image point 35.86 46.96 27.63 45.50 29.14 37.72 26.96 36.42 RoboRefer-8B-SFT [2] RGB-D image point 38.00 44.65 15.97 42.47 20.09 25.45 21.49 23.65
+> Trained task-specific models
+> VLM + point head RGB BEV point 41.25 50.15 19.81 47.50 32.15 39.17 20.00 36.99 BEACON (Ours) RGB-D BEV heatmap 57.72 60.17 2.13 58.50 42.83 45.36 2.60 43.56
+> †GeoAcc snap is computed after snapping the prediction to the nearest oracle traversable cell as a diagnostic upper bound.
+
+TABLE II: Ablation study of key Ego-Aligned VLM and BEV-space design choices. Best results are shown in bold .                                             
+
+> Stage 1 Tuning 3D Pos. Enc. BEV Encoder BEV Output
+> Val. (%) Occluded-Target Subset (%)
+> GeoAcc ↑GeoAcc ↑EucAcc ↑SIR ↓
+> Ego-Aligned VLM design ablations
+> ✓✓54.76 40.06 42.49 2.37
+> ✓✓✓54.36 40.22 42.64 2.62
+> ✓✓✓53.59 37.93 40.31 2.50
+> BEV-space design ablations
+> ✓✓48.40 37.26 43.82 16.53
+> ✓✓✓48.57 37.45 43.84 15.73
+> ✓✓✓52.80 36.97 42.01 11.08
+> ✓✓✓✓57.72 42.83 45.36 2.60
+
+Finding 1: BEACON substantially outperforms prior image-space baselines, especially under occlusion. Ta-ble I shows that BEACON achieves the best results among all compared methods on both the full validation set and the occluded-target subset. This holds across both general-purpose VLM baselines and spatial-grounding VLM base-lines. Compared with RoboRefer-8B-SFT, the state-of-the-art image-space baseline in our setting, BEACON improves occluded-subset GeoAcc by 22.74 percentage points and reduces SIR from 21.49% to 2.60%. Together, these results show a consistent gap between BEACON and prior image-space baselines in both target accuracy and structural validity, especially under occlusion. 
+
+Finding 2: Straightforward supervised adaptation alone is insufficient. Table I shows that training the same VLM with an MLP point head improves over prior image-space baselines, confirming that task-specific supervision is benefi-cial. However, the gain remains limited: on the full validation set, its GeoAcc is only 3.25 points higher than RoboRefer-8B, and it still remains clearly below BEACON on both accuracy and structural validity. Table II further shows that removing any major proposed component leads to a notice-able drop in performance. Together, these results indicate that BEACON’s gains do not come from supervised adaptation alone, but from the combined effect of its proposed design choices. 
+
+Finding 3: BEACON’s gains are not just from post-hoc snapping. Table I shows that BEACON improves EucAcc 
+
+and GeoAcc snap in addition to GeoAcc , so its gains are not explained only by producing fewer invalid predictions and relying on snapping as a post-hoc correction. Table II further shows that the Ego-Aligned VLM design improves EucAcc 
+
+on the occluded-target subset, indicating better language-conditioned target prediction even under a metric that does not enforce structural validity. Notably, ego-centric 3D po-sition encoding alone does not consistently help, and only becomes beneficial when combined with Stage-1 ego-centric instruction tuning, which further shows that the gain comes from the coordinated design of our Ego-Aligned VLM, rather than from adding 3D positional information in isolation. 
+
+Finding 4: BEACON yields drastically lower non-traversable predictions. Table I shows that BEACON achieves a drastically lower SIR on both the full validation set and the occluded-target subset (2.13 and 2.60, respec-tively), indicating that its predicted targets rarely fall inside non-traversable static structure. Table II supports that this improvement comes from BEV-space modeling: removing BEV components sharply increases SIR on the occluded-target subset (11.08–16.53). Notably, the lowest SIR is achieved only when both BEV Encoder and BEV Output are enabled, consistent with our design choice of combining BEV geometric features with a BEV-space affordance output. TABLE III: Ablation study on FBEV components. 
+
+F Img BEV F Geom BEV G Full Val. (%) Occ. Subset (%) 
+
+GeoAcc ↑ / SIR ↓ GeoAcc ↑ / SIR ↓
+
+✓ 55.99 / 3.22 41.52 / 3.77 
+
+✓ 51.67 / 9.54 36.93 / 12.51 
+
+✓ ✓ 56.96 / 2.12 42.34 / 2.62 
+
+✓ ✓ ✓ 57.72 / 2.13 42.83 / 2.60 BEV feature component ablation. Table III studies the BEV feature construction in Section IV-B by ablating the image feature branch F Img BEV , the geometry feature branch 
+
+F Geom BEV , and the learned gate G. Using only F Img BEV already gives strong performance, while using only F Geom BEV substan-tially lowers GeoAcc and increases SIR. Combining the two branches improves both accuracy and validity, showing their complementarity. Adding the gate gives a further gain in GeoAcc while preserving very low SIR, supporting the design of the Geometry-Aware BEV Encoder. 
+
+B. Qualitative Analysis 
+
+Figure 4 compares BEACON’s BEV affordance predic-tions with the image-space baselines RoboPoint and RoboRe-fer. For readability, the heatmap overlay is thresholded at 0.40 so that only high-confidence regions are shown. The top two rows show successful examples under heavy occlusion, while the bottom two rows illustrate representative failure cases. Here, successful means that the selected target lies inside the 1 m geodesic target region. 
+
+Affordance prediction under heavy occlusion. In the first successful example shown in Figure 4a, part of the referred structure is visible, but the target-side free space is heavily occluded; BEACON concentrates affordance in the feasible gap and selects a target inside the target region. In the second example, the relevant landmarks are not directly visible and the observation provides mainly layout cues; BEACON still assigns probability mass toward the correct direction and rough location, whereas the image-space baselines fail without a directly visible grounding cue. 
+
+Uncertainty representation and structural validity. Our affordance map explicitly represents uncertainty as a spatial distribution over candidate free-space goals, while remaining anchored to traversable geometry. In the first successful example and the first failure case, probability mass follows feasible corridors around furniture rather than spreading into walls or obstacles, so the selected target is less likely to fall inside static structure. This behavior is encouraged by the geodesic region supervision, which provides explicit neg-atives on infeasible regions and suppresses non-traversable areas even when the semantic prediction is imperfect, con-sistent with the low SIR observed quantitatively. By contrast, image-space baselines do not explicitly model free-space feasibility: RoboRefer tends to select conservative visible-floor points that miss occluded targets, while RoboPoint may predict semantically relevant pixels whose depth projection is not traversable. 
+
+Failure cases. The two rows in Figure 4b summarize two common failure modes. In the first row, the model confuses the referred landmark or relation (e.g., which chair is black and which one is “opposite”), yielding a coherent but misplaced affordance peak. In the second row, the instruction is underspecified about how far to proceed after entering the room; the prediction corresponds to a plausible stopping region but exhibits an ambiguity-induced mismatch with the single annotated endpoint. Hop over that table and you will land directly in front of the fireplace and you are done.       
+
+> Slightly turn left. Walk straight and stand beside the sofa. There is a TV towards your left side and wall towards your right side.
+> RoboPoint RoboRefer Ours
+> RoboPoint RoboRefer Ours
+> Walk towards the one on the right. And once you're standing in this doorway on the right you'll see a chandelier and you've reached the end.
+> RoboPoint RoboRefer Ours
+
+(a) Successful examples under heavy occlusion. Walk towards the black chair opposite to you.     
+
+> RoboPoint RoboRefer Ours
+> Enter the room. In the room, you will find a sofa, television and a table in between them.
+> RoboPoint RoboRefer Ours
+
+(b) Failures due to landmark confusion or instruction ambiguity. 
+
+Fig. 4: Qualitative examples of language-conditioned nav-igation affordance prediction, comparing BEACON’s BEV affordance predictions with the image-space baselines Robo-Point [1] and RoboRefer [2]. Target regions are shown in green. VII. C ONCLUSION 
+
+In this work, we propose BEACON, a VLM-based BEV affordance predictor for local navigation target prediction conditioned on an open-vocabulary instruction. In unseen environments in the Habitat simulator, BEACON shows consistent gains over prior image-space baselines, with the largest improvements on the occluded-target subset. While image-space baselines struggle with occluded cues or targets, BEACON outputs an ego-centric BEV affordance heatmap that yields more accurate targets and substantially fewer non-traversable predictions. These improvements are not simply the result of adding task-specific supervision, nor are they explained solely by post-hoc snapping to free space; instead, BEACON improves both Euclidean target accuracy and traversable-target validity. Extensive ablations further validate the importance of ego-aligned 3D cues and BEV-space design choices. While BEACON demonstrates strong results in simulation, evaluating it on real-world surround-view RGB-D data with matched instruction segments is an important next step. Looking ahead, incorporating more explicit compositional grounding of intermediate entities and relations, together with process-level supervision, may further improve multi-step spatial reasoning. REFERENCES [1] W. Yuan, J. Duan, V. Blukis, W. Pumacay, R. Krishna, A. Murali, A. Mousavian, and D. Fox, “Robopoint: A vision-language model for spatial affordance prediction in robotics,” in Conference on Robot Learning . PMLR, 2025, pp. 4005–4020. [2] E. Zhou, J. An, C. Chi, Y. Han, S. Rong, C. Zhang, P. Wang, Z. Wang, T. Huang, L. Sheng et al. , “Roborefer: Towards spatial referring with reasoning in vision-language models for robotics,” arXiv preprint arXiv:2506.04308 , 2025. [3] Y. Liu, D. Chi, S. Wu, Z. Zhang, Y. Hu, L. Zhang, Y. Zhang, S. Wu, T. Cao, G. Huang et al. , “Spatialcot: Advancing spatial reasoning through coordinate alignment and chain-of-thought for embodied task planning,” arXiv preprint arXiv:2501.10074 , 2025. [4] S. Song, F. Yu, A. Zeng, A. X. Chang, M. Savva, and T. Funkhouser, “Semantic scene completion from a single depth image,” in Proc. of the IEEE/CVF Comput. Vis. and Pattern Recognition Conf. (CVPR) ,2017, pp. 1746–1754. [5] A. Reed, B. Crowe, D. Albin, L. Achey, B. Hayes, and C. Heckman, “Scenesense: Diffusion models for 3d occupancy synthesis from partial observation,” in Proc. of the IEEE/RSJ Intl. Conf. on Intell. Robots and Syst. (IROS) . IEEE, 2024, pp. 7383–7390. [6] Y. Zhang, J. Zhang, Z. Wang, J. Xu, and D. Huang, “Vision-based 3d occupancy prediction in autonomous driving: a review and outlook,” 
+
+Frontiers of Computer Science , vol. 20, no. 1, p. 2001301, 2026. [7] C. Zhu, T. Wang, W. Zhang, J. Pang, and X. Liu, “Llava-3d: A simple yet effective pathway to empowering lmms with 3d capabilities,” in 
+
+Proc. of the IEEE/CVF Intl. Conf. on Computer Vision (ICCV) , 2025, pp. 4295–4305. [8] D. Qu, H. Song, Q. Chen, Y. Yao, X. Ye, Y. Ding, Z. Wang, J. Gu, B. Zhao, D. Wang et al. , “Spatialvla: Exploring spatial representations for visual-language-action model,” arXiv preprint arXiv:2501.15830 ,2025. [9] H. Shao, Y. Hu, L. Wang, G. Song, S. L. Waslander, Y. Liu, and H. Li, “Lmdrive: Closed-loop end-to-end driving with large language mod-els,” in Proc. of the IEEE/CVF Comput. Vis. and Pattern Recognition Conf. (CVPR) , 2024, pp. 15 120–15 130. [10] X. Puig, E. Undersander, A. Szot, M. D. Cote, T.-Y. Yang, R. Partsey, R. Desai, A. W. Clegg, M. Hlavac, S. Y. Min et al. , “Habitat 3.0: A co-habitat for humans, avatars and robots,” arXiv preprint arXiv:2310.13724 , 2023. [11] D. Kim, N. Oh, D. Hwang, and D. Park, “Lingo-space: Language-conditioned incremental grounding for space,” in Proceedings of the AAAI conference on artificial intelligence , vol. 38, no. 9, 2024, pp. 10 314–10 322. [12] X. Shao, Y. Tang, P. Xie, K. Zhou, Y. Zhuang, X. Quan, J. Hao, L. Zeng, and X. Li, “More than a point: Capturing uncertainty with adaptive affordance heatmaps for spatial grounding in robotic tasks,” 
+
+arXiv preprint arXiv:2510.10912 , 2025. [13] C. H. Song, V. Blukis, J. Tremblay, S. Tyree, Y. Su, and S. Birchfield, “Robospatial: Teaching spatial understanding to 2d and 3d vision-language models for robotics,” in Proc. of the IEEE/CVF Comput. Vis. and Pattern Recognition Conf. (CVPR) , 2025, pp. 15 768–15 780. [14] Y. Tang, L. Zhang, S. Zhang, Y. Zhao, and X. Hao, “Roboafford: A dataset and benchmark for enhancing object and spatial affordance learning in robot manipulation,” in Proceedings of the 33rd ACM International Conference on Multimedia , 2025, pp. 12 706–12 713. [15] X. Hao, Y. Tang, L. Zhang, Y. Ma, Y. Diao, Z. Jia, W. Ding, H. Ye, and L. Chen, “Roboafford++: A generative ai-enhanced dataset for mul-timodal affordance learning in robotic manipulation and navigation,” 
+
+arXiv preprint arXiv:2511.12436 , 2025. [16] A.-C. Cheng, Y. Fu, Y. Chen, Z. Liu, X. Li, S. Radhakrishnan, S. Han, Y. Lu, J. Kautz, P. Molchanov et al. , “3d aware region prompted vision language model,” arXiv preprint arXiv:2509.13317 , 2025. [17] Y. Hong, H. Zhen, P. Chen, S. Zheng, Y. Du, Z. Chen, and C. Gan, “3d-llm: Injecting the 3d world into large language models,” Advances in Neural Information Processing Systems , vol. 36, pp. 20 482–20 494, 2023. [18] J. Huang, S. Yong, X. Ma, X. Linghu, P. Li, Y. Wang, Q. Li, S.-C. Zhu, B. Jia, and S. Huang, “An embodied generalist agent in 3d world,” in Proceedings of the 41st International Conference on Machine Learning , 2024, pp. 20 413–20 451. [19] J. Huang, X. Ma, X. Linghu, Y. Fan, J. He, W. Tan, Q. Li, S.-C. Zhu, Y. Chen, B. Jia et al. , “Leo-vl: Towards 3d vision-language generalists via data scaling with efficient representation,” arXiv e-prints , pp. arXiv–2506, 2025. [20] W. Cai, I. Ponomarenko, J. Yuan, X. Li, W. Yang, H. Dong, and B. Zhao, “Spatialbot: Precise spatial understanding with vision lan-guage models,” in Proc. of the IEEE Intl. Conf. on Robot. and Autom. (ICRA) . IEEE, 2025, pp. 9490–9498. [21] A.-C. Cheng, H. Yin, Y. Fu, Q. Guo, R. Yang, J. Kautz, X. Wang, and S. Liu, “Spatialrgpt: Grounded spatial reasoning in vision-language models,” Advances in Neural Information Processing Systems , vol. 37, pp. 135 062–135 093, 2024. [22] M. Gholami, A. Rezaei, Z. Weimin, S. Mao, S. Zhou, Y. Zhang, and M. Akbari, “Spatial reasoning with vision-language models in ego-centric multi-view scenes,” arXiv preprint arXiv:2509.06266 , 2025. [23] J. Philion and S. Fidler, “Lift, splat, shoot: Encoding images from arbitrary camera rigs by implicitly unprojecting to 3d,” in European conference on computer vision . Springer, 2020, pp. 194–210. [24] Z. Li, W. Wang, H. Li, E. Xie, C. Sima, T. Lu, Q. Yu, and J. Dai, “Bev-former: learning bird’s-eye-view representation from lidar-camera via spatiotemporal transformers,” IEEE Transactions on Pattern Analysis and Machine Intelligence , vol. 47, no. 3, pp. 2020–2036, 2024. [25] Z. Li, Z. Yu, D. Austin, M. Fang, S. Lan, J. Kautz, and J. M. Alvarez, “Fb-occ: 3d occupancy prediction based on forward-backward view transformation,” arXiv preprint arXiv:2307.01492 , 2023. [26] Z. Liu, H. Tang, A. Amini, X. Yang, H. Mao, D. L. Rus, and S. Han, “Bevfusion: Multi-task multi-sensor fusion with unified bird’s-eye view representation,” in Proc. of the IEEE Intl. Conf. on Robot. and Autom. (ICRA) . IEEE, 2023, pp. 2774–2781. [27] J. Li, D. Li, S. Savarese, and S. Hoi, “Blip-2: Bootstrapping language-image pre-training with frozen image encoders and large language models,” in International conference on machine learning . PMLR, 2023, pp. 19 730–19 742. [28] K. Winter, M. Azer, and F. B. Flohr, “Bevdriver: Leveraging bev maps in llms for robust closed-loop driving,” in Proc. of the IEEE/RSJ Intl. Conf. on Intell. Robots and Syst. (IROS) . IEEE, 2025, pp. 20 379– 20 385. [29] Z. Liu, R. Huang, R. Yang, S. Yan, Z. Wang, L. Hou, D. Lin, X. Bai, and H. Zhao, “Drivepi: Spatial-aware 4d mllm for unified autonomous driving understanding, perception, prediction and planning,” arXiv preprint arXiv:2512.12799 , 2025. [30] S. Wang, J. Zhang, M. Li, J. Liu, A. Li, K. Wu, F. Zhong, J. Yu, Z. Zhang, and H. Wang, “Trackvla: Embodied visual tracking in the wild,” in Conference on Robot Learning . PMLR, 2025, pp. 4139– 4164. [31] E. J. Hu, Y. Shen, P. Wallis, Z. Allen-Zhu, Y. Li, S. Wang, L. Wang, and W. Chen, “LoRA: Low-rank adaptation of large language models,” in International Conference on Learning Representations , 2022. [32] Y. Yan, Y. Mao, and B. Li, “Second: Sparsely embedded convolutional detection,” Sensors , vol. 18, no. 10, p. 3337, 2018. [33] M. Oquab, T. Darcet, T. Moutakanni, H. Vo, M. Szafraniec, V. Khali-dov, P. Fernandez, D. Haziza, F. Massa, A. El-Nouby et al. , “Dinov2: Learning robust visual features without supervision,” arXiv preprint arXiv:2304.07193 , 2023. [34] K. He, Y. Huang, Q. Wu, J. Yang, D. An, S. Sima, and L. Wang, “Landmark-rxr: Solving vision-and-language navigation with fine-grained alignment supervision,” Advances in Neural Information Pro-cessing Systems , vol. 34, pp. 652–663, 2021. [35] A. Ku, P. Anderson, R. Patel, E. Ie, and J. Baldridge, “Room-across-room: Multilingual vision-and-language navigation with dense spatiotemporal grounding,” in Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP) , 2020, pp. 4392–4412. [36] Z. Gong, T. Hu, R. Qiu, and J. Liang, “From cognition to precognition: A future-aware framework for social navigation,” in Proc. of the IEEE Intl. Conf. on Robot. and Autom. (ICRA) . IEEE, 2025, pp. 9122–9129. [37] Z. Chen, J. Wu, W. Wang, W. Su, G. Chen, S. Xing, M. Zhong, Q. Zhang, X. Zhu, L. Lu et al. , “Internvl: Scaling up vision foundation models and aligning for generic visual-linguistic tasks,” in Proc. of the IEEE/CVF Comput. Vis. and Pattern Recognition Conf. (CVPR) , 2024, pp. 24 185–24 198. [38] J. Achiam, S. Adler, S. Agarwal, L. Ahmad, I. Akkaya, F. L. Aleman, D. Almeida, J. Altenschmidt, S. Altman, S. Anadkat et al. , “Gpt-4 technical report,” arXiv preprint arXiv:2303.08774 , 2023.

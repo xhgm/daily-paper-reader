@@ -1,0 +1,754 @@
+Title: X-GS: An Extensible Open Framework Unifying 3DGS Architectures with Downstream Multimodal Models
+
+URL Source: https://arxiv.org/pdf/2603.09632v1
+
+Published Time: Wed, 11 Mar 2026 01:04:52 GMT
+
+Number of Pages: 13
+
+Markdown Content:
+# X-GS: An Extensible Open Framework Unifying 3DGS Architectures with Downstream Multimodal Models 
+
+Yueen Ma 1, Irwin King 1
+
+Department of Computer Science and Engineering, The Chinese University of Hong Kong 1
+
+{yema21, king}@cse.cuhk.edu.hk 
+
+Abstract 
+
+3D Gaussian Splatting (3DGS) has emerged as a powerful technique for novel view syn-thesis, subsequently extending into numerous spatial AI applications. However, most exist-ing 3DGS methods are isolated, focusing on specific domains such as online SLAM, seman-tic enrichment, or 3DGS for unposed images. In this paper, we introduce X-GS, an extensi-ble open framework that unifies a broad range of techniques to enable real-time 3DGS-based online SLAM enriched with semantics, bridg-ing the gap to downstream multimodal mod-els. At the core of X-GS is a highly efficient pipeline called X-GS-Perceiver, capable of tak-ing unposed RGB (or optionally RGB-D) video streams as input to co-optimize geometry and poses, and distill high-dimensional semantic features from vision foundation models into the 3D Gaussians. We achieve real-time perfor-mance through a novel online Vector Quanti-zation (VQ) module, a GPU-accelerated grid-sampling scheme, and a highly parallelized pipeline design. The semantic 3D Gaussians can then be utilized by vision-language mod-els within the X-GS-Thinker component, en-abling downstream tasks such as object detec-tion, zero-shot caption generation, and poten-tially embodied tasks. Experimental results on real-world datasets showcase the efficacy, efficiency, and newly unlocked multimodal ca-pabilities of the X-GS framework. 
+
+1 Introduction 
+
+3D Gaussian Splatting (3DGS) (Kerbl et al., 2023) has achieved groundbreaking success in real-time novel view synthesis, catalyzing rapid advance-ments across several distinct research directions. To eliminate the reliance on computationally expen-sive offline Structure-from-Motion (SfM) pipelines like COLMAP, recent methods (Fu et al., 2024) have successfully reconstructed scenes directly from unposed image sequences by relaxing cam-era pose requirements. Furthermore, the advent of -GS -Perceiver 
+
+-GS -Thinker -GS -Thinker 
+
+-GS -GS -GS  
+
+> 3D Semantic Gaussians
+> Online Optimization
+> Update & Prune Update & Prune
+> ... ...
+
+-GS -GS     
+
+> Frame 1 Frame 2 Frame 3 ... ... ... ...
+> Object
+> Detection
+> Downstream Tasks
+> Caption
+> Generation Embodied AI
+
+Figure 1: X-GS is an extensible open framework that unifies previously isolated domains, including pose-free 3DGS, 3DGS-based SLAM, Semantic GS, and VLMs for 3DGS. X-GS-Perceiver achieves real-time 3DGS-based online SLAM with semantics using an online VQ module, GPU-accelerated grid-sampling, and highly par-allelized scheduling. X-GS-Thinker bridges the resulting semantic 3DGS representation with downstream mul-timodal models to execute complex, language-driven tasks such as open-vocabulary 3D object detection, cap-tion generation, and potentially embodied tasks. 
+
+3DGS-based SLAM systems (Matsuki et al., 2024) has improved upon traditional point-cloud-based methods, allowing the mapped scene to retain sig-nificantly richer visual information. Extending beyond pure appearance, Semantic-GS (Li et al., 2025c) endows the 3D Gaussians with explicit se-mantic feature channels alongside their standard parameters to enable complex scene understanding. Finally, bridging the gap between spatial represen-tations and multimodal reasoning, the latest works have developed Vision-Language Models (VLMs) (Thai et al., 2025) that natively utilize 3D Gaus-sians as direct inputs rather than relying solely on 2D images. 1
+
+> arXiv:2603.09632v1 [cs.CV] 10 Mar 2026
+
+Despite this rapid progress, these advancements typically operate in isolation. To combine their respective strengths, we propose the first work to unify these disparate 3DGS techniques from a comprehensive framework perspective: the X-GS framework. Standing for an e Xtensible open frame-work for 3D GS , the “X” serves as a placeholder prefix to denote distinct 3DGS paradigms, such as Pose-Free-GS, SLAM-GS, Semantic-GS, and VLM-for-GS. This suggests that future develop-ments in these different directions can be assimi-lated by X-GS for continued improvement, directly showcasing its extensibility. Built upon this unified foundation, X-GS achieves real-time 3DGS-based online SLAM with rich semantic enrichment while simultaneously bridging the gap to downstream VLMs. Although X-GS is built upon existing 3DGS algorithms, integrating them for real-time perfor-mance is a non-trivial process. To achieve this, we introduce X-GS-Perceiver, our dedicated seman-tic mapping module, which is driven by three key efficiency techniques: an online vector quantiza-tion (VQ) module, a grid-sampling scheme, and a meticulously designed pipeline that fully lever-ages parallelism. The VQ module drastically re-duces the dimensionality of the semantic channels stored in each 3D Gaussian. While previous works have utilized VQ modules in 3DGS, they were lim-ited to offline processing. We overcome this by introducing a VQ module with Exponential Mov-ing Average (EMA) updates to support continuous online learning. Additionally, because 3D Gaus-sians usually project to areas rather than single pixels on the rendered image, we introduce a grid-sampled semantic supervision scheme. This is paired with a custom GPU kernel that executes only the minimal calculations required for the sub-sampled pixels. This technique maintains semantic map quality while achieving significant speedup and memory load reduction. At a systemic level, X-GS-Perceiver schedules these individual com-ponents using highly parallelized strategies, such as early VQ codebook updates and grid-sampled target prefetching. Because X-GS can accommodate various vision foundation models, it readily supports multiple downstream multimodal tasks through the X-GS-Thinker component. By combining SAM (Kirillov et al., 2023) and CLIP (Radford et al., 2021), X-GS-Perceiver receives object-level semantics. The resulting 3D Gaussians thus encode these seman-tics, enabling X-GS-Thinker, which in this case is based on the CLIP text encoder, to perform text-prompted 3D object detection in the mapped scene. If we integrate the vision tower of a VLM (Liu et al., 2023), the 3DGS semantics can also be fed into the model’s backbone, acting as the X-GS-Thinker, to generate scene captions. Potentially, by connecting these semantic features to a vision-language-action (VLA) model (Brohan et al., 2023), its action gen-eration module can serve as the X-GS-Thinker to tackle embodied tasks. This suggests the ad-ditional extensibility of the X-GS framework to downstream multimodal models. In summary, the main contributions are: • We propose X-GS, an extensible open frame-work that unifies previously isolated do-mains—such as 3DGS-based online SLAM, pose-free 3DGS, semantic 3DGS, and 3DGS-based VLMs—into a cohesive system. • We introduce X-GS-Perceiver, equipped with three core optimization techniques: an on-line VQ module with EMA updates, a GPU-accelerated grid-sampling scheme, and a highly parallelized scheduling design, collec-tively ensuring real-time performance. • We demonstrate its additional extensibility by introducing the X-GS-Thinker component, which bridges the resulting semantic 3DGS with downstream multimodal models to en-able tasks such as 3D object detection, scene captioning, and embodied tasks. 
+
+2 Related Work 
+
+2.1 3DGS-based Online SLAM 
+
+Standard 3D Gaussian Splatting (3DGS) algo-rithms (Kerbl et al., 2023) rely on offline multi-view image sequences and COLMAP initializa-tion. While subsequent methods like CF-3DGS (Fu et al., 2024) eliminate the need for pre-computed poses, they still require offline processing. Re-cently, approaches such as MonoGS (Matsuki et al., 2024), GS-SLAM (Yan et al., 2024), and Gaussian-SLAM (Yugay et al., 2023) have achieved on-line, real-time SLAM using 3DGS. However, these systems focus exclusively on 3D reconstruction and camera tracking, ignoring high-level seman-tic scene understanding. To enrich 3DGS repre-sentations, Feature 3DGS (Zhou et al., 2024) and LangSplat (Qin et al., 2024; Li et al., 2025c) dis-till dense semantic features from vision foundation 2Table 1: Comparison of X-GS with representative 3DGS methods.                                                                                     
+
+> Method RGB-only RGB-D Pose-free Online-SLAM Real-time Semantics VLM-Integration
+> Offline 3DGS & Semantic Fields
+> 3DGS (Kerbl et al., 2023) ✓××××××
+> CF-3DGS (Fu et al., 2024) ✓×✓××××
+> Feature 3DGS (Zhou et al., 2024) ✓××××✓×
+> LangSplat (Qin et al., 2024) ✓××××✓×
+> LangSplatV2 (Li et al., 2025c) ✓×××✓✓×
+> Online 3DGS SLAM
+> MonoGS (Matsuki et al., 2024) ✓✓✓✓✓××
+> LEGO-SLAM (Lee et al., 2025) ×✓✓✓✓✓×
+> OpenMonoGS-SLAM (Yoo et al., 2025) ✓×✓✓×✓×
+> VLMs for 3DGS
+> UniGS (Li et al., 2025b) ✓××××✓✓
+> SplatTalk (Thai et al., 2025) ✓××××✓✓
+> X-GS (Ours) ✓✓✓✓✓✓✓
+
+models (e.g., SAM or CLIP) directly into the 3D Gaussian field, enabling language-driven queries and zero-shot 3D object detection. Nevertheless, these semantic methods rely heavily on precise, pre-computed camera poses and are strictly designed for offline mapping, inherently limiting their appli-cability in dynamic or autonomous environments. 
+
+2.2 Semantic 3DGS-based SLAM 
+
+Existing semantic 3DGS SLAM systems, such as LEGO-SLAM (Lee et al., 2025) and OpenMonoGS-SLAM (Yoo et al., 2025), at-tempt online semantic mapping but suffer from rigid architectural bottlenecks. LEGO-SLAM strictly requires RGB-D input, whereas OpenMonoGS-SLAM operates solely on monoc-ular video—lacking the flexibility to utilize depth maps even when available. Furthermore, OpenMonoGS-SLAM fails to achieve real-time performance. X-GS natively overcomes all of these limitations. 
+
+2.3 VLMs for 3DGS 
+
+Recent literature (Li et al., 2024) demonstrates the immense value of explicitly integrating 3D repre-sentations with Vision-Language Models (VLMs) for downstream reasoning. For instance, UniGS (Li et al., 2025b) aligns optimized 3D Gaussians with textual spaces for multimodal contrastive learn-ing, while SplatTalk (Thai et al., 2025) and Chat-Splat (Chen et al., 2024) build VLMs that take 3DGS as visual input. However, current VLMs for 3DGS are restricted entirely to static, offline scenes. X-GS unifies these disjointed paradigms into a single online framework. Table 1 provides a comparison of key capabili-ties among representative 3DGS methods. To the best of our knowledge, X-GS is the first framework to fulfill all the listed requirements online. 
+
+3 Method 
+
+We propose X-GS, an extensible open framework designed to unify previously isolated 3DGS ad-vancements. The architecture is divided into two primary subsystems. First, the perception module, 
+
+X-GS-Perceiver , ingests unposed monocular or RGB-D video streams to continuously co-optimize the 3D Gaussian map and camera poses, while dis-tilling high-dimensional foundation model features into the Gaussians as semantic channels. To en-sure real-time performance, it utilizes online vector quantization, grid-sampling, and parallel schedul-ing. Second, different multimodal models can serve as the X-GS-Thinker . By utilizing the enriched 3DGS representation produced by X-GS-Perceiver, the Thinker unlocks advanced capabilities such as text-prompted 3D object detection, zero-shot scene captioning, and embodied tasks. 
+
+3.1 Preliminaries 3D Gaussian Splatting and Feature Rendering. 
+
+3DGS represents scene radiance (geometry and ap-pearance) using a collection of 3D Gaussians. Each Gaussian is parameterized by Θ = {μ, Σ, α, c },representing its 3D center μ, covariance Σ, base opacity α, and color c. To compute the expected color C(x) for a pixel x from a specific camera pose T ∈ SE (3) , a set of N overlapping 3D Gaus-sians are transformed by T into camera space, pro-jected into 2D screen coordinates, sorted by depth, and composited via front-to-back α-blending: 
+
+C(x | T, Θ) = 
+
+> N
+
+X
+
+> i=1
+
+ciα′
+
+> ii−1
+
+Y
+
+> j=1
+
+(1 − α′ 
+
+> j
+
+) (1) 33D-GS Rasterization        
+
+> Geometry &
+> Appearance Opt.
+> Rendered RGB / RGBD
+> VFM VQ Codebook
+> Grid-Sampled Target Prefetching
+> (multi-worker)
+> Grid-Optimized
+> Rasterization
+> Semantic
+> Optimization
+> Rendered VQ Logits
+> 3DGS-based SLAM &
+> Semantics Optimization
+> GPU Kernel
+> Super-
+> vision
+> Targets
+> ()
+> 3D Semantic Gaussians VLM
+> (CLIP)
+> Object query: "Globe"
+> VLM
+> (LLaVA)
+> Caption:
+> "There is a
+> globe on the
+> desk"
+> Prompt: "Describe the scene"
+> Potential Tasks: Embodied AI
+> Online Update
+> Object Detection
+> Caption Generation
+> Pipeline Progression Direction VLA [x, y, z, rx, ry, rz]
+
+X-GS -Perceiver X-GS -Thinker 
+
+> Offset₁
+> Offset₂
+> Offset₃
+
+Figure 2: Overview of the X-GS framework. X-GS-Perceiver synergizes a memory-efficient Vector Quantization (VQ) module, grid-based semantic supervision, and an asynchronous parallelized pipeline to perform SLAM and distill semantics simultaneously in an online fashion, operating in real time at ∼15 FPS. As an open framework, it accommodates both RGB-only and RGB-D inputs, and can flexibly integrate various Vision Foundation Models (VFMs). Furthermore, the X-GS-Thinker component is extensible to different multimodal models, enabling a wide range of downstream tasks. 
+
+where ci is the color and α′ 
+
+> i
+
+is the evaluated 2D footprint opacity of the i-th Gaussian. Crucially, α′
+
+> i
+
+and the depth-sorting order are explicit functions of the camera pose T via the view transformation and perspective projection, rendering the entire raster-ization process differentiable with respect to both 
+
+T and Θ.Beyond RGB appearance, this rasterization pro-cess natively extends to high-dimensional semantic features. By substituting the 3-dimensional color 
+
+ci with a D-dimensional feature vector, the exact same α-blending formulation in (1) renders a dense 2D semantic feature map F (x | T, Θ) . This com-putationally pairs the discrete 3D semantic states of the Gaussians with their corresponding 2D spatial observations. 
+
+3DGS-based SLAM. The online SLAM pipeline (Matsuki et al., 2024) operates via two continuous, concurrent threads: tracking and mapping. During tracking, camera poses are estimated through di-rect optimization against the explicit 3D Gaussian representation. The pose Tt for an incoming frame 
+
+t is initialized using a constant velocity kinematic model. Leveraging the differentiability of (1) , Tt is then iteratively refined via gradient descent by hold-ing the map parameters Θ fixed and minimizing the tracking loss Ltrack against the captured ground-truth color image It and optional depth map Dt:
+
+T∗ 
+
+> t
+
+= arg min 
+
+> Tt
+
+Ltrack (It, D t | Tt, Θ) (2) Concurrently, the mapping thread refines the global scene representation by holding the camera poses fixed and optimizing the Gaussian parameters Θ.This optimization is performed over a sliding win-dow of keyframes K, which is dynamically main-tained by inserting new frames that provide suffi-cient novel viewpoints, while evicting redundant older views to preserve a maximum capacity of 
+
+Nwin . The mapping thread refines Θ by minimiz-ing the mapping loss Lmap across this active win-dow of ground-truth images Ik and depth maps 
+
+Dk:
+
+Θ∗ = arg min 
+
+> Θ
+
+X
+
+> k∈K
+
+Lmap (Ik, D k | Θ, Tk) (3) Dynamic mapping heuristics, such as geometry-guided Gaussian insertion and opacity-based prun-ing, are utilized alongside these objectives to main-tain a structurally clean topological map. 
+
+3.2 X-GS-Perceiver 
+
+We develop a set of modules that add semantic en-richment capabilities to the online geometric and photometric optimization pipeline. Naively attach-ing semantic features to 3D Gaussians has proven 4to be heavily memory- and compute-intensive. To ensure our pipeline still fulfills the real-time re-quirement, we devise three key speedup techniques: an online vector quantization (VQ) module, a GPU-accelerated grid-sampling scheme, and a meticu-lously designed pipeline that fully leverages highly parallelized scheduling. 
+
+Online Vector Quantization Module. We rep-resent the semantic state of each Gaussian by log-its over a shared codebook, inspired by (Li et al., 2025c). Let Ng denote the number of Gaussians, 
+
+K the number of codewords, and D the feature dimension. The shared codebook parameters are 
+
+E ∈ RK×D. (4) Each Gaussian i stores a learnable logit vector 
+
+zi ∈ RK . (5) We convert these logits into mixture weights using a softmax over all codebook entries: 
+
+wi = softmax( zi),wik = exp( zik )
+
+PKk′=1 exp( zik ′ ) . (6) The decoded semantic feature of Gaussian i is then obtained by a weighted sum over the shared code-book: ˆfi = E⊤wi
+
+=
+
+> K
+
+X
+
+> k=1
+
+wik ek ∈ RD. (7) This parameterization separates Gaussian-specific semantic coefficients from the shared semantic atoms in the codebook, yielding a compact rep-resentation that can be optimized jointly with the Gaussian scene. We update the shared codebook online using vector quantization with Exponential Moving Av-erages (EMA). Given a set of observed semantic features {xn}Nn=1 , each feature is assigned to its nearest codeword: 
+
+an = arg min  
+
+> k∈{ 1,...,K }
+
+∥xn − ek∥2 . (8) We then accumulate the assignment counts and feature sums, 
+
+ck =
+
+> N
+
+X
+
+> n=1
+
+I[an = k] ,
+
+sk =
+
+> N
+
+X
+
+> n=1
+
+I[an = k] xn,
+
+(9) and update the EMA buffers 
+
+Nk ← λN k + (1 − λ)ck,
+
+Mk ← λMk + (1 − λ)sk, (10) where λ ∈ [0 , 1) is the EMA decay. The updated codeword is 
+
+ek ← Mk
+
+Nk + ε , (11) with a small constant ε for numerical stability. In this way, the per-Gaussian logits are learned by gradient descent, while the shared codebook tracks the evolving feature distribution through EMA con-tinuous online learning. 
+
+Grid-Sampled Semantic Supervision. Apply-ing dense semantic supervision at every image pixel is unnecessarily expensive during mapping, be-cause 3D Gaussians project to areas rather than single pixels on the rendered image. We therefore supervise the rendered semantic features on a reg-ular stride-offset grid in the image plane. Let the full image domain be 
+
+Ω = {0, . . . , H − 1} × { 0, . . . , W − 1}, (12) and let the grid stride be s ≥ 1 with offset o =(oh, o w), where 0 ≤ oh, o w < s . The sampled grid is 
+
+Ωs, o = {(u, v ) ∈ Ω | u ≡ oh (mod s),v ≡ ow (mod s)} . (13) Equivalently, each sampled location can be written as 
+
+(u, v ) = ( oh + ms, o w + ns ), (14) for integer indices m, n . The resulting compact feature-map resolution is 
+
+Hs = max 
+
+
+
+0, 1 + 
+
+ H − 1 − oh
+
+s
+
+ 
+
+,Ws = max 
+
+
+
+0, 1 + 
+
+ W − 1 − ow
+
+s
+
+ 
+
+.
+
+(15) Let ˆF ∈ RD×H×W denote the dense rendered semantic feature field. Conceptually, grid sampling restricts this field to the grid Ωs, o, yielding the compact prediction 
+
+ˆG:,m,n = ˆF:, o h+ms, o w +ns ∈ RD. (16) To maximize efficiency, we pair this scheme with a custom GPU kernel optimized to execute only the minimal pixel-level calculations required for the 5subsampled grid locations. The rasterizer directly outputs this compact prediction, entirely avoiding the computational and memory burdens of forming a dense semantic feature map before subsampling. We construct the target feature map G⋆ ∈
+
+RD×Hs×Ws on the same grid, together with a bi-nary validity mask 
+
+V ∈ { 0, 1}1×Hs×Ws . (17) The semantic supervision is then applied only on valid sampled locations: 
+
+Lgrid = λsem 
+
+h
+
+Lcos 
+
+
+
+V ⊙ ˆG, V ⊙ G⋆
+
++ L1
+
+
+
+V ⊙ ˆG, V ⊙ G⋆i 
+
+,
+
+(18) where ⊙ denotes element-wise masking. The va-lidity mask V serves two vital purposes. Primarily, it acts as a filter for unannotated or background regions that yield meaningless zero-vectors in the target grid G⋆, preventing the 3D Gaussians from incorrectly learning empty features. Secondarily, it masks out padded, out-of-bounds coordinates that arise from maintaining rigid batched tensor shapes at large grid offsets, ensuring the loss is strictly evaluated on robust semantic data. When s = 1 , the formulation reduces to stan-dard dense semantic supervision. However, for a generic stride s > 1, the custom kernel correctly reduces the number of supervised pixels by a factor of s2. This explicit reduction yields a proportional 
+
+s2× savings in both the memory bandwidth re-quired for rasterizing the deep semantic features and the computational overhead of the loss evalua-tion, keeping the entire optimization comfortably within real-time constraints. 
+
+Parallel Pipeline Architecture. To integrate these individual components into a highly efficient workflow, we employ a heavily parallelized system architecture, as illustrated in Figure 2. The VQ codebook update is executed as soon as the Vision Foundation Model (VFM) completes encoding an incoming keyframe. Simultaneously, we initiate a “Grid-Sampled Target Prefetching” operation on the full-resolution semantic map generated by the VFM. Because operations across different spatial grid offsets are mutually independent, we allocate multiple background workers to extract and buffer the grid-sampled targets well in advance of the ac-tual optimization loop. Crucially, to maintain system stability and com-putational efficiency, we strictly decouple the ge-ometry and appearance updates from the semantic updates. During the semantic optimization phase, all foundational parameters of the 3D Gaussians (i.e., position, scale, rotation, opacity, and color) remain frozen. Conversely, the learned semantic logits and VQ codebooks are strictly excluded from the base tracking and mapping steps. By synergiz-ing the memory-efficient VQ module, the reduced computational footprint of our grid-based seman-tic supervision, and this multi-threaded alternating optimization schedule, our system achieves com-prehensive semantic enrichment while consistently maintaining real-time performance at ∼15 FPS. 
+
+3.3 X-GS-Thinker 
+
+While the X-GS-Perceiver handles the efficient construction of 3D semantic Gaussians, the X-GS-Thinker operates atop this framework to in-terpret and leverage these learned representations for downstream multimodal tasks. Because the se-mantic fields mapped onto the 3D Gaussians are distilled directly from prominent vision foundation models (e.g., CLIP, SAM, or SigLIP), the X-GS-Thinker remains highly extensible, adapting seam-lessly to various multimodal network architectures. 
+
+Contrastive VLM. For text-prompted 3D object detection, the X-GS-Thinker relies on a contrastive vision-language model, such as OpenCLIP. Cru-cially, rather than rendering 2D semantic feature maps, we localize user-specified concepts by query-ing the 3D scene representation directly. First, the text query and a standard set of generic negative phrases (e.g., “object”, “things”, “stuff”, “texture”) are encoded and L2-normalized to construct a con-trastive subspace. Then, for each 3D Gaussian in the scene, we decode its continuous semantic em-bedding by multiplying its learned mixture weights with the shared codebook. We compute a prompt-conditioned relevance score natively in 3D by con-trasting each Gaussian’s decoded vector against the encoded text phrases, applying a temperature-scaled softmax to penalize features that strongly correlate with negative structural noise. By thresh-olding these explicit 3D relevancy queries, we generate a prompt-specific Gaussian mask. The surviving subset of Gaussians can then be raster-ized from any arbitrary viewpoint to isolate the target object, effectively performing deterministic, view-independent open-vocabulary 3D segmenta-6GT RGB Rendered RGB GT Semantics Rendered Semantics Object Detection 
+
+> Prompt: "Globe"
+> Prompt: "Phone"
+> Prompt: "Laptop"
+
+Figure 3: Qualitative results of X-GS on scene reconstruction and semantic distillation. From left to right: Ground Truth (GT) RGB, Rendered RGB, GT Semantic Map (from VFMs, SAM + CLIP), Rendered Semantic Map, and an open-vocabulary Object Detection example. 
+
+tion without requiring explicit bounding box infer-ences. 
+
+Generative VLM. To achieve higher-level scene understanding, the decoded 3D Gaussian semantic features can be routed directly into the vision tower of a Generative Vision-Language Model (VLM). However, passing the full set of Ng Gaussians into a generative model is computationally prohibitive and yields highly redundant tokens. Thus, we con-dense the scene into a compact sequence of M
+
+informative tokens using an Entropy-Adaptive Gaussian Sampling strategy. Rather than relying on naive spatial down-sampling, this strategy leverages the information-theoretic uncertainty inherent in each Gaussian’s learned semantic state. Specifically, we evaluate the Shannon entropy of the semantic assignment probabilities produced by the VQ mixture logits. Gaussians exhibiting high entropy—often corre-sponding to ambiguous object boundaries, inter-active structural frontiers, or geometrically dense regions—are actively prioritized. In contrast, Gaus-sians with low entropy tightly map to a single cate-gorical cluster, indicating redundant, homogeneous backgrounds (like large flat floors or empty walls). We run a continuous Top-M sorting algorithm over these calculated entropy scores, explicitly extract-ing only the subset of Gaussians exhibiting peak semantic ambiguity. This deterministic sampling naturally distills out redundant backgrounds while preserving critical semantic boundaries and object structures. The resulting token sequence seam-lessly bridges the continuous geometric scene rep-resentation with the VLM’s discrete context win-dow for complex reasoning tasks, such as 3D visual question answering (VQA) and zero-shot scene captioning. 
+
+Potential Embodied AI Application. Finally, as a future direction for embodied AI applications, the 
+
+X-GS-Thinker can be configured to interface with a Vision-Language-Action (VLA) model (Brohan et al., 2023). By feeding language-aligned 3D ge-ometric features directly into a VLA, our system provides the real-time spatial information required to support embodied tasks. 
+
+4 Experiments 
+
+4.1 Implementation Details 
+
+Our 3DGS-based online SLAM pipeline for geom-etry and appearance builds upon MonoGS (Mat-suki et al., 2024), which executes online SLAM via two concurrent threads: a tracking thread for camera pose estimation and a mapping thread for optimizing the geometry and appearance of the 3D Gaussians. During the online codebook learning 7stage (Li et al., 2025c), the EMA VQ codebook is instantiated with K = 256 independent semantic codes. The EMA update incorporates a decay mo-mentum of λ = 0 .96 and a temperature of τ = 0 .7
+
+to smoothly adapt the cluster centers to the sequen-tial frame stream. To extract object boundaries, we employ SAM (Kirillov et al., 2023), utilizing its base backbone to obtain semantic region masks. To inject open-vocabulary capabilities into the 3D Gaussians, we utilize CLIP (ViT-B/16) (Cherti et al., 2023) to extract full-resolution semantic maps. For genera-tive tasks (e.g., scene captioning), we adopt SigLIP (Zhai et al., 2023) as its visual encoder. Specifically, we extract sparse, patch-level visual embeddings from SigLIP and align them with our grid-sampled pixels using nearest-neighbor interpolation. At runtime, we maintain a sliding window of 
+
+Nwin = 8 keyframes, allocating 150 optimization iterations for the radiance (geometry and appear-ance) phase, followed by 50 iterations dedicated solely to the semantic phase. The entire X-GS framework operates efficiently on a single NVIDIA V100 GPU. 
+
+4.2 Contrastive VLM Results 
+
+To evaluate the visual and semantic fidelity of our system, we present qualitative comparisons of scene reconstruction and open-vocabulary ob-ject localization in Figure 3. First, we observe that the proposed X-GS-Perceiver module maintains ex-ceptional geometry and appearance tracking; the rendered RGB reconstructions exhibit high visual fidelity and closely match the ground truth (GT) images. Second, we evaluate the distilled semantic field. Despite running in an online fashion at real-time speeds, our framework successfully distills semantic information from the VFMs of SAM and CLIP. The integration of the VQ module and grid-sampled supervision effectively balances speed and quality. Finally, we demonstrate the practical utility of our semantically enriched 3D scenes. By query-ing the distilled semantic field using text prompts, our framework computes per-Gaussian similarity scores to accurately localize specific objects in 3D space. This confirms that X-GS operates not merely as an efficient SLAM system, but successfully con-structs a deeply comprehensible, queryable 3D se-mantic field ready for complex downstream tasks. GT RGB Rendered RGB  
+
+> GT Semantics Rendered Semantics
+> Generated Caption
+> The image depicts a workspace setup on a desk.
+> The desk is primarily white and appears to be
+> made of wood or a similar material. On the left
+> side of the desk, there is a tall green plant with
+> long leaves that extend upwards and slightly to
+> the right... In the center of the desk, there is a
+> computer monitor that is turned off, displaying a
+> black screen...
+
+Figure 4: Qualitative results of X-GS for 3D scene caption generation. 
+
+4.3 Generative VLM Results 
+
+To further demonstrate the multimodal generation capabilities of our framework, Figure 4 illustrates qualitative results for 3D scene captioning. By instantiating LLaVA-OneVision (Li et al., 2025a)— backed by the Qwen2-7B-Instruct LLM (Yang et al., 2024)—as the X-GS-Thinker , our system directly ingests the semantically enriched 3D Gaus-sians reconstructed by the X-GS-Perceiver . As shown in the figure, the Thinker successfully lever-ages these spatial and semantic features to gener-ate coherent, natural language descriptions of the environment, accurately capturing both individual object properties and complex global scene layouts. 
+
+4.4 Computational Footprint Analysis 
+
+To evaluate the efficiency and resource require-ments of our system, we present a computational footprint analysis of the X-GS-Perceiver in Table 2. The table breaks down the processing duration across key pipeline components during keyframe optimization, including the time allocated for ge-ometry, appearance, and semantic updates. Addi-tionally, we report the overall system throughput and GPU memory load. Thanks to our highly paral-lelized scheduling, the heavy optimization tasks run efficiently in the background, allowing the frame-8Table 2: Computational footprint analysis of X-GS-Perceiver . We employ SigLIP and evaluate the pipeline on a single NVIDIA V100 GPU. 
+
+Main Component 
+
+Geometry & Appearance Optimization 14.0s 
+
+Semantic Supervision Target Preparation 
+
+– Vision Encoding 0.2s – VQ Codebook Update 2.3s – Grid-Sampled Target Prefetching 4.3s Semantic Optimization 11.2s Average Time per Keyframe 25.2s Average Time per Frame 2.8s Average FPS 21.4 GPU Memory Load ∼9 GB 
+
+work to maintain real-time tracking performance on a single consumer-grade GPU. 
+
+5 Conclusion 
+
+In this paper, we introduced X-GS, an extensible framework that unifies isolated 3DGS domains— including pose-free tracking, online SLAM, and semantic 3DGS—into a single cohesive system. To achieve real-time performance, we proposed the X-GS-Perceiver , which overcomes computa-tional bottlenecks using an online VQ module with EMA updates, GPU-accelerated grid sampling, and highly parallelized scheduling. Furthermore, we demonstrated the framework’s capability for multi-modal reasoning through the X-GS-Thinker , a mod-ule that bridges our semantic 3D representations with downstream VLMs and VLAs. By natively supporting complex tasks such as open-vocabulary 3D object detection, scene captioning, and embod-ied AI planning, X-GS establishes a robust, modu-lar foundation for real-time spatial computing. 
+
+Limitations and Future Work 
+
+While X-GS establishes a highly extensible frame-work, its multimodal reasoning capabilities require more comprehensive evaluation across diverse em-bodied and 3D vision-language benchmarks. Cur-rently, the interface with the X-GS-Thinker oper-ates in a modular fashion; future work will explore end-to-end fine-tuning of the downstream VLMs natively within the 3DGS representations. Addi-tionally, as demonstrated by recent systems like FreeSplat (Wang et al., 2024b) and SplatTalk (Thai et al., 2025), there is a growing trend toward feed-forward 3DGS generation and reasoning. Inte-grating such feed-forward mechanisms into X-GS could significantly reduce the current optimiza-tion overhead. Furthermore, leveraging emerging 3D vision foundation models—such as DUSt3R (Wang et al., 2024a), MASt3R (Leroy et al., 2024), or VGGT (Wang et al., 2025)—could provide stronger geometric priors for mapping, further en-hancing the robustness of our pose-free tracking pipeline. Finally, accommodating dynamic scenes using techniques such as 4DGS represents a highly promising direction for real-world embodied AI applications. 
+
+References            
+
+> Anthony Brohan, Noah Brown, Justice Carbajal, Yevgen Chebotar, Xi Chen, Krzysztof Choromanski, Tianli Ding, Danny Driess, Avinava Dubey, Chelsea Finn, Pete Florence, Chuyuan Fu, Montse Gonzalez Are-nas, Keerthana Gopalakrishnan, Kehang Han, Karol Hausman, Alexander Herzog, Jasmine Hsu, Brian Ichter, and 35 others. 2023. RT-2: vision-language-action models transfer web knowledge to robotic con-trol. CoRR , abs/2307.15818. Hanlin Chen, Fangyin Wei, and Gim Hee Lee. 2024. Chatsplat: 3d conversational gaussian splatting.
+> CoRR , abs/2412.00734. Mehdi Cherti, Romain Beaumont, Ross Wightman, Mitchell Wortsman, Gabriel Ilharco, Cade Gordon, Christoph Schuhmann, Ludwig Schmidt, and Jenia Jitsev. 2023. Reproducible scaling laws for con-trastive language-image learning. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 2818–2829. Yang Fu, Xiaolong Wang, Sifei Liu, Amey Kulkarni, Jan Kautz, and Alexei A. Efros. 2024. Colmap-free 3d gaussian splatting. In CVPR , pages 20796–20805. IEEE. Bernhard Kerbl, Georgios Kopanas, Thomas Leimküh-ler, and George Drettakis. 2023. 3d gaussian splatting for real-time radiance field rendering. ACM Trans. Graph. , 42(4):139:1–139:14. Alexander Kirillov, Eric Mintun, Nikhila Ravi, Hanzi Mao, Chloé Rolland, Laura Gustafson, Tete Xiao, Spencer Whitehead, Alexander C. Berg, Wan-Yen Lo, Piotr Dollár, and Ross B. Girshick. 2023. Segment anything. CoRR , abs/2304.02643. Sibaek Lee, Seongbo Ha, Kyeongsu Kang, Joonyeol Choi, Seungjun Tak, and Hyeonwoo Yu. 2025. LEGO-SLAM: language-embedded gaussian opti-mization SLAM. CoRR , abs/2511.16144. Vincent Leroy, Yohann Cabon, and Jérôme Revaud. 2024. Grounding image matching in 3d with mast3r.
+
+9In ECCV (72) , volume 15130 of Lecture Notes in Computer Science , pages 71–91. Springer. Bo Li, Yuanhan Zhang, Dong Guo, Renrui Zhang, Feng Li, Hao Zhang, Kaichen Zhang, Peiyuan Zhang, Yan-wei Li, Ziwei Liu, and Chunyuan Li. 2025a. Llava-onevision: Easy visual task transfer. Trans. Mach. Learn. Res. , 2025. Fei-Fei Li, Justin Johnson, Christoph Lassner, and Ben Mildenhall. 2024. What is spatial intelligence? Haoyuan Li, Yanpeng Zhou, Tao Tang, Jifei Song, Yihan Zeng, Michael Kampffmeyer, Hang Xu, and Xiaodan Liang. 2025b. Unigs: Unified language-image-3d pretraining with gaussian splatting. In ICLR . Open-Review.net. Wanhua Li, Yujie Zhao, Minghan Qin, Yang Liu, Yuanhao Cai, Chuang Gan, and Hanspeter Pfister. 2025c. Langsplatv2: High-dimensional 3d lan-guage gaussian splatting with 450+ FPS. CoRR ,abs/2507.07136. Haotian Liu, Chunyuan Li, Qingyang Wu, and Yong Jae Lee. 2023. Visual instruction tuning. CoRR ,abs/2304.08485. Hidenobu Matsuki, Riku Murai, Paul H. J. Kelly, and Andrew J. Davison. 2024. Gaussian splatting SLAM. In CVPR , pages 18039–18048. IEEE. Minghan Qin, Wanhua Li, Jiawei Zhou, Haoqian Wang, and Hanspeter Pfister. 2024. Langsplat: 3d language gaussian splatting. In CVPR , pages 20051–20060. IEEE. Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sas-try, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, and Ilya Sutskever. 2021. Learn-ing transferable visual models from natural language supervision. In ICML , volume 139 of Proceedings of Machine Learning Research , pages 8748–8763. PMLR. Anh Thai, Songyou Peng, Kyle Genova, Leonidas J. Guibas, and Thomas A. Funkhouser. 2025. Splattalk: 3d VQA with gaussian splatting. CoRR ,abs/2503.06271. Jianyuan Wang, Minghao Chen, Nikita Karaev, Andrea Vedaldi, Christian Rupprecht, and David Novotný. 2025. VGGT: visual geometry grounded transformer. In CVPR , pages 5294–5306. Computer Vision Foun-dation / IEEE. Shuzhe Wang, Vincent Leroy, Yohann Cabon, Boris Chidlovskii, and Jérôme Revaud. 2024a. Dust3r: Geometric 3d vision made easy. In CVPR , pages 20697–20709. IEEE. Yunsong Wang, Tianxin Huang, Hanlin Chen, and Gim Hee Lee. 2024b. Freesplat: Generalizable 3d gaussian splatting towards free view synthesis of in-door scenes. In NeurIPS .Chi Yan, Delin Qu, Dan Xu, Bin Zhao, Zhigang Wang, Dong Wang, and Xuelong Li. 2024. GS-SLAM: dense visual SLAM with 3d gaussian splatting. In 
+
+CVPR , pages 19595–19604. IEEE. An Yang, Baosong Yang, Binyuan Hui, Bo Zheng, Bowen Yu, Chang Zhou, Chengpeng Li, Chengyuan Li, Dayiheng Liu, Fei Huang, Guanting Dong, Hao-ran Wei, Huan Lin, Jialong Tang, Jialin Wang, Jian Yang, Jianhong Tu, Jianwei Zhang, Jianxin Ma, and 43 others. 2024. Qwen2 technical report. CoRR ,abs/2407.10671. Jisang Yoo, Gyeongjin Kang, Hyun-kyu Ko, Hyeonwoo Yu, and Eunbyung Park. 2025. Openmonogs-slam: Monocular gaussian splatting SLAM with open-set semantics. CoRR , abs/2512.08625. Vladimir Yugay, Yue Li, Theo Gevers, and Mar-tin R. Oswald. 2023. Gaussian-slam: Photo-realistic dense SLAM with gaussian splatting. CoRR ,abs/2312.10070. Xiaohua Zhai, Basil Mustafa, Alexander Kolesnikov, and Lucas Beyer. 2023. Sigmoid loss for language image pre-training. In ICCV , pages 11941–11952. IEEE. Shijie Zhou, Haoran Chang, Sicheng Jiang, Zhiwen Fan, Zehao Zhu, Dejia Xu, Pradyumna Chari, Suya You, Zhangyang Wang, and Achuta Kadambi. 2024. Feature 3dgs: Supercharging 3d gaussian splatting to enable distilled feature fields. In CVPR , pages 21676–21685. IEEE. 
+
+10 A 3D Gaussian Splatting 
+
+3D Gaussian Splatting (3DGS) represents a 3D scene using a collection of anisotropic 3D Gaus-sians, operating as a point-based alternative to con-tinuous neural implicit representations. Each Gaus-sian i in the comprehensive map parameter set Θ
+
+is explicitly defined by the following attributes: • Mean vector (Position): μi ∈ R3
+
+• Covariance matrix: Σi
+
+• Opacity: αi ∈ [0 , 1] 
+
+• Color features: ci (normally represented as Spherical Harmonics for view-dependence, though often simplified to base RGB values in dense SLAM configurations). The unnormalized spatial distribution of a 3D Gaussian evaluated at a spatial point x is defined as: 
+
+G(x) = exp 
+
+
+
+− 12 (x − μi)T Σ−1 
+
+> i
+
+(x − μi)
+
+
+
+(19) To maintain positive semi-definiteness during gradient-based optimization, the covariance matrix 
+
+Σi is parameterized by a scaling matrix Si and a rotation matrix Ri:
+
+Σi = RiSiSTi RTi (20) In order to render these primitives onto the im-age plane from a given camera pose, the 3D Gaus-sians are "splatted" to 2D. Given a learned viewing transformation W and the Jacobian J of the affine approximation of the projective alignment, the re-sulting 2D covariance matrix Σ′ 
+
+> i
+
+is calculated as: 
+
+Σ′ 
+
+> i
+
+= JW ΣiW T JT (21) This continuous state update sets a framework perfectly suited for dense tracking and mapping. 
+
+B 3DGS-SLAM Objectives 
+
+Continuous optical depth models compute the ex-pected color C along a camera ray by integrating transmittance T (t), volume density σ(t), and color 
+
+c(t). 3DGS discretizes this continuous integral us-ing a point-based approximation. For a set of N
+
+sorted 3D Gaussians projected onto the 2D image plane given a camera pose T ∈ SE (3) , the color at pixel x evaluates to: 
+
+C(x | T, Θ) = 
+
+> N
+
+X
+
+> i=1
+
+ciα′
+
+> ii−1
+
+Y
+
+> j=1
+
+(1 − α′ 
+
+> j
+
+) (22) where α′ 
+
+> i
+
+is the 2D footprint opacity. Depth D(x)
+
+is similarly rendered by substituting color ci with the ray depth di.Camera tracking is performed via Analysis-by-Synthesis. For an incoming frame at timestamp t,the pose is initialized via a constant velocity model. Because the 3DGS rasterizer is natively differen-tiable, precise tracking is achieved by freezing the map parameters Θ and running gradient descent on the camera extrinsic parameters to minimize the geometric and photometric depth losses (if depth inputs are available): 
+
+Ltrack = Lphoto (It, ˆIt) + λd∥Dt − ˆDt∥1 (23) The global mapping thread optimizes the scene pa-rameters Θ over a sliding window of keyframes K
+
+using the same combined loss, augmented with an isotropic regularization term Liso to prevent heavily elongated artifacts: 
+
+Lmap = X
+
+> k∈K
+
+
+
+Lphoto (Ik, ˆIk) + λd∥Dk − ˆDk∥1
+
+
+
++ λiso Liso 
+
+(24) 
+
+C Additional Details about Online EMA Codebook Updates 
+
+To stabilize the online EMA updates introduced in the main text, we implement active dead-code man-agement and a warm-start initialization process. Instead of starting from uniform counts, we initialize the EMA statistics using a confidence-filtered assignment pass over an initial buffer of se-mantic features. We transform the observed feature distances into confidence scores using a tempera-ture parameter τ :
+
+pnk = exp( −∥ xn − ek∥2/τ )
+
+PKj=1 exp( −∥ xn − ej ∥2/τ ) (25) Only samples where the maximum confidence ex-ceeds a threshold γ are allowed to contribute to the initialization of the counts Nk and sums Mk:
+
+mn = I
+
+
+
+max  
+
+> k
+
+pnk ≥ γ
+
+
+
+(26) 11 During the continuous online tracking stage, the confidence score masks unreliable incoming sam-ples, while the actual codeword assignments re-main hard nearest-neighbor to ensure discrete latent separation. Furthermore, to handle dead codes escaping the tracked field of view, we explicitly monitor the EMA accumulated mass. If a codeword’s utiliza-tion falls below a dead-code threshold ( Nk < δ ), it is immediately reinitialized: 
+
+Mk ← ˜x, Nk ← 1 + ε (27) where ˜x is sampled directly from a small reservoir of recently observed historical semantic features. 
+
+D Extraction of Grid-Sampled Semantic Targets 
+
+As formulated in the main text, the grid-sampled supervision relies on a target map G⋆ and validity mask M. We populate these tensors through two distinct pathways depending on the downstream semantic source: 
+
+1. Precomputed Region-Indexed Annota-tions: For explicit segmentation masks S ∈{− 1, 0, . . . , R − 1}H×W (where −1 denotes back-ground) and a corresponding region-feature table 
+
+Φ ∈ RR×D, we directly query the table at the sam-pled grid location (u, v ):
+
+rm,n = S(u, v ),Mm,n = I[rm,n ̸ = −1] ,
+
+G⋆ 
+
+> :,m,n
+
+=
+
+(
+
+Φrm,n , rm,n ̸ = −1,
+
+0, rm,n = −1.
+
+(28) 
+
+2. Online Continuous Feature Maps: For dense semantic features streaming from an on-line VLM at abstract lower resolutions P ∈
+
+RD×Hf ×Wf , we dynamically align the image coor-dinates to the low-resolution grid coordinates: 
+
+˜um,n = round 
+
+
+
+u · Hf − 1max( H − 1, 1) 
+
+
+
+,
+
+˜vm,n = round 
+
+
+
+v · Wf − 1max( W − 1, 1) 
+
+
+
+,
+
+(29) yielding the target G⋆ 
+
+> :,m,n
+
+= P:,˜um,n ,˜vm,n with an unconstrained mask Mm,n = 1 .Finally, to prevent the optimized point-cloud from overfitting to a static grid lattice, the offset 
+
+o = ( oh, o w) is dynamically randomized over op-timization steps. By drawing the offset from the valid domain of phase shifts ot ∈ { 0, . . . , s − 1}2,the sampled grid smoothly traverses and covers all 
+
+s2 possible pixel phases over the course of sequen-tial mapping. 
+
+E Additional Details on Object Detection 
+
+Given a text prompt p, we encode it with OpenCLIP and normalize the resulting embedding: 
+
+t+ = Etext (p)
+
+∥Etext (p)∥2
+
+. (30) We also encode a small set of generic negative phrases 
+
+N = {object , things , stuff , texture }, (31) with normalized embeddings 
+
+t− 
+
+> n
+
+= Etext (n)
+
+∥Etext (n)∥2
+
+, n ∈ N . (32) For semantic level ℓ, the renderer reconstructs the feature at pixel (u, v ) from the rendered code weights and the learned codebook: 
+
+f (ℓ) 
+
+> uv
+
+=
+
+> Cℓ
+
+X
+
+> j=1
+
+w(ℓ) 
+
+> uv,j
+
+c(ℓ) 
+
+> j
+
+, ˆf (ℓ) 
+
+> uv
+
+= f (ℓ)
+
+> uv
+
+f (ℓ)  
+
+> uv 2
+
++ ε.
+
+(33) The prompt relevance at that pixel is computed by contrasting the positive query against each neg-ative phrase: 
+
+R(ℓ) 
+
+> uv
+
+(p) = min  
+
+> n∈N
+
+softmax τ
+
+"ˆf (ℓ)⊤ 
+
+> uv
+
+t+
+
+ˆf (ℓ)⊤ 
+
+> uv
+
+t−
+
+> n
+
+#! 
+
+> 1
+
+, (34) where (·)1 denotes the probability assigned to the positive prompt and τ = 10 in the implementation. The final per-pixel relevance is obtained by taking the strongest response across levels: 
+
+Ruv (p) = max  
+
+> ℓ
+
+R(ℓ) 
+
+> uv
+
+(p). (35) In the prompt-rendering variant, the same idea is also applied directly to individual Gaussians. If Gaussian i has decoded semantic feature 
+
+gi =
+
+> C
+
+X
+
+> j=1
+
+aij cj , ˆgi = gi
+
+∥gi∥2 + ε , (36) its prompt relevance score is 
+
+ri(p) = min  
+
+> n∈N
+
+softmax 
+
+
+
+τ
+
+ˆg⊤ 
+
+> i
+
+t+
+
+ˆg⊤ 
+
+> i
+
+t−
+
+> n
+
+ 
+
+> 1
+
+. (37) 12 A prompt-specific Gaussian mask is then obtained by thresholding 
+
+mi(p) = I[ri(p) > δ ] . (38) If no Gaussian survives the threshold, the imple-mentation falls back to keeping the top-scoring subset. 
+
+F Entropy-Adaptive Gaussian Sampling for Generative VLMs 
+
+As demonstrated by recent works such as SplatTalk (Thai et al., 2025), projecting 3D Gaus-sian features into discrete tokens enables Large Language Models (LLMs) to perform zero-shot 3D visual question answering and scene understand-ing. However, directly passing all Ng Gaussians from an uncompressed SLAM map into the vision tower of a Generative VLM is computationally pro-hibitive and yields highly redundant tokens, par-ticularly in homogeneous regions like walls and floors. To bridge our dense semantic 3DGS map with the downstream Generative VLM, we condense the scene into a compact sequence of M informative to-kens ( M ≪ Ng) using an Entropy-Adaptive Gaus-sian Sampling strategy. This approach leverages the continuous-to-discrete probability distribution generated by the online Vector Quantization (VQ) module in our X-GS-Perceiver. Let fi ∈ RD represent the semantic feature logits of the i-th Gaussian over the D discrete semantic clusters. We first convert these features into a se-mantic assignment probability distribution pi,k us-ing a standard softmax operator across the feature dimension: 
+
+pi,k = exp( fi,k )
+
+PDj=1 exp( fi,j ) (39) The semantic entropy Hi of the i-th Gaussian is then calculated as the Shannon entropy of this assignment distribution: 
+
+Hi = −
+
+> D
+
+X
+
+> k=1
+
+pi,k log pi,k (40) Gaussians with a low entropy Hi confidently match a single semantic cluster, typically repre-senting redundant, homogeneous background sur-faces. Conversely, Gaussians with a high entropy 
+
+Hi denote semantic ambiguity—indicating object boundaries, transitions between distinct instances, or complex structural information holding higher contextual value for the VLM. To select the final M tokens, we deploy a deter-ministic Top-M sorting mechanism over the com-puted entropy scores. We directly extract the subset of Gaussians S that exhibit the highest semantic ambiguity: 
+
+S = arg top- M 
+
+> i∈{ 1,...,N g}
+
+Hi (41) The resulting M Gaussians are then projected into the VLM’s embedding space. This strategy guarantees that the generative VLM receives an informative and tightly packed token sequence, ac-tively filtering out redundant backgrounds while preserving critical object boundaries and structural frontiers required for robust multimodal reasoning. 13

@@ -1,0 +1,3548 @@
+Title: Learning in Markov Decision Processes with Exogenous Dynamics
+
+URL Source: https://arxiv.org/pdf/2603.02862v1
+
+Published Time: Wed, 04 Mar 2026 01:55:53 GMT
+
+Number of Pages: 29
+
+Markdown Content:
+# Learning in Markov Decision Processes with Exogenous Dynamics 
+
+Davide Maran * 1 Davide Salaorni * 1 Marcello Restelli 1
+
+## Abstract 
+
+Reinforcement learning algorithms are typically designed for generic Markov Decision Processes (MDPs), where any state-action pair can lead to an arbitrary transition distribution. In many prac-tical systems, however, only a subset of the state variables is directly influenced by the agent’s ac-tions, while the remaining components evolve according to exogenous dynamics and account for most of the stochasticity. In this work, we study a structured class of MDPs characterized by ex-ogenous state components whose transitions are independent of the agent’s actions. We show that exploiting this structure yields significantly im-proved learning guarantees, with only the size of the exogenous state space appearing in the leading terms of the regret bounds. We further establish a matching lower bound, showing that this de-pendence is information-theoretically optimal. Fi-nally, we empirically validate our approach across classical toy settings and real-world-inspired en-vironments, demonstrating substantial gains in sample efficiency compared to standard reinforce-ment learning methods. 
+
+## 1. Introduction 
+
+While reinforcement learning (RL) (Sutton et al., 1998) has demonstrated remarkable success across a wide range of applications, its deployment in real-world settings remains a significant challenge (Dulac-Arnold et al., 2019). Typically, RL problems are framed as Markov Decision Processes (MDPs) (Puterman, 2014), where an action is modeled as inducing a transition on the entire state, often disregarding the inherent independence of certain state variables. In many practical scenarios, however, agents observe dy-namics that are not under their direct control and evolve independently of the chosen action. This distinction is evi-dent across numerous real-world domains: in finance, stock   
+
+> 1Department of DEIB, Politecnico di Milano, Milan, Italy. Correspondence to: Davide Maran <davide.maran@polimi.it >,Davide Salaorni <davide.salaorni@polimi.it >.
+> Preprint. March 4, 2026.
+
+prices fluctuate independently of a retail investor’s deci-sions; in reservoir management, controllers cannot influence weather conditions; and in energy systems, renewable gener-ation is driven by environmental factors rather than operator intent. Crucially, these exogenous phenomena hinder effec-tive exploration and exacerbate the temporal credit assign-ment problem (Minsky, 1961). Since the reward signal is of-ten influenced by stochastic fluctuations from uncontrollable factors, it becomes difficult for the agent to disentangle the marginal contribution of its own actions from environmental noise. This low signal-to-noise ratio leads to high-variance gradient estimates, requiring a significantly larger number of samples to distinguish optimal policies from suboptimal ones. Furthermore, adopting standard exploration mecha-nisms to identify spurious correlations between actions and exogenous signals is pointless, since these dependencies are, by definition, nonexistent. Furthermore, while these variables are essential components of the observation space, including them significantly inflates the state space com-plexity. In this scenario, the standard MDP formulation fails to explicitly separate uncontrollable variables from the controllable state space, thereby contributing to increased problem complexity, suboptimal exploration, and sample inefficiency. In this work, we investigate whether explicitly modeling this distinction can be leveraged to enhance learning. Unlike exogenous signals, the remaining controllable portion of the environment (comprising endogenous variables) typically evolves deterministically—or even stochastically, but in a reasonably known manner—in response to control actions. For instance, in algorithmic trading, while the asset price is stochastic and exogenous, the remaining budget is a deter-ministic function of the previous portfolio and the executed trade. By isolating the stochastic exogenous dynamics from the (often deterministic) controllable dynamics, we can de-sign algorithms that better exploit the exogenous dynamics of the system. To this end, we propose a novel refinement of the classical MDP framework that explicitly incorporates partial con-trollability . Our formulation relies on a factorization of the state space into controllable and uncontrollable compo-nents, where the agent’s actions cannot affect the evolution of the latter. We describe a mathematical framework build-ing on MDPs and explore it from theoretical, algorithmic, 1
+
+> arXiv:2603.02862v1 [cs.LG] 3 Mar 2026 Submission and Formatting Instructions for ICML 2026
+
+and experimental perspectives. Specifically, we analyze the performance guarantees of both model-based and model-free approaches designed for this formulation, comparing them against their respective MDP-based counterparts in the finite-horizon tabular setting. Finally, we empirically validate these algorithms on various toy environments and a real-world application involving complex endogenous and exogenous signals. The main contributions of this work are summarized as follows: 1. We introduce the Partially Controllable Markov Deci-sion Process (PCMDP), a structured extension of the classical MDP framework that explicitly distinguishes controllable from uncontrollable variables within the state space. 2. We propose two algorithms tailored to this framework in the finite-horizon setting: (i) Exogenous-Aware Value Iteration (E XAVI), an enhanced version of Value Iteration (VI) (Sutton et al., 1998) as a model-based approach; and (ii) Exogenous-Aware Q-Learning 
+
+(E XAQ), an extension of the classical Q-Learning (QL) algorithm (Watkins & Dayan, 1992) as a model-free solution. For both methods, we provide theoretical guarantees and regret bounds. 3. We empirically validate these algorithms through com-parative experiments on classical toy environments and a real-world domain, demonstrating their superior sam-ple efficiency compared to standard MDP baselines. The paper is organized as follows. In Section 2, we intro-duce the PCMDP framework. In Section 3, we present the tailored algorithms with pseudocode and theoretical guaran-tees. In Section 4, we validate the aforementioned methods. Finally, in Section 5, we review existing literature connected to our work. 
+
+## 2. Framework Formulation 
+
+We start by recalling a few definitions about standard MDPs. A finite-horizon MDP is a tuple M = (S, A, p, r, H ),where S is the set of states, A is the set of actions, with cardinality S and A, respectively, p = {ph}H−1 
+
+> h=1
+
+is the sequence of transition functions mapping, for each step 
+
+h ∈ [H − 1] := {1, . . . , H − 1}, a pair (s, a ) ∈ S × A to a probability distribution ph(·| s, a ) over S, while the initial state s1 may be arbitrarily chosen by the environment at each episode; r = {rh}Hh=1 is the sequence of reward func-tions mapping, for each step h ∈ [H], a pair (s, a ) to a real number [0 , 1] , and H is the horizon. In most applications, as in many theoretical papers, the reward function is known. Conversely, the transition function, which accounts for most of the complexity of the problem, is unknown. At each episode k ∈ [K], the agent chooses a policy πk = {πkh}Hh=1 ,which is a sequence of step-dependent mappings from S
+
+to probability distributions over A. For each step h ∈ [H],the action is chosen as ah ∼ πkh(·| sh) and the agent gains reward rh(sh, a h); hence, the environment transitions to the next state sh+1 ∼ ph(·| sh, a h).
+
+Value Functions and Bellman Operators. The state-action value function (or Q-function ) quantifies the expected sum of the rewards obtained under a policy π, starting from a state-step pair (s, h ) ∈ S × [H] and fixing the first action at step h to some a ∈ A . Formally: 
+
+Qπh (s, a ) := Eπ
+
+" HX
+
+> ℓ=h
+
+rℓ(sℓ, a ℓ) sh = s, a h = a
+
+#
+
+, (1) where Eπ denotes expectation with respect to the stochas-tic process ah ∼ πh(·| sh) and sh+1 ∼ ph(·| sh, a h) for all 
+
+h ∈ [H]. The state value function (or V-function ) is defined as V πh (s) := Ea∼πh(·| s)[Qπh (s, a )] , for all s ∈ S . The supre-mum of the value functions across all the policies is referred to as the optimal value function: Q⋆h(s, a ) := sup π Qπh (s, a )
+
+for the Q-function and V ⋆h (s) := sup π V πh (s) for the V-function. An explicit way to find the optimal value function is given by the Bellman optimality operator , which is de-fined, for every function f : Z → R, as Thf (s, a ) := 
+
+rh(s, a ) + Es′∼ph(·| s,a ) [sup a′∈A f (s′, a ′)] . In fact, it is easy to show that Q⋆h = ThQ⋆h+1 at every step, while the optimal state-value function is obtained simply as V ⋆h (s) = sup a∈A Q⋆h(s, a ).1
+
+Agent’s Regret. We evaluate the performance of an agent, i.e., of a policy πk played at episode k ∈ [K], with its expected total reward, namely the V-function evaluated in the initial state V πk 
+
+> 1
+
+(sk 
+
+> 1
+
+). The goal of the agent is to play a sequence of policies {πk}Kk=1 to minimize the cumulative difference between the optimal performance 
+
+V ⋆ 
+
+> 1
+
+(sk 
+
+> 1
+
+) and its performance V πk 
+
+> 1
+
+(sk 
+
+> 1
+
+), given the initial state sk 
+
+> 1
+
+chosen by the environment. This quantity takes the name of (cumulative) regret , indicated as RK := PKk=1 
+
+ V ⋆ 
+
+> 1
+
+(sk 
+
+> 1
+
+) − V πk 
+
+> 1
+
+(sk 
+
+> 1
+
+) . The regret is a non-negative quantity and, by the normalization condition, it cannot ex-ceed HK as every term in the sum is bounded by H. Notice that if RK = o(K), then the average performance of the chosen policies will converge to optimal performance for the number of training episodes growing to +∞. An algo-rithm choosing a sequence of policies with this property is called no-regret .
+
+> 1The existence of optimal policies is more subtle than in the finite-action case (Bertsekas & Shreve, 1996), but this does not prevent us from defining a meaningful notion of regret.
+
+2Submission and Formatting Instructions for ICML 2026 
+
+2.1. The PCMDP Framework 
+
+Motivated by real-life applications of RL, we study a sub-class of MDPs that is built on an additional assumption to account for exogenous variables in the state space. As follows, we provide the formal definition of PCMDP. 
+
+Definition 1. (PCMDP) A Partially Controllable MDP is a Markov Decision Process whose state space S = S• × S ⋄
+
+and, at any time step h, the transition function writes as: 
+
+ph(sh+1 |sh, a h) = p⋄
+
+> h
+
+(s⋄
+
+> h+1
+
+|s⋄
+
+> h
+
+, s •
+
+> h
+
+, a h)p•
+
+> h
+
+(s•
+
+> h+1
+
+|s•
+
+> h
+
+)
+
+with sh = [ s⋄
+
+> h
+
+, s •
+
+> h
+
+] ∈ S ⋄ × S • = S.
+
+We call S⋄ the endogenous controllable part, S• the ex-ogenous uncontrollable part, and S⋄, S • their cardinalities, respectively. As the naming convention suggests, s• represents the part of the state outside the agent’s control, since its transition does not depend on the agent’s actions. The dynamics of s•
+
+are unknown and may be very complex. On the other side, 
+
+s⋄ contains the variables that are influenced by everything else, including the actions. We assume it has a simple (even if possibly stochastic) dynamics that the learner knows. 
+
+Assumption 1. The agent has full knowledge of p⋄
+
+> h
+
+, for every 
+
+h ∈ [H].While this choice may seem restrictive, it reflects the dy-namics of many real-world problems. Hereafter, we provide a few examples from real-world domains. Further examples are provided in Appendix A. 
+
+Trading. Consider, for instance, a trading problem . While we explicitly refer to the optimal execution setting (Almgren & Chriss, 2001), the interaction of a retail investor with the market can be naturally framed as a PCMDP. Suppose we trade a single stock at discrete time steps. At each time step t, the agent can decide whether to buy or sell a specific number of stock units. The state of the problem is given by 
+
+st = ( ωt, u t, b t), where ω is some information vector that contains the current price ωt plus some relevant features for its evolution (such as market volumes, volatility in the last five minutes, or past values for the price). ut is the number of stock units currently held by the agent, and bt
+
+is the agent’s available budget for purchasing stocks. The agent selects an action at ∈ Z, where at > 0 corresponds to buying at units, and at < 0 to selling |at| units. The transi-tions for the agent’s internal state variables are deterministic and governed by: 
+
+ut+1 = ut + at, ct+1 = ct − atpt.
+
+Conversely, the vector ωt+1 , that contains ωt+1 evolves exogenously, depending solely on ωt. At first glance, this decomposition assumes that the agent’s individual trading behavior has no impact on market dynamics. Nonetheless, the work by (Almgren & Chriss, 2001) shows that, under mild assumptions, both permanent and temporary impact can be implicitly modeled by changing the reward function while keeping a price transition that is not influenced by the agent. Accordingly, the state can be partitioned into a controllable component s⋄ 
+
+> t
+
+= ( ut, c t) and an uncontrollable component s• 
+
+> t
+
+= ( ωt). This decomposition aligns naturally with the PCMDP framework, as only a specific subset of the state space is influenced by the agent’s actions. 
+
+Reservoir Management. A second example is water reservoir management . In this control task, the goal is to regulate the outflow from a water reservoir (via a dam) to meet daily water demand while avoiding overflow when the reservoir’s capacity is exceeded. The state of the system at time t is represented as st = ( lt, q t), where lt is the current water level in the reservoir and qt is the net natural inflow of water, which includes rainfall, evaporation, and environmen-tal effects. The agent selects an action at ≥ 0, representing the amount of water released. The system dynamics are then given by: 
+
+lt+1 = lt + qt − at,
+
+while the inflow qt+1 evolves according to an exogenous stochastic process dependent on environmental factors and weather conditions (not the agent’s decisions). Similarly to the trading case, this environment exhibits partial controlla-bility: the agent can influence only the water level lt, while the inflow qt evolves independently. Thus, the state can be decomposed into s⋄ 
+
+> t
+
+= ( lt) and s• 
+
+> t
+
+= ( qt).2
+
+## 3. Algorithms 
+
+In this section, we present PCMDP-specific algorithms with theoretical regret guarantees, including a model-based and a model-free approach. 
+
+3.1. Model-based Approach: E XAVI 
+
+Model-based RL algorithms estimate the environment’s dynamics, i.e., the transition probabilities, and leverage this model to plan optimal actions, often via Value Iter-ation (Sutton et al., 1998). These methods are sample-efficient because they reuse experience to simulate possible futures. Among these methods, UCBVI (Upper Confidence Bound Value Iteration) by Azar et al. (2017) adds optimistic bonuses to value estimates based on uncertainty, encourag-ing exploration in a principled way. It balances exploration and exploitation by favoring actions with either high esti- 
+
+> 2The net inflow could theoretically depend on the controllable state, since evaporation rates depend on surface area and water level lt. However, for reservoirs with approximately vertical walls (constant surface area) and with negligible evaporation losses com-pared to tributary inflows, our exogenous assumption holds.
+
+3Submission and Formatting Instructions for ICML 2026 
+
+Algorithm 1 Exogenous–Aware Value Iteration (E XAVI) 
+
+Require: Controllable model p⋄, discrete spaces S⋄, S•, A,reward function rh for all h ∈ [H]. 
+
+> 1:
+
+Initialize bp•,1 and π1 arbitrarily.  
+
+> 2:
+
+for k = 1 , . . . , K do  
+
+> 3:
+
+for h = 1 , . . . H do  
+
+> 4:
+
+akh = πkh(skh) 
+
+> 5:
+
+end for  
+
+> 6:
+
+Update bp•,k h with Equation 2 using {s•,k h }Hh=1  
+
+> 7:
+
+bpkh(¯ s|s, a ) ← p⋄
+
+> h
+
+(¯ s⋄|s, a )bp•,k h (¯ s•|s•) 
+
+> 8:
+
+{ bQkh}Hh=1 ← VALUE ITERATION (bpkh, r h) 
+
+> 9:
+
+πk+1  
+
+> h
+
+(·) = arg max a∈A bQkh(·, a ) 
+
+> 10:
+
+end for 
+
+mated value or high uncertainty, and it achieves provably efficient regret bounds in tabular MDPs. In this section, we present our Exogenous–Aware Value It-eration (E XAVI), a novel algorithm which improves the guarantees of UCBVI by exploiting the structure of the PCMDP setting. First, assuming to already know the en-dogenous dynamics of p⋄, E XAVI needs to estimate only the part of the transition corresponding to p•
+
+> h
+
+, in contrast to UCBVI, which estimates ph. Second, and more interest-ing, E XAVI works without any bonus term: no optimism is needed. Intuitively, this is because the epistemic uncertainty resides entirely within the exogenous dynamics p•
+
+> h
+
+. Since the evolution of s• is independent of the agent’s actions, ”ac-tive” exploration is unnecessary; the agent simply observes the exogenous process unfold regardless of its policy. 
+
+Algorithm Structure. Fix h ≤ H, k ≤ K. For any state 
+
+s• ∈ S •, let nkh(s•) denote the visitation count up to episode 
+
+k:
+
+nkh(s•) := 
+
+> k
+
+X 
+
+> τ=1
+
+1{s•,τ h = s•},
+
+bp•,k h (¯ s•|s•) := 1
+
+nkh(s•)
+
+> k
+
+X 
+
+> τ=1
+
+1{s•,τ h = s•, s •,τ h+1 = ¯ s•}.
+
+(2) This definition is central to our analysis: standard concen-tration arguments show that bp•,k h (¯ s•|s•) converges to p• 
+
+> h
+
+at an optimal rate, the more samples we collect. In contrast, the standard UCBVI estimator of the whole ph in a general MDP is defined as follows: 
+
+bpkh(¯ s|s, a ) := 
+
+Pkτ =1 1{sτh = s, a τh = a, s τh+1 = ¯ s}
+
+max {1, Pkτ =1 1{sτh = s, a τh = a}} . (3) The denominator of the previous formula lies in sharp con-trast with our formula in Equation 2. Here, it depends on the agent’s actions; therefore, exploration is needed for the estimator to converge. This is the reason why UCBVI needs optimism, while our E XAVI does not. 
+
+Theoretical Guarantees. As anticipated, UCBVI can achieve theoretical guarantees on the regret by facing, with optimism, the exploration-exploitation dilemma. Its regret (using Hoeffding-type bonuses) scales as eO(H2√SAK +
+
+H3S2A), with high probability. In our case, where S =
+
+S•S⋄, this writes as eO(H2√S•S⋄AK + H3(S•S⋄)2A).In contrast, our algorithm enjoys the following regret bound. 
+
+Theorem 2. Under Definition 1, with probability at least 
+
+1 − δ, the regret of E XAVI (Algorithm 1) satisfies: 
+
+RK ≤ eO
+
+
+
+H2√S•K + H3S•2
+
+.
+
+As we can notice, many terms have disappeared. We re-duced H2√S•S⋄AK to H2√S•K and H3(S•S⋄)2A to 
+
+H3S•2. The terms S⋄ and A have not completely disap-peared, but they only appear in logarithmic terms, which are not visible due to the eO notation. This descends from a stronger assumption about the model and renders learning more efficient by considering only exogenous variables, as the algorithm’s name suggests. The formal, detailed proof is provided in Appendix B.2. 
+
+3.2. Model-free Approach: E XAQ 
+
+A model-free algorithm learns to act directly from experi-ence without explicitly estimating the environment’s dynam-ics. Instead of building a model of transitions, it learns value functions or policies from sampled trajectories. Q-Learning (QL) (Watkins & Dayan, 1992) is one of the most relevant algorithms of this family. In the context of standard MDPs, its regret guarantee is similar to that of UCBVI that we mentioned in the previous section. Adapting this algorithm to enjoy an improved regret bound in our setting is more difficult. While in model-based ap-proaches we can fix p⋄
+
+> h
+
+, which is known, and use samples to learn only p•
+
+> h
+
+, here we do not want to estimate the transition functions at all. Therefore, leveraging the knowledge of 
+
+p⋄ 
+
+> h
+
+is more challenging. Still, we can bypass the transition function by working directly on the empirical Bellman op-erator. One crucial step in the proof of the regret bound of QL (provided by Jin et al. (2018)) is the definition of the empirical operator P kh [f ] := f (skh+1 ), mapping a function 
+
+f : S → R to a real number. With s, a = skh, a kh, this empirical operator is an unbiased estimate of the value of the next state, as E[f (skh+1 )|skh, a kh] = E¯s∼ph(·| s,a )[f (¯ s)] .In our setting, the former operator assumes a more complex form, which is now a function of s, a (only the dependence in s⋄, a appears, as s• is fixed to s•,k h by definition). 
+
+Pkh[f ]( s, a ) := X
+
+> ¯s⋄∈S ⋄
+
+f (¯ s⋄, s •,k h+1 )p⋄
+
+> h
+
+(¯ s⋄|s, a ). (4) For h = H, when the next state is not defined, we put 
+
+Pkh[f ]( s, a ) = 0 by convention. To understand Equation 4, 4Submission and Formatting Instructions for ICML 2026 
+
+let us take any pair s, a such that s• = s•,k . The following equations hold: 
+
+E[f (¯ s)|s, a ] = X
+
+> ¯s⋄∈S ⋄
+
+X
+
+> ¯s•∈S •
+
+f (¯ s⋄, ¯s•)p⋄
+
+> h
+
+(¯ s⋄|s, a )p•
+
+> h
+
+(¯ s•|s•)= X
+
+> ¯s•∈S •
+
+" X
+
+> ¯s⋄∈S ⋄
+
+f (¯ s⋄, ¯s•)p⋄
+
+> h
+
+(¯ s⋄|s, a )
+
+#
+
+p•
+
+> h
+
+(¯ s•|s•)=E Pkh[f ]( s, a ) .
+
+Crucially, this time we do not need to fix both the state and the action, but just the uncontrollable part of the state, i.e., 
+
+s•,k h = s•.
+
+Algorithm Structure. As happens in E XAVI, also E XAQ works without any explicit exploration bonus. In fact, the independence of the exogenous part allows us to always act with the estimated best policy. The central innovation of the algorithm, which enables significantly lower sample complexity than standard QL, is encapsulated in Equation 2. Unlike conventional QL, which executes a single update per temporal step, the proposed method updates the estimated 
+
+Q-function across S⋄A state-action pairs simultaneously. While the exploration regards only the exogenous factors, we can reuse the same information to update every possible controllable configuration with the same s•,k . Consistently, the choice of the learning which achieves the regret bound is 
+
+αt = H + 1 
+
+H + t t = nkh(s•,k h ). (5) The former does not depend on the number of visits of the state-action pair, but only on that of s•. It is worth noting that the algorithm involves a triple-nested loop over S, A
+
+and [H]. This would scale poorly with the size of state and action spaces. However, this bottleneck can be mitigated by vectorizing the value updates. By processing the entire 
+
+Q-table simultaneously, we can obtain direct access to all 
+
+(s⋄, a ) pairs, effectively reducing the iterative structure to a single loop over the episode steps [H].
+
+Theoretical Guarantees. As before, our approach allows us to erase the dependency on S⋄ and A in the regret bound (except for logarithmic terms). While the standard analy-sis of QL with Hoeffding’s bonuses achieves a regret of order eO(√H5SAK ) = eO(√H5S•S⋄AK ), our algorithm enjoys the following. 
+
+Theorem 3. Under Definition 1, with probability at least 
+
+1 − δ, the regret of E XAQ (Algorithm 2) when run with the learning rate in Equation 5 is bounded by 
+
+RK ≤ eO
+
+√H5S•K
+
+
+
+.
+
+As expected, the regret substantially improves if S⋄ or A are non-trivial. The extended proof of this theorem is provided in Appendix B.3. 
+
+Algorithm 2 Exogenous–Aware Q-Learning (E XAQ) 
+
+Require: Controllable model p⋄, discrete spaces S⋄, S•, A,learning rates routine {αt}Kt=1 . 
+
+> 1:
+
+for s ∈ S , a ∈ A , h ∈ [H] do  
+
+> 2:
+
+Initialize Q0
+
+> h
+
+(s, a ) ← (H − h) 
+
+> 3:
+
+end for  
+
+> 4:
+
+for k = 1 , . . . , K do  
+
+> 5:
+
+Qkh(s, a ) ← Qk−1 
+
+> h
+
+(s, a ), ∀s ∈ S , a ∈ A  
+
+> 6:
+
+V kh (s, a ) ← max a∈A Qkh(s, a ), ∀s ∈ S  
+
+> 7:
+
+πkh(s) = arg max a∈A Qkh(s, a ), ∀s ∈ S , h ∈ [H] 
+
+> 8:
+
+for h = 1 , . . . H do  
+
+> 9:
+
+akh ← πkh(skh) 
+
+> 10:
+
+end for  
+
+> 11:
+
+for h = 1 , . . . , H do  
+
+> 12:
+
+Let t = nkh(s•,k h ) 
+
+> 13:
+
+for s⋄ ∈ S ⋄, a ∈ A do  
+
+> 14:
+
+Construct full state s = ( s⋄, s •,k h ) 
+
+> 15:
+
+Compute target w = rh(s, a ) + Pkh[V kh+1 ]( s, a ) 
+
+> 16:
+
+Update Qkh(s, a ) ← (1 − αt)Qkh(s, a ) + αtw 
+
+> 17:
+
+end for  
+
+> 18:
+
+end for  
+
+> 19:
+
+end for Lower Bound. To conclude the theoretical analysis, we prove that the previous results constitute the best possible regret bound, in terms of dependence on K and state space size. 
+
+Theorem 4. For any algorithm, there is a PCMDP instance (definition 1) where it suffers regret of 
+
+E[RK ] ≥ Ω( √S•K).
+
+Theorem 4 shows that a square-root scaling in the size of the uncontrollable states cannot be avoided. Formal proof of the lower bound is reported in Appendix B.4. 
+
+## 4. Experiments 
+
+To rigorously prove the capabilities of our novel algorithms in exploiting the PCMDP structure, we corroborate the the-oretical analysis with an experimental campaign. In total, we compare E XAVI and E XAQ against their MDP-based versions, i.e., UCBVI and QL, across three environments. Hereafter, we will present only two scenarios, while the remaining one is reported in Appendix D.1. 
+
+Taxi with Traffic Environment. The first environment we consider is a variation of a widely recognized benchmark originally proposed by Dietterich (1999) and included in the Gymnasium collection of toy text environments (Towers et al., 2025): the Taxi . We selected this environment due to its tractable state-action space, which facilitates the evaluation of model-based algorithms such as UCBVI and EXAVI, whose space complexity scales very fast. The task 5Submission and Formatting Instructions for ICML 2026 
+
+involves a taxi agent navigating a 5 × 5 grid world to pick up and deliver passengers at four designated locations. The agent has 6 actions: move in four directions, pick up, and drop off. Rewards are: +20 for a correct delivery, −10 for an invalid pickup or drop-off, and −1 for all other steps to encourage faster learning. To align this scenario with the PCMDP framework, we introduced specific modifications to the environment’s dy-namics. Whereas the standard episode terminates upon a single successful delivery, we enforce a fixed time horizon, redefining the objective as maximizing the total number of deliveries within the allotted time. To incorporate an ex-ogenous signal, we simulated stochastic traffic congestion at specific ”choke points” on the grid, which impedes the taxi’s movement. At each time step, the agent observes the binary traffic status of these locations, requiring it to adapt its routing strategy based on the learned traffic distribution. The controllable state at step h of each episode is defined as 
+
+s⋄ 
+
+> h
+
+= ( xh, y h, ψ h, d h), where xh and yh represent the row and column position of the taxi within the grid, ψh the posi-tion of the passenger, and dh the current destination. Instead, the exogenous part is given by the boolean traffic vector at the Ntr = 3 congested locations, such that s• 
+
+> h
+
+= ( btr 
+
+> h
+
+) with 
+
+btr  
+
+> h
+
+∈ { 0, 1}Ntr , where the i-th component btr  
+
+> h,i
+
+= 1 indicates that the i-th choke point is blocked at step hThe dynam-ics of the traffic vector are governed by an independent Bernoulli process: at each step h, every component bh,i 
+
+is sampled independently according to a fixed congestion probability ptr , such that bh,i ∼ Bernoulli (ptr ).The action space and reward functions remain the same of the original environment. Figure 6 shows a screenshot of the modified environment. Additional details on TaxiEnv are provided in Appendix D.2. 
+
+Optimal Execution Environment. This environment serves to validate our approach in a significant real-world scenario: the optimal execution of portfolio transactions. We designed this environment based on the seminal work of Almgren & Chriss (2001), introducing minor modifica-tions to the reward function and price profile generation. The problem is defined as follows: an agent is tasked with liquidating a specific inventory of securities by the end of a trading day, which is discretized into N fixed time intervals. At each step h, the agent observes the current inventory level and the market asset price, then determines the target inventory level for the subsequent step. This task naturally aligns with the PCMDP framework, as the inventory level constitutes the controllable state component, whereas the asset price evolves as an exogenous process. Formally, we define the controllable state as s⋄ 
+
+> h
+
+= ( uh), where uh ∈ U 
+
+denotes the current inventory, and the uncontrollable state as 
+
+s• 
+
+> h
+
+= ( ωh) ∈ P ω , representing the asset price. The action is defined as the target inventory for the next step, ah = uh+1 .Consistent with the retail investor assumption, we posit that the agent’s trading decisions do not impact the market price. In our experimental setup, following Almgren & Chriss (2001), we define the inventory space U as the discrete set of integers {0, . . . , U max } with Umax = 100 , resulting in a cardinality of |U| = 101 . The action space A is isomorphic to U, meaning the agent can choose to hold any valid amount of securities for the next step (though typically ah ≤ uh in liquidation tasks). The market price space Pω is discretized into a grid of 1000 distinct values with a fixed granularity (tick size) of 0.02 . The instantaneous reward rh is composed of three terms: execution cost, holding risk penalty, and transaction revenue. First, the execution cost cex ,h , derived by the original paper, accounts for temporary market impact and fixed transaction fees. It is defined as: 
+
+cex ,h = ϵ|nh| + ˜ητ n2
+
+> h
+
+,
+
+where nh = uh − uh+1 is the number of shares traded, 
+
+ϵ ∈ R+ represents fixed transaction costs, ˜η ∈ R+ is the adjusted temporary impact parameter, and τ ∈ R+ is the time interval length. Second, the holding risk penalty chold ,h 
+
+quantifies the risk of maintaining an inventory position in the face of market volatility. Following standard mean-variance optimization, this is defined as: 
+
+chold ,h = λτ σ 2u2
+
+> h+1
+
+,
+
+where λ ∈ R+ is the risk aversion parameter and σ ∈ R≥0
+
+is the asset volatility. Finally, the transaction revenue (or cost) ϱh is given by ϱh = nh · ph. The total reward is then given by rh = ϱh − cex ,h − chold ,h .
+
+4.1. Experimental Results 
+
+In this section, we will report the results and performance of the presented algorithms compared to their specific MDP counterparts, focusing on sample efficiency. We will take into account the previously presented environment, leaving the remaining results in Appendix D. 
+
+Results on TaxiEnv . In Figure 1, we report compara-tive learning curves on the first scenario for both model-based and model-free approaches. In particular, in Figure 1a we compare our model-based method, E XAVI, against the UCBVI baseline. As can be noticed, E XAVI demon-strates significantly superior sample efficiency, converg-ing to the optimal policy almost immediately (within the first few episodes), whereas UCBVI requires thousands of episodes to reach comparable performance. This disparity derives from the structural advantage of the PCMDP for-mulation: while UCBVI must estimate the full transition kernel p(¯ s|s, a ) from scratch, E XAVI isolates the estimation problem to the lower-dimensional exogenous component 
+
+s•. By exploiting the known deterministic transitions of the 6Submission and Formatting Instructions for ICML 2026 0 1000 2000 3000 4000 
+
+> Training Episode
+> 300
+> 200
+> 100
+> 0
+> 100
+> Return
+> Algorithm
+> UCBVI
+> ExAVI
+
+(a) Model-Based Approaches 0 5000 10000 15000 
+
+> Training Episode
+> 400
+> 300
+> 200
+> 100
+> 0
+> 100
+> Return
+> Algorithm
+> Q-Learning
+> ExAQ
+
+(b) Model-Free Approaches 
+
+Figure 1. Comparative learning curves for the TaxiEnv , averaged over 10 training seeds with 95% confidence intervals. Figure (a): Model-based algorithms (E XAVI vs UCBVI). Figure (b): Model-free algorithms (E XAQ vs QL). 
+
+controllable variables s⋄, E XAVI effectively starts with a partial model of the environment, eliminating the need to explore the endogenous dynamics. In Figures 1b, we report the results for the model-free set-ting, comparing E XAQ against standard QL. Consistent with the model-based case, E XAQ exhibits a dramatic im-provement in convergence speed. This efficiency gain is attributable to the algorithm’s ability to extract the most information from each sample. While QL updates the Q-value only for the specific visited state-action pair (s, a ),EXAQ leverages the independence of the exogenous signal to perform synchronous updates across the entire control-lable subspace for the observed exogenous transitions. This effectively acts as a form of counterfactual reasoning , al-lowing the agent to learn the value of unvisited states that share the same exogenous context. Although TaxiEnv is a simplified benchmark, the empirical results strongly support our theory that explicitly modeling partial controllability significantly improves sample efficiency. 
+
+Results on TradingEnv . In the following, we present the results obtained on the optimal execution task. For this environment, we restrict our evaluation to model-free approaches, as the high dimensionality of the state space renders tabular model-based planning (e.g., UCBVI) com-putationally intractable. We compare our PCMDP-based 0 5000 10000 15000 
+
+> Training Episode
+> 0.2
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Return
+> Algorithm
+> Q-Learning
+> ExAQ
+> PPO
+
+(a) Linear Scale 10 0 10 1 10 2 10 3 10 4
+
+> Training Episode
+> 0.2
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Return
+> Algorithm
+> Q-Learning
+> ExAQ
+> PPO
+
+(b) Logarithmic Scale 
+
+Figure 2. Comparative learning curves of model-free algorithms for the TradingEnv , averaged over 10 training seeds with 95% 
+
+confidence intervals. Figure (a): Performance on a linear x-axis, highlighting asymptotic convergence. Figure (b): The same exper-iment plotted on a logarithmic x-axis, highlighting the dramatic sample efficiency gap in the early stages of training ( 10 0 − 10 2
+
+episodes). 
+
+method, E XAQ, against two baselines: the standard tabular QL and Proximal Policy Optimization (PPO) (Schulman et al., 2017), a state-of-the-art deep RL algorithm frequently applied to optimal execution problems (Lin & Beling, 2021). Figures 2 display the learning curves with the x-axis in lin-ear scale and logarithmic scale. The results underscore the superior sample efficiency of E XAQ compared to the baselines. As evident in the logarithmic plot (Figure 2b), EXAQ achieves early convergence within the first few or-ders of magnitude of training episodes ( 10 1 − 10 2). This is remarkable considering the size of the uncontrollable parti-tion of the state space, which is significantly larger than the taxi environment (we recall that |P ω | = 1000 compared to 
+
+|btr | = 2 Ntr with Ntr = 3 ). In contrast, tabular QL improves slowly and steadily, requiring many more interactions to visit and update the large state-action space. PPO can reach an asymptotic return comparable to E XAQ but shows high variance and instability during learning. 
+
+## 5. Related Works 
+
+While our PCMDP formulation, to our knowledge, is com-pletely novel, other works in the literature have already addressed problems related to partial controllability and 7Submission and Formatting Instructions for ICML 2026 
+
+the presence of exogenous state variables. For instance, Trimponias & Dietterich (2023) define the concept of ex-ogenous variables within the state space and rewards using the concept of causality combined with the theory of graphs. They propose decomposing the MDP into an exogenous Markov Reward Process (MRP) and an endogenous MDP, optimizing the exogenous and endogenous reward signals, respectively. This allows them to design algorithms that RL methods can leverage to discover the exogenous space, thereby removing the associated reward component. Some ideas from our work may resonate to other settings that were studied in the classical RL literature. While Fac-tored MDPs (Boutilier et al., 2000; Guestrin et al., 2003) decompose states based on local dependencies, PCMDPs specifically partition them by controllability into endoge-nous and exogenous components. Unlike the general fac-torization where actions can affect any variable, PCMDPs assume actions only influence endogenous states, with the agent possessing prior knowledge of these dynamics. This brings heavily improved performance guarantees and, cru-cially, no need for exploration in algorithm design. Another class of MDPs that share some aspect with our one is the Post-Decision State (PDS, (Powell, 2007)), where the agent observes a deterministic state following the ac-tion before the injection of a random noise. Both PDS and PCMDPs decompose transitions to isolate agent decisions from environmental noise. However, while PDS introduces a virtual intermediate state affected by subsequent global uncertainty, PCMDPs physically partition the state into in-dependent endogenous and exogenous variables. This de-coupling better fits environment like trading, where most of the effort must be put in learning the dynamics of the exogenous part. In this paper, we also compare with the online RL literature, which provides theoretically grounded algorithms both for 
+
+model-based (Azar et al., 2017; Zhang et al., 2024; Drago et al., 2025) and model-free (Jin et al., 2018) algorithms. While these methods are designed for the classical MDP and do not distinguish between endogenous and exogenous signals, we build on them to obtain PCMDP-based solutions. By separating controllable and uncontrollable transitions, we achieve improved sample efficiency and tighter regret guarantees. Algorithmic trading is one of the most prominent application domains for RL with exogenous uncertainty. A large body of literature studies RL-based approaches for autonomous trading and optimal execution under stochastic market dy-namics (Hambly et al., 2023; Ning et al., 2021; Bisi et al., 2019). These works typically model market variables, such as asset prices, as stochastic processes that evolve indepen-dently of the agent’s decisions, while the agent controls internal state variables such as inventory or capital. While the specific perspective adopted in this paper has not been explicitly formalized in this literature, related ideas appear implicitly in several prior works. In particular, the offline approach proposed by Riva et al. (2021) leverages histor-ical price trajectories to train a Q-learning–based agent. This methodology inherently assumes that market dynam-ics evolve exogenously and are independent of the agent’s actions, which aligns with the modeling assumptions under-lying our framework. Our contribution differs by explicitly formalizing this structural independence at the MDP level. We demonstrate how this property can be systematically exploited to derive tighter regret guarantees in an online learning setting. 
+
+## 6. Discussion and Conclusions 
+
+In this work, we studied reinforcement learning in Markov Decision Processes with exogenous dynamics (PCMDP) and showed that explicitly distinguishing between control-lable and uncontrollable state components leads to sub-stantially improved learning guarantees. Our theoretical results establish regret bounds for both model based and model free algorithms that depend only on the size of the exogenous state space, and we proved that this dependence is information-theoretically optimal. We further demon-strated that this framework naturally encompasses a broad class of real-world control problems characterized by action-independent uncertainty, where na ¨ıve exploration is often costly and unnecessary. To validate the theoretical insights, we applied our approach to the optimal execution prob-lem in algorithmic trading. Our experiments confirm that structure-aware algorithms achieve orders-of-magnitude im-provements in sample efficiency compared to standard RL baselines. 
+
+Limitations and Future Work. The primary limitations of this work lie in its restriction to the tabular setting and the assumptions of known controllable dynamics and full observability of the exogenous variables. While the tabular setting provides a rigorous theoretical testbed, the proposed counterfactual updates, although highly sample-efficient, incur a non-trivial computational burden. Future research should address these challenges, extending the framework to the continuous domain via function approximation, which would allow the agent to generalize counterfactual updates across continuous state regionsThe assumption of known controllable dynamics can be relaxed by model-based re-inforcement learning of ˆp⋄ alongside p•. Finally, to miti-gate the computational complexity, exact planning can be replaced with Approximate Dynamic Programming to priori-tize updates in the most relevant regions of the state space. 3
+
+> 3In Appendix C we discuss time and space complexity of our methods, comparing them with baseline approaches.
+
+8Submission and Formatting Instructions for ICML 2026 
+
+## Impact Statement 
+
+This paper presents work aimed at advancing the field of machine learning. There are many potential societal con-sequences of our work, none of which we feel must be specifically highlighted here. 
+
+## References 
+
+Almgren, R. and Chriss, N. Optimal execution of portfolio transactions. Journal of Risk , 3:5–40, 2001. Azar, M. G., Osband, I., and Munos, R. Minimax regret bounds for reinforcement learning. In International con-ference on machine learning , pp. 263–272. PMLR, 2017. Bertsekas, D. and Shreve, S. E. Stochastic optimal control: the discrete-time case , volume 5. Athena Scientific, 1996. Bisi, L., Sabbioni, L., Vittori, E., Papini, M., and Restelli, M. Risk-averse trust region optimization for reward-volatility reduction. arXiv preprint arXiv:1912.03193 , 2019. Boucheron, S., Lugosi, G., and Bousquet, O. Concentration inequalities. In Summer school on machine learning , pp. 208–240. Springer, 2003. Boutilier, C., Dearden, R., and Goldszmidt, M. Stochas-tic dynamic programming with factored representations. 
+
+Artificial intelligence , 121(1-2):49–107, 2000. Crites, R. and Barto, A. Improving elevator performance using reinforcement learning. In Touretzky, D., Mozer, M., and Hasselmo, M. (eds.), Advances in Neural Information Processing Systems , volume 8. MIT Press, 1995. URL https://proceedings.neurips. cc/paper_files/paper/1995/file/ 390e982518a50e280d8e2b535462ec1f-Paper. pdf .Dietterich, T. G. Hierarchical reinforcement learning with the maxq value function decomposition, 1999. URL 
+
+https://arxiv.org/abs/cs/9905014 .Drago, S., Mussi, M., and Metelli, A. M. A refined analysis of ucbvi. arXiv preprint arXiv:2502.17370 , 2025. Dulac-Arnold, G., Mankowitz, D., and Hester, T. Chal-lenges of real-world reinforcement learning, 2019. URL 
+
+https://arxiv.org/abs/1904.12901 .Guestrin, C., Koller, D., Parr, R., and Venkataraman, S. Efficient solution algorithms for factored mdps. Journal of Artificial Intelligence Research , 19:399–468, 2003. Hambly, B., Xu, R., and Yang, H. Recent advances in reinforcement learning in finance. Mathematical Finance ,33(3):437–503, 2023. Jin, C., Allen-Zhu, Z., Bubeck, S., and Jordan, M. I. Is q-learning provably efficient? Advances in neural infor-mation processing systems , 31, 2018. Lin, S. and Beling, P. A. An end-to-end optimal trade execution framework based on proximal policy optimiza-tion. In Proceedings of the twenty-ninth international conference on international joint conferences on artificial intelligence , pp. 4548–4554, 2021. Minsky, M. Steps toward artificial intelligence. Proceedings of the IRE , 49(1):8–30, 1961. Ning, B., Lin, F. H. T., and Jaimungal, S. Double deep q-learning for optimal execution. Applied Mathematical Finance , 28(4):361–380, 2021. Powell, W. B. Approximate Dynamic Programming: Solving the curses of dimensionality , volume 703. John Wiley & Sons, 2007. Puterman, M. L. Markov decision processes: discrete stochastic dynamic programming . John Wiley & Sons, 2014. Riva, A., Bisi, L., Liotet, P., Sabbioni, L., Vittori, E., Pin-ciroli, M., Trapletti, M., and Restelli, M. Learning fx trading strategies with fqi and persistent actions. In Pro-ceedings of the Second ACM International Conference on AI in Finance , pp. 1–9, 2021. Salaorni, D., Paola, V. D., Delpero, S., Dispoto, G., Bonetti, P., Russo, A., Calcagno, G., Trov `o, F., Papini, M., Metelli, A. M., Mussi, M., and Restelli, M. Gym4real: A suite for benchmarking real-world reinforcement learning, 2025. URL https://arxiv.org/abs/2507.00257 .Schulman, J., Wolski, F., Dhariwal, P., Radford, A., and Klimov, O. Proximal policy optimization algo-rithms, 2017. URL https://arxiv.org/abs/ 1707.06347 .Sutton, R. S., Barto, A. G., et al. Reinforcement learning: An introduction , volume 1. MIT press Cambridge, 1998. Towers, M., Kwiatkowski, A., Terry, J., Balis, J. U., Cola, G. D., Deleu, T., Goul ˜ao, M., Kallinteris, A., Krimmel, M., KG, A., Perez-Vicente, R., Pierr ´e, A., Schulhoff, S., Tai, J. J., Tan, H., and Younis, O. G. Gymnasium: A standard interface for reinforcement learning envi-ronments, 2025. URL https://arxiv.org/abs/ 2407.17032 .Trimponias, G. and Dietterich, T. G. Reinforcement learning with exogenous states and rewards, 2023. URL https: //arxiv.org/abs/2303.12957 .Watkins, C. J. and Dayan, P. Q-learning. Machine learning ,8:279–292, 1992. 9Submission and Formatting Instructions for ICML 2026 
+
+Zhang, Z., Chen, Y., Lee, J. D., and Du, S. S. Settling the sample complexity of online reinforcement learning. In The Thirty Seventh Annual Conference on Learning Theory , pp. 5213–5219. PMLR, 2024. 10 Submission and Formatting Instructions for ICML 2026 
+
+## A. PCMDP in Real-World Scenarios 
+
+Hereafter, we provide additional examples of PCMDP for real-world problems. 
+
+Micro-Grid Energy Management. In this task, the agent optimizes energy flow within a micro-grid to maximize revenue from energy trading while minimizing battery degradation. This problem can be viewed as a hybrid of the water reservoir (storage management) and trading (price arbitrage) tasks. The system is composed of an energy storage system (ESS), a renewable generator (e.g., PV panels), and a load. The controllable state s⋄ 
+
+> t
+
+= ( lt) represents the current energy level of the storage system. The exogenous state is defined as s• 
+
+> t
+
+= ( dt, g t, ω buy  
+
+> t
+
+, ω sell  
+
+> t
+
+), where dt is the power demand, gt
+
+is the renewable generation, and ωbuy  
+
+> t
+
+, ω sell  
+
+> t
+
+denote the grid electricity prices. The agent selects an action at representing the power charged to (positive) or discharged from (negative) the storage. The storage dynamics follow a deterministic accumulation process: 
+
+lt+1 = lt + η · at∆t, (6) where η represents the charging/discharging efficiency and ∆t the time interval. The exogenous variables evolve according to independent stochastic processes (e.g., weather and market dynamics): 
+
+gt+1 ∼ p(· | gt), dt+1 ∼ p(· | dt), ωt+1 ∼ p(· | ωt). (7) Crucially, while the battery dynamics lt+1 are controlled, the exogenous signals dictate the net power exchange with the main grid, defined as ¯nt = dt − gt + at. This value ¯nt determines the immediate reward (cost of purchasing electricity or revenue from selling), making the reward function highly dependent on the exogenous state s• 
+
+> t
+
+even though the transition p⋄
+
+is deterministic. 
+
+Data Center Thermal Control. Another example is thermal management in data centers . The objective is to regulate the cooling infrastructure to maintain server temperatures within safety limits while minimizing cooling energy consumption. The controllable state s⋄ 
+
+> t
+
+= ( Tzone  
+
+> t
+
+) is a vector representing the current air temperatures in different server zones. The exogenous state s• 
+
+> t
+
+= ( λt, τ out  
+
+> t
+
+) consists of the current IT workload traffic λt (which generates heat) and the outside weather conditions τ out  
+
+> t
+
+(which affect cooling efficiency). The agent controls the airflow or temperature set-points at. The thermal dynamics are given by standard thermodynamics: 
+
+Tzone  
+
+> t+1
+
+= f (Tzone  
+
+> t
+
+, a t, λ t, τ out  
+
+> t
+
+), (8) where the next temperature depends on the current temperature, the cooling action at, the heat generated by the workload 
+
+λt, and the ambient leakage τ out  
+
+> t
+
+. This fits the PCMDP framework perfectly: the agent controls the internal temperature 
+
+s⋄, but the IT workload λt (user traffic) and outside weather τ out  
+
+> t
+
+are exogenous processes driven by user behavior and meteorological factors, respectively, which are statistically independent of the cooling system’s settings. 
+
+## B. Proofs and Regret Analysis 
+
+We dedicate this part of the Appendix to providing formal, extensive proofs of the theorems presented in the main paper. 
+
+B.1. Results of General Interest 
+
+Theorem 5 (Bernstein’s inequality (Boucheron et al., 2003)) . Let {Xt}nt=1 be a sequence of zero-mean random variable bounded in [−B, B ]. Let σ2 := Pnt=1 Var (Xt). Then, with probability at least 1 − δ
+
+> n
+
+X
+
+> t=1
+
+Xt ≤ p2σ2 log(2 /δ ) + 2B
+
+3 log(2 /δ ).
+
+Lemma 1 (Lemma 4.1. in (Jin et al., 2018)) . Let 
+
+αt = H + 1 
+
+H + t .
+
+Then, for any t ∈ N, Pti=0 αit = 1 . Moreover, the following inequalities hold. 1. 1√t ≤ Pti=1  
+
+> αit√i
+
+≤ 2√t
+
+11 Submission and Formatting Instructions for ICML 2026 
+
+2. max i αit ≤ 2Ht
+
+3. Pti=1 (αti )2 ≤ 2Ht
+
+4. P∞ 
+
+> t=i
+
+αti = 1 + 1
+
+> H
+
+B.2. Regret Bound for E XAVI 
+
+To prove the main theorem concerning the regret bound of algorithm 1, we start from a result about the confidence bound of 
+
+bp•,k h .
+
+Theorem 6. Fix δ > 0. With probability at least 1 − δ, at the same time for all ¯s•, s • ∈ S • we have 
+
+|bp•,k h (¯ s•|s•) − p•
+
+> h
+
+(¯ s•|s•)| ≤ 
+
+s
+
+2p•
+
+> h
+
+(¯ s•|s•)(1 − p•
+
+> h
+
+(¯ s•|s•)) log(2 KS •/δ )
+
+nkh(s•) + 4 log(2 KS •/δ )3nkh(s•)
+
+Proof. Fix ¯s•, s • ∈ S •, and let t = nkh(s•) a given deterministic value. The variable 1
+
+> t
+
+Pti=1 1{s•,k i 
+
+> h+1
+
+= ¯ s•} defined by equation equation 2 is the average of a martingale difference sequence. The variables Xi := 1 {s•,k i 
+
+> h+1
+
+= ¯ s•} we are summing satisfy σ2 := Pti=1 VAR (Xi) = tp •
+
+> h
+
+(¯ s•|s•)(1 − p•
+
+> h
+
+(¯ s•|s•)) . Moreover, all r.v. are bounded by 1. Therefore, by Bernstein’s inequality 5, 
+
+|bp•,k h (¯ s•|s•) − p•
+
+> h
+
+(¯ s•|s•)| = t−1
+
+> t
+
+X
+
+> i=1
+
+Xi − ph(¯ s•|s•)
+
+≤
+
+r p•
+
+> h
+
+(¯ s•|s•)(1 − p•
+
+> h
+
+(¯ s•|s•)) log(2 /δ )
+
+t + 2 log(2 /δ )3t .
+
+Making a union bound over the possible values of ¯s•, s • and t ≤ k ≤ K (that is, dividing δ by KS •2) ends the proof. 
+
+Proposition 7. Fix δ > 0. For every f : S• → [0 , 1] and every s• ∈ S • we have, with probability at least 1 − δ,
+
+X
+
+> ¯s•∈S •
+
+f (¯ s•)( bp•,k h (¯ s•|s•) − p•
+
+> h
+
+(¯ s•|s•)) ≤ 3HS • log(2 KS •/δ )
+
+nkh(s•) + H−1 X
+
+> ¯s•∈S •
+
+f (¯ s•)p•
+
+> h
+
+(¯ s•|s•).
+
+Proof. Let t := nkh(s•). By the previous theorem, we have 
+
+X
+
+> ¯s•∈S •
+
+f (¯ s•)( bp•,k h (¯ s•|s•) − p•
+
+> h
+
+(¯ s•|s•)) ≤ X
+
+> ¯s•∈S •
+
+f (¯ s•) bp•,k h (¯ s•|s•) − p•
+
+> h
+
+(¯ s•|s•)
+
+≤ X
+
+> ¯s•∈S •
+
+f (¯ s•)
+
+r 2p•
+
+> h
+
+(¯ s•|s•)(1 − p•
+
+> h
+
+(¯ s•|s•)) log(2 KS •/δ )
+
+t
+
++ X
+
+> ¯s•∈S •
+
+f (¯ s•) 4 log(2 KS •/δ )3t .
+
+We start bounding the first term: First term = X
+
+> ¯s•∈S •
+
+r 2f (¯ s•)2p•
+
+> h
+
+(¯ s•|s•)(1 − p•
+
+> h
+
+(¯ s•|s•)) log(2 KS •/δ )
+
+t
+
+≤ X
+
+> ¯s•∈S •
+
+r 2f (¯ s•)2p•
+
+> h
+
+(¯ s•|s•) log(2 KS •/δ )
+
+t
+
+12 Submission and Formatting Instructions for ICML 2026 
+
+≤
+
+s
+
+2S• X
+
+> ¯s•∈S •
+
+f (¯ s•)2p•
+
+> h
+
+(¯ s•|s•) log(2 KS •/δ )
+
+t
+
+> (∗)
+
+≤
+
+vuut
+
+HS • log(2 KS •/δ )
+
+t
+
+2
+
++ H−1 X
+
+> ¯s•∈S •
+
+f (¯ s•)2p•
+
+> h
+
+(¯ s•|s•)
+
+!2(∗∗ )
+
+≤ HS • log(2 KS •/δ )
+
+t + H−1 X
+
+> ¯s•∈S •
+
+f (¯ s•)2p•
+
+> h
+
+(¯ s•|s•).
+
+Here, (*) follows from ab ≤ a2 + b2, and (**) from √a + b ≤ √a + √b. As f takes values in [0 , 1] , we also have First term ≤ HS • log(2 KS •/δ )
+
+t + H−1 X
+
+> ¯s•∈S •
+
+f (¯ s•)2p•
+
+> h
+
+(¯ s•|s•).
+
+For what concerns the second term, we have 
+
+X
+
+> ¯s•∈S •
+
+f (¯ s•) 4 log(2 KS •/δ )3t ≤ 4S• log(2 KS •/δ )3t .
+
+This completes the proof. After the confidence bounds, we move to some theorems about the convergence of the empirical Bellman operator. For the next steps, it is useful to define the following operators for a function f : S → R.
+
+Ph[f ]( s, a ) = X
+
+> ¯s•∈S •
+
+bp•
+
+> h
+
+(¯ s•|s•) X
+
+> ¯s⋄∈S ⋄
+
+p⋄
+
+> h
+
+(¯ s⋄, a )f (¯ s•, ¯s⋄),
+
+and its empirical counterpart 
+
+bP kh [f ]( s, a ) = X
+
+> ¯s•∈S •
+
+bp•,k h (¯ s•|s•) X
+
+> ¯s⋄∈S ⋄
+
+p⋄
+
+> h
+
+(¯ s⋄, a )f (¯ s•, ¯s⋄).
+
+Lemma 2. Fix δ > 0. For every f : S• → [0 , 1] and every s ∈ S , a ∈ A we have, with probability at least 1 − δ,
+
+Ph[f ]( s, a ) − bP kh [f ]( s, a ) ≤ 6HS • log(2 KSA/δ )
+
+nkh(s•) + H−1Ph[f ]( s, a ).
+
+Proof. Call 
+
+Φ[ f ](¯ s•; s, a ) := X
+
+> ¯s⋄∈S ⋄
+
+f (¯ s•, ¯s⋄)p⋄
+
+> h
+
+(¯ s⋄|s, a ).
+
+Note that in the previous equation p⋄ 
+
+> h
+
+is known, so the full operator can be computed by the learner. 
+
+Ph[f ]( s, a ) = X
+
+> ¯s•∈S •
+
+X
+
+> ¯s⋄∈S ⋄
+
+f (¯ s•, ¯s⋄)ph(¯ s•, ¯s⋄|s, a )= X
+
+> ¯s•∈S •
+
+X
+
+> ¯s⋄∈S ⋄
+
+f (¯ s•, ¯s⋄)p•
+
+> h
+
+(¯ s•|s•)p⋄
+
+> h
+
+(¯ s⋄|s, a )= X
+
+> ¯s•∈S •
+
+p•
+
+> h
+
+(¯ s•|s•) X
+
+> ¯s⋄∈S ⋄
+
+f (¯ s•, ¯s⋄)p⋄
+
+> h
+
+(¯ s⋄|s, a )
+
+| {z } 
+
+> Φ[ f](¯ s•;s,a )
+
+.
+
+13 Submission and Formatting Instructions for ICML 2026 
+
+The same passages performed on bP kh give 
+
+bP kh [f ]( s, a ) = X
+
+> ¯s•∈S •
+
+bp•,k h (¯ s•|s•)Φ[ f ](¯ s•; s, a ).
+
+Therefore, we have, for fixed s, a , and t := nkh(s•),
+
+| bP kh [f ]( s, a ) − Ph[f ]( s, a )| = X
+
+> ¯s•∈S •
+
+(p•
+
+> h
+
+(¯ s•|s•) − bp•,k h (¯ s•|s•))Φ[ f ](¯ s•; s, a )
+
+≤ 3HS • log(2 KS •/δ )
+
+t + H−1 X
+
+> ¯s•∈S •
+
+Φ[ f ](¯ s•; s, a )p•
+
+> h
+
+(¯ s•|s•)
+
+≤ 3HS • log(2 KS •/δ )
+
+t + H−1Ph[f ]( s, a ),
+
+where the inequality comes from proposition 7. Making a union bound over S, A gives the statement. We need one last result before proceeding to the regret bound. While the following lemma looks similar to the previous one, here we are fixing f in advance, while before the probability 1 − δ was for all the values of f at the same time. 
+
+Lemma 3. For a function f : S• → [0 , 1] and δ > 0. For every s ∈ S , a ∈ A we have, with probability at least 1 − δ,
+
+Ph[f ]( s, a ) − bP kh [f ]( s, a ) ≤
+
+s
+
+log(2 SA/δ )2nkh(s•) .
+
+Proof. As before, we write 
+
+Ph[f ]( s, a ) = X
+
+> ¯s•∈S •
+
+p•
+
+> h
+
+(¯ s•|s•)Φ[ f ](¯ s•; s, a )
+
+and 
+
+bP kh [f ]( s, a ) = X
+
+> ¯s•∈S •
+
+bp•,k h (¯ s•|s•)Φ[ f ](¯ s•; s, a ).
+
+Therefore, we have, for fixed s, a ,
+
+| bP kh [f ]( s, a ) − Ph[f ]( s, a )| = X
+
+> ¯s•∈S •
+
+(p•
+
+> h
+
+(¯ s•|s•) − bp•,k h (¯ s•|s•))Φ[ f ](¯ s•; s, a )
+
+= X
+
+> ¯s•∈S •
+
+p•
+
+> h
+
+(¯ s•|s•) − 1
+
+t
+
+> t
+
+X
+
+> i=1
+
+1{s•,k i 
+
+> h+1
+
+= ¯ s•}
+
+!
+
+Φ[ f ](¯ s•; s, a )
+
+= X
+
+> ¯s•∈S •
+
+p•
+
+> h
+
+(¯ s•|s•)Φ[ f ](¯ s•; s, a ) − 1
+
+t Φ[ f ]( s•,k i
+
+> h+1
+
+; s, a ) .
+
+Let us fix t for now. In this situation, as s•,k i 
+
+> h+1
+
+is sampled from p•
+
+> h
+
+(·| s•) and f, s, a are fixed, we can apply Hoeffding’s inequality, which gives, w.p. at least 1 − δ,14 Submission and Formatting Instructions for ICML 2026 
+
+| bP kh [f ]( s, a ) − Ph[f ]( s, a )| = X
+
+> ¯s•∈S •
+
+p•
+
+> h
+
+(¯ s•|s•)Φ[ f ](¯ s•; s, a ) − 1
+
+t Φ[ f ]( s•,k i
+
+> h+1
+
+; s, a )
+
+≤
+
+r log(2 /δ )2t .
+
+Recalling that is actually a random variable t = nkh(s•) ≤ k, we can make a union bound over the number k of possible values and write 
+
+| bP kh [f ]( s, a ) − Ph[f ]( s, a )| ≤ 
+
+s
+
+log(2 /δ )2nkh(s•) .
+
+Making a union bound over S, A ends the proof. B.2.1. P ROOFS OF CONVERGENCE OF THE ESTIMATED VALUE FUNCTIONS 
+
+In this section, we are going to use the shorthands 
+
+ξkh(s•) := 6H2S• log(2 KSA/δ )
+
+nkh(s•) +
+
+s
+
+H2 log(2 SA/δ )2nkh(s•) bV π 
+
+> 1
+
+:= bV π,k  
+
+> 1
+
+.
+
+Proposition 8. With probability at least 1 − δ,
+
+V ⋆ 
+
+> 1
+
+(s) − bV π⋆ 
+
+> 1
+
+(s) ≤ eE
+
+" HX
+
+> h=1
+
+ξkh(s•
+
+> h
+
+) s• 
+
+> 1
+
+= s•
+
+#
+
+.
+
+Proof. At any h, it holds 
+
+V ⋆h (s) − bV π⋆ 
+
+> h
+
+(s) = Ph[V ⋆h+1 ]( s, π ⋆h(s)) − bP kh [ bV π⋆
+
+> h+1
+
+]( s, π ⋆h(s)) = Ph[V ⋆h+1 ]( s, π ⋆h(s)) − bP kh [V ⋆h+1 ]( s, π ⋆h(s)) + bP kh [V ⋆h+1 − bV π⋆
+
+> h+1
+
+]( s, π ⋆h(s)) = ( bP kh − Ph)[ V ⋆h+1 − bV π⋆
+
+> h+1
+
+]( s, π ⋆h(s)) 
+
+| {z } 
+
+> T1
+
++ Ph[V ⋆h+1 ]( s, π ⋆h(s)) − bP kh [V ⋆h+1 ]( s, π ⋆h(s)) 
+
+| {z } 
+
+> T2
+
++ Ph[V ⋆h+1 − bV π⋆
+
+> h+1
+
+]( s, π ⋆h(s)) .
+
+We can bound T 1 and T 2 as follows. 1. By lemma 2, for f = V ⋆h+1 − bV π⋆ 
+
+> h+1
+
+(this function has an output in [−H, H ] instead of [0 , 1] , so we have to add a 2H
+
+constant to the first term), s = s and a = π⋆h(s),
+
+T 1 = bP kh [f ]( s, a ) − Ph[f ]( s, a )
+
+≤ 6H2S• log(2 KSA/δ )
+
+t + H−1Ph[V ⋆h+1 − bV π⋆
+
+> h+1
+
+]( s, a ).
+
+15 Submission and Formatting Instructions for ICML 2026 
+
+2. By lemma 3, for f = V ∗
+
+> h+1
+
+, which is a deterministic function (even if bounded in [0 , H ] instead of [0 , 1] , which forces to add an H factor), and s = s, a = πkh(s)
+
+T 2 = ( bP kh − Ph)[ V ⋆h+1 ]( s, π ⋆h(s)) ≤ H
+
+r log(2 SA/δ )2t .
+
+Replacing t = nkh(s•) we have 
+
+V ⋆h (s) − bV π⋆ 
+
+> h
+
+(s) ≤ 6H2S• log(2 KSA/δ )
+
+nkh(s•) +
+
+s
+
+H2 log(2 SA/δ )2nkh(s•)
+
+| {z }
+
+> ξkh(s•)
+
++(1 + H−1)Ph[V ⋆h+1 − bV π⋆
+
+> h+1
+
+]( s, π ⋆h(s)) .
+
+This implies, by recursion 
+
+V ⋆h (s) − bV π⋆ 
+
+> h
+
+(s) ≤ E
+
+" HX 
+
+> τ=h
+
+(1 + 1 /H )τ −h ξkτ (s• 
+
+> τ
+
+) sh = s, π ∗
+
+#
+
+≤ eE
+
+" HX 
+
+> τ=h
+
+ξkτ (s• 
+
+> τ
+
+) s• 
+
+> h
+
+= s•
+
+#
+
+.
+
+In the special case h = 1 , this is the thesis. Note that at the last step we have erased the dependence on π⋆ and s⋄, as from the structure of the process, the number of times s• is visited does not depend on the actions. A similar result holds for the estimated optimal policy. 
+
+Proposition 9. The difference between the estimated value function of policy πk and its true value satisfies 
+
+bV k 
+
+> 1
+
+(s0) − V πk 
+
+> 1
+
+(s0) ≤ (1 + e)E
+
+" HX
+
+> h=1
+
+ξkh(s•
+
+> h
+
+) s• 
+
+> 1
+
+= s•
+
+#
+
+.
+
+Proof. By the simulation lemma, 
+
+bV k 
+
+> 1
+
+(s0) − V πk 
+
+> 1
+
+(s0) = 
+
+> H
+
+X
+
+> h=1
+
+Esh,a h∼dπkhh
+
+h
+
+( bP kh − Ph)[ bV kh+1 ]( sh, π kh(sh)) 
+
+i
+
+(9) 
+
+=
+
+> H
+
+X
+
+> h=1
+
+Esh,a h∼dπkhh
+
+h
+
+( bP kh − Ph)[ bV kh+1 − V ⋆h+1 ]( sh, π kh(sh)) 
+
+i
+
+(10) 
+
++
+
+> H
+
+X
+
+> h=1
+
+Esh,a h∼dπkhh
+
+h
+
+( bP kh − Ph)[ V ⋆h+1 ]( sh, π kh(sh)) 
+
+i| {z }
+
+> ρkh
+
+, (11) where the last line follows by subtracting and adding ( bP kh − Ph)[ V ∗ 
+
+> h
+
+]( sh, π kh(sh)) . By lemma 3, for f = V ⋆h+1 , which is a deterministic function (even if bounded in [0 , H ] instead of [0 , 1] , which forces to add an H factor), and s = s, a = πkh(s),the inner term of the second part is bounded by 
+
+ρkh = ( bP kh − Ph)[ V ⋆h+1 ]( s, π kh(s)) (12) 
+
+= bP kh [f ]( s, a ) − Ph[f ]( s, a ) ≤ H
+
+s
+
+log(2 SA/δ )2nkh(s•) . (13) 16 Submission and Formatting Instructions for ICML 2026 
+
+We now bound the first one. By definition of V ⋆h and bV kh we have, for every h ∈ [H] and s′ ∈ S ,
+
+bV kh (s) − V ⋆h (s) = max a∈A rh(s, a ) + bP kh [ bV kh+1 ]( s, a ) − max a∈A rh(s, a ) + Ph[V ⋆h+1 ]( s, a ). Therefore, 
+
+bV kh (s) − V ⋆h (s) ≤ bV kh (s) − rh(s, π kh(s)) − X
+
+> ¯s∈S
+
+ph(¯ s|s, π kh(s)) V ⋆h (¯ s)= bP kh [ bV kh+1 ]( s, π kh(s)) − Ph[V ⋆h+1 ]( s, π kh(s)) = bP kh [ bV kh+1 ]( s, π kh(s)) − Ph[ bV kh+1 ]( s, π kh(s)) + Ph[ bV kh+1 ]( s, π kh(s)) − Ph[V ⋆h+1 ]( s, π kh(s)) = ( bP kh − Ph)[ bV kh+1 ]( s, π kh(s)) + Ph[ bV kh+1 − V ⋆h+1 ]( s, π kh(s)) = ( bP kh − Ph)[ bV kh+1 − V ⋆h+1 ]( s, π kh(s)) 
+
+| {z } 
+
+> T1
+
++ ( bP kh − Ph)[ V ⋆h+1 ]( s, π kh(s)) 
+
+| {z } 
+
+> T2
+
++ Ph[ bV kh+1 − V ⋆h+1 ]( s, π kh(s)) .
+
+We can bound T 1 and T 2:1. By lemma 2, for f = bV kh+1 − V ⋆h+1 (this function has an output in [−H, H ] instead of [0 , 1] , so we have to add a 2H
+
+constant to the first term), s = s and a = πkh(s),
+
+T 1 = bP kh [f ]( s, a ) − Ph[f ]( s, a ) (14) 
+
+≤ 6H2S• log(2 KSA/δ )
+
+t + H−1Ph[ bV kh+1 − V ⋆h+1 ]( s, a ). (15) 2. By lemma 3, for f = V ⋆h+1 , which is a deterministic function (even if bounded in [0 , H ] instead of [0 , 1] , which forces to add an H factor), and s = s, a = πkh(s)
+
+T 2 = ( bP kh − Ph)[ V ⋆h+1 ]( s, π kh(s)) ≤ H
+
+r log(2 SA/δ )2t .
+
+Therefore, we get 
+
+bV kh (s) − V ⋆h (s) ≤ (1 + H−1)Ph[ bV kh+1 − V ⋆h+1 ]( s, π kh(s)) + ξkh(s•),
+
+which, as seen in the proof of proposition 8, implies 
+
+V kh (s) − bV ⋆h (s) ≤ eE
+
+" HX 
+
+> τ=h
+
+ξkτ (s• 
+
+> τ
+
+) sh = s
+
+#
+
+.
+
+Replacing the result of equation equation 15 back into the initial problem, we get 
+
+> H
+
+X
+
+> h=1
+
+Esh,a h∼dπkhh
+
+h
+
+( bP kh − Ph)[ bV kh+1 − V ∗
+
+> h+1
+
+]( sh, π kh(sh)) 
+
+i
+
+17 Submission and Formatting Instructions for ICML 2026 
+
+> 15
+
+≤
+
+> H
+
+X
+
+> h=1
+
+Esh,a h∼dπkhh
+
+"
+
+6H2S• log(2 KSA/δ )
+
+nkh(s•
+
+> h
+
+) + H−1eE
+
+" HX 
+
+> τ=h+1
+
+ξkτ (sτ ) sh = s
+
+## 
+
+≤
+
+> H
+
+X
+
+> h=1
+
+Esh,a h∼dπkhh
+
+"
+
+ξkh(s•
+
+> h
+
+) + H−1eE
+
+" HX 
+
+> τ=h+1
+
+ξkτ (sτ ) sh = s
+
+## 
+
+≤ e
+
+> H
+
+X
+
+> h=1
+
+Esh,a h∼dπkhh
+
+ξkh(s•
+
+> h
+
+)
+
+≤
+
+> H
+
+X
+
+> h=1
+
+Esh,a h∼dπkhh
+
+ξkh(s•
+
+> h
+
+) = eE
+
+" HX
+
+> h=1
+
+ξkh(s•
+
+> h
+
+)
+
+#
+
+.
+
+We use these passages to upper bound the first term in equation 10. We have already proved (equation 13) that the other term is bounded by 
+
+> H
+
+X
+
+> h=1
+
+Esh,a h∼dπkhh
+
+"s 
+
+H2 log(2 SA/δ )2nkh(s•
+
+> h
+
+)
+
+#
+
+≤
+
+> H
+
+X
+
+> h=1
+
+Esh,a h∼dπkhh
+
+ξkh(s•
+
+> h
+
+) = E
+
+" HX
+
+> h=1
+
+ξkh(s•
+
+> h
+
+)
+
+#
+
+.
+
+The last passage holds since the trajectory {s•
+
+> h
+
+}h is not influenced by the actions. Having bound both parts of equation 9, this completes the proof. B.2.2. R EGRET BOUND 
+
+Theorem 10 . With probability at least 1 − δ, the regret of algorithm 1 is bounded by 
+
+RK ≤ eO
+
+
+
+HpS•K log(1 /δ ) + H2S•2 log(1 /δ )
+
+
+
+.
+
+Proof. By design of the algorithm, we know that the policy πk we choose at each time step is such that 
+
+bV πk ,k  
+
+> 1
+
+(s0) = bV k 
+
+> 1
+
+(s0) ≥ bV π⋆,k  
+
+> 1
+
+(s0),
+
+where bV π,k  
+
+> 1
+
+(s0) is the value function of a given policy if we replace the true transition {ph}Hh=1 with its estimation {bpkh}Hh=1 
+
+at episode k. Therefore, by the definition of regret, 
+
+RK =
+
+> K
+
+X
+
+> k=1
+
+V ⋆ 
+
+> 1
+
+(s0) − V πk 
+
+> 1
+
+(s0)=
+
+> K
+
+X
+
+> k=1
+
+V ⋆ 
+
+> 1
+
+(s0) − bV k 
+
+> 1
+
+(s0) + bV k 
+
+> 1
+
+(s0) − V πk 
+
+> 1
+
+(s0)=
+
+> K
+
+X
+
+> k=1
+
+V ⋆ 
+
+> 1
+
+(s0) − bV π⋆ 
+
+> 1
+
+(s0)
+
+| {z } 
+
+> equation 8
+
++ bV π⋆ 
+
+> 1
+
+(s0) − bV k 
+
+> 1
+
+(s0)
+
+| {z }
+
+> ≤0
+
++ bV k 
+
+> 1
+
+(s0) − V πk 
+
+> 1
+
+(s0)
+
+| {z } 
+
+> equation 9
+
+≤
+
+> K
+
+X
+
+> k=1
+
+(1 + 2 e)E
+
+" HX
+
+> h=1
+
+ξkh(s•,k h )
+
+#! 
+
+,
+
+where ξkh(s•) = 6H2S• log(2 KSA/δ ) 
+
+> nkh(s•)
+
++
+
+q H2 log(2 SA/δ )2nkh(s•) . Now, we only need to bound this quantity for any state-action sequence. Indeed, using the standard pigeonhole argument, 18 Submission and Formatting Instructions for ICML 2026 
+
+> K
+
+X
+
+> k=1
+> H
+
+X
+
+> h=1
+
+ξkh(s•,k h ) = 
+
+> K
+
+X
+
+> k=1
+> H
+
+X
+
+> h=1
+
+C1
+
+nkh(s•,k h ) + C2
+
+q
+
+nkh(s•,k h )=
+
+> H
+
+X
+
+> h=1
+> K
+
+X
+
+> k=1
+
+C1
+
+nkh(s•,k h ) + C2
+
+q
+
+nkh(s•,k h )=
+
+> H
+
+X
+
+> h=1
+
+X 
+
+> s•∈S •
+> nKh(s•)
+
+X
+
+> i=1
+
+C1
+
+i + C2
+
+√i
+
+=
+
+> H
+
+X
+
+> h=1
+
+X
+
+> s•∈S •
+
+C1 log( nKh (s•)) + 2 C2
+
+q
+
+nKh (s•)
+
+≤ HC 1S• log( K) + 2 HC 2
+
+√S•K, 
+
+where C1 = 6 H2S• log(2 KSA/δ ) and C2 = pH2 log(2 SA/δ )/2. This completes the proof. 
+
+B.3. Regret Bound for E XAQ 
+
+In this section, we prove the regret bound for our value-based algorithm 2. We start by recalling some definitions that help in lightening the notation. Define, for f : S × A → R and g : S• → R the following operators: 
+
+Pkh[f ]( s, a ) := X
+
+> ¯s⋄∈S ⋄
+
+f (¯ s⋄, s •,k h+1 )p⋄
+
+> h
+
+(¯ s⋄|s, a ) P•,k h [g]( s•) := g(s•,k h+1 ).
+
+Fix (s, a ) and call ki the episodes where s•,k i 
+
+> h
+
+= s•, so that t = nkh(s•).
+
+Lemma 4. Let h ≤ H − 1 and αit be a learning rate schedule such that Pti=0 αit = 1 . The following equation holds 
+
+Qkh(s, a ) − Q⋆h(s, a ) = α0 
+
+> t
+
+(H − Q⋆h(s, a )) + 
+
+> t
+
+X
+
+> i=1
+
+αit
+
+
+
+Pki 
+
+> h
+
+[V ki 
+
+> h+1
+
+− V ⋆h+1 ]( s, a ) + ( Pki 
+
+> h
+
+− Ph)[ V ⋆h+1 ]( s, a )
+
+
+
+.
+
+Proof. Take Q⋆h(s, a ), and let i be an index enumerating all the times s• have been visited at step h, so that at episode k i 
+
+can range up to t := nkh(s•). As Pti=0 αit = 1 ,
+
+Q⋆h(s, a ) = 
+
+> t
+
+X
+
+> i=0
+
+αitQ⋆h(s, a ).
+
+The following identities follow from the definition of the operator 
+
+Q⋆h(s, a ) = α0 
+
+> t
+
+Q⋆h(s, a ) + 
+
+> t
+
+X
+
+> i=1
+
+αitQ⋆h(s, a )= α0 
+
+> t
+
+Q⋆h(s, a ) + 
+
+> t
+
+X
+
+> i=1
+
+αit
+
+ rh(s, a ) + Ph[V ⋆h+1 ]( s, a )
+
+= α0 
+
+> t
+
+Q⋆h(s, a ) + 
+
+> t
+
+X
+
+> i=1
+
+αit
+
+
+
+rh(s, a ) + ( Ph − Pki 
+
+> h
+
+)[ V ⋆h+1 ]( s, a ) + Pki 
+
+> h
+
+[V ⋆h+1 ]( s, a )
+
+
+
+.
+
+Subtracting this to equation equation 2 we get 
+
+Qkh(s, a ) − Q⋆h(s, a ) = α0 
+
+> t
+
+(H − Q⋆h(s, a )) + 
+
+> t
+
+X
+
+> i=1
+
+αit
+
+
+
+Pkh[V ki 
+
+> h+1
+
+− V ⋆h+1 ]( s, a ) + ( Pki 
+
+> h
+
+− Ph)[ V ⋆h+1 ]( s, a ) + bi
+
+
+
+.
+
+19 Submission and Formatting Instructions for ICML 2026 
+
+The former result shows that, under a mild condition on the learning rate, the result Q−function estimated at any stage of every episode in a state-action pair (s, a ) may be written as a combination of the Q−functions evaluated in the same (s, a )
+
+corresponding to all the episodes ki where the given exogenous state s• was seen. The former result does not concern the variance of the estimate, and is valid pointwise. The next step is to show convergence to the optimal Q⋆-function via a concentration argument. Again, due to the problem structure, 
+
+E
+
+h
+
+(Pki 
+
+> h
+
+− Ph)[ V ⋆h+1 ]( s, a ) Fki
+
+i
+
+= 0 ,
+
+as s•,k i 
+
+> h+1
+
+is sampled from p•
+
+> h
+
+(·| s•). Moreover, the full term is bounded: 
+
+|(Pki 
+
+> h
+
+− Ph)[ V ⋆h+1 ]( s, a )| ≤ H a.s. 
+
+Azuma-Hoeffding’s inequality ensures that, w.p. 1 − δ
+
+> t
+
+X
+
+> i=1
+
+αit(Pki 
+
+> h
+
+− Ph)[ V ⋆h+1 ]( s, a ) ≤ 2H
+
+vuut tX
+
+> i=1
+
+(αit)2 log(1 /δ ). (16) If we choose αt according to 1, the former gives 
+
+2H
+
+vuut tX
+
+> i=1
+
+(αit)2 log(1 /δ ) ≤
+
+r 8H3 log(1 /δ )
+
+t := bt.
+
+Therefore, we have Qkh(s, a ) − Q⋆h(s, a )= α0 
+
+> t
+
+(H − Q⋆h(s, a )) + 
+
+> t
+
+X
+
+> i=1
+
+αit
+
+
+
+Pki 
+
+> h
+
+[V ki 
+
+> h+1
+
+− V ⋆h+1 ]( s, a ) + ( Pki 
+
+> h
+
+− Ph)[ V ⋆h+1 ]( s, a )
+
+
+
+≤ α0 
+
+> t
+
+(H − Q⋆h(s, a )) + 
+
+> t
+
+X
+
+> i=1
+
+αitPki 
+
+> h
+
+[V ki 
+
+> h+1
+
+− V ⋆h+1 ]( s, a ) + bt.
+
+In this way, we have proved that the following inequality, 
+
+Qkh(s, a ) − Q⋆h(s, a ) ≤ α0 
+
+> t
+
+H +
+
+> t
+
+X
+
+> i=1
+
+αitPki 
+
+> h
+
+[V ki 
+
+> h+1
+
+− V ⋆h+1 ]( s, a ) + bt. (17) Let us call ρkh(s•) := sup s⋄,a |Qkh(s•, s ⋄, a ) − Q⋆h(s•, s ⋄, a )|. From the previous equation 17, we get 
+
+> K
+
+X
+
+> k=1
+
+ρkh(sk, •) ≤
+
+> K
+
+X
+
+> k=1
+
+sup 
+
+> s⋄,a
+
+|Qkh(s•,k h , s ⋄, a ) − Q⋆h(s•,k h , s ⋄, a )|≤
+
+> K
+
+X
+
+> k=1
+
+α0
+
+> nkh
+
+H + bnkh
+
++
+
+> K
+
+X
+
+> k=1
+> nkh
+
+X
+
+> i=1
+
+αinkh
+
+sup 
+
+> s⋄,a
+
+|Pki 
+
+> h
+
+[V ki 
+
+> h+1
+
+− V ⋆h+1 ]( s•,k h , s ⋄, a )|
+
+=
+
+> K
+
+X
+
+> k=1
+
+α0
+
+> nkh
+
+H + bnkh +
+
+> K
+
+X
+
+> k=1
+> nkh
+
+X
+
+> i=1
+
+αinkh
+
+P•,k i 
+
+> h
+
+[ρki
+
+> h+1
+
+]( sk, •).
+
+20 Submission and Formatting Instructions for ICML 2026 
+
+Here, we denote nkh := nkh(s•,k h ), the number of times s•,k h has appeared before the current episode. If αit is chosen according to equation 5, we can rearrange the last part of the sum as follows and apply Lemma 1: 
+
+> K
+
+X
+
+> k=1
+> nkh
+
+X
+
+> i=1
+
+αinkh
+
+P•,k i 
+
+> h
+
+[ρki
+
+> h+1
+
+]( sk, •) ≤
+
+> K
+
+X
+
+> k=1
+
+P•,k h [ρkh+1 ]( sk, •)
+
+> ∞
+
+X
+
+> t=nkh(sk, •)+1
+
+αnkh(sk, •)
+
+> t
+
+| {z }
+
+> ≤1+1 /H
+
+.
+
+But, by definition of P•,k h ,
+
+> K
+
+X
+
+> k=1
+
+P•,k h [ρkh+1 ]( sk, •) = 
+
+> K
+
+X
+
+> k=1
+
+ρkh+1 (sk, •). (18) For the other term, we have by the pigeonhole principle 
+
+> K
+
+X
+
+> k=1
+
+bnkh = X
+
+> s•∈S •
+> nKh
+
+X
+
+> t=1
+
+r 8H3 log(1 /δ )
+
+t (19) 
+
+≲ pH3|S •|K log(1 /δ ). (20) By equation 5, αt = H+1  
+
+> H+t
+
+which entails 
+
+α0 
+
+> t
+
+=
+
+> t
+
+Y
+
+> j=1
+
+(1 − αj ) = 0 ×
+
+> t
+
+Y
+
+> j=2
+
+(1 − αj ) = 0 .
+
+therefore, 
+
+> K
+
+X
+
+> k=1
+
+α0
+
+> nkh
+
+H ≤ H|S •|. (21) So by equations equation 18,equation 20,equation 21, the recursion is 
+
+> K
+
+X
+
+> k=1
+
+ρkh(sk, •) ≤ H|S •| + pH3|S •|K log(1 /δ ) + (1 + 1 /H )
+
+> K
+
+X
+
+> k=1
+
+ρkh+1 (sk, •).
+
+As ρkH (·) = 0 , this entails 
+
+> K
+
+X
+
+> k=1
+
+ρk 
+
+> 1
+
+(sk, •) ≤ (1 + 1 /H )H 
+
+H|S •| + pH3|S •|K log(1 /δ )
+
+
+
+≤ e
+
+
+
+H|S •| + pH3|S •|K log(1 /δ )
+
+
+
+=: Reg (H, S•, K ).
+
+Finally, we are able to bound the full regret. 
+
+Theorem 3. Under Definition 1, with probability at least 1 − δ, the regret of E XAQ (Algorithm 2) when run with the learning rate in Equation 5 is bounded by 
+
+RK ≤ eO
+
+√H5S•K
+
+
+
+.
+
+21 Submission and Formatting Instructions for ICML 2026 
+
+Proof. For all h ≤ H fix 
+
+Rh,K := 
+
+> K
+
+X
+
+> k=1
+
+V ⋆h (skh) − V πk 
+
+> h
+
+(skh) RK = R1,K RH,K = 0 .
+
+we have for h ≤ H − 1
+
+> K
+
+X
+
+> k=1
+
+V ⋆h (skh) − V πk 
+
+> h
+
+(skh) = 
+
+> K
+
+X
+
+> k=1
+
+Q⋆h(skh, π ⋆h(skh)) − Qπk 
+
+> h
+
+(skh, a kh)=
+
+> K
+
+X
+
+> k=1
+
+Q⋆
+
+> 1
+
+(skh, π ⋆h(skh)) − Q⋆h(skh, a kh) + Q⋆h(skh, a kh) − Qπk 
+
+> h
+
+(skh, a kh)=
+
+> K
+
+X
+
+> k=1
+
+Q⋆
+
+> 1
+
+(skh, π ⋆h(skh)) − Q⋆h(skh, a kh) + 
+
+> K
+
+X
+
+> k=1
+
+PhV ⋆h+1 (skh, a kh) − PhV πk
+
+> h+1
+
+(skh, a kh)=
+
+> K
+
+X
+
+> k=1
+
+Q⋆h(skh, π ⋆h(skh)) − Q⋆h(skh, a kh) + 
+
+> K
+
+X
+
+> k=1
+
+V ⋆h+1 (skh+1 ) − V πk
+
+> h+1
+
+(skh+1 )+
+
+> K
+
+X
+
+> k=1
+
+ PhV ⋆h+1 (skh, a kh) − PhV πk
+
+> h+1
+
+(skh, a kh) −  V ⋆h+1 (skh+1 ) − V πk
+
+> h+1
+
+(skh+1 )| {z }
+
+> ηkh
+
+≤
+
+> K
+
+X
+
+> k=1
+
+Qkh(skh, π ⋆h(skh)) − Qkh(skh, a kh)
+
+| {z }
+
+> ≤0
+
++2 
+
+> K
+
+X
+
+> k=1
+
+ρkh(sk, •) + 
+
+> K
+
+X
+
+> k=1
+
+ηkh + Rh+1 ,K 
+
+≲ 2Reg (H, S•, K ) + Rh+1 ,K .
+
+Here, the last step comes from the fact that PKk=1 ηkh is martingale difference sequence with increments bounded by 2H, so its sum is bounded by 2HpK log(1 /δ ) with probability at least 1 − δ (Azuma-Hoeffding), and the former is bounded by Reg (H, S•, K ).Completing the recursion, we get Rh,K ≤ 2Reg (H, S•, K ) + Rh+1 ,K , which entails 
+
+RK ≤ HReg (H, S•, K ) ≤ 2e
+
+
+
+H2|S •| + pH5|S •|K log(1 /δ )
+
+
+
+.
+
+This ends the proof. 
+
+B.4. Proof of the Lower Bound 
+
+In this section, we prove the lower bound. 
+
+Theorem 4. For any algorithm, there is a PCMDP instance (definition 1) where it suffers regret of 
+
+E[RK ] ≥ Ω( √S•K).
+
+Proof. Fix N ∈ N and consider the following family of PC-MDP instances: • The uncontrollable state space S• has 3N + 1 states: z• 
+
+> 0
+
+, the original state, which brings to z• 
+
+> 1
+
+, . . . z • 
+
+> N
+
+, each with probability 1/N , which in turn bring to two states (denoted as z• 
+
+> i, 1
+
+and z•
+
+> i, 2
+
+) with probability pi and 1 − pi respectively. • The action space is A = {− 1, +1 }.• The space is S⋄ = {0, −1, +1 }. In the first two steps of the MDP, the agent always has z⋄ = 0 . At the third step, the agent chooses between ending in {− 1, +1 } according to the action at step 1.22 Submission and Formatting Instructions for ICML 2026 
+
+z•
+
+> 0
+
+z•
+
+> N
+
+z•
+
+> 1
+
+... 
+
+z• 
+
+> 1,1
+
+z• 
+
+> 1,2
+
+... 
+
+1/N 1/N 
+
+p1 1 − p1
+
+Figure 3. The uncontroallable part of the hard MDP family 
+
+• The reward is identically zero except for the last step. There, 
+
+r3(z•, z ⋄, a ) = 
+
+(
+
+z⋄ if we are in a state z•
+
+> i, 1
+
+−z⋄ if we are in a state z•
+
+> i, 2
+
+The instance is completely identified by the vector p = [ pi]ni=1 . In figure 3, we provide a visual representation of the part of these MDPs relative to state S•.By design of the problem, each instance reduces to learning with the different values of z• 
+
+> i
+
+, for i = 1 , . . . n being completely disentangled. The total regret on any algorithm thus reduces to 
+
+RK =
+
+> K
+
+X
+
+> k=1
+
+ V ⋆ 
+
+> 1
+
+(sk 
+
+> 1
+
+) − V πk 
+
+> 1
+
+(sk 
+
+> 1
+
+)
+
+=
+
+> N
+
+X
+
+> i=1
+> K
+
+X
+
+> k=1
+
+ V ⋆ 
+
+> 1
+
+(sk 
+
+> 1
+
+) − V πk 
+
+> 1
+
+(sk 
+
+> 1
+
+) 1(sk, • 
+
+> 2
+
+= i)=
+
+> N
+
+X
+
+> i=1
+> K
+
+X
+
+> k=1
+
+ V ⋆ 
+
+> 1
+
+(z•
+
+> i, 2
+
+) − V πk 
+
+> 1
+
+(z•
+
+> i, 2
+
+) 1(sk, • 
+
+> 2
+
+= z•
+
+> i, 2
+
+)=: 
+
+> N
+
+X
+
+> i=1
+
+RKi,i .
+
+Where Ki is the number of episodes such that sk, • 
+
+> 2
+
+= i and RKi,i corresponds to the regret incurred while learning from state z• 
+
+> i
+
+for Ki episodes. This decomposition holds since the reward and state s⋄ are null before step 2 and, for any i, pi,which is the only thing that the agent can learn, only influences the state-value function of z• 
+
+> i
+
+.Now, let us fix i and consider the problem of learning from state z• 
+
+> i
+
+. The reward is determined in the following way: • If the agent chooses action a = 1 , then z⋄ = 1 , and the reward is +1 w.p. pi and −1 w.p. 1 − pi, so a Dirchlet random variable with 2pi − 1 as expected value • Vice-versa, if a = −1,the reward corresponds to the previous random variable times −1, that is, a Dirchlet of parameter 
+
+1 − 2pi.Let us call Xt, for t = 1 , . . . K i the random variable 1(st, • 
+
+> 2
+
+) (here t only counts the episodes where the agent visits z• 
+
+> i
+
+). For what we said, the agent’s reward after action a is aX t, and the regret writes as 23 Submission and Formatting Instructions for ICML 2026 
+
+RKi,i = max {4pi − 2, 0}T1
+
+| {z }  
+
+> when action 1is optimal
+
++ max {2 − 4pi, 0}(Ki − T1)
+
+| {z }  
+
+> when action 2is optimal
+
+(22) Consider now two instances: (I) when pi = 1 /2 + ∆ and (II) pi = 1 /2 − ∆, for ∆ = 14 K−1/2 
+
+> i
+
+. These two events introduces two probabilities P(I) and P(II ) in the sequence of random variables X1, . . . X Ki . By independence, and the fact that 
+
+X1, . . . X Ki have Rademacher distribution, the KL divergence of the two probabilities is the following: D(P(I)|P(II )) = 2 Ki∆ log 
+
+ 1/2 + ∆ 1/2 − ∆
+
+
+
+≈ 8Ki∆2 = 1 /2.
+
+Now, for every learning algorithm, the random variable T1 is measurable w.r.t. the sequence X1, . . . X Ki . Therefore, the Bretagnolle-Huber inequality ensures 
+
+P(I)(T1 ≤ Ki/2) + P(II )(T1 > K i/2) ≥ exp( −D(P(I)|P(II ))) /2 ≈ e−1/2/2 (23) Therefore, we can use equation 22 to compute the regret in the two cases 1. In instance (I) the regret satisfies 
+
+E(I)[RKi,i ] ≥ Ki/2 × K−1/2 
+
+> i
+
+P(I)(T1 ≤ Ki/2) 
+
+2. In instance (II ) the regret satisfies 
+
+E(II )[RKi,i ] ≥ Ki/2 × K−1/2 
+
+> i
+
+P(II )(T1 > K i/2) 
+
+Putting the two equations together, thanks to equation 23, we have for any algorithm 
+
+E(I)[RKi,i ] + E(II )[RKi,i ] ≥ e−1/2
+
+4
+
+pKi,
+
+so that in particular E(I)[RKi,i ] ≥ e−1/2
+
+> 8
+
+√Ki in at least one of the two instances. Coming back to our full regret bound, we note that Ki follows a binomial distribution Bin (K, N −1). Thus, 
+
+E
+
+h√Ki
+
+i
+
+≥
+
+r KN P(Ki ≥ K/N ) = 
+
+r K
+
+4N .
+
+Therefore, taking the worst instances for every i,
+
+E[RK ] = E
+
+" NX
+
+> i=1
+
+RKi,i 
+
+#
+
+≥ e−1/2
+
+8
+
+> N
+
+X
+
+> i=1
+
+E
+
+hp Ki
+
+i
+
+= e−1/2
+
+8 N
+
+r K
+
+4N ≥ 130 
+
+√N K ≥ 190 
+
+√S•K. 
+
+## C. Complexity Analysis 
+
+We analyze the space and time complexity of our approaches compared to standard baseline algorithms in the tabular setting. We consider both model-based methods (UCBVI vs. E XAVI) and model-free methods (QL vs. E XAQ). Let S⋄ = |S ⋄| and 
+
+S• = |S •| denote the cardinalities of the controllable and exogenous state spaces, respectively. The size of the global state space is S = S⋄ · S•, and A = |A| denotes the size of the action space. 24 Submission and Formatting Instructions for ICML 2026 
+
+Space Complexity Standard UCBVI requires storing a value table ( Qh) for each step h of the horizon H, with size 
+
+O(HSA ). Crucially, it must also estimate the full transition matrix ˆP (s′ | s, a ), which requires storing counts for every state-action-state tuple for each step of the episode. In the worst case (dense dynamics), this incurs a space complexity of O(HS 2A). In contrast, E XAVI exploits the PCMDP structure by decomposing the transition dynamics. It assumes knowledge of the controllable kernel p⋄ (size O(HS ⋄2A)) and learns only the exogenous transition matrix ˆp•(s•h+1 | s•
+
+> h
+
+),which has a size of O(HS •2). If S• ≪ S and the components are decoupled, E XAVI achieves a significant reduction in model storage requirements: from multiplicative (S⋄S•)2 to additive S⋄2 + S•2.Both standard QL and E XAQ store a Q-table of size O(HSA ). However, E XAQ additionally stores the controllable transition kernel p⋄, requiring O(HS ⋄2A) space. In many practical domains (e.g., grid worlds, kinematics), these dynamics are localized or can be computed on-the-fly (as in our experiments), reducing the effective storage requirement. Consequently, when S• ≫ S⋄ (as in our trading task), the memory overhead of E XAQ is negligible compared to the size of the Q-table itself. 
+
+Time Complexity For model-based methods, the computational bottleneck is the planning phase (backward induction). UCBVI performs a summation over the full state space S for every state-action pair, scaling with O(S2A). E XAVI mitigates this by computing expectations over S⋄ and S• separately, reducing the complexity to O(( S⋄ + S•)SA ) in the best case. For model-free methods, standard QL performs a single scalar update per step, O(1) . In contrast, E XAQ executes a 
+
+counterfactual update of the Q-table’s controllable region. Upon observing an exogenous transition s• 
+
+> h
+
+→ s•
+
+> h+1
+
+, the agent updates the Q-values for the current exogenous context across all reachable controllable states and actions. This results in a per-step complexity of O(S⋄A). 
+
+> Table 1. Summary table with complexity analysis.
+
+Type Algorithm Space (Model + Value) Time (Per Step / Plan) 
+
+Model-Based UCBVI O(HS 2A + HSA ) O(S2A) (Planning) EXAVI O(HS •2 + HS ⋄2A + HSA ) O(( S⋄ +S•)SA ) (Planning) Model-Free QL O(HSA ) O(1) 
+
+EXAQ O(HSA + HS ⋄2A) O(S⋄A)
+
+## D. Additional Results and Settings 
+
+In this part of the appendix, we provide additional results and details about previous presented experiment. Moreover, we introduce the ElevatorEnv task on which we evaluate both model-based and model-free approaches. 
+
+D.1. Additional Experiment 
+
+In the following, we present the remaining experiment, excluded from the main paper for the sake of space. We start by providing the description of the task. 
+
+Elevator Dispatching Environment. This task is a simplified adaptation of the elevator scheduling problem introduced by Crites & Barto (1995) and provided within the Gym4ReaL library (Salaorni et al., 2025). It simulates a peak-down traffic 
+
+scenario, typical of office buildings at the end of a workday. A single elevator serves a building with F floors, transporting employees to the ground floor ( f = 0 ). New passengers arrive at each floor f ∈ { 1, . . . , F } according to an independent 
+
+Poisson process with rate λf . Arriving passengers join a queue at their respective floor, provided the queue length is below a threshold Wmax ; otherwise, they act as lost demand (e.g., taking the stairs). The objective is to minimize the total cumulative waiting time of all passengers. Formally, we define the controllable state at step h as s⋄ 
+
+> h
+
+= ( νh, ψ h, wh), where νh ∈ { 0, . . . , F } denotes the elevator’s current floor, ψh indicates the number of passengers currently inside the elevator (up to capacity Ψmax ), and wh ∈ NF represents the vector of queue lengths at each floor. The exogenous state is defined as the vector of new arrivals s• 
+
+> h
+
+= κh ∈ NF , where each component 
+
+κf,h ∼ Poisson (λf ) represents the number of users arriving at floor f at step h. Note that while the arrival process κh is 25 Submission and Formatting Instructions for ICML 2026 
+
+exogenous, the evolution of the queue lengths wh is endogenous, as it depends on both the stochastic arrivals and the agent’s pick-up actions. The action space is discrete, ah ∈ { up , down , open }, allowing the elevator to move between floors or open doors to board/alight passengers. The reward function is designed to penalize delays while incentivizing successful transport: 
+
+rh = −
+
+
+
+> F
+
+X 
+
+> f=1
+
+wf,h + ψh
+
+ + 1(ψh=0) · β ψ h−1, (24) where the first term penalizes the total waiting time (users in queues plus users in the elevator), and the second term grants a bonus β > 0 for every passenger successfully offloaded at the ground floor. 
+
+Results on ElevatorEnv . Figure 4 illustrates the learning performance on the ElevatorEnv . In the model-based setting (Figure 4a), E XAVI demonstrates immediate convergence to the optimal policy, maintaining a steady return of approximately 350 . In contrast, UCBVI converges to a significantly suboptimal plateau ( ≈ 250 ). This suggests that the standard exploration bonuses were insufficient to guide the baseline out of local optima, whereas E XAVI’s structured updates allowed it to identify the optimal dispatching strategy instantly. A similar trend is observed in the model-free comparison (Figure 4b). E XAQ solves the task almost instantaneously, leveraging the known controllable dynamics to propagate value information across unvisited states. Conversely, standard QL exhibits a slow, asymptotic climb, requiring nearly 3, 000 episodes to match the performance that E XAQ achieved in the first few trials. This massive gap in sample efficiency highlights the effectiveness of counterfactual updates, made possible by isolating the exogenous state components. 0 1000 2000 3000 4000                
+
+> Training Episode
+> 800
+> 600
+> 400
+> 200
+> 0
+> 200
+> 400
+> Return
+> Algorithm
+> UCBVI
+> ExAVI
+> (a) Model-based (E XAVI vs. UCBVI) 01000 2000 3000 4000 5000 6000 7000
+> Training Episode
+> 1250
+> 1000
+> 750
+> 500
+> 250
+> 0
+> 250
+> Return
+> Algorithm
+> Q-Learning
+> ExAQ (b) Model-free (E XAQ vs. QL)
+> Figure 4. Comparative learning curves for the tiny version of ElevatorEnv , averaged over 10 random seeds. Shaded regions denote
+> 95% confidence intervals. Figure (a) Model-based performance. Figure (b) Model-free performance.
+
+Qualitative Analysis on TradingEnv . Complementing the main quantitative results, we qualitatively analyze the execution profiles learned by the different agents to gain intuition into their strategies. Figure 5 depicts the average inventory depletion over time for the optimal execution task. We compare our approach against standard RL baselines (PPO, QL) and the industry-standard TWAP (Time-Weighted Average Price) strategy. From the plot, distinct behavioral patterns emerge. The TWAP strategy follows a deterministic linear liquidation path, splitting the order evenly across the entire horizon regardless of market conditions. In contrast, the standard model-free baselines (QL and PPO) exhibit extremely aggressive behavior, dumping nearly the entire inventory within the first 25 
+
+steps. This suggests a failure to effectively balance risk and execution cost; these agents likely converged to a “panic selling” policy to avoid the variance of future price movements. Conversely, E XAQ demonstrates a sophisticated, adaptive strategy. It liquidates faster than TWAP to mitigate exposure to price volatility but maintains a much smoother profile than the other RL agents, fully clearing the position around step 90. The convex shape of the E XAQ curve resembles theoretical optimal execution trajectories (e.g., Almgren-Chriss solutions), indicating that the agent successfully learned to balance the urgency of liquidation with the opportunity cost of aggressive selling. 26 Submission and Formatting Instructions for ICML 2026 0 25 50 75 100 125 150 175 200  
+
+> Episode Step
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100
+> Security Amount
+> Algorithm
+> ExAQ
+> Q-Learning
+> PPO
+> TWAP
+> Figure 5. Inventory liquidation profiles for the optimal execution problem. E XAQ (blue) discovers a balanced strategy between the passive TWAP (pink) and the aggressive dumping of PPO/QL.
+
+D.2. Environment Parametrization 
+
+In this section, we detail the configuration parameters to ensure the reproducibility of the experiments. Figure 6 illustrates the modified taxi environment, highlighting the three central cells (purple) where stochastic traffic congestion occurs, alongside the specific hyperparameters used for the simulation (in Table 2). We report the configuration of the trading and the elevator environments in Table 3 and Table 4, respectively.    
+
+> Figure 6. Visual rendering of the environment.
+> Table 2. TaxiEnv parameters.
+
+Parameter Value 
+
+Horizon ( H) 200 
+
+Grid Size 5 × 5
+
+Traffic Locations (2 , 1) , (2 , 2) , (2 , 3) 
+
+Traffic Prob. ( ptr ) 0.3
+
+Passenger Locations 4 Corners + Taxi 
+
+## E. Reproducibility 
+
+The experiments have been conducted on a MacBook Pro 2023 equipped with an Apple M2 Pro CPU and 16 GB of RAM. The repository containing the source code will be disclosed in the camera-ready version. 
+
+E.1. Hyperparameters 
+
+Hereafter, to foster reproducibility, we report the hyperparameters utilized to obtain the presented results for every specific environment. 27 Submission and Formatting Instructions for ICML 2026   
+
+> Table 3. TradingEnv parameters.
+
+Parameter Value 
+
+General Specs 
+
+Horizon ( H) 200 
+
+Price Range [90 , 110] 
+
+Initial Price ( ω0) 100 .0
+
+Volatility ( σ) 0.3
+
+Drift ( μ) 0.0
+
+Price Granularity 0.02 
+
+Execution & Impact 
+
+Initial Inventory ( u0) 100 
+
+Risk Aversion ( λ) 100 .0
+
+Transaction Cost ( ϵ) 0.0625 
+
+Adjusted Temp. Impact ( ˜η) 2 × 10 −5  
+
+> Table 4. ElevatorEnv parameters.
+
+Parameter Value 
+
+General Specs 
+
+Horizon ( H) 300 
+
+Floors ( F ) 3 (Indices 0, 1, 2)Capacity ( Ψmax ) 2
+
+Goal Floor 0 (Ground) 
+
+Passenger Dynamics 
+
+Arrival Rate ( λ) [0 .01 , 0.2] 
+
+Max Queue ( Wmax ) 2
+
+Max Batch ( κmax ) 2
+
+Rewards 
+
+Delivery Bonus ( β) +10 .0
+
+Waiting Penalty −1.0     
+
+> Table 5. Hyperparameter of model-based methods across TaxiEnv and ElevatorEnv tasks. Shared parameters are aligned, while specific tuning differences are highlighted.
+
+Taxi Elevator Parameter UCBVI EXAVI UCBVI EXAVI 
+
+General Settings 
+
+Discount Factor ( γ) 1.0 1.0 1.0 1.0
+
+Training Seeds [1 . . . 10] [1 . . . 10] 
+
+Optimization 
+
+Bonus ( C) 0.5 − 0.5 −
+
+Delta ( δ) 10 −6 − 10 −6 −
+
+Execution 
+
+Total Episodes 5, 000 5, 000 
+
+Eval Length 50 eps 50 eps 28 Submission and Formatting Instructions for ICML 2026      
+
+> Table 6. Hyperparameter of model-free methods across TaxiEnv ,ElevatorEnv , and TradingEnv tasks. Shared parameters are aligned, while specific tuning differences are highlighted.
+
+Taxi Elevator Trading Parameter QL EXAQ QL EXAQ QL EXAQ 
+
+General Settings 
+
+Discount Factor ( γ) 1.0 1.0 1.0 1.0 1.0 1.0
+
+Training Seeds [1 . . . 10] [1 . . . 10] [1 . . . 10] 
+
+Execution 
+
+Learning Rate ( α) 0.05 0.01 0.01 0.001 1.0 0.9
+
+Total Episodes 15 , 000 7, 000 20 , 000 
+
+Eval Length 50 eps 50 eps 50 eps 
+
+Exploration ( ϵ-Greedy) 
+
+Initial Epsilon ( ϵstart ) 1.0 − 1.0 − 1.0 −
+
+Minimum Epsilon ( ϵmin ) 0 − 0.05 − 0.05 −
+
+Decay Rate 0.99985 − 0.9995 − 0.9998 −
+
+Decay Type Exp − Exp − Mixed −   
+
+> Table 7. Hyperparameter settings for PPO in the TradingEnv environment.
+
+Parameter Value 
+
+General Settings 
+
+Discount Factor ( γ) 0.999 
+
+Number of Parallel Envs 16 
+
+Training Seeds [1 . . . 10] 
+
+Optimization 
+
+Learning Rate ( α) 10 −4
+
+LR Schedule Linear Annealing Clipping Parameter ( ϵ) 0.2
+
+GAE Parameter ( λ) 0.95 
+
+Max Gradient Norm 0.5
+
+Minibatch Size 512 
+
+Update Epochs 4
+
+Advantage Normalization True 
+
+Loss Coefficients 
+
+Value Function Coef. ( cvf ) 0.5
+
+Entropy Coef. ( cent ) 0.0
+
+Execution 
+
+Iterations 5, 000 
+
+Steps per Iteration 1, 000 
+
+29

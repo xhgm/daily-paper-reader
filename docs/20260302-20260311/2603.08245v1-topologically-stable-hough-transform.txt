@@ -1,0 +1,472 @@
+Title: Topologically Stable Hough Transform
+
+URL Source: https://arxiv.org/pdf/2603.08245v1
+
+Published Time: Tue, 10 Mar 2026 02:17:13 GMT
+
+Number of Pages: 11
+
+Markdown Content:
+# Topologically Stable Hough Transform 
+
+## Stefan Huber 1, Kristóf Huszár 2, Michael Kerber 2, and Martin Uray 1
+
+1 Josef Ressel Centre for Intelligent and Secure Industrial Automation, Salzburg University of Applied Sciences, Austria 
+
+{stefan.huber,martin.uray}@fh-salzburg.ac.at 
+
+2 Institute of Geometry, Graz University of Technology, Austria 
+
+{kristof.huszar,kerber}@tugraz.at 
+
+Abstract 
+
+We propose an alternative formulation of the well-known Hough transform to detect lines in point clouds. Replacing the discretized voting scheme of the classical Hough transform by a continuous score function, its persistent features in the sense of persistent homology give a set of candidate lines. We also devise and implement an algorithm to efficiently compute these candidate lines. 
+
+## 1 Introduction 
+
+The Hough transform is a classical method in Computer Vision to detect lines (or more complicated geometric shapes) in partially-sampled and noisy sceneries, dating back to the 1960s [8]. Informally, lines are detected by a voting scheme where every sample point p
+
+votes for lines that contain p or are close-by, and those lines that accumulate many votes are considered to be part of underlying scenery. To specify the meaning of “close-by,” the space of lines is parameterized by R2 and discretized into pixels. A sample point transforms into a planar curve in that line space and votes for those lines whose pixel it traverses, see Figure 1. The above voting scheme suffers from two major problems: first, noise in the sample can lead to a collection of neighboring pixels that all get large vote counts. If the selection rule is to chose the k lines with largest votes, this may result in a collection of lines that are very close to each other, which might be not the desired outcome. Second, the voting scheme based on the binary decision whether a pixel is traversed or not is unstable: even translating the grid (i.e., choosing a different origin) may result in drastically different outcomes. 
+
+Contributions. We propose a simple and efficient framework that addresses both of the shortcomings. First, instead of voting on pixels, the sample points continuously vote on all lines in line space by scoring each of them. The score is determined by the Euclidean distance of the point and the line and some kernel function, e.g., a linear or a Gaussian curve. This way, every candidate line receives a score from the sample points, yielding a total score for any candidate line. The resulting score function is continuous over the parameter space of lines, and is stable under perturbations of the point sample, meaning that small changes in the sample will lead to controlled point-wise changes in the score function. The authors of [9] also follow a continuous treatment, but for a hypothesis testing framework. The second idea concerns the selection of the most important lines based on the score function. We suggest a natural approach to select the lines corresponding to the local maxima of the score function as they received the highest score in a neighborhood. To sort these (potentially many) local maxima by importance, we pick those maxima with the largest persistence in the sense of 0-homology for the super-levelset filtration of the score 
+
+> 42nd European Workshop on Computational Geometry, Hagen, Germany, March 25–27, 2026. This is an extended abstract of a presentation given at EuroCG’26. It has been made public for the benefit of the community and should be considered a preprint rather than a formally reviewed paper. Thus, this work is expected to appear eventually in more final form at a conference with formal proceedings and/or in a journal.
+> arXiv:2603.08245v1 [cs.CG] 9 Mar 2026
+
+70:2 Topologically Stable Hough Transform 
+
+function [6]. 1 Using persistence prevents that two close-by lines are both selected, except when they are separated by a significant valley in the score function. This addresses the problem of selecting two many similar lines. A similar approach has been already applied to clustering [3]. While the number of local maxima is not stable under perturbations, the number of persistent (or prominent) local maxima turns out to be stable, and their locations also remain stable under certain conditions, see Theorem 3.2. We also describe an efficient algorithm that approximates the score function via a quad-tree subdivision. It guarantees that each local maximum with significant persistence has a representative line in the output, and that no line with insignificant persistence appears.    
+
+> Θxxyry
+
+Figure 1 Left: Ten points sampled from two lines. Middle: The classical Hough transform passes to the space of lines in which every input point dualizes into a sinusoidal curve. The blue point on the left, for instance, is tranformed to the blue curve in the middle. The pixels that the blue curve votes for are marked. In that example, there are two pixels (red) that receive five votes. Right: The centers of the high-count pixels are two lines in primal space that correspond to the two drawn lines. 
+
+## 2 The score function 
+
+Line parameterization. Set M := R × [0 , π ]. For (r, Θ) ∈ M , we define 
+
+ℓ(r, Θ) := {(x, y ) ∈ R2 | r = x cos Θ + y sin Θ }.
+
+For p = ( r cos Θ , r sin Θ) , ℓ(r, Θ) is the line through p that is perpendicular to the vector 
+
+−→p . Note that the set of all lines in R2 is in bijection with M , except that ℓ(r, 0) = ℓ(−r, π ),as the space of lines is homemorphic to the open Möbius strip. For simplicity, we will first work with M as a planar domain and discuss the twisted glueing to a Möbius strip later. 
+
+Score of a line. For a point p and a line ℓ in the Euclidean plane, write ∆( p, ℓ ) for the orthogonal distance of p from ℓ. We want that the score of ℓ by p equals 1, if ∆( p, ℓ ) = 0 ,and otherwise it decreases as ∆( p, ℓ ) grows. For that, we choose a monotonously decreasing kernel function κ : [0 , ∞) → [0 , 1] with κ(0) = 1 and κ(x) → 0 for x → ∞ . Two examples are 
+
+κhat (x) := max 
+
+{
+
+0, 1 − xσ
+
+}
+
+and κRBF (x) := exp 
+
+(
+
+− x2
+
+2σ2
+
+)
+
+, 
+
+> 1This idea of using persistence has already been proposed in a preliminary work [7]. However, it lacked the crucial idea of a continuous treatment via smooth voting functions, but relied on the original discretized setting, preventing a stability result as we now obtained in this work.
+
+S. Huber, K. Huszár, M. Kerber and M. Uray 70:3 
+
+referred to as hat and Gauss kernel, respectively. Now, for a finite set P ⊂ R2 we define 
+
+S( p, ℓ ) := κ(∆( p, ℓ )) and S( ℓ) := S P (ℓ) := 1
+
+|P |
+
+∑
+
+> p∈P
+
+S( p, ℓ ).
+
+We refer to S : M → R, (r, Θ) 7 → S( ℓ(r, Θ)) as the score function . Clearly, 0 ≤ S( ℓ) ≤ 1. If 
+
+κ(x) = 1 only for x = 0 , then S( ℓ) = 1 implies that ℓ contains all points of P .The lines ℓ(r, Θ) containing a fixed p = ( x0, y 0) are given by r = x0 cos Θ + y0 sin Θ ,whose solutions (r, Θ) form a sinusoidal curve γ, along which S( p, ℓ (r, Θ)) = 1 . Moreover, fixing Θ and varying r, the distance of p to the line ℓ(r, Θ) changes linearly with r. Hence, the graph of S( p, ·) is obtained by sliding the function graph of the kernel function κ along 
+
+γ. The graph of the score function S is obtained by a normalized sum of |P | such graphs. 
+
+Stability. It is evident by construction that, if the kernel κ is continuous/smooth, then so is the score function S. Moreover, the fact that the Euclidean distance function to a fixed line is 1-Lipschitz immediately yields the stability of the score function. 
+
+▶ Lemma 2.1. Let κ be Lipschitz-continuous with constant λ. Let P ′ denote an ϵ-perturbation of P (i.e., every point is replaced by a point in its ϵ-ball). Then ‖SP − SP ′ ‖∞ ≤ λϵ. 
+
+## 3 Persistence-based selection 
+
+For fixed h0 ≥ 0, let S≥h0 := {ℓ ∈ M | S( ℓ) ≥ h0} denote the super-levelset of S. By varying 
+
+h0 from +∞ to 0, we “sweep out” the graph of S and obtain the super-levelset filtration. We consider the 0-dimensional persistent homology of that filtration and sort the local maxima of S according to the persistence of their homology class. For readers not familiar with persistent homology, we offer an elementary explanation. Assume for simplicity that all local maxima of S are isolated and no two maxima have the same height. Fix such a local maximum x with height h. Call x dominant in S≥h′
+
+if the connected component of S≥h′
+
+that contains x has x as its highest point. Now, the persistence of x is the supremum over all t ≥ 0 such that x is dominant in S≥h−t. We call h the birth level and h − t the death level of this component. Lemma 3.1 is a reformulation of the stability result of persistence [4]. 
+
+▶ Lemma 3.1. Let SP , SP ′ be two score functions over M with ‖SP −SP ′ ‖∞ = ϵ. Then, there exists a partial matching of local maxima of SP to local maxima of SP ′ such that all maxima of either score function with persistence greater than ϵ are matched, and the persistence of two matched local maxima differs by at most 2ϵ.
+
+▶ Theorem 3.2. Let SP be a score function with local maximum x = ( r, Θ) and h = S P (x)
+
+of persistence α. Let SP ′ be a score function with ‖SP − SP ′ ‖∞ = ϵ < α/ 2. Then, SP ′
+
+contains a local maximum x′ of persistence at least α − 2ϵ such that |SP (x′) − h| ≤ 2ϵ and 
+
+x′ lies in the connected component of x of the set S≥h−αP .
+
+Proof. By definition, x is dominant in a connected component C of S≥h−αP . Note that 
+
+S≥h−α+ϵP ′ ⊆ S≥h−αP , so C ∩ S≥h−α+ϵP ′ is a connected component of S≥h−α+ϵP ′ (it is non-empty because of x). Its maximum x′ is easily seen to satisfy the three postulated properties. ◀
+
+Theorem 3.2 tells us that for α  ϵ, the persistent local maxima of SP ′ approximate those of SP in the sense that for every persistent local maximum of SP , we can find a persistent local maximum of SP ′ with almost the same score and being in the same super-levelset. 
+
+E u r o C G ’ 2 6 70:4 Topologically Stable Hough Transform 
+
+## 4 Computation 
+
+We devise a simple approximation scheme of SP based on a quad-tree subdivision that yields a ˜SP with ‖SP − ˜SP ‖∞ ≤ ϵ for a fixed ϵ > 0 and is constant on each quad-tree cell. 2 We first determine some r0 ∈ R such that SP ≤ ϵ on M \ [−r0, r 0] × [0 , π ], and set ˜SP zero there. The main predicate for the subdivision part is a Lipschitz predicate that, given a box 
+
+B := [ a, b ] × [c, d ] ⊂ M , yields a λ ∈ R such that SP , restricted to B, is continuous with Lipschitz constant λ. Writing h for the value of SP at the midpoint of B, it follows that the 
+
+SP at any point in B differs from h by at most λ · diam( B)/2, where diam( B) denotes the diameter of B. With that predicate, we simply subdivide the initial box [−r0, r 0] × [0 , π ] of the quad-tree and apply it until a subdivided box satisfies λ · diam( B)/2 ≤ ϵ. In that case, we set ˜SP within that box B to be the value of SP at the midpoint of B.0.7 0.7 0.9 0.6 0.6 0.6 0.4 0.5 0.4 0.5 0.5 0.3 0.3 0.9 0.5 0.9 0.9 0.4 0.8 0.8 0.8 0.4 0.5 0.9 0.8 
+
+Figure 2 Top: the subdivided ˜SP . Bottom: The superlevelsets for threshold 0.8, 0.7, and 0.6,and the nerve of the boxes (the graph structure in blue). Vertices and edges that enter the graph at this threshold are drawn thicker. We observe that for 0.8, a new connected component is formed in the upper region. For 0.7, another isolated vertex is formed; moreover, the upper-right box connects with the lower-left box because of the Möbius geometry, hence, the component formed at 0.8 merges with another one, yielding a persistence of 0.1 for the component. At 0.6, the component formed at 
+
+0.7 also gets merged, yielding a persistence of 0.1 as well. Note that the graph is connected for 0.6.
+
+How to realize such a Lipschitz predicate? Elementary calculus reveals that if the kernel function κ has Lipschitz constant λκ and all input points are in the unit disk, SP has a global Lipschitz constant of λκ
+
+√2. However, using this global bound will yield a uniform  
+
+> 2
+
+The non-continuity of ˜SP does not cause a problem because ˜SP can be converted to a continuous score function with the same persistent homology. Without going into further detail, one triangulates each quad with a central Steiner vertex, considers a barycentric refinement and then constructs a PL-function. We omit the details of this step and refer to [6, sec. VI.3]. S. Huber, K. Huszár, M. Kerber and M. Uray 70:5 
+
+(and inefficient) subdivision. We obtain a better Lipschitz constant based on the locality of the box. We outline a strategy for the two considered kernel functions in Appendix B. Computing the persistent homology (in dimension 0) of ˜SP is done via standard methods illustrated in Figure 2. Via the Nerve Theorem [1], the problem can be recast into tracking the connected components of a graph that expands in terms of vertices and edges, and that problem can be solved in almost linear time via the union-find data structure [5]. Note that in this step, we remember the twisted identification of the boundary of M (the domain of 
+
+˜SP ), effectively computing the persistent homology over the Möbius strip. There is a choice how to ultimately select the local maxima , and hence the lines in primal space, from the persistence information. A simple choice is to just select the k local maxima with largest persistence, where k is a given constant. Another option is to fix a threshold α and pick those local maxima with persistence at least α. Here, α may be chosen a-priori or a-posteriori – we demonstrate the latter in Section 5. 
+
+## 5 A Use-case 
+
+We implemented a prototype of our method in Python, available at https://github.com/ JRC-ISIA/TopologicalHoughTransformation . Figure 3 shows an exemplary run of our method on a point cloud sampled with noise from three lines (top-left).  
+
+> Figure 3 Illustration of the proposed method.
+
+Notably, each line is sampled with a different number of points, resulting in different heights for the three distinguished local maxima in the score surface. Nevertheless, the 
+
+E u r o C G ’ 2 6 70:6 Topologically Stable Hough Transform 
+
+score function has three distinguished “bumps” (top-right) and the persistence homology reveals this fact: the persistence diagram (bottom-left) represents every local maximum by its height (birth) and the threshold when it ceases to be dominant (death); its persistence is then the distance to the diagonal. With this interpretation, we observe three clearly distinguished local maxima, and selecting them yields three lines that closely approximate the ground truth (bottom-right). In comparison, we display the outcome of the Hough transform as computed by the 
+
+OpenCV package [2]. In there, the specified threshold filters local maxima by height, not by persistence. Consequently, depending on how we choose the threshold, we either miss one of the ground truth lines altogether, or the method returns many local maxima (of low persistence) that all approximate the line with the densest sampling because it creates a larger bump in dual space. It would then require further post-processing to remove these duplicates while this filtering step is elegantly integrated in our framework already. We ran more tests on instances similar to the one in Figure 3 and did some statistical analysis on the detected lines, showing that the above situation is not cherry-picked but seems typical if one deals with lines of different densities. See Appendix C for details. 
+
+## 6 Discussion 
+
+We have demonstrated that simple tools from computational geometry and topology have the potential to increase the quality of line detection via the Hough transform. Although the experiments presented are limited to line detection, the proposed method generalizes to arbritary shapes by varying the shape parametrization and the corresponding parameter space. We are planning more extensive tests, including the use of different kernel functions, evaluation on the effect of the kernel size, real image data, and the comparison with state-of-art line detection methods. A preliminary evaluation can be found in Appendix C. As a prerequisite, we will first implement a fast version of our prototype – we are optimistic that the combination of adaptive subdivisions and the fact that persistence in dimension 0 can be computed in almost linear time will allow us to apply our method to large image data sets. 
+
+References                       
+
+> 1Ulrich Bauer, Michael Kerber, Fabian Roll, and Alexander Rolle. A unified view on the functorial nerve theorem and its variations. Expositiones Mathematicae , 41(4), 2023. doi: 10.1016/j.exmath.2023.04.005 .
+> 2Gary Bradski. The OpenCV Library. Dr. Dobb’s Journal of Software Tools , 2000.
+> 3Frédéric Chazal, Leonidas J. Guibas, Steve Y. Oudot, and Primoz Skraba. Persistence-based clustering in riemannian manifolds. Journal of the ACM , 60(6):1–38, November 2013. doi:10.1145/2535927 .
+> 4David Cohen-Steiner, Herbert Edelsbrunner, and John Harer. Stability of persistence di-agrams. Discrete & Computational Geometry , 37:103–120, 2007. doi:10.1007/s00454-006-1276-5 .
+> 5Thomas H. Cormen, Charles E. Leiserson, Ronald L. Rivest, and Clifford Stein. Introduction to Algorithms . The MIT Press, 2nd edition, 2001.
+> 6Herbert Edelsbrunner and John Harer. Computational Topology. An Introduction. Ameri-can Mathematical Society, 2010. URL: https://bookstore.ams.org/mbk-69 .
+> 7Johannes Ferner, Stefan Huber, Saverio Messineo, Angel Pop, and Martin Uray. Persistence-based Hough Transform for Line Detection. In Peter Haber, Thomas J. Lampoltsham-mer, and Manfred Mayr, editors, Data Science—Analytics and Applications , Cham, 2026.
+
+S. Huber, K. Huszár, M. Kerber and M. Uray 70:7 
+
+Springer Nature Switzerland. (Accepted Paper). URL: http://arxiv.org/abs/2504. 16114 .
+
+8 Priyanka Mukhopadhyay and Bidyut B. Chaudhuri. A survey of Hough Transform. Pattern Recognition , 48(3):993–1010, March 2015. doi:10.1016/j.patcog.2014.08.027 .
+
+9 John Princen, John Illingworth, and Josef Kittler. Hypothesis testing: A framework for analyzing and optimizing hough transform performance. IEEE Transactions on Pattern Analysis and Machine Intelligence , 16(4):329–341, 1994. doi:10.1109/ICCV.1990.139564 .
+
+## A Gradients of the score function over the parameter space 
+
+We consider the score function (r, Θ) 7 → S( r, Θ) and investigate a bound for the Lipschitz constant of this function. First, we recall the definition 
+
+S( r, Θ) = 1
+
+|P |
+
+∑
+
+> p∈P
+
+κ(∆( p, ℓ (r, Θ))) . (1) We are going to calculate ∇S( r, Θ) = ( ∂S 
+
+> ∂r
+
+, ∂S 
+
+> ∂Θ
+
+) and derive a bound for the Lipschitz constant λS of S via λS = sup (r, Θ) ∈M ‖∇ S( r, Θ) ‖ with ‖.‖ being the Euclidean norm. Note ∆( p, ℓ (r, Θ)) = |r − xp cos Θ − yp sin Θ | for p = ( xp, y p). Hence, we have 
+
+∣∣∣∣
+
+∂∆
+
+∂r 
+
+∣∣∣∣ = | sgn( r − xp cos Θ − yp sin Θ) | = 1 , (2) 
+
+∣∣∣∣
+
+∂∆
+
+∂Θ
+
+∣∣∣∣ = | sgn( r − xp cos Θ − yp sin Θ) · (xp sin Θ − yp cos Θ) | ≤ ‖ p‖. (3) Furthermore note that | ∂κ ∂∆ | is bound by the Lipschitz constant λκ of the kernel function κ.We therefore have 
+
+∣∣∣∣
+
+∂S
+
+∂r 
+
+∣∣∣∣ ≤ 1
+
+|P |
+
+∑
+
+> p∈P
+
+∣∣∣∣
+
+∂κ ∂∆
+
+∣∣∣∣ ·
+
+∣∣∣∣
+
+∂∆
+
+∂r 
+
+∣∣∣∣ ≤ λκ (4) 
+
+∣∣∣∣
+
+∂S
+
+∂Θ
+
+∣∣∣∣ ≤ 1
+
+|P |
+
+∑
+
+> p∈P
+
+∣∣∣∣
+
+∂κ ∂∆
+
+∣∣∣∣ ·
+
+∣∣∣∣
+
+∂∆
+
+∂Θ
+
+∣∣∣∣ ≤ λκ · 1
+
+|P |
+
+∑
+
+> p∈P
+
+‖p‖ ≤ λκ sup 
+
+> p∈P
+
+‖p‖. (5) And this gives us the bound 
+
+λS = sup 
+
+> (r, Θ) ∈M
+
+‖∇ S( r, Θ) ‖ (6) 
+
+≤ λκ
+
+√
+
+1 + sup 
+
+> p∈P
+
+‖p‖2 (7) 
+
+≤ λκ
+
+√1 + D2 (8) (9) if P is within a ball of radius D around the origin. If we assume that all points of P are within the unit circle, we have D = 1 , hence a Lipschitz constant of λκ
+
+√2.
+
+## B Lipschitz constants in a box 
+
+For a point q = ( xq , y q ) and a (continuous) function f : R → R, the vertical distance is given by |yq − f (xq )|. For an axis-aligned box B, the vertical distance of B and f is the minimum 
+
+E u r o C G ’ 2 6 70:8 Topologically Stable Hough Transform 
+
+of all vertical distances of q ∈ B to f . In particular, that distance is 0 if and only if the function graph of f enters the box. Note that if f is a sinusoidal curve consisting of all solutions (r, Θ) of the equation 
+
+xp cos Θ+ yp sin Θ = r, the vertical distance can be computed in constant time by considering the (up to two) local extrema of f wihin the x-range of B, and the corners of the B.Using the vertical distance, we can derive an improved adaptive Lipschitz constant of the score function restricted to a box B. For the kernel function κ and δ ≥ 0, we define 
+
+λ≥δκ as the Lipschitz constant of κ on the interval [δ, +∞). By the properties of κ, λ≥δκ
+
+is non-increasing in δ and converges to 0 for δ → ∞ for the two kernel functions that we consider below. The following lemma is a direct consequence of our definitions: 
+
+▶ Lemma B.1. For a fixed box B, let S|B (r, Θ) denote the score function restricted to the box B. Let P be a finite point set within the unit circle. For p = ( xp, y p) ∈ P , let δ(p) denote the vertical distance of B and the sinusoidal curve r(Θ) = xp cos Θ + yp sin Θ . Then, S|B
+
+has a Lipschitz constant of at most 
+
+√2
+
+|P |
+
+∑
+
+> p∈P
+
+λ≥δ(p)
+
+> κ
+
+Proof. Note that the estimations in (4) and (5) from Appendix A remain valid (with ‖p‖ ≤ 1
+
+by assumption) and moreover, when restricting to B, κ only can take values ≥ δ(p) by definition, which yields that ∣∣ ∂κ ∂∆
+
+∣∣ ≥ λ≥δ(p) 
+
+> κ
+
+. ◀
+
+The hat kernel Considering the definition of κ := κhat , we observe at once that 
+
+λ≥δκ =
+
+{ 1 
+
+> σ
+
+δ ≤ σ
+
+0 δ ≥ σ .
+
+Therefore, the computation of the local Lipschitz constant for B boils down checking whether the vertical distance for B and the curve of p ∈ P has vertical distance more than 
+
+σ or not. Writing C for the number of curves with smaller vertical distance then σ, we immediately get with Lemma B.1 a local Lipschitz constant of 
+
+C√2
+
+|P |σ .
+
+Note that λκ = 1 
+
+> σ
+
+, so with the trivial upper bound of C ≤ | P |, the bound becomes √2λκ,the global upper bound. 
+
+The RBF kernel Set 
+
+κ(x) := κRBF (x) = exp 
+
+(
+
+− x2
+
+2σ2
+
+)
+
+.
+
+Basic calculus reveals that the derivative of κ is 
+
+κ′(x) = −xσ2 exp 
+
+(
+
+− x2
+
+2σ2
+
+)
+
+whose absolute value is maximized at x = σ with absolute value equal to 1 
+
+> σ√e
+
+. Moreover, the first derivative is decreasing in the interval [σ, ∞). Therefore, we can simply bound 
+
+λ≥δκ =
+
+ 
+
+> 1
+> σ√e
+
+δ ≤ σ 
+
+> δσ2
+
+exp 
+
+(
+
+− δ2
+
+> 2σ2
+
+)
+
+δ ≥ σ .
+
+and obtain an adaptive bound using Lemma B.1. S. Huber, K. Huszár, M. Kerber and M. Uray 70:9 
+
+## C Experimental evaluation 
+
+For the classical method (implemented in OpenCV [2]), the choice of a threshold is highly dependent on the input data (right in Figure 3), making it difficult, if not impossible, to identify a single threshold that enables the detection of the correct number of lines. With the following experiment, we demonstrate that the proposed method is more likely to produce a threshold that yields a clear and robust separation. For this experiment, we generated 
+
+1000 images, each containing four randomly parameterized lines (Θ , r ) with 18, 17, 16, and 15 sampled points, respectively. Each point was perturbed by an orthogonal displacement drawn uniformly from [−1, 1) . Our method is parametrized using the hat kernel κhat , σ = 5 ,and ϵ = 5 . We measure the absolute gap between the last included and the first candidate line excluded using persistence, ∆Pers (ours), and vote counts, ∆Vote (OpenCV ), taking the provided order of candidate lines into account. The results are illustrated in Figure 4. While our method consistently yields a non-zero interval from which a valid threshold can be selected, the vote-based approach exhibits ∆Vote = 0 for 66 .5% of the experiments, thereby preventing the selection of a threshold that correctly recovers the true number of lines.      
+
+> Figure 4 Illustration of the admissible threshold ranges ∆Vote and ∆Pers in Hough space for persistence-based thresholding (our method) and discrete, vote-based thresholding ( OpenCV ).
+
+Further, assuming that both methods detect the optimal number of candidate lines in the generated images, Figure 5 compares the quality of the detected lines using the Euclidean distance in parameter space, and the absolute deviations in r and Θ to the ground truth. Across all three evaluation metrics, the results consistently demonstrate a performance ad-vantage of our method over the baseline. MU: I hope I did no con-fuse σ with λ here 
+
+To develop intuition on the optimal kernel width σ, we conducted a preliminary experi-ment on a single random line detection across varying noise levels, using the hat kernel κhat 
+
+and a fix ϵ = 5 . For each σ ∈ [1 , 20] , we performed 20 trials with different lines randomly parameterized lines (Θ , r ) per noise level n ∈ [0 , 20] , where each point on the line is subject to an orthogonal displacement drawn uniformly from [−n, n ). The mean Euclidean error 
+
+‖ · ‖ across all trials is then computed for each configuration, and the σ value yielding the minimum error is identified. The results, shown in Figure 6, suggest that the optimal σ
+
+corresponds to the expected noise level, implying that when the maximum noise level can be estimated in advance, this prior knowledge can be leveraged to maximize performance. To investigate the sensitivity of the method to the choice of ϵ, we conduct an experiment across varying values of ϵ, fixing the hat kernel κhat with σ = 5 . For each configuration, 
+
+20 trials are performed, each consisting of detecting a single random line parameterized by (Θ , r ), with 18 sample points on a 32 × 32 image, where each point is subject to a 
+
+E u r o C G ’ 2 6 70:10 Topologically Stable Hough Transform      
+
+> Figure 5 Results of the experiment evaluating detection quality using the Euclidean norm in normalized parameter space and the absolute errors in rand Θrelative to the ground-truth lines, computed from the best pairwise matches.
+
+random orthogonal displacement drawn uniformly from [−5, 5) . We report the Euclidean error ‖ · ‖ between the detected and the true line as a sequence of boxplots over each value of ϵ, alongside the per-run detection runtime (in ms). The results, shown in Figure 7, reveal a clear trade-off between detection performance and computational cost as a function of ϵ. A lower ϵ yields finer quads and higher sensitivity, resulting in better detection performance, but also a greater number of quads generated from the continuous parameterization and thus a higher computational cost. In this experimental setting, detection performance degrades as ϵ increases up to ϵ = 13 , beyond which both performance and runtime stabilize. Notably, the computation speedup gained by relaxing detection performance (e.g. ϵ = 1 vs. ϵ = 13 ) amounts to a factor of approximately 100 .S. Huber, K. Huszár, M. Kerber and M. Uray 70:11 
+
+Figure 6 Analysis of the optimal kernel width σ. We plot the error as a function of the ratio between the noise level (in pixels) and σ. Each configuration is repeated 20 times and the mean error is reported. The minimum for each configuration is marked by a red dot and a vertical dashed line. The distribution of all minima is shown in the bottom boxplot. 
+
+Figure 7 Detection performance and runtime (ms) as a function of ϵ, evaluated over 20 trials per configuration on a single random line with 18 sample points on a 32 × 32 image. 
+
+E u r o C G ’ 2 6
