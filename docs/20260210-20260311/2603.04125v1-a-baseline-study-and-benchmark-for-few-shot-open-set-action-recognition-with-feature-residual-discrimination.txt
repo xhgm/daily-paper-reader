@@ -1,0 +1,304 @@
+Title: A Baseline Study and Benchmark for Few-Shot Open-Set Action Recognition with Feature Residual Discrimination
+
+URL Source: https://arxiv.org/pdf/2603.04125v1
+
+Published Time: Thu, 05 Mar 2026 02:09:42 GMT
+
+Number of Pages: 15
+
+Markdown Content:
+# A Baseline Study and Benchmark for Few-Shot Open-Set Action Recognition with Feature Residual Discrimination 
+
+Stefano Berti [0009 −0002 −0906 −2251] , Giulia Pasquale [0000 −0002 −7221 −3553] , and Lorenzo Natale [0000 −0002 −8777 −5233] 
+
+Humanoid Sensing and Perception, Istituto Italiano di Tecnologia, Genoa, Italy 
+
+{stefano.berti, giulia.pasquale, lorenzo.natale}@iit.it 
+
+Abstract. Few-Shot Action Recognition (FS-AR) has shown promising results but is often limited by a closed-set assumption that fails in real-world open-set scenarios. While Few-Shot Open-Set (FSOS) recognition is well-established for images, its extension to spatio-temporal video data remains underexplored. To address this, we propose an architectural extension based on a Feature-Residual Discriminator (FR-Disc), adapt-ing previous work on skeletal data to the more complex video domain. Extensive experiments on five datasets demonstrate that while common open-set techniques provide only marginal gains, our FR-Disc significantly enhances unknown rejection capabilities without compromising closed-set accuracy, setting a new state-of-the-art for FSOS-AR. The project website, code, and benchmark are available at: https://hsp-iit.github.io/fsosar/. 
+
+Keywords: Action Recognition · Few-Shot Learning · Open-Set Recog-nition 
+
+## 1 Introduction 
+
+Deep learning has achieved remarkable success in action recognition by learning complex spatio-temporal representations from large-scale datasets [23]. However, the high cost of video annotation limits these models in real-world scenarios. Few-shot (FS) recognition addresses this by enabling generalization to novel classes with minimal labeled examples [25, 35, 40, 41, 45, 46]. Recent advances in FS-AR have further leveraged multi-modal settings—such as RGB, optical flow, or text—to improve robustness through complementary information [34, 39, 42 –44]. A critical yet underexplored challenge in FS-AR is the open-set scenario, where models must reject unknown test samples to avoid false positives. While few-shot open-set (FSOS) recognition is established for images [8, 13, 14, 18, 31 –33, 38], existing methods neglect the temporal dynamics of video. To our knowledge, the only existing approach for FSOS action recognition is our previous work [2], which was limited to skeletal data. Traditional open-set techniques rely either on scoring mechanisms—such as Maximum Softmax Score (MSS) or Maximum Logit Score (MLS) [9]—or auxiliary  
+
+> arXiv:2603.04125v1 [cs.CV] 4 Mar 2026 2S. Berti et al.
+
+Fig. 1: Comparison between the results of the closed-set Softmax Base-line SAFSAR [34] and its proposed open-set extension FR-Disc on an unknown query . The Support Set contains K = 2 classes and N = 1 videos. The true class of the query is not contained in the Support Set, so it should be rejected through low confidence ( e.g., < 50% ). The Baseline incorrectly classifies it as known (false positive), while FR-Disc correctly rejects it (true negative). Additional qualitative examples are provided in the Supplementary Material. classification modules [22, 38]. Studies in image-based OS recognition [3, 27, 37] show that MLS often outperforms MSS and more complex methods because the Softmax operation discards logit magnitude, which is vital for uncertainty estimation [37]. We investigate these insights in the video-centric FSOS domain by establishing a comprehensive benchmark suite across five datasets. We adapt two distinct FS-AR models, STRM [35] and SAFSAR [34], with these techniques, to provide a baseline for performance-efficiency trade-off. Our main contributions are as follows: 
+
+– We adapt five state-of-the-art FS-AR video datasets to open-set conditions and establish the first comprehensive set of baselines for FSOS-AR. 
+
+– We demonstrate that FS-AR models can be equipped with OS recognition techniques without degrading closed-set accuracy, extending image-based OS findings to the video domain. 
+
+– We introduce a specialized architecture by evolving the Feature-Residual Discriminator (FR-Disc) [2] for high-dimensional video data. We show that modeling discrepancies between query features and class prototypes is superior to standard logit-based metrics (MLS/MSS) for capturing complex temporal dynamics. Overall, this work provides a foundational study of FSOS-AR, offering a robust evaluation of varied approaches on public benchmarks. Few-Shot Open-Set Action Recognition 3
+
+## 2 Related work 
+
+2.1 Few-Shot Action Recognition 
+
+FS-AR advances focus on modeling spatio-temporal dynamics to generalize across novel classes. Temporal-relational methods like TRX [25] and STRM [35] align query-support patterns via cross-transformers, while motion-aware ap-proaches such as MTFAN [45] and MoLo [40] leverage motion-modulated frag-ments or contrasting contexts. Other frameworks integrate graph-guided matching (GgHm [46]) or temporal set alignment (HyRSM++ [41]). Multi-modal trends further enhance robustness by using semantic priors [43], commonsense knowl-edge prompting [29, 30], multi-modal feature exploration [44], or CLIP-guided modulation [39, 42]. Specifically, SAFSAR [34] demonstrates state-of-the-art performance in 1-shot settings. Despite their success, these models assume a closed-set environment, limiting real-world utility. 
+
+2.2 Open-Set Recognition Images. Early works introduce training-based losses like Entropic Open-Set (EOS) and Objectosphere to regularize feature magnitudes [9]. While foundational baselines relied on Maximum Softmax Scores (MSS) or “garbage” classes, recent studies [3, 37] show that Maximum Logit Scores (MLS) often achieve state-of-the-art results by preserving logit magnitude, outperforming generative [6,21] or post-processing methods like OpenMax [11]. Additionally, while input perturbations (e.g., ODIN) can improve detection, MLS remains a more practical baseline due to its computational efficiency [27]. 
+
+Videos. Video-centric OS recognition is less explored. Recent works evaluate met-rics like AUROC on datasets such as FineGym and Diving48 using Regularized-Discriminative OpenMax [47], or employ Evidential Deep Learning [1] and Information Bottleneck theory [5] on UCF101 and HMDB51. Skeleton-based OS-AR has also been recently benchmarked on NTURGBD [24]. 
+
+2.3 Few-Shot Open-Set Recognition Images. FSOS image recognition balances limited labels with unknown rejection through meta-learning (PEELER [18]), transformation consistency (SNATCHER [14]), task-adaptive sampling (SEMAN-G [13]), and background cues (ProCAM [31]). Subsequent refinements include relative displacement [8], energy-based frameworks [38], and vision-language integration [7, 20, 22, 33]. These, however, do not encode the temporal information necessary for video. 
+
+Videos. To our knowledge, only our previous work [2] addresses FSOS-AR, using skeletal data and a feature-residual rejection module. This present work evolves that concept to high-dimensional video data, establishing its effectiveness on our proposed benchmark suite. 4 S. Berti et al. 
+
+## 3 Problem Definition and Metrics 
+
+3.1 Task Definition 
+
+We define Few-Shot Action Recognition (FS-AR) as a classification task where each class represents a different action. Let D = {(xi, y i) : yi ∈ Y } be a video dataset with label set Y , where xi and yi represent a video and its class respectively. The label set is split into disjoint training Y train and test Y test sets. 
+
+Few-Shot Action Recognition. Following episodic training [4, 25], we sample 
+
+N train tasks to form the task set T train known = {SS i, Q known  
+
+> i
+
+}N train  
+
+> i=1
+
+. Each support set, defined as SS i = {(xij , y ij ) : yij ∈ Y SS i }N K j=1 , contains N K examples, that are N
+
+videos for each of the K classes sampled from Y train . The query Qknown  
+
+> i
+
+belongs to the same label set Y SS i . The objective is to train a classifier f such that: 
+
+PFS ≜ f (SS i, x i) = ˆ yi : ˆ yi = yi. (1) At test time, the protocol uses tasks T test known sampled from Y test .
+
+Few-Shot Open-Set Action Recognition. We extend this to FSOS-AR by introducing an “unknown” task set T train unknown = {SS i, Q unknown  
+
+> i
+
+}N T
+
+> i=1
+
+, where the query Qunknown  
+
+> i
+
+belongs to classes Y unknown  
+
+> i
+
+= Y train − Y SS i (or Y test − Y SS i
+
+during testing). The full task set is T = Tknown ∪ Tunknown . We first define a binary classification problem POS to distinguish known from unknown samples: 
+
+POS ≜ f (SS i, x i) = ˆ ai : ˆ ai = ai, (2) where ai = 1 (accept) for known and ai = 0 (reject) for unknown queries. Ultimately, FSOS-AR requires predicting both the acceptance state and, if known, the specific class: 
+
+PFSOS ≜ f (SS i, x i) = 
+
+(
+
+ˆai : ˆ ai = ai
+
+ˆyi : ˆ yi = yi if ai = 1 (3) 
+
+3.2 Performance Metrics 
+
+We evaluate performance using three categories of metrics: 
+
+Closed-Set Metrics. Few-shot accuracy ( FS ACC ) evaluates the model’s ability to discriminate among K known classes ( PF S , Eq. 1), ignoring open-set detection. 
+
+Open-Set Metrics. To evaluate the POS binary task (Eq. 2), we report open-set accuracy ( OS ACC ), AUROC , and AUPR . These are computed over the balanced set T test known ∪ T test unknown .
+
+Joint Metrics. The Open-Set Classification Rate ( OSCR ) [9] measures the trade-off between open-set detection and closed-set accuracy (Eq. 3). It computes the area under the Correct Classification Rate (CCR) vs. False Positive Rate (FPR) curve, where CCR = 1 
+
+> |Ttest known |
+
+P 
+
+> (SS i,Q i)∈Ttest known
+
+I[ˆ yi = yi]I[ˆ ai = 1] .Few-Shot Open-Set Action Recognition 5Raw logits   
+
+> Closed-set scores
+> MLS
+> MSS
+> Closed-set
+> scores
+> All probabilities
+> Closed-set score
+> Raw logits Raw Logits
+> Closed-set scores
+> Closed-set scores
+> Open-set score
+> Open-set score
+> Get MLS or MSS
+> Open-set
+> score
+> No Yes
+> BB
+> BB
+> BB
+> BB
+> FR
+> Backbone Feature Refinement
+> Distance Function
+> Raw Logits
+> Video Features Video Features
+
+Fig. 2: Overview of closed- and open-set prediction flows for (a) implicit (Softmax, EOS), (b) explicit (Garbage Class), and (c) Discriminator-based methods. For implicit methods, ˆui is derived via MLS/MSS. In (b), a query is rejected if the garbage prototype Pg yields the highest probability. In (c), ˆui is computed by an MLP with Sigmoid activation using the Θ function (Eq. 6). (d) and (e) illustrate the feature extraction and inference decision flow for SAFSAR and STRM models. 
+
+## 4 Methods 
+
+4.1 Few-Shot Action Recognition Models 
+
+We employ two representative closed-set FS-AR baselines: STRM [35], a 2D transformer-based model, and SAFSAR [34], a 3D model. STRM enhances 2D features via patch-level and frame-level aggregation modules to capture local and temporal details. SAFSAR utilizes a 3D VideoMAE [36] backbone and incorporates text-based semantic priors to guide feature learning, offering superior performance at a higher computational cost. Both models use a standard Cross-Entropy (CE) loss on the known task set T train known :
+
+LCE = −
+
+KX
+
+j=1 
+
+yij log(ˆ pij ) (4) where ˆpij is the predicted probability for class j. At inference, the class with the maximum probability is selected. 
+
+4.2 Open-Set Techniques 
+
+We extend these baselines to output a known/unknown score ˆui ∈ [0 , 1] . We categorize these extensions into implicit and explicit techniques (Fig. 2). 
+
+Implicit OS Techniques These require no additional parameters, modifying only the scoring or loss function. 6 S. Berti et al. 
+
+– Softmax Baseline : Uses the Maximum Logit Score (MLS) , defined as 
+
+ˆui = Max ({ˆsij }Kj=1 ) or the Maximum Softmax Score (MSS) , defined as 
+
+ˆui = Max (Softmax ({ˆsij }Kj=1 )) = Max ({ˆpij }Kj=1 )) as the open-set score ˆui. A query is accepted if ˆui > τ .
+
+– Entropic Open-Set (EOS) : Adds an entropy-boosting term to the loss to push predictions for unknown tasks T train unknown toward a uniform distribution: 
+
+LEOS = − 1
+
+> K
+
+PKj=1 log ( ˆpij ). The total loss is L = LCE + αEOS LEOS , where 
+
+αEOS balances the two terms. 
+
+Explicit OS Techniques These methods introduce extra parameters to produce a (K + 1) -way output, where the additional logit represents the “unknown” class. 
+
+– Garbage Class (GC) : A random learnable “Garbage Prototype” Pg is added to the support set. During training, unknown queries are assigned the label K + 1 . At inference, the query is rejected if ˆpi,K +1 is the maximum probability; the open-set score is ˆui = 1 − ˆpi,K +1 .
+
+– Feature-Residual Discriminator (FR-Disc) [2]: This approach introduces a lightweight auxiliary network (the Discriminator) fed with the “residual” (difference) between the query features and the features of the closest support class. The Discriminator is trained to distinguish between known and unknown queries. During training, positive samples are defined as known queries correctly classified by the closed-set model, while an equal number of negative (unknown) samples are used to maintain class balance. At inference, the Discriminator’s confidence score, ˆui, serves as the known/unknown indicator, which is compared against a threshold τ to accept or reject a query. The training loss for the Discriminator is defined as: 
+
+LDisc ({ˆpij }Kj=1 , y i) = I(ˆ yi = yi) · BCE (di, 1) + I(yi ∈ Y unknown  
+
+> i
+
+) · BCE (di, 0) , (5) where I is the indicator function, BCE is the Binary Cross-Entropy loss, and 
+
+di represents the feature residual: 
+
+di = Θ(xi, SS i, { ˆsi}j ) = ϕ(xi) − ϕ(SS i, argmax j ({ ˆpij }Kj=1 )), (6) Here, ϕ(·) denotes the feature extractor, xi is the query, and argmax j returns the value j corresponding to the maximum value of its argument. The final joint loss is: 
+
+L = LCE + αDisc LDisc . (7) where αDisc is a weighting hyperparameter. This approach shares similarities with metric-based methods, such as Siamese Networks, which utilize feature differences to measure similarity and have been shown to enhance performance in few-shot classification [10]. We adapt this technique to the video domain by defining individual Discriminators for both the SAFSAR and STRM modules, more details are available in Supplementary Material. Few-Shot Open-Set Action Recognition 7
+
+## 5 Experimental Setup 
+
+5.1 FSOS-AR Benchmark Suite 
+
+To establish a robust FSOS-AR benchmark, we utilize train/test splits from existing FS-AR literature to generate known and unknown task sets ( T train , T test ). We employ five datasets covering diverse domains: 
+
+– HMDB51 [16] & UCF101 [15]: Standard benchmarks for human actions. We use the splits from [48] (HMDB: 31/10 train/test classes; UCF: 70/21). 
+
+– SSv2 [12]: Focuses on fine-grained object interactions. We adopt the split from [4] (64/24 classes). 
+
+– NTURGBD [28] & Diving48 [17]: For NTU, we select two-person interac-tions (82 classes remaining). For both datasets, we generate random 70/30% train/test splits (NTU: 57/25 classes; Diving48: 32/15 classes). 
+
+5.2 Implementation Details 
+
+Following standard FS-AR protocols, we evaluate on 5-Way, 1-Shot and 5-Shot tasks, sampling 8 frames per video. We use the original hyperparameters for STRM [35]. For SAFSAR [34], we re-implemented the model using VideoMAE weights pre-trained on Kinetics-400 [36]. For the explicit thresholding metrics (OS ACC), we fix τ = 0 .5. Other metrics (AUROC, OSCR) are threshold-independent. Additional implementation details are provided in the Supplementary Material. 
+
+## 6 Results 
+
+Table 1 and Table 2 report the results for SAFSAR and STRM, respectively, across all five datasets and the four open-set techniques. In Section 6.1 we discuss the result of the Softmax baseline, while in Section 6.2 we analyze the performance of the different Open-Set techniques. In our experiments, we observed that for SAFSAR, the Softmax Baseline (as well as the EOS and Garbage Class methods) exhibits a performance decline on the HMDB51 and UCF101 datasets if training is extended. This behavior is suggestive of overfitting; while training metrics saturate almost immediately, validation results show a gradual deterioration. This trend may be attributed to the relatively low class cardinality and predominantly spatial nature of HMDB51 and UCF101, combined with the strong action-representation capabilities of the pretrained VideoMAE backbone. In these cases, the model rapidly learns to recognize the training actions and may over-specialize its weights for episodic tasks involving only training classes. To ensure a fair evaluation and maintain generalization, we limited the training to 1K iterations for SAFSAR on HMDB51 and UCF101 for the Softmax, EOS, and GC techniques in Table 1. In contrast, the FR-Disc technique did not require early stopping, as it exhibited no signs of overfitting in our experiments. We also do not report performance for STRM on the 1-Shot task in Table 2 because in this scenario STRM suffers of feature bias [26]. 8 S. Berti et al. 
+
+Table 1: Combined results for SAFSAR in 5-way 1-Shot and 5-Shot settings. Green/red values indicate improvement/decline over the Softmax baseline. Values marked with (*) denote models trained for 1K iterations to prevent overfitting.                                                                                                                                                                          
+
+> OS-Method FS ACC OS ACC AUROC AUPR OSCR 1-s 5-s 1-s 5-s 1-s 5-s 1-s 5-s 1-s 5-s
+> Diving48
+> Softmax 63.49 74.12 64.16 65.36 68.48 71.49 69.71 72.07 59.86 66.15 EOS 64.43 72.80 62.91 64.94 68.64 74.60 69.71 75.06 60.36 67.43 GC 65.01 76.32 64.89 69.36 70.18 75.82 71.38 76.01 60.63 69.13
+> FR-Disc 68.83 78.58 66.22 70.29 71.28 76.55 72.28 76.32 63.46 71.04
+> SSv2
+> Softmax 62.11 74.08 62.29 69.61 70.39 77.05 73.02 78.80 60.72 69.35 EOS 62.97 73.84 65.08 69.90 71.56 79.60 73.74 81.18 61.53 70.38 GC 62.47 76.24 64.06 70.89 69.20 77.62 70.47 76.92 59.26 70.20
+> FR-Disc 63.37 77.88 66.56 73.52 72.18 81.56 74.98 82.96 62.12 73.18
+> NTURGBD
+> Softmax 88.31 91.58 79.90 81.45 87.76 91.44 88.35 91.30 81.45 84.83 EOS 87.63 91.86 80.10 82.18 88.17 91.89 88.96 92.19 81.34 85.11 GC 89.07 92.40 81.78 81.51 89.30 89.37 88.94 88.63 81.93 84.03
+> FR-Disc 89.97 95.54 82.95 86.53 89.78 94.31 89.82 94.26 83.12 88.31
+> HMDB51
+> Softmax* 65.29 79.68 64.44 72.40 70.76 81.79 73.87 83.33 62.23 74.26 EOS* 69.19 80.18 66.23 72.48 74.60 81.45 77.13 83.50 65.74 74.61 GC* 62.85 76.74 60.19 64.30 68.99 76.45 71.87 78.93 60.49 70.42
+> FR-Disc 72.38 85.17 68.87 76.99 77.48 87.94 80.30 89.75 68.79 80.15
+> UCF101
+> Softmax* 95.04 98.32 80.59 91.25 94.55 98.03 95.04 98.32 88.31 91.57 EOS* 94.84 98.78 81.30 89.32 95.18 98.31 95.73 98.50 88.47 91.97 GC* 79.98 86.33 59.88 57.49 75.15 81.91 77.29 82.99 70.85 77.43
+> FR-Disc 95.72 99.28 86.82 91.52 95.19 98.89 96.23 99.08 89.01 92.49
+
+6.1 Evaluating the Softmax Baseline Logits normalization worsens open-set recognition. Previous works [3, 37] have shown that MLS outperforms MSS in rejecting unknown queries in the image domain, as the Softmax normalization hides magnitude information. We first investigated this claim in the spatio-temporal setting as well. In Figure 3a we compare the open-set performance of MLS and MSS for SAFSAR’s Softmax Baseline (1-Shot) on the SSv2 dataset. The result supports the claim in this domain too: MLS consistently outperforms MSS, underscoring the importance of preserving the logits magnitude for representing prediction confidence. We did not conduct this comparison for STRM because MLS requires bounded logits, such as the cosine similarities produced by SAFSAR. In contrast, STRM produces unbounded logits (negative norms of feature differences). While normalization based on training set ranges is possible, it would necessitate additional threshold tuning; to ensure a fair comparison and avoid extra hyperparameter dependencies, we opt for the most compatible scoring method for each architecture. Consequently, Few-Shot Open-Set Action Recognition 9
+
+Table 2: Results for STRM in 5-way 5-Shot settings. Green/red values indicate improvement/decline over the Softmax baseline.                                                                                                          
+
+> OS-Method FS ACC OS ACC AUROC AUPR OSCR
+> Diving48
+> Softmax 74.74 52.91 58.92 63.25 63.61 EOS 73.58 60.51 67.01 69.02 65.63 GC 73.22 53.76 71.71 72.56 66.09
+> FR-Disc 77.74 64.92 75.73 75.72 70.00
+> SSv2
+> Softmax 65.25 53.98 61.94 66.33 60.77 EOS 63.61 59.91 64.29 69.09 60.65 GC 43.05 50.68 58.15 62.45 47.06
+> FR-Disc 65.51 58.99 70.82 73.59 62.52
+> NTURGBD
+> Softmax 95.14 50.85 74.69 78.26 80.28 EOS 92.08 75.80 85.74 86.32 83.30 GC 85.71 59.29 80.27 80.02 76.84
+> FR-Disc 93.28 80.76 92.27 91.95 86.11
+> HMDB51
+> Softmax 75.92 52.18 70.49 65.29 67.34 EOS 75.18 64.99 75.18 70.58 69.33 GC 71.14 51.10 78.85 73.85 65.96
+> FR-Disc 75.50 56.87 77.59 75.20 69.11
+> UCF101
+> Softmax 95.48 51.20 86.79 89.39 87.40 EOS 95.05 75.71 90.35 92.42 86.87 GC 95.58 63.21 93.35 95.34 83.71
+> FR-Disc 95.76 63.47 93.60 94.56 88.37
+
+we employ MLS for SAFSAR and MSS for STRM with the Softmax baseline and EOS techniques. 
+
+Closed-set models can be strong competitors in open-set tasks. In Table 1 and Table 2 we report the performance of respectively the SAFSAR and the STRM models combined with the considered OS techniques across datasets. We first observe that the Softmax Baseline achieves competitive open-set metrics. This is somewhat unexpected, as unknown queries can still resemble support examples and lead to confident false positives. However, this also aligns with the claim made by [37], which suggests that a classifier’s ability to make “none-of-the-above” decisions (i.e., to detect unknown queries) is strongly correlated with its accuracy on the closed-set classes, likely due to their ability to learn discriminative, well-separated features. This is particularly evident on the easiest dataset UCF101 where the overall performance is very high, especially for SAFSAR, and the gains offered by OS techniques over the closed-set baseline are smaller. 
+
+Are closed- and open-set performance correlated? To investigate this finding in this spatio-temporal task, we conducted an experiment similar to [37]. In 3b we plot the closed- and open-set metrics in a scatter plot, for SAFSAR’s and STRM’s Softmax Baseline on all datasets. We first notice, for each model, 10 S. Berti et al.  
+
+> (a) MSS vs. MLS comparison. (b) Metric correlation.
+
+Fig. 3: Analysis of open-set scoring and performance correlation. (a) Comparison between MSS and MLS for SAFSAR’s Softmax Baseline on SSv2 1-Shot. (b) Global correlation between closed-set and open-set metrics across all five datasets for both SAFSAR and STRM. a linear correlation between these two metrics across datasets, with Pearson coefficients of 0.84 for STRM, and 0.99 and 0.97 for 1- and 5-Shot SAFSAR respectively. Moreover, SAFSAR’s equal or better closed-set performance is coupled with a consistently better open-set performance with respect to STRM: this can be noticed when comparing SAFSAR 5-Shot (cross) vs. STRM 5-Shot (triangle) on a same dataset (same color) and noticing that the cross appears to the right or aligned to the triangle for each dataset except NTURGBD, and consistently above the triangle for each dataset. This indicates that even without dedicated open-set mechanisms, a better-trained closed-set classifier can effectively generalize better to distinguish known and unknown classes. We expect this correlation for the prototype-based methods considered here, as both closed-and open-set performance are rooted in the same discriminative feature learning process. Specifically, because the model relies on the same learned representations for both classification and outlier detection, improvements in feature clustering for known classes naturally enhance the ability to isolate unknown samples. 
+
+6.2 Evaluating Open-set Techniques EOS: Benefits of exposing a closed-set model to unknowns. This is a relatively easy technique (requiring only tuning the loss weight σEOS ) to expose the model to unknown queries, where it forces the output probabilities {ˆpij }Kj=1 
+
+to have equal values 1/K over all classes. When EOS is applied to SAFAR in Table 1, it occasionally causes minor drops in FS ACC ( −1.32% on Diving48 5-Shot), but consistently improves OSCR metric across almost all datasets for both 1- and 5-Shot tasks. EOS benefit is larger on the less powerful STRM in Table 2, providing improvements of ∼10 -25% on the OS ACC on NTURGBD, UCF101 and HMDB51, and an average ∼5 − 10% gain on the AUROC and AUPR metrics. As for SAFSAR, the gain on the open-set metrics comes with a minor cost on the FS ACC, with the highest reduction of ∼3% on NTURGBD. Few-Shot Open-Set Action Recognition 11       
+
+> (a) Feature t-SNE visualizations
+> 0101
+> 0101(b) Open-set score distribution histograms
+
+Fig. 4: Qualitative comparison between the SAFSAR Softmax baseline and FR-Disc on the SSv2 test set. (a) t-SNE of video features ϕ(xi) for the baseline (left) and FR-Disc (right). (b) Score histograms for known (blue) and unknown (red) queries, comparing the baseline (top) and FR-Disc (bottom). Our method yields tighter feature clustering and assigns significantly lower confidence to unknown samples. This result shows that good open-set rejection improvements can be obtained with this simple technique on more or less powerful prototype-based models as SAFSAR and STRM, with a minor cost on the closed-set accuracy. 
+
+Garbage Class: Difficulty of learning a prototype for unknowns. The Garbage Class (GC) technique exhibits high sensitivity to both dataset charac-teristics and backbone architecture. For SAFSAR, we observe a clear dichotomy: while GC provides gains on complex spatio-temporal datasets like SSv2 and Diving48, it consistently degrades performance on datasets with strong spatial biases, such as HMDB51 and UCF101. On our experiments we noticed that on these smaller datasets, the VideoMAE backbone rapidly reaches 100% training accuracy, signaling a collapse into overfitting (see Supplementary Materials for the corresponding convergence plots). We hypothesize that in these regimes, the “garbage” category fails to generalize because it only learns to model the “none-of-the-above” samples for that specific training set, memorizing static scene cues rather than a general concept of “unknown” actions. Unlike SAFSAR, STRM suffers a catastrophic drop in Few-Shot Accuracy (10% -20% ) on NTURGBD and SSv2 when the GC is added, alongside a general decline in all open-set metrics. This suggests that the explicit modeling of an auxiliary class interferes with STRM’s specific spatio-temporal alignment mechanism, likely by distorting the prototype space during the meta-learning phase. 
+
+FR-Disc: Effectiveness of query-prototype feature residuals . Among the considered techniques, FR-Disc consistently outperforms on all datasets the Softmax Baseline and the other techniques in both 1- and 5-Shot, closed-set and open-set metrics. On SAFSAR (Table 1), FR-Disc improves few-shot accuracy in the 5-Shot task by 3.80–5.49% (0.96% for UCF101). Regarding open-set 12 S. Berti et al. 
+
+performance, the OSCR metric increases by 3.48–5.89% in the 5-Shot scenario and by 1.40–6.56% in the 1-Shot scenario, with UCF101 showing consistent gains of approximately 0.70–0.92%. When applied to STRM, as shown in Table 2, this is the only open-set technique that consistently improves the OSCR metric from the Softmax Baseline in all datasets, with a minor cost of respectively 
+
+1.86% and 0.42% of FS ACC on NTURGBD and HMDB51, improving the FS ACC for the other datasets. This performance gain may be attributed to the fine-grained discrimination capabilities acquired by the Discriminator. There are achieved by the coupling of (i) the known/unknown classification training protocol, that asks to distinguish a query from the most similar known class, and (ii) the residual-based discrimination which, by emphasizing relative variations in the video pair, helps to catch fine distinctions in the feature representation. 
+
+Improved feature representations. Figure 4 illustrates how the SAFSAR model benefits from the proposed FR-Disc technique through two qualitative visualizations. First, Figure 4a compares t-SNE [19] projections of the video features ϕ(xi), where each color represents a distinct class. To ensure a fair comparison, both the Softmax baseline and FR-Disc are evaluated using the identical set of 1000 SSv2 test queries. Our method produces visibly more compact clusters with significantly improved inter-class separability. Second, Figure 4b displays the open-set score distributions for the same 1000 known (Blue) and 1000 unknown (Red) queries across both configurations. While the Softmax baseline exhibits a high degree of over-confidence—manifesting as a large "acceptance" spike at 1.0 for unknown samples—our FR-Disc method effectively suppresses this peak. The resulting scores are better distributed, allowing for a clearer distinction between known classes and outliers. 
+
+## 7 Conclusion 
+
+This work addresses a critical gap in evaluating few-shot action recognition (FS-AR) methods under open-world conditions, where models must recognize known classes while rejecting unknowns. We introduce the first standardized benchmark for few-shot open-set action recognition (FSOS-AR), adapting five established datasets to represent open-set tasks. By considering a meta-learning prototype-based approach, we demonstrate that representative closed-set models such as SAFSAR and STRM can be effectively adapted to open-set tasks using techniques from image-based recognition, without sacrificing closed-set accuracy. Notably, for this category of models, we observe that strong closed-set performance often correlates with open-set robustness. Our evaluation identifies FR-Disc as the most reliable explicit OS technique, consistently outperforming alternatives across datasets. Conversely, we observe unstable behavior in the GC method, which we attribute to the difficulty of learning a representative prototype for unknowns. The implicit EOS technique proved to be a good trade-off between simplicity and effectiveness. Overall, our analysis aims to establish FSOS-AR as an essential research direction to bridge the gap between controlled experiments and real-world action recognition systems. Few-Shot Open-Set Action Recognition 13 
+
+## References 
+
+1. Bao, W., Yu, Q., Kong, Y.: Evidential deep learning for open set action recognition. In: Proceedings of the IEEE/CVF international conference on computer vision. pp. 13349–13358 (2021) 2. Berti, S., Rosasco, A., Colledanchise, M., Natale, L.: One-shot open-set skeleton-based action recognition. In: 2022 IEEE-RAS 21st International Conference on Humanoid Robots (Humanoids). pp. 765–772. IEEE (2022) 3. Bisgin, H., Palechor, A., Suter, M., Günther, M.: Large-scale evaluation of open-set image classification techniques. arXiv preprint arXiv:2406.09112 (2024) 4. Cao, K., Ji, J., Cao, Z., Chang, C.Y., Niebles, J.C.: Few-shot video classification via temporal alignment. In: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. pp. 10618–10627 (2020) 5. Cen, J., Zhang, S., Wang, X., Pei, Y., Qing, Z., Zhang, Y., Chen, Q.: Enlarging instance-specific and class-specific information for open-set action recognition. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 15295–15304 (2023) 6. Chen, G., Peng, P., Wang, X., Tian, Y.: Adversarial reciprocal points learning for open set recognition. IEEE Transactions on Pattern Analysis and Machine Intelligence 44 (11), 8065–8081 (2021) 7. Chen, X., Li, Y., Chen, H.: Dual-adapter: Training-free dual adaptation for few-shot out-of-distribution detection. arXiv preprint arXiv:2405.16146 (2024) 8. Deng, S., Yu, J.G., Wu, Z., Gao, H., Li, Y., Yang, Y.: Learning relative feature displacement for few-shot open-set recognition. IEEE Transactions on Multimedia 
+
+25 , 5763–5774 (2022) 9. Dhamija, A.R., Günther, M., Boult, T.: Reducing network agnostophobia. Advances in Neural Information Processing Systems 31 (2018) 10. G. Koch, R. Zemel, R. Salakhutdinov: Siamese Neural Networks for One-shot Image Recognition. In: ICMLw (2015) 11. Ge, Z., Demyanov, S., Chen, Z., Garnavi, R.: Generative openmax for multi-class open set classification. arXiv preprint arXiv:1707.07418 (2017) 12. Goyal, R., Ebrahimi Kahou, S., Michalski, V., Materzynska, J., Westphal, S., Kim, H., Haenel, V., Fruend, I., Yianilos, P., Mueller-Freitag, M., et al.: The" something something" video database for learning and evaluating visual common sense. In: Proceedings of the IEEE international conference on computer vision. pp. 5842–5850 (2017) 13. Huang, S., Ma, J., Han, G., Chang, S.F.: Task-adaptive negative envision for few-shot open-set recognition. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 7171–7180 (2022) 14. Jeong, M., Choi, S., Kim, C.: Few-shot open-set recognition by transformation consistency. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 12566–12575 (2021) 15. Kay, W., Carreira, J., Simonyan, K., Zhang, B., Hillier, C., Vijayanarasimhan, S., Viola, F., Green, T., Back, T., Natsev, P., et al.: The kinetics human action video dataset. arXiv preprint arXiv:1705.06950 (2017) 16. Kuehne, H., Jhuang, H., Garrote, E., Poggio, T., Serre, T.: Hmdb: a large video database for human motion recognition. In: 2011 International conference on computer vision. pp. 2556–2563. IEEE (2011) 17. Li, Y., Li, Y., Vasconcelos, N.: Resound: Towards action recognition without representation bias. In: Proceedings of the European Conference on Computer Vision (ECCV). pp. 513–528 (2018) 14 S. Berti et al. 18. Liu, B., Kang, H., Li, H., Hua, G., Vasconcelos, N.: Few-shot open-set recognition using meta-learning. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 8798–8807 (2020) 19. Maaten, L.v.d., Hinton, G.: Visualizing data using t-sne. Journal of machine learning research 9(Nov), 2579–2605 (2008) 20. Miller, D., Sünderhauf, N., Kenna, A., Mason, K.: Open-set recognition in the age of vision-language models. In: European Conference on Computer Vision. pp. 1–18. Springer (2024) 21. Neal, L., Olson, M., Fern, X., Wong, W.K., Li, F.: Open set learning with coun-terfactual images. In: Proceedings of the European conference on computer vision (ECCV). pp. 613–628 (2018) 22. Ochal, M., Patacchiola, M., Boudiaf, M., Wang, S.: Eol: Transductive few-shot open-set recognition by enhancing outlier logits. arXiv preprint arXiv:2408.02052 (2024) 23. Pareek, P., Thakkar, A.: A survey on video-based human action recognition: recent updates, datasets, challenges, and applications. Artificial Intelligence Review 54 (3), 2259–2322 (2021) 24. Peng, K., Yin, C., Zheng, J., Liu, R., Schneider, D., Zhang, J., Yang, K., Sarfraz, M.S., Stiefelhagen, R., Roitberg, A.: Navigating open set scenarios for skeleton-based action recognition. In: Proceedings of the AAAI conference on artificial intelligence. vol. 38, pp. 4487–4496 (2024) 25. Perrett, T., Masullo, A., Burghardt, T., Mirmehdi, M., Damen, D.: Temporal-relational crosstransformers for few-shot action recognition. In: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. pp. 475–484 (2021) 26. Qin, Y., Liu, B.: Tfrs: A task-level feature rectification and separation method for few-shot video action recognition. Neural Networks 176 , 106326 (2024) 27. Roady, R., Hayes, T.L., Kemker, R., Gonzales, A., Kanan, C.: Are open set classifi-cation methods effective on large-scale datasets? Plos one 15 (9), e0238302 (2020) 28. Shahroudy, A., Liu, J., Ng, T.T., Wang, G.: Ntu rgb+ d: A large scale dataset for 3d human activity analysis. In: Proceedings of the IEEE conference on computer vision and pattern recognition. pp. 1010–1019 (2016) 29. Shi, Y., Wu, X., Lin, H.: Knowledge prompting for few-shot action recognition. arXiv preprint arXiv:2211.12030 (2022) 30. Shi, Y., Wu, X., Lin, H., Luo, J.: Commonsense knowledge prompting for few-shot action recognition in videos. IEEE Transactions on Multimedia (2024) 31. Song, N., Zhang, C., Lin, G.: Few-shot open-set recognition using background as unknowns. In: Proceedings of the 30th ACM International Conference on Multimedia. pp. 5970–5979 (2022) 32. Su, B., Zhang, H., Li, J., Zhou, Z.: Toward generalized few-shot open-set object detection. IEEE Transactions on Image Processing 33 , 1389–1402 (2024) 33. Sun, L.Y., Chu, W.T.: Overall positive prototype for few-shot open-set recognition. Pattern Recognition 151 , 110400 (2024) 34. Tang, Y., Béjar, B., Vidal, R.: Semantic-aware video representation for few-shot action recognition. In: Proceedings of the IEEE/CVF Winter Conference on Appli-cations of Computer Vision. pp. 6458–6468 (2024) 35. Thatipelli, A., Narayan, S., Khan, S., Anwer, R.M., Khan, F.S., Ghanem, B.: Spatio-temporal relation modeling for few-shot action recognition. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 19958–19967 (2022) Few-Shot Open-Set Action Recognition 15 36. Tong, Z., Song, Y., Wang, J., Wang, L.: Videomae: Masked autoencoders are data-efficient learners for self-supervised video pre-training. Advances in neural information processing systems 35 , 10078–10093 (2022) 37. Vaze, S., Han, K., Vedaldi, A., Zisserman, A.: Open-set recognition: A good closed-set classifier is all you need? (2021) 38. Wang, H., Pang, G., Wang, P., Zhang, L., Wei, W., Zhang, Y.: Glocal energy-based learning for few-shot open-set recognition. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 7507–7516 (2023) 39. Wang, X., Zhang, S., Cen, J., Gao, C., Zhang, Y., Zhao, D., Sang, N.: Clip-guided prototype modulating for few-shot action recognition. International Journal of Computer Vision 132 (6), 1899–1912 (2024) 40. Wang, X., Zhang, S., Qing, Z., Gao, C., Zhang, Y., Zhao, D., Sang, N.: Molo: Motion-augmented long-short contrastive learning for few-shot action recognition. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 18011–18021 (2023) 41. Wang, X., Zhang, S., Qing, Z., Zuo, Z., Gao, C., Jin, R., Sang, N.: Hyrsm++: Hybrid relation guided temporal set matching for few-shot action recognition. Pattern Recognition 147 , 110110 (2024) 42. Wang, X., Yan, Y., Hu, H.M., Li, B., Wang, H.: Cross-modal contrastive learning network for few-shot action recognition. IEEE Transactions on Image Processing (2024) 43. Wang, X., Ye, W., Qi, Z., Zhao, X., Wang, G., Shan, Y., Wang, H.: Semantic-guided relation propagation network for few-shot action recognition. In: Proceedings of the 29th ACM International Conference on Multimedia. pp. 816–825 (2021) 44. Wanyan, Y., Yang, X., Chen, C., Xu, C.: Active exploration of multimodal com-plementarity for few-shot action recognition. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 6492–6502 (2023) 45. Wu, J., Zhang, T., Zhang, Z., Wu, F., Zhang, Y.: Motion-modulated temporal fragment alignment network for few-shot action recognition. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 9151–9160 (2022) 46. Xing, J., Wang, M., Ruan, Y., Chen, B., Guo, Y., Mu, B., Dai, G., Wang, J., Liu, Y.: Boosting few-shot action recognition with graph-guided hybrid matching. In: Proceedings of the IEEE/CVF international conference on computer vision. pp. 1740–1750 (2023) 47. Yin, X., Cao, B., Hu, Q., Wang, Q.: Rd-openmax: Rethinking openmax for robust realistic open-set recognition. IEEE Transactions on Neural Networks and Learning Systems (2024) 48. Zhang, H., Zhang, L., Qi, X., Li, H., Torr, P.H., Koniusz, P.: Few-shot action recognition with permutation-invariant attention. In: Computer Vision–ECCV 2020: 16th European Conference, Glasgow, UK, August 23–28, 2020, Proceedings, Part V 16. pp. 525–542. Springer (2020)

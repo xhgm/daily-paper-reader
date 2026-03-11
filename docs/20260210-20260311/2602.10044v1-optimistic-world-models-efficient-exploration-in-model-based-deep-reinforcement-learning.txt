@@ -1,0 +1,2049 @@
+Title: Optimistic World Models: Efficient Exploration in Model-Based Deep Reinforcement Learning
+
+URL Source: https://arxiv.org/pdf/2602.10044v1
+
+Published Time: Wed, 11 Feb 2026 02:22:53 GMT
+
+Number of Pages: 22
+
+Markdown Content:
+# Optimistic World Models: Efficient Exploration in Model-Based Deep Reinforcement Learning 
+
+Akshay Mete 1 Shahid Aamir Sheikh 1 Tzu-Hsiang Lin 1 Dileep Kalathil 1 P. R. Kumar 1
+
+Abstract 
+
+Efficient exploration remains a central challenge in reinforcement learning (RL), particularly in sparse-reward environments. We introduce Optimistic World Models (OWMs), a principled and scalable framework for optimistic exploration that brings classical reward-biased maximum likelihood estimation (RBMLE) from adaptive control into deep RL. In contrast to upper confidence bound (UCB)–style exploration methods, OWMs incorporate optimism directly into model learning by augmentation with an optimistic dynamics loss that biases imagined transitions toward higher-reward outcomes. This fully gradient-based loss requires neither uncertainty estimates nor constrained optimization. Our approach is plug-and-play with existing world model frameworks, preserving scalability while requiring only minimal modifications to standard training procedures. We instantiate OWMs within two state-of-the-art world model architectures, leading to Optimistic DreamerV3 and Optimistic STORM, which demonstrate significant improvements in sample efficiency and cumulative return compared to their baseline counterparts. 
+
+1. Introduction 
+
+World models such as DreamerV3 (Hafner et al., 2023), STORM (Zhang et al., 2023), and DIAMOND (Alonso et al., 2024) have achieved state-of-the-art sample efficiency in a wide range of reinforcement learning tasks. However, they are known to underperform in sparse-reward environments as exploration strategies such as policy (actor) entropy regularization are often insufficient. We address this shortcoming by proposing an Optimistic World Model framework that introduces an optimistic dynamics loss function on top of the standard world model training objective. This loss function gently steers the model’s transition probabilities towards higher rewards, training the world model to generate optimistic imaginations .20 M 40 M 
+
+> Steps
+> 0
+> 2500
+> 5000
+> 7500
+> 10000
+> 12500
+> Return
+> DreamerV3
+> O-DreamerV3
+
+(a) Private Eye 20 M 40 M  
+
+> Steps
+> 0
+> 500
+> 1000
+> 1500
+> Return
+> DreamerV3
+> O-DreamerV3
+
+(b) Enduro 20 M 40 M  
+
+> Steps
+> 0
+> 1000
+> 2000
+> Return
+> DreamerV3
+> O-DreamerV3
+
+(c) Montezuma’s Revenge 250 k 500 k  
+
+> Steps
+> 0
+> 200
+> 400
+> 600
+> 800
+> Return
+> DreamerV3
+> O-DreamerV3
+
+(d) Cartpole Swing. Sparse 
+
+Figure 1. Optimistic World Models on challenging environments. 
+
+Our Optimistic World Models (OWMs) incorporate optimistic exploration while retaining similar scalability and computa-tional efficiency of standard world models, as the underlying neural network architectures are identical. The introduction of the optimistic dynamics loss, inspired by the Reward Biased Maximum Likelihood Estimation (RBMLE) principle (Kumar & Becker, 1982), avoids the computational pitfalls commonly experienced by UCB-based approaches to optimism (Lai & 
+
+> 1
+
+Department of Electrical and Computer Engineering, Texas A&M University, College Station, Texas, USA. Correspondence to: Akshay Mete <akshaymete@tamu.edu >.
+
+Preprint. 
+
+1
+
+> arXiv:2602.10044v1 [cs.LG] 10 Feb 2026 Optimistic World Models
+
+Robbins, 1985; Auer et al., 2008; Abbasi-Yadkori & Szepesv ´ari, 2011), namely non-convex constraints and uncertainty estimates. Empirically, the proposed OWM variants – Optimistic DreamerV3 (O-DreamerV3) and Optimistic STORM (O-STORM) show improvement over DreamerV3 and STORM across many popular RL benchmarks, and achieve exceptional improve-ment in sparse-reward environments such as Private Eye, Acrobot Swingup Sparse, Cartpole Swingup Sparse, as well as dense-reward environments such as Enduro and UpNDown, as highlighted in Figures 1 and 3. Through this work, we also highlight that the current world model framework of separating model learning and policy learning is analogous to the certainty equivalence principle from adaptive control theory. The certainty equivalence principle is known to suffer from the closed-loop identification problem, which can lead to convergence to sub-optimal policies. This closed-loop identification problem is the underlying problem making exploration necessary in RL. RBMLE, which was notably one of the first approaches that was shown to overcome the closed-loop identification problem, forms the theoretical foundation of Optimistic World Models. 
+
+Contributions 
+
+Our key technical contributions are summarized as follows: • Gradient-Based RBMLE for Deep MBRL : We present a fully gradient-based computational approach to implement the RBMLE principle in MBRL. This enables the application of the RBMLE principle to large-scale DRL, which has been primarily limited to small-scale RL scenarios until now. • Optimistic World Models : We introduce Optimistic World Models, a plug-and-play framework with an additional loss function that steers the model estimate towards models with higher rewards. The OWMs incorporate principled optimistic exploration with minimal computational overload and no architectural changes. We develop two specific instances of OWMs – Optimistic DreamerV3 and Optimistic STORM. • Strong Empirical Gains : OWMs exhibit exceptional improvement on challenging sparse-reward environments in the Atari100K and DMC benchmarks, highlighting their efficient exploration. Optimistic DreamerV3 achieves a mean human-normalized score (HNS) of 152.68% – a 55% improvement compared to the 97.45% mean HNS of DreamerV3. 
+
+2. Related Work 
+
+Model-Based Reinforcement Learning (MBRL): MBRL algorithms have been shown to achieve sub-linear regret guarantees in a variety of RL setups such as MDPs (Auer et al., 2008; Bourel et al., 2020; Mete et al., 2021; Jin et al., 2020), LQG systems (Abbasi-Yadkori & Szepesv ´ari, 2011; Simchowitz & Foster, 2020; Jedra & Proutiere, 2022), and non-linear systems (Kakade et al., 2020; Wagenmaker et al., 2023). Despite strong theoretical guarantees, most of these algorithms are computationally intractable or expensive. MBPO (Janner et al., 2019) and PETS (Chua et al., 2018) demonstrated how model-based algorithms can outperform model-free algorithms in deep reinforcement learning by utilizing model-generated trajectories. 
+
+World Models in Reinforcement Learning. World models (Ha & Schmidhuber, 2018) have gained popularity in various areas such as reinforcement learning, generative modeling, and robotics (Hafner et al., 2023; 2025; Bruce et al., 2024; Assran et al., 2025). In model-based reinforcement learning, world models have achieved improved sample complexity due to their ability to learn efficient representations of the environment. These world model-based RL algorithms can be broadly categorized into two categories: (a) algorithms that use policy gradient in imagination such as the Dreamer family (Hafner et al., 2020; 2022; 2023), STORM (Zhang et al., 2023), IRIS (Micheli et al., 2023), and DIAMOND (Alonso et al., 2024); and (b) algorithms that use Monte-Carlo Tree Search (MCTS) methods such as MuZero (Schrittwieser et al., 2020), EfficientZero (Ye et al., 2021), and EfficientZero-V2 (Wang et al., 2024). In many scenarios, the MCTS-based algorithms outperform the imagination-based algorithms at a higher computational cost, one of the underlying reasons being poor exploration by imagination-based algorithms. 
+
+Exploration in Model Based RL. World models such as Dreamer, STORM, and Diamond use exploration strategies such as policy entropy regularization, which are often found insufficient in sparse-reward environments. The optimism in the face of uncertainty (OFU) principle, embodied by the UCB algorithms, is a popular exploration method in small-scale RL setups (Lai & Robbins, 1985; Auer et al., 2002; Auer & Ortner, 2006; Auer et al., 2008; Abbasi-Yadkori & Szepesv ´ari, 2011). 2Optimistic World Models 
+
+These algorithms are computationally prohibitive in large-scale deep RL due to non-convex constraints and the requirement of precise uncertainty estimates. Several algorithms, such as H-UCRL (Curi et al., 2020) and SOMBRL (Sukhija et al., 2025), implement UCB-like optimistic exploration algorithms by utilizing Gaussian Processes to quantify model uncertainty. Other popular heuristic-based exploration approaches include probabilistic ensemble-based approaches (Chua et al., 2018; Kurutach et al., 2018; Shyam et al., 2019), and the intrinsic motivation approaches (Burda et al., 2018; Pathak et al., 2017). 
+
+3. Preliminaries 
+
+A Markov Decision Process (MDP) is defined by the tuple (S, A, p ⋆, r, μ ), where S is the state space, A is the action space, 
+
+p⋆ : S × A → ∆( S) denotes the unknown transition probability function, r : S × A → R is the reward function, and μ is the initial state distribution. Given a model p ∈ P and a policy π ∈ Π, the expected cumulative reward is defined as 
+
+J(p, π ) = Ep,π 
+
+"T −1X
+
+> t=0
+
+r(st, a t) | s0 ∼ μ
+
+#
+
+. (1) The goal of a reinforcement learning algorithm is to find the optimal policy π⋆ such that π⋆ ∈ arg max J(p⋆, π ) when the true model p⋆ is unknown. In particular, the MBRL algorithm focuses on learning the model p⋆ or an approximation of it using the data, and uses this learned model to learn the optimal policy. Recently, MBRL algorithms using the framework of the world model, such as Dreamer (Hafner et al., 2023; 2022; 2020), STORM (Zhang et al., 2023), DIAMOND (Alonso et al., 2024), and IRIS (Micheli et al., 2023), have shown remarkable successes in many challenging tasks. The model and policy learning in this class of algorithms follows the following general framework. 1. Environment Interaction: The agent deploys its current policy in the real environment, and stores observations ( ot), actions ( at), and rewards ( rt) in a replay buffer. 2. Training the world model: The world model is trained to learn an accurate representation of the environment by fitting on data stored in the replay buffer. Typically, the world model includes an encoder that maps observations (ot) to a latent space representation ( st), a dynamics model that predicts the next state given the current state and action ( p(st+1 |st, a t)), a reward model ( r(st, a t)), and a decoder to reconstruct the observation from the latent space representation. 3. Learning in imagination: The current world model and policy ( π(at|st)) are used to generate imagined trajectories. These imagined trajectories are used to improve the policy using methods such as actor-critic algorithms. These steps are performed iteratively to improve both the world model of the environment and the agent’s policy. In this framework, the world model is trained on the real data, while the actor is only trained on the imaginary trajectories. This separation between world model and policy learning is analogous to the certainty equivalence principle described below. 
+
+3.1. Bias of MLE 
+
+For fully observable MDPs ( ot = st), the certainty equivalence approach to MBRL/adaptive control is as follows: The learning agent computes the maximum likelihood estimate, 
+
+pt ∈ arg max 
+
+> p∈Pt−1
+
+X 
+
+> τ=0
+
+log p(sτ +1 | sτ , a τ ).
+
+Then it selects a policy πt ∈ Π that is optimal for the estimated model pt:
+
+πt ∈ arg max  
+
+> π∈Π
+
+J(pt, π ).
+
+A natural question is whether the certainty equivalence approach always converges to the true dynamics p⋆ and the optimal policy π⋆? This fundamental question was first studied in (Mandl, 1974), and it was shown that pt converges to p⋆ if the following condition holds: For any p1̸ = p2 ∈ P, p 1(· | s, a )̸ = p2(· | s, a ) for all s, a. 
+
+3Optimistic World Models 
+
+This requirement, known as the “identifiability condition”, is highly restrictive, and is not satisfied even in simple settings such as multi-armed bandits. Borkar & Varaiya (1979) further showed that in the absence of this identifiability condition, the parameter identification only occurs for the closed-loop system, i.e., 
+
+p∞(s′ | s, π ∞(s)) = p⋆(s′ | s, π ∞(s)) ∀ s, s ′ (2) where p∞ and π∞ are the limiting estimate and policy, respectively. This is known as the “closed-loop identification”. However, this does not guarantee that p∞(s′ | s, a ) = p⋆(s′ | s, a ) ∀ s, a, s ′, nor does it guarantee that π∞ is optimal for p⋆.This central issue is known as the “closed-loop identification problem” in adaptive control. As a consequence, pt and πt can converge to a model p∞ and its optimal policy π∞ that are self-consistent but suboptimal for the true model (Borkar & Varaiya, 1979): 
+
+J(p∞, π ∞) = J(p⋆, π ∞) = ⇒ J(p⋆, π ∞) ≤ J(p⋆, π ⋆).
+
+This bias of the maximum likelihood estimate toward models with lower optimal rewards underscores the need for exploration, making the exploration-exploitation trade-off a fundamental challenge in reinforcement learning. 
+
+3.2. Reward Biased Maximum Likelihood Estimation 
+
+One of the first solutions to the above closed-loop identifiability issue, the reward-biased maximum likelihood estimation (RBMLE) method, was proposed by Kumar & Becker (1982). To overcome the inherent bias of MLE, RBMLE introduces an explicit, counter-acting bias towards models with higher rewards as follows: 
+
+pt ∈ arg max 
+
+> p∈P
+
+(
+
+α(t) max  
+
+> π∈Π
+
+J(p, π ) + 1
+
+t
+
+> t−1
+
+X 
+
+> τ=0
+
+log p(sτ +1 | sτ , a τ )
+
+)
+
+. (3) 
+
+πt ∈ arg max  
+
+> π∈Π
+
+J(pt, π ),
+
+The term α(t) has to be carefully designed. It should be small enough to preserve the good properties of the maximum likelihood estimate, i.e., closed-loop identification. At the same time, it has to be large enough to overcome the bias of MLE towards models with lower average rewards. Both of these properties are achieved by choosing α(t) such that 
+
+lim t→∞ tα (t) → ∞ and lim t→∞ α(t) → 0. Kumar & Becker (1982) showed that the model estimate pt converges to p⋆
+
+and the policy πt to an optimal policy, in a Cesaro sense. The RBMLE principle has been adapted and studied in a wide range of adaptive control/MBRL scenarios, such as stochastic bandits, LQG control, and RLHF (Becker & Kumar, 1981; Kumar & Becker, 1982; Campi & Kumar, 1996; Duncan et al., 1994; Liu et al., 2023; Hung et al., 2021; Mete et al., 2021; 2022a; Hung et al., 2023; Cen et al., 2024). A detailed account of various works based on the RBMLE principle can be found in (Mete et al., 2022b; 2023). In the next section, we provide a computationally efficient method to implement the RBMLE principle, which has been a challenge so far. We then propose the Optimistic World Models based on it. 
+
+4. Optimistic World Models 
+
+In this section, we introduce Optimistic world models , a principled optimistic exploration framework for world models. We begin by introducing a gradient based computational approach to adapt the RBMLE approach in deep reinforcement learning. 
+
+4.1. RBMLE in Deep Reinforcement Learning 
+
+Consider a model-based reinforcement learning agent with two neural networks: A model network, parameterized by ϕ, that learns pϕ(s′ | s, a ), the transition probabilities of the next state s′ given current state s and action a, and a policy network parameterized by θ that defines the policy πθ (a|s). Let Dt = {(su, a u, s u+1 )}t−1 
+
+> u=1
+
+be the replay buffer, which stores tuples collected from real environment interaction. The RBMLE objective is given by: 
+
+Mϕ,θ = α(t)J(pϕ, π θ ) + 1
+
+t
+
+X
+
+> (s,a,s ′)∈Dt
+
+log pϕ(s′ | s, a ). (4) 4Optimistic World Models 
+
+Figure 2. Optimistic World Model framework: In standard world models, the dynamics model is trained only to fit the real replay buffer. In OWMs, the optimistic dynamics loss uses imagined trajectories to push model transitions toward high-reward outcomes (highlighted by the red arrow), leading to optimistic imaginations .
+
+Let τϕ,θ = {s0, a 0, · · · , s H+1 } denote an imagined trajectory generated by simulating the policy πθ on the model pϕ, then the gradient of J(pϕ, π θ ) can be computed using the log-derivative trick similar to the vanilla policy gradient (Sutton et al., 1999), and is given by: 
+
+∇ϕJ(pϕ, π θ ) = Eτϕ,θ 
+
+" HX
+
+> h=0
+
+R(τϕ,θ )∇ϕ log pϕ(sh+1 | sh, a h)
+
+#
+
+. (5) In practice, this can be empirically computed by generating N trajectories {τ iϕ,θ }Ni=1 , and then computing the sample mean. 
+
+∇ϕJ(pϕ, π θ ) = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+" HX
+
+> h=0
+
+R(τ iϕ,θ )∇ϕ log pϕ(sh+1 | sh, a h)
+
+#
+
+. (6) This yields us the gradient estimate of Mϕ,θ ,
+
+∇ϕMϕ,θ = α(t)
+
+N
+
+" NX
+
+> i=1
+> H
+
+X
+
+> h=0
+
+R(τ iϕ,θ )∇ϕ log pϕ(sh+1 | sh, a h)
+
+#
+
++ 1
+
+t
+
+X
+
+> (s,a,s ′)∈Dt
+
+∇ϕ log pϕ(s′ | s, a ). (7) Similarly, an estimate of ∇θ J(pϕ, π θ ) can be computed using the imagined trajectories. 
+
+∇θ J(pϕ, π θ ) = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+" HX
+
+> h=0
+
+R(τ iϕ,θ )∇θ log πθ (ah | sh)
+
+#
+
+. (8) Therefore, (7) and (8) can be used to update the model and policy parameters as follows: 
+
+ϕt+1 = ϕt + β∇ϕMϕ,θ |ϕt,θ t , θ t+1 = θt + β∇θ J(pϕ, π θ )|ϕt,θ t .
+
+The key insights from the RBMLE approach are: • Optimistic Dynamics Loss: RBMLE can be implemented by augmenting the certainty equivalence framework with an additional loss term. This loss function steers the log-probabilities of the model transitions, log pϕ(s′|s, a ) towards higher reward outcomes, analogous to how policy gradient methods push log πθ (a | s) towards actions with higher rewards. • The optimism function α(t): The parameter α(t) controls the degree of optimism by balancing the optimistic dynamics loss and the log-likelihood loss. Based on these insights, we develop Optimistic World Models, generalizing the RBMLE principle to deep reinforcement learning for partially observable MDPs. 5Optimistic World Models 
+
+4.2. Incorporating Optimism in World Models 
+
+We introduce the optimistic dynamics loss, Lopt t in the imagination-based world model framework as follows: Let 
+
+τt = {(sℓ, a ℓ, r ℓ)}Lℓ=1 denote the imagined trajectory generated by executing the current policy πθt on the learned world model dynamics pϕt .
+
+Lopt t = −α(t)
+
+"L−1X
+
+> ℓ=1
+
+Aℓ log pϕt (sℓ+1 | sℓ, a ℓ)
+
+#
+
+− η
+
+> L−1
+
+X
+
+> ℓ=0
+
+H(pϕt (sℓ+1 | sℓ, a ℓ)) , (9) where Aℓ is the advantage function computed using rℓ, the value V (sℓ) given by the critic network, and H is the entropy function of the distribution pϕt (· | sℓ, a ℓ).This optimistic dynamics loss improves upon (7) by utilizing the advantage function Aℓ and the additional model entropy term H. These improvements mirror the advances in policy gradient algorithms to address issues such as high variance and entropy collapse. As a consequence, the optimistic dynamics loss is structurally the same as that of the actor loss and is simply obtained by substituting log πθ (aℓ|sℓ) with log pϕ(sℓ+1 |sℓ, a ℓ).The OWM framework can be adapted to any world model based on the framework described in Section 3, such as Dreamer (Hafner et al., 2023), STORM (Zhang et al., 2023), TWM (Robine et al., 2023), IRIS (Micheli et al., 2023), and DIAMOND (Alonso et al., 2024). In this paper, we propose two instances of OWMs: Optimistic DreamerV3 and Optimistic STORM. 4.2.1. O PTIMISTIC DREAMER V3 We introduce Optimistic DreamerV3, the optimistic variant of DreamerV3. DreamerV3 is one of the leading MBRL algorithms known for its high sample efficiency without requiring task-specific hyperparameter tuning. Beyond the addition of the optimistic dynamics loss, Optimistic DreamerV3 is identical to the original DreamerV3; all other components and learning objectives remain unchanged. The imagined state sℓ is comprised of a stochastic component zℓ and a deterministic component hℓ. Therefore, we replace 
+
+pϕ(sℓ+1 | sℓ, a ℓ) with pϕ(zℓ+1 | hℓ+1 ). The optimistic dynamics loss term in Optimistic DreamerV3 is: 
+
+Lopt t = − α(t)
+
+"L−1X
+
+> ℓ=0
+
+Aℓ log pϕ(zℓ+1 | hℓ+1 )
+
+#
+
+− η
+
+> L−1
+
+X
+
+> ℓ=0
+
+H (pϕ(zℓ+1 | hℓ+1 )) . (10) The advantage term Aℓ, is computed as 
+
+ Gλℓ −V (sℓ)max {1,S }
+
+
+
+. Here, Gλℓ is the λ-return, V is the value function estimated by the critic, η is an entropy coefficient, H is the entropy function, and S is an exponential moving average of the range between the 5th and 95th percentiles of returns, defined as, S = EM A (P er (Gλℓ , 95) − P er (Gλℓ , 5) , 0.99) .
+
+4.2.2. O PTIMISTIC STORM We propose Optimistic STORM (O-STORM), the optimistic variant of the STORM world model. Zhang et al. (2023) shows that the transformer-based STORM world model outperforms the DreamerV3 algorithm in many Atari games in the Atari100K benchmark. The optimistic dynamics loss function is computed as: 
+
+Lopt t = −α(t)
+
+"L−1X
+
+> ℓ=0
+
+Aℓ log pϕ(sℓ+1 | sℓ, a ℓ)
+
+#
+
+− η
+
+> L−1
+
+X
+
+> ℓ=0
+
+H(pϕ(sℓ+1 | sℓ, a ℓ)) .
+
+The definition of the advantage function, Aℓ, is identical to the one from Optimistic DreamerV3. All other components and learning objectives of Optimistic STORM are identical to those of STORM and can be found in (Zhang et al., 2023). 
+
+5. Experiments 
+
+We evaluate the OWM variants: Optimistic DreamerV3 and Optimistic STORM on the widely adopted Atari100K and DeepMind Control (DMC) benchmarks. Our main results are presented in this section; comprehensive learning curves, interquartile mean (IQM) and median scores, ablations, and experimental details are provided in Appendix A. All learning 6Optimistic World Models 250 k 500 k 
+
+> Steps
+> 0
+> 20
+> 40
+> 60
+> Return
+> DreamerV3
+> O-DreamerV3
+
+(a) Acrobot Swingup Sparse 250 k 500 k  
+
+> Steps
+> 0
+> 200
+> 400
+> 600
+> 800
+> Return
+> DreamerV3
+> O-DreamerV3
+
+(b) Cartpole Swingup Sparse 200 k 400 k  
+
+> Steps
+> 0.00
+> 0.05
+> 0.10
+> 0.15
+> 0.20
+> Return
+> DreamerV3
+> O-DreamerV3
+
+(c) Freeway 200 k 400 k  
+
+> Steps
+> 0
+> 1000
+> 2000
+> Return
+> DreamerV3
+> O-DreamerV3
+
+(d) Private Eye 200 k 400 k 
+
+> Steps
+> 0
+> 25000
+> 50000
+> 75000
+> 100000
+> 125000
+> Return
+> DreamerV3
+> O-DreamerV3
+
+(e) UpNDown 200 k 400 k  
+
+> Steps
+> 0.0
+> 2.5
+> 5.0
+> 7.5
+> 10.0
+> 12.5
+> Return
+> O-STORM
+> STORM
+
+(f) Freeway (O-STORM) 200 k 400 k  
+
+> Steps
+> 0
+> 1000
+> 2000
+> 3000
+> Return
+> O-STORM
+> STORM
+
+(g) Private Eye (O-STORM) 200 k 400 k  
+
+> Steps
+> 0
+> 2500
+> 5000
+> 7500
+> 10000
+> Return
+> O-STORM
+> STORM
+
+(h) UpNDown (O-STORM) 
+
+Figure 3. Optimistic World Models on sparse reward environments. 
+
+curves are reported as mean reward ± the standard error of the mean. The results for O-DreamerV3 on the Atari100K and the DMC benchmarks are averaged over 10 seeds. All other results, including those for Optimistic STORM and the ablation studies, are averaged over 5 seeds due to computational resource limitations. 
+
+Performance on Sparse Reward Environments 
+
+Figure 3 highlights the performance of OWMs on challenging, sparse-reward environments, including Private Eye, Freeway, Acrobot Swingup Sparse, and Cartpole Swingup Sparse. OWMs outperform baselines on these sparse environments, where standard world models suffer due to a lack of efficient exploration. They also outperform baselines on dense-reward environments such as UpNDown. Additionally, Figure 1 shows the long-term performance (40 million samples) of O-DreamerV3 and DreamerV3 on hard exploration Atari games, Private Eye and Montezuma’s Revenge. The O-DreamerV3 achieves nearly 2X mean return compared to DreamerV3 on Private Eye at 40M samples. While it achieves the same score as DreamerV3 on Montezuma’s Revenge with fewer samples. 
+
+Performance on Atari100K Benchmark 
+
+The Atari100K benchmark is designed to test the performance of RL algorithms in a limited sample regime. Optimistic DreamerV3 achieves a mean human-normalized score (HNS) of 152 .68% on the Atari100K benchmark, compared to 
+
+97 .45% mean HNS of DreamerV3. O-STORM outperforms STORM in sparse-reward games such as Private Eye and Freeway, notably achieving a positive score on Freeway, unlike STORM, DreamerV3, and O-DreamerV3. O-STORM achieves a mean HNS of 80 .68% , while STORM achieves a mean HNS of 75 .90% .
+
+Performance on DMC Suite 
+
+We further evaluate the efficiency of Optimistic DreamerV3 on the DeepMind Control (DMC) suite. The DMC suite contains the DMC Proprio benchmark, which uses state-based inputs, and the DMC Vision benchmark, which uses image-based inputs. While many of the tasks in DMC benchmarks are easy, and both algorithms have similar performance on most DMC environments, O-DreamerV3 improves the performance on sparse-reward environments such as Cartpole Swingup Sparse, and Acrobot Swingup Sparse. Figures 4b and 4c summarize the performance on DMC Proprio and DMC Vision, respectively. 7Optimistic World Models Up N Down 
+
+> Krull
+> Private Eye
+> Pong
+> Road Runner
+> Gopher
+> Seaquest
+> Kung Fu
+> Master
+> Alien
+> Demon Attack
+> Chopper
+> Command
+> James Bond
+> Asterix
+> Ms Pacman
+> Freeway
+> Amidar
+> Frostbite
+> Assault
+> Crazy
+> Climber
+> Hero
+> Battle Zone
+> Boxing
+> Breakout
+> Bank Heist
+> Qbert
+> Kangaroo
+
+0
+
+100 
+
+200 
+
+300     
+
+> % Gain over Dreamerv3
+> 268%
+> 102%
+> 88%
+> 61%
+> 41%
+> 32%
+> 29%
+> 16%
+> 15%
+> 11%
+> 9%
+> 9%
+> 9%
+> 7%
+> 0%
+> -0%
+> -1%
+> -4%
+> -5%
+> -5%
+> -6%
+> -6%
+> -9%
+> -15%
+> -16%
+> -19%
+> Improvement ( >5%)
+> Neutral ( ±5%)
+> Degradation ( <−5%)
+
+(a) Optimistic DreamerV3 on Atari100K Acrobot 
+
+> Swingup Sparse
+> Acrobot
+> Swingup
+> Finger Turn
+> Hard
+> Cheetah Run
+> Cartpole
+> Swingup Sparse
+> Pendulum
+> Swingup
+> Reacher Easy
+> Cartpole
+> Balance Sparse
+> Finger Spin
+> Cartpole
+> Swingup
+> Finger Turn
+> Easy
+> Walker Stand
+> Walker Walk
+> Cartpole
+> Balance
+> Reacher Hard
+> Cup Catch
+> Walker Run
+> Hopper Stand
+> Hopper Hop
+
+0
+
+100 
+
+200 
+
+300     
+
+> % Gain over Dreamerv3
+> 312%
+> 58%
+> 17%
+> 13%
+> 12%
+> 8%
+> 4%
+> 4%
+> 2%
+> 2%
+> 2%
+> 1%
+> 0%
+> 0%
+> -0%
+> -1%
+> -2%
+> -7%
+> -18%
+> Improvement ( >5%)
+> Neutral ( ±5%)
+> Degradation ( <−5%)
+
+(b) Optimistic DreamerV3 on DMC Proprio Acrobot 
+
+> Swingup Sparse
+> Quadruped
+> Run
+> Pendulum
+> Swingup
+> Finger Turn
+> Easy
+> Cartpole
+> Swingup Sparse
+> Walker Run
+> Walker Walk
+> Walker Stand
+> Reacher Easy
+> Cup Catch
+> Cartpole
+> Swingup
+> Hopper Stand
+> Finger Turn
+> Hard
+> Cheetah Run
+> Hopper Hop
+> Reacher Hard
+> Quadruped
+> Walk
+> Finger Spin
+> Acrobot
+> Swingup
+
+0
+
+50 
+
+100 
+
+150 
+
+200     
+
+> % Gain over Dreamerv3
+> 172%
+> 10%
+> 8%
+> 7%
+> 6%
+> 5%
+> 1%
+> 0%
+> 0%
+> 0%
+> -0%
+> -0%
+> -1%
+> -1%
+> -1%
+> -3%
+> -4%
+> -11%
+> -15%
+> Improvement ( >5%)
+> Neutral ( ±5%)
+> Degradation ( <−5%)
+
+(c) Optimistic DreamerV3 on DMC Vision Private Eye 
+
+> Frostbite
+> Up N Down
+> Krull
+> Qbert
+> Amidar
+> Bank Heist
+> Boxing
+> Ms Pacman
+> Breakout
+> Chopper
+> Command
+> Alien
+> Crazy
+> Climber
+> James Bond
+> Assault
+> Seaquest
+> Demon Attack
+> Hero
+> Gopher
+> Asterix
+> Road Runner
+> Battle Zone
+> Kung Fu
+> Master
+> Kangaroo
+> Pong
+
+0
+
+500 
+
+1000 
+
+1500 
+
+2000     
+
+> % Gain over Dreamerv3
+> 1735%
+> 125%
+> 45%
+> 40%
+> 31%
+> 28%
+> 18%
+> 13%
+> 4%
+> 4%
+> 3%
+> 3%
+> 2%
+> -3%
+> -5%
+> -5%
+> -7%
+> -14%
+> -17%
+> -19%
+> -22%
+> -26%
+> -28%
+> -31%
+> -104%
+> Improvement ( >5%)
+> Neutral ( ±5%)
+> Degradation ( <−5%)
+
+(d) Optimistic STORM on Atari100K 
+
+Figure 4. Performance of Optimistic World Models: We plot the % gain of Optimistic DreamerV3 and Optimistic STORM over DreamerV3 and STORM respectively. Freeway is not included in Figure 4d as the baseline STORM has a score of 0, while O-STORM achieves a mean score of 6.38 .
+
+8Optimistic World Models 250 k 500 k    
+
+> Steps
+> 0
+> 200
+> 400
+> 600
+> 800
+> Return
+> α= 0 .0001
+> α= 0 .001
+> α= 0 .1
+
+(a) α250 k 500 k     
+
+> Steps
+> 0
+> 200
+> 400
+> 600
+> 800
+> Return
+> η= 0 .000003
+> η= 0 .0003
+> η= 0 .03
+
+(b) η250 k 500 k  
+
+> Steps
+> 0
+> 200
+> 400
+> 600
+> 800
+> Return
+> w/o entropy loss
+> with entropy loss
+
+(c) Entropy Loss 250 k 500 k   
+
+> Steps
+> 0
+> 200
+> 400
+> 600
+> 800
+> Return
+> α
+> αlog tt
+> α
+> √
+> t
+
+(d) α(t)
+
+Figure 5. Ablations and hyperparameter sensitivity results for Cartpole Swingup Sparse (DMC Proprio): (a) Sensitivity to the optimism term α: poor performance at α = 0 .1 shows that optimism should be mild . (b) Sensitivity to the model entropy loss coefficient η: no learning at η = 0 .03 , while smaller values are beneficial. (c) Performance without the entropy loss: the entropy loss improves the performance of O-DreamerV3. (d) Performance under various decay schedules of α(t). Ablations for additional environments are provided in the Appendix. 
+
+The optimistic bias term α(t)
+
+OWMs introduce two additional parameters, namely, the optimistic bias term α(t) and the model entropy loss coefficient η.Similar to DreamerV3, O-DreamerV3 also enjoys a single hyperparameter configuration across all tasks and benchmarks. We used α(t) = α = 0 .0001 as a constant hyperparameter. Figure 5d shows the performance for different decay schedules of α(t). The entropy loss coefficient η is set to be 3 × 10 −6 for O-DreamerV3 and 3 × 10 −4 for O-STORM. Ablations on the entropy loss term in Figure 5b and 5c highlight the gain due to the entropy loss term. The ablations and sensitivity analysis shown in Figures 5, 10, 11 and 12 provide a clear guideline on choosing α and η.They suggest that high values such as α = 0 .1 or η = 0 .03 can degrade performance drastically, while smaller values are beneficial. 
+
+Computational Overload 
+
+OWMs are plug-and-play modifications over standard world models, adding marginal computational overhead compared to baselines, as shown in Table 1. 
+
+Table 1. Training time (minutes) for various algorithms on Atari100K (MsPacman) using an RTX 4090 GPU, averaged over 5 seeds. O-D REAMER V3 DREAMER V3 O-STORM STORM 138 115 178 170 
+
+6. Discussion 
+
+RBMLE, UCB, and Thompson Sampling are three foundational principles for exploration studied in MBRL/adaptive control. RBMLE, first proposed in (Kumar & Becker, 1982), and UCB, first proposed in (Lai & Robbins, 1985), embody the principle of optimism as described below. 
+
+A Tale of Two Approaches to Optimism: RBMLE and UCB 
+
+For the MDP setup described in Section 3, the general UCB principle chooses the model estimate pt with the highest potential average reward within a confidence interval, as follows: 
+
+pt ∈ arg max  
+
+> p
+
+J⋆(p) (11) subject to : D(p, ˆpt) ≤ C t(δ),
+
+where D is a measure of divergence from the MLE model ˆpt, and Ct(δ) is a high-probability confidence interval. 9Optimistic World Models 
+
+In this same scenario, RBMLE (3) can be equivalently seen as balancing the reward and fitting error of the model, i.e., 
+
+pt ∈ arg max  
+
+> p
+
+α(t)J⋆(p) − D(p, ˆpt). (12) UCB incorporates optimism by solving the primal optimization problem, and controls the degree of optimism by Ct. RBMLE incorporates optimism by solving its Lagrangian dual formulation, and controls the degree of optimism by α(t).RBMLE has been shown to outperform UCB and TS variants in various small-scale RL setups such as stochastic bandits (Liu et al., 2020), contextual bandits (Hung et al., 2021), tabular MDPs (Mete et al., 2021), and LQG systems (Mete et al., 2022a). Similar approaches have been studied recently in different RL setups, such as RL with function approximation (Liu et al., 2023), RLHF (Cen et al., 2024), as well as model-free RL (Liu et al., 2023). Several works (Bourel et al., 2020; Fruit et al., 2020) have highlighted the excessive optimism of earlier variants of UCB algorithms, such as UCRL (Auer & Ortner, 2006) and UCRL2 (Auer et al., 2008), due to weak confidence intervals. UCRL2B (Fruit et al., 2020) and UCRL3 (Bourel et al., 2020) utilize sharper confidence intervals to curb the excessive optimism. In contrast, RBMLE incorporates mild 
+
+optimism with small values of α(t).
+
+Objective Mismatch in MBRL 
+
+Objective mismatch is another issue of the certainty equivalence-based MBRL discussed in (Lambert et al., 2020; Eysenbach et al., 2022). It is attributed to the fact that the model is trained using one objective of likelihood maximization, but the policy is trained using a different objective of average reward maximization (Eysenbach et al., 2022). The optimistic RBMLE objective (12) provides an explicit mechanism for balancing the two objectives of model accuracy and the cumulative rewards. 
+
+Limitations and Future Work 
+
+The optimistic dynamics loss provides an optimistic direction for exploration, and the step size is controlled by the optimistic bias term α(t). The theoretical results on RBMLE in tabular MDPs show that tα (t) → ∞ and α(t) → 0 guarantee asymptotic convergence to an optimal policy. Choosing α(t) = α, or even α(t) = α√t , is perhaps too simplistic to maximize exploration gains. An adaptive, sample-path dependent design of α(t), similar to the meta-controller used for choosing the exploration coefficient in Agent57 (Badia et al., 2020), can further enhance the performance of OWMs. The regret bounds of RBMLE have been established in different settings (Mete et al., 2021; 2022a; Hung et al., 2021; Liu et al., 2020; Cen et al., 2024). In this paper, we have presented a completely gradient-based approach to RBMLE. The convergence analysis of the practical, gradient-based RBMLE is a natural next step. 
+
+Conclusion 
+
+We have introduced Optimistic World Models , a principled framework for efficient exploration in model-based reinforce-ment learning. The improved performance of OWMs compared to baselines, particularly in sparse-reward environments, validates the efficient exploration of OWMs. The simple, plug-and-play nature of OWMs allows their adaptation to many world models. 
+
+Acknowledgment 
+
+This material is based upon work partially supported by the National Science Foundation under Contract Number CNS-2328395, the US Army Contracting Command under Contract Numbers W911NF2520046, W911NF2210151, and W911NF2120064, and the US Office of Naval Research under contract N00014-24-12615. This research was conducted using the advanced computing resources provided by the Texas A&M High Performance Research Computing. 
+
+References 
+
+Abbasi-Yadkori, Y. and Szepesv ´ari, C. Regret bounds for the adaptive control of linear quadratic systems. In Proceedings of the 24th Annual Conference on Learning Theory , pp. 1–26. JMLR Workshop and Conference Proceedings, 2011. Alonso, E., Jelley, A., Micheli, V., Kanervisto, A., Storkey, A. J., Pearce, T., and Fleuret, F. Diffusion for world modeling: Visual details matter in Atari. Advances in Neural Information Processing Systems , 37:58757–58791, 2024. 10 Optimistic World Models 
+
+Assran, M., Bardes, A., Fan, D., Garrido, Q., Howes, R., Muckley, M., Rizvi, A., Roberts, C., Sinha, K., Zholus, A., et al. V-JEPA 2: Self-supervised video models enable understanding, prediction and planning. arXiv preprint arXiv:2506.09985 ,2025. Auer, P. and Ortner, R. Logarithmic online regret bounds for undiscounted reinforcement learning. Advances in neural information processing systems , 19, 2006. Auer, P., Cesa-Bianchi, N., and Fischer, P. Finite-time analysis of the multiarmed bandit problem. Machine learning , 47(2): 235–256, 2002. Auer, P., Jaksch, T., and Ortner, R. Near-optimal regret bounds for reinforcement learning. Advances in neural information processing systems , 21, 2008. Badia, A. P., Piot, B., Kapturowski, S., Sprechmann, P., Vitvitskyi, A., Guo, Z. D., and Blundell, C. Agent57: Outperforming the Atari human benchmark. In International conference on machine learning , pp. 507–517. PMLR, 2020. Becker, A. and Kumar, P. R. Optimal strategies for the N-armed bandit problem. Univ. Maryland. Baltimore County, Math. Res. Rep , pp. 81–1, 1981. Borkar, V. and Varaiya, P. Adaptive control of Markov chains, I: Finite parameter set. IEEE Transactions on Automatic Control , 24(6):953–957, 1979. Bourel, H., Maillard, O., and Talebi, M. S. Tightening exploration in upper confidence reinforcement learning. In 
+
+International Conference on Machine Learning , pp. 1056–1066. PMLR, 2020. Bruce, J., Dennis, M. D., Edwards, A., Parker-Holder, J., Shi, Y., Hughes, E., Lai, M., Mavalankar, A., Steigerwald, R., Apps, C., et al. Genie: Generative interactive environments. In Forty-first International Conference on Machine Learning ,2024. Burda, Y., Edwards, H., Storkey, A., and Klimov, O. Exploration by random network distillation. arXiv preprint arXiv:1810.12894 , 2018. Campi, M. and Kumar, P. R. Optimal adaptive control of an lqg system. In Proceedings of 35th IEEE Conference on Decision and Control , volume 1, pp. 349–353. IEEE, 1996. Cen, S., Mei, J., Goshvadi, K., Dai, H., Yang, T., Yang, S., Schuurmans, D., Chi, Y., and Dai, B. Value-incentivized preference optimization: A unified approach to online and offline RLHF. arXiv preprint arXiv:2405.19320 , 2024. Chua, K., Calandra, R., McAllister, R., and Levine, S. Deep reinforcement learning in a handful of trials using probabilistic dynamics models. Advances in neural information processing systems , 31, 2018. Curi, S., Berkenkamp, F., and Krause, A. Efficient model-based reinforcement learning through optimistic policy search and planning. Advances in Neural Information Processing Systems , 33:14156–14170, 2020. Duncan, T. E., Pasik-Duncan, B., and Stettner, L. Almost self-optimizing strategies for the adaptive control of diffusion processes. Journal of optimization theory and applications , 81(3):479–507, 1994. Eysenbach, B., Khazatsky, A., Levine, S., and Salakhutdinov, R. R. Mismatched no more: Joint model-policy optimization for model-based rl. Advances in Neural Information Processing Systems , 35:23230–23243, 2022. Fruit, R., Pirotta, M., and Lazaric, A. Improved analysis of UCRL2 with empirical bernstein inequality. arXiv preprint arXiv:2007.05456 , 2020. Ha, D. and Schmidhuber, J. World Models. arXiv preprint arXiv:1803.10122 , 2(3), 2018. Hafner, D., Lillicrap, T., Ba, J., and Norouzi, M. Dream to control: Learning behaviors by latent imagination, 2020. URL 
+
+https://arxiv.org/abs/1912.01603 .Hafner, D., Lillicrap, T., Norouzi, M., and Ba, J. Mastering Atari with discrete world models, 2022. URL https: //arxiv.org/abs/2010.02193 .11 Optimistic World Models 
+
+Hafner, D., Pasukonis, J., Ba, J., and Lillicrap, T. Mastering diverse domains through world models. arXiv preprint arXiv:2301.04104 , 2023. Hafner, D., Yan, W., and Lillicrap, T. Training agents inside of scalable world models. arXiv preprint arXiv:2509.24527 ,2025. Hung, Y.-H., Hsieh, P.-C., Liu, X., and Kumar, P. Reward-biased maximum likelihood estimation for linear stochastic bandits. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 35, pp. 7874–7882, 2021. Hung, Y.-H., Hsieh, P.-C., Mete, A., and Kumar, P. R. Value-biased maximum likelihood estimation for model-based reinforcement learning in discounted linear MDPs. arXiv preprint arXiv:2310.11515 , 2023. Janner, M., Fu, J., Zhang, M., and Levine, S. When to trust your model: Model-based policy optimization. Advances in neural information processing systems , 32, 2019. Jedra, Y. and Proutiere, A. Minimal expected regret in linear quadratic control. In International Conference on Artificial Intelligence and Statistics , pp. 10234–10321. PMLR, 2022. Jin, C., Yang, Z., Wang, Z., and Jordan, M. I. Provably efficient reinforcement learning with linear function approximation. In Conference on learning theory , pp. 2137–2143. PMLR, 2020. Kakade, S., Krishnamurthy, A., Lowrey, K., Ohnishi, M., and Sun, W. Information theoretic regret bounds for online nonlinear control. Advances in Neural Information Processing Systems , 33:15312–15325, 2020. Kumar, P. R. and Becker, A. A new family of optimal adaptive controllers for Markov chains. IEEE Transactions on Automatic Control , 27(1):137–146, 1982. Kurutach, T., Clavera, I., Duan, Y., Tamar, A., and Abbeel, P. Model-ensemble trust-region policy optimization. arXiv preprint arXiv:1802.10592 , 2018. Lai, T. and Robbins, H. Asymptotically efficient adaptive allocation rules. Advances in Applied Mathematics , 6(1):4–22, 1985. ISSN 0196-8858. doi: https://doi.org/10.1016/0196-8858(85)90002-8. URL https://www.sciencedirect. com/science/article/pii/0196885885900028 .Lambert, N., Amos, B., Yadan, O., and Calandra, R. Objective mismatch in model-based reinforcement learning. arXiv preprint arXiv:2002.04523 , 2020. Liu, X., Hsieh, P.-C., Hung, Y. H., Bhattacharya, A., and Kumar, P. R. Exploration through reward biasing: Reward-biased maximum likelihood estimation for stochastic multi-armed bandits. In International Conference on Machine Learning ,pp. 6248–6258. PMLR, 2020. Liu, Z., Lu, M., Xiong, W., Zhong, H., Hu, H., Zhang, S., Zheng, S., Yang, Z., and Wang, Z. Maximize to explore: One objective function fusing estimation, planning, and exploration. Advances in Neural Information Processing Systems , 36: 22151–22165, 2023. Mandl, P. Estimation and control in Markov chains. Advances in Applied Probability , 6(1):40–60, 1974. Mete, A., Singh, R., Liu, X., and Kumar, P. R. Reward biased maximum likelihood estimation for reinforcement learning. In Learning for Dynamics and Control , pp. 815–827. PMLR, 2021. Mete, A., Singh, R., and Kumar, P. R. Augmented RBMLE-UCB approach for adaptive control of linear quadratic systems. 
+
+Advances in Neural Information Processing Systems , 35:9302–9314, 2022a. Mete, A., Singh, R., and Kumar, P. R. The RBMLE method for reinforcement learning. In 2022 56th Annual Conference on Information Sciences and Systems (CISS) , pp. 107–112. IEEE, 2022b. Mete, A., Singh, R., and Kumar, P. R. The reward biased method: An optimism based approach for reinforcement learning. In 2023 59th Annual Allerton Conference on Communication, Control, and Computing (Allerton) , pp. 1–7. IEEE, 2023. Micheli, V., Alonso, E., and Fleuret, F. Transformers are sample-efficient world models, 2023. URL https://arxiv. org/abs/2209.00588 .12 Optimistic World Models 
+
+Pathak, D., Agrawal, P., Efros, A. A., and Darrell, T. Curiosity-driven exploration by self-supervised prediction. In 
+
+International conference on machine learning , pp. 2778–2787. PMLR, 2017. Robine, J., H ¨oftmann, M., Uelwer, T., and Harmeling, S. Transformer-based world models are happy with 100k interactions. 
+
+arXiv preprint arXiv:2303.07109 , 2023. Schrittwieser, J., Antonoglou, I., Hubert, T., Simonyan, K., Sifre, L., Schmitt, S., Guez, A., Lockhart, E., Hassabis, D., Graepel, T., et al. Mastering Atari, Go, Chess and Shogi by planning with a learned model. Nature , 588(7839):604–609, 2020. Shyam, P., Ja ´skowski, W., and Gomez, F. Model-based active exploration. In International conference on machine learning ,pp. 5779–5788. PMLR, 2019. Simchowitz, M. and Foster, D. Naive exploration is optimal for online lqr. In International Conference on Machine Learning ,pp. 8937–8948. PMLR, 2020. Sukhija, B., Treven, L., Sferrazza, C., D ¨orfler, F., Abbeel, P., and Krause, A. SOMBRL: Scalable and optimistic model-based rl. arXiv preprint arXiv:2511.20066 , 2025. Sutton, R. S., McAllester, D., Singh, S., and Mansour, Y. Policy gradient methods for reinforcement learning with function approximation. Advances in neural information processing systems , 12, 1999. Wagenmaker, A., Shi, G., and Jamieson, K. G. Optimal exploration for model-based rl in nonlinear systems. Advances in Neural Information Processing Systems , 36:15406–15455, 2023. Wang, S., Liu, S., Ye, W., You, J., and Gao, Y. Efficientzero v2: Mastering discrete and continuous control with limited data. 
+
+arXiv preprint arXiv:2403.00564 , 2024. Ye, W., Liu, S., Kurutach, T., Abbeel, P., and Gao, Y. Mastering Atari games with limited data. Advances in neural information processing systems , 34:25476–25488, 2021. Zhang, W., Wang, G., Sun, J., Yuan, Y., and Huang, G. STORM: Efficient stochastic transformer based world models for reinforcement learning. Advances in Neural Information Processing Systems , 36:27147–27166, 2023. 13 Optimistic World Models 
+
+A. Empirical Results 
+
+We discuss detailed results and the experimental setup in this section. 
+
+A.1. Hyperparameters 
+
+The OWM framework introduces two additional hyperparameters on top of the standard world model framework, namely the optimistic bias term α(t) and the model entropy coefficient η. For O-DreamerV3, we set α(t) = α = 0 .0001 and 
+
+η = 3 × 10 −6. For O-STORM, we set α(t) = α = 0 .0001 and η = 0 .0003 . The sensitivity analysis of these parameters is provided in Figures 11 and 12. All the other involved hyperparameters are set to the same values as the baseline algorithms and can be found in (Hafner et al., 2023) for DreamerV3 and (Zhang et al., 2023) for STORM. 
+
+A.2. Results 
+
+A.2.1. E VALUATION METHODOLOGY 
+
+The reported learning curves are obtained using 20 evaluation episodes at each checkpoint. We plot the mean reward ± the standard error of the mean with a smoothing window of 3. The results for O-DreamerV3 on the Atari100K and the DMC benchmarks are averaged over 10 seeds. All other results, including O-STORM experiments and ablations, are averaged over 5 seeds due to computational resource limitations. A.2.2. A TARI 100K B ENCHMARK 
+
+The Atari100K benchmark is designed to evaluate the data efficiency of RL algorithms. It consists of 26 Atari games, where each agent has a fixed budget of 400K frames (equivalent to roughly 2 hours of gameplay) (Hafner et al., 2023). The results for O-DreamerV3 are provided in Figure 6 and Table 2. The results for O-STORM are provided in Figure 7 and Table 3. A.2.3. D EEPMIND CONTROL (DMC) S UITE 
+
+We also present the performance of O-DreamerV3 on the DeepMind Control (DMC) suite, a popular reinforcement learning benchmark for continuous control tasks. The DMC suite consists of two benchmarks, the DMC proprio control benchmark and the DMC vision control benchmark. The DMC proprio control benchmark consists of continuous control tasks with proprioceptive vector inputs and continuous actions. Each task has a budget of 500K environment steps. Meanwhile, the DMC vision control benchmark consists of continuous control tasks with high-dimensional images as inputs. Each task has a budget of 1M environment steps. The learning curves are provided in Figures 8 and 9, while the final performance is highlighted in Tables 4 and 5. 
+
+A.3. Ablation Studies 
+
+Our optimistic dynamics loss consists of two terms, the optimism term and the entropy term. Figure 10 shows the performance without the entropy loss term, highlighting the improvement due to the introduction of the entropy loss. The sensitivity analysis of the two hyperparameters α and η is provided in Figures 11 and 12 respectively. These results show that high values, such as α = 0 .1, η = 0 .03 are detrimental to performance, while smaller values enhance performance. 
+
+A.4. Computation Resources 
+
+The O-DreamerV3 code is implemented using the official open-source code of DreamerV3 available at https:// github.com/danijar/DreamerV3 . Similarly, O-STORM is implemented using the official STORM code available at https://github.com/weipu-zhang/STORM . Each experiment was completed using one A100 GPU. The computational time experiments were run on a local RTX 4090 GPU to ensure fairness. 14 Optimistic World Models  
+
+> Table 2. Comparison of DreamerV3 and Optimistic DreamerV3 on Atari100K benchmark. Higher scores are highlighted in color and formatted in bold.
+
+DreamerV3 O-DreamerV3 Game Random Human Mean IQM Median Mean IQM Median Alien 228 7128 821 800 800 948 996.67 1065 
+
+Amidar 6 1720 111.4 110.33 109 111 112 114 
+
+Assault 222 742 644.6 659.67 677 621.2 628.17 619.5 Asterix 210 8503 740 633.33 550 805 858.33 900 
+
+Bank Heist 14 753 79 73.33 65 67 65 65 Battle Zone 2360 37188 5000 4833.33 4500 4700 3666.67 3000 Boxing 0 12 79.3 79 79 74.3 76.67 78.5 Breakout 2 30 7.9 7.67 8 7.2 6.83 6.5 Chopper Command 811 7388 2030 2050 2050 2220 2116.67 1750 Crazy Climber 10780 35829 67390 68616.67 64450 64190 62900 56700 Demon Attack 152 1971 366 193.33 197.5 407.5 250.83 180 Freeway 0 30 0 0 0 0 0 0Frostbite 65 4335 1117 860 300 1102 763.33 440 
+
+Gopher 258 2413 1356 1293.33 1190 1792 1513.33 1640 
+
+Hero 1027 30826 12799 13368.33 13382.5 12186 13277.5 13320 James Bond 29 303 330 325 325 360 333.33 350 
+
+Kangaroo 52 3035 2640 1566.67 1600 2140 1366.67 1300 Krull 1598 2666 8320 8736.67 8955 16816 7213.33 7215 Kung Fu Master 256 22736 22890 21100 20850 26640 26183.33 26100 
+
+Ms Pacman 307 6952 1446 1335 1245 1552 1605 1555 
+
+Pong -21 15 -5.6 -6.5 -7.5 -2.2 -4 -4.5 
+
+Private Eye 25 69571 893.9 147.17 100 1676.4 1297.83 100 Qbert 164 13455 1357.5 1116.67 1262.5 1137.5 787.5 787.5 Road Runner 12 7845 11330 11166.67 11550 15930 15350 16050 
+
+Seaquest 68 42055 708 660 680 914 860 860 
+
+Up N Down 533 11693 24954 14106.67 14185 91717 69470 51325 
+
+15 Optimistic World Models  
+
+> Table 3. Comparison of STORM and O-STORM on the Atari 100K benchmark. Higher scores are highlighted in color and formatted in bold.
+
+STORM O-STORM Game Random Human Mean IQM Median Mean IQM Median Alien 228 7128 1100.7 1060.83 1140.0 1131.2 992.5 1036.5 Amidar 6 1720 164.55 153.23 132.25 210.95 226.9 231.05 
+
+Assault 222 742 749.52 701.58 695.35 714.42 717.47 722.6 
+
+Asterix 210 8503 785.0 820.0 840.0 634.5 605.83 587.5 Bank Heist 14 753 378.3 376.0 437.0 445.7 458.83 528.0 
+
+Battle Zone 2360 37188 7470.0 7716.67 8250.0 5140.0 4883.33 5000.0 Boxing 0 12 58.4 62.3 60.5 66.25 66.62 65.05 
+
+Breakout 2 30 12.23 12.13 11.8 12.64 11.83 12.25 
+
+Chopper Command 811 7388 1371.0 1375.0 1355.0 1418.0 1358.33 1410.0 
+
+Crazy Climber 10780 35829 50567.0 49108.33 50710.0 51354.0 48655.0 48700.0 Demon Attack 152 1971 159.7 144.17 148.0 148.35 133.92 130.5 Freeway 0 30 0.0 0.0 0.0 6.38 0.0 0.0 Frostbite 65 4335 261.5 261.0 264.5 586.9 259.67 262.0 Gopher 258 2413 1600.6 1416.67 1339.0 1335.2 1162.67 883.0 Hero 1027 30826 13215.6 13436.83 13433.25 11305.6 11794.67 11398.0 James Bond 29 303 460.0 426.67 422.5 447.5 444.17 425.0 
+
+Kangaroo 52 3035 2287.0 2030.0 1370.0 1578.0 1636.67 1590.0 
+
+Krull 1598 2666 4882.5 5006.83 5701.5 6294.5 6259.17 6451.5 
+
+Kung Fu Master 256 22736 24545.0 25591.67 24025.0 17608.0 17090.0 13655.0 Ms Pacman 307 6952 1923.0 2045.17 2026.0 2008.5 1985.5 1883.0 Pong -21 15 7.07 9.37 9.6 -0.75 -0.87 -0.65 Private Eye 25 69571 115.53 115.33 100.0 2120.48 1668.87 100.0 Qbert 164 13455 2489.25 2574.58 2502.5 3271.0 3432.92 3591.25 
+
+Road Runner 12 7845 13057.0 12866.67 11165.0 10161.0 9013.33 8625.0 Seaquest 68 42055 444.2 452.33 451.0 421.8 411.0 375.0 Up N Down 533 11693 5585.2 4550.67 4529.5 8111.0 7772.5 7888.0 
+
+16 Optimistic World Models  
+
+> Table 4. Comparison of Optimistic DreamerV3 and DreamerV3 on DMC Proprio tasks. Higher scores are highlighted in color and formatted in bold.
+
+DreamerV3 O-DreamerV3 Task Mean IQM Median Mean IQM Median Acrobot Swingup 150.33 133.51 127.65 236.82 232.42 244.35 
+
+Acrobot Swingup Sparse 8.4 3.83 1.5 34.6 32.5 28.0 
+
+Cartpole Balance 990.23 995.43 995.69 993.0 994.19 995.13 Cartpole Balance Sparse 964.0 1000.0 1000.0 1000.0 1000.0 1000.0 Cartpole Swingup 838.83 857.02 857.77 855.11 855.16 855.81 Cartpole Swingup sparse 664.2 755.83 762.0 747.1 780.17 784.0 
+
+Cheetah Run 522.19 559.83 617.94 591.27 611.16 612.4 Cup Catch 959.2 962.33 962.0 948.5 957.17 959.5 Finger Spin 609.9 600.67 569.5 624.3 613.33 604.5 
+
+Finger Turn Easy 946.9 957.83 974.5 964.6 973.33 980.5 
+
+Finger Turn Hard 703.5 847.5 913.0 823.1 909.83 905.5 Hopper Hop 86.92 76.14 62.78 71.42 55.92 40.63 Hopper Stand 465.78 481.12 487.12 431.97 429.69 480.77 Pendulum Swingup 765.4 843.0 855.0 827.0 853.5 869.5 
+
+Reacher Easy 929.2 970.17 968.5 965.5 965.5 966.5 Reacher Hard 959.5 958.0 955.5 959.3 959.33 959.0 
+
+Walker Run 492.96 498.63 497.83 481.94 491.25 491.48 Walker Stand 952.7 969.36 976.3 959.76 963.81 967.57 Walker Walk 875.84 882.97 883.94 878.62 888.17 903.99  
+
+> Table 5. Comparison of Optimistic DreamerV3 and DreamerV3 on DMC Vision tasks. Higher scores are highlighted in color and formatted in bold.
+
+DreamerV3 O-DreamerV3 Task Mean IQM Median Mean IQM Median Acrobot Swingup 258.64 254.44 241.71 219.42 219.97 249.51 
+
+Acrobot Swingup Sparse 14.2 1.83 0.0 38.6 28.67 36.0 
+
+Cartpole Swingup 866.97 866.42 866.54 866.94 866.68 866.72 
+
+Cartpole Swingup Sparse 751.7 758.33 757.0 795.5 794.17 791.0 
+
+Cheetah Run 900.88 900.95 900.22 892.85 897.01 899.91 Cup Catch 971.9 970.0 970.0 973.0 970.33 970.0 Finger Spin 709.6 672.83 620.5 629.1 623.0 624.0 
+
+Finger Turn Easy 796.0 937.33 940.0 849.8 941.83 946.5 
+
+Finger Turn Hard 943.3 941.67 943.5 936.6 946.5 955.0 
+
+Hopper Hop 303.49 292.11 289.86 299.31 298.52 298.87 
+
+Hopper Stand 935.54 930.68 929.79 932.77 936.21 933.34 
+
+Pendulum Swingup 777.3 850.83 843.5 838.9 844.67 848.5 
+
+Quadruped Run 482.32 493.46 481.41 528.24 510.29 501.88 
+
+Quadruped Walk 831.16 856.04 867.86 799.58 819.48 840.62 Reacher Easy 983.2 984.0 984.0 984.6 984.0 985.0 
+
+Reacher Hard 961.4 964.67 962.5 933.0 970.17 972.5 
+
+Walker Run 714.8 751.72 751.36 750.3 756.55 754.9 
+
+Walker Stand 983.39 982.98 984.18 985.11 984.88 983.69 Walker Walk 960.23 963.05 963.67 966.63 968.27 968.07 
+
+17 Optimistic World Models 200 k 400 k 
+
+250 
+
+500 
+
+750 
+
+1000 
+
+> Return
+
+Alien 
+
+200 k 400 k 
+
+0
+
+50 
+
+100 
+
+Amidar 
+
+200 k 400 k 
+
+400 
+
+600 
+
+Assault 
+
+200 k 400 k 
+
+250 
+
+500 
+
+750 
+
+Asterix 
+
+200 k 400 k 
+
+25 
+
+50 
+
+75 
+
+> Return
+
+Bank Heist 
+
+200 k 400 k 
+
+2000 
+
+4000 
+
+6000 
+
+Battle Zone 
+
+200 k 400 k 
+
+0
+
+50 
+
+Boxing 
+
+200 k 400 k 
+
+5
+
+10 
+
+Breakout 
+
+200 k 400 k 
+
+1000 
+
+2000 
+
+> Return
+
+Chopper Command 
+
+200 k 400 k 
+
+0
+
+50000 
+
+100000 
+
+Crazy Climber 
+
+200 k 400 k 
+
+200 
+
+400 
+
+Demon Attack 
+
+200 k 400 k 
+
+0.0 
+
+0.1 
+
+Freeway 
+
+200 k 400 k 
+
+0
+
+500 
+
+1000 
+
+1500 
+
+> Return
+
+Frostbite 
+
+200 k 400 k 
+
+1000 
+
+2000 
+
+Gopher 
+
+200 k 400 k 
+
+0
+
+5000 
+
+10000 
+
+Hero 
+
+200 k 400 k 
+
+0
+
+200 
+
+400 
+
+James Bond 
+
+200 k 400 k 
+
+0
+
+1000 
+
+2000 
+
+3000 
+
+> Return
+
+Kangaroo 
+
+200 k 400 k 
+
+10000 
+
+20000 
+
+Krull 
+
+200 k 400 k 
+
+0
+
+10000 
+
+20000 
+
+30000 
+
+Kung Fu Master 
+
+200 k 400 k 
+
+1000 
+
+2000 
+
+Ms Pacman 
+
+200 k 400 k 
+
+20 
+
+10 
+
+> Return
+
+Pong 
+
+200 k 400 k 
+
+0
+
+1000 
+
+2000 
+
+Private Eye 
+
+200 k 400 k 
+
+Steps 
+
+0
+
+1000 
+
+2000 
+
+Qbert 
+
+200 k 400 k 
+
+Steps 
+
+0
+
+5000 
+
+10000 
+
+15000 
+
+Road Runner 
+
+200 k 400 k 
+
+Steps 
+
+500 
+
+1000 
+
+> Return
+
+Seaquest 
+
+200 k 400 k 
+
+Steps 
+
+0
+
+50000 
+
+100000 
+
+Up N Down DreamerV3 O-DreamerV3 
+
+Figure 6. Comparison of Optimistic DreamerV3 and DreamerV3 on the Atari100K Benchmark. 
+
+18 Optimistic World Models 200 k 400 k 
+
+500 
+
+1000 
+
+> Return
+
+Alien 
+
+200 k 400 k 
+
+0
+
+100 
+
+200 
+
+Amidar 
+
+200 k 400 k 
+
+200 
+
+400 
+
+600 
+
+Assault 
+
+200 k 400 k 
+
+200 
+
+400 
+
+600 
+
+800 
+
+Asterix 
+
+200 k 400 k 
+
+0
+
+200 
+
+400 
+
+> Return
+
+Bank Heist 
+
+200 k 400 k 
+
+2000 
+
+4000 
+
+6000 
+
+8000 
+
+Battle Zone 
+
+200 k 400 k 
+
+0
+
+25 
+
+50 
+
+75 
+
+Boxing 
+
+200 k 400 k 
+
+5
+
+10 
+
+Breakout 
+
+200 k 400 k 
+
+1000 
+
+1500 
+
+> Return
+
+Chopper Command 
+
+200 k 400 k 
+
+20000 
+
+40000 
+
+Crazy Climber 
+
+200 k 400 k 
+
+100 
+
+200 
+
+300 
+
+Demon Attack 
+
+200 k 400 k 
+
+0
+
+5
+
+10 
+
+Freeway 
+
+200 k 400 k 
+
+250 
+
+500 
+
+750 
+
+> Return
+
+Frostbite 
+
+200 k 400 k 
+
+500 
+
+1000 
+
+1500 
+
+2000 
+
+Gopher 
+
+200 k 400 k 
+
+0
+
+5000 
+
+10000 
+
+Hero 
+
+200 k 400 k 
+
+0
+
+200 
+
+400 
+
+James Bond 
+
+200 k 400 k 
+
+0
+
+2000 
+
+4000 
+
+6000 
+
+> Return
+
+Kangaroo 
+
+200 k 400 k 
+
+2000 
+
+4000 
+
+6000 
+
+Krull 
+
+200 k 400 k 
+
+0
+
+10000 
+
+20000 
+
+Kung Fu Master 
+
+200 k 400 k 
+
+1000 
+
+2000 
+
+Ms. Pac-Man 
+
+200 k 400 k 
+
+20 
+
+10 
+
+0
+
+10 
+
+> Return
+
+Pong 
+
+200 k 400 k 
+
+0
+
+1000 
+
+2000 
+
+Private Eye 
+
+200 k 400 k 
+
+Steps 
+
+0
+
+2000 
+
+4000 
+
+Qbert 
+
+200 k 400 k 
+
+Steps 
+
+0
+
+5000 
+
+10000 
+
+Road Runner 
+
+200 k 400 k 
+
+Steps 
+
+200 
+
+400 
+
+> Return
+
+Seaquest 
+
+200 k 400 k 
+
+Steps 
+
+0
+
+5000 
+
+10000 
+
+Up'n Down STORM O-STORM 
+
+Figure 7. Comparison of Optimistic STORM and STORM on the Atari100K Benchmark. 
+
+19 Optimistic World Models 250 k 500 k 
+
+> 0
+> 100
+> 200
+> Return
+
+Acrobot Swingup  
+
+> 250 k 500 k
+> 0
+> 20
+> 40
+
+Acrobot Swingup Sparse  
+
+> 250 k 500 k
+> 500
+> 1000
+
+Cartpole Balance  
+
+> 250 k 500 k
+> 0
+> 500
+> 1000
+
+Cartpole Balance Sparse  
+
+> 250 k 500 k
+> 0
+> 500
+> Return
+
+Cartpole Swingup  
+
+> 250 k 500 k
+> 0
+> 500
+
+Cartpole Swingup Sparse  
+
+> 250 k 500 k
+> 0
+> 250
+> 500
+
+Cheetah Run  
+
+> 250 k 500 k
+> 0
+> 500
+> 1000
+
+Cup Catch  
+
+> 250 k 500 k
+> 0
+> 250
+> 500
+> Return
+
+Finger Spin  
+
+> 250 k 500 k
+> 500
+> 1000
+
+Finger Turn Easy  
+
+> 250 k 500 k
+> 0
+> 500
+
+Finger Turn Hard  
+
+> 250 k 500 k
+> 0
+> 50
+
+Hopper Hop  
+
+> 250 k 500 k
+> 0
+> 250
+> 500
+> Return
+
+Hopper Stand  
+
+> 250 k 500 k
+> 0
+> 500
+
+Pendulum Swingup  
+
+> 250 k 500 k
+> 0
+> 500
+> 1000
+
+Reacher Easy  
+
+> 250 k 500 k
+
+Steps 
+
+> 0
+> 500
+> 1000
+
+Reacher Hard  
+
+> 250 k 500 k
+
+Steps 
+
+> 200
+> 400
+> Return
+
+Walker Run  
+
+> 250 k 500 k
+
+Steps 
+
+> 500
+> 1000
+
+Walker Stand  
+
+> 250 k 500 k
+
+Steps 
+
+> 0
+> 500
+
+Walker Walk DreamerV3 O-DreamerV3 
+
+Figure 8. Comparison of Optimistic DreamerV3 and DreamerV3 on the DMC Proprio Benchmark. 
+
+20 Optimistic World Models 500 k 1 M 
+
+> 0
+> 200
+> Return
+
+Acrobot Swingup  
+
+> 500 k 1 M
+> 0
+> 25
+> 50
+
+Acrobot Swingup Sparse  
+
+> 500 k 1 M
+> 0
+> 500
+
+Cartpole Swingup  
+
+> 500 k 1 M
+> 0
+> 500
+
+Cartpole Swingup Sparse  
+
+> 500 k 1 M
+> 0
+> 500
+> Return
+
+Cheetah Run  
+
+> 500 k 1 M
+> 0
+> 500
+> 1000
+
+Cup Catch  
+
+> 500 k 1 M
+> 0
+> 500
+
+Finger Spin  
+
+> 500 k 1 M
+> 500
+> 1000
+
+Finger Turn Easy  
+
+> 500 k 1 M
+> 0
+> 500
+> 1000
+> Return
+
+Finger Turn Hard  
+
+> 500 k 1 M
+> 0
+> 200
+
+Hopper Hop  
+
+> 500 k 1 M
+> 0
+> 500
+> 1000
+
+Hopper Stand  
+
+> 500 k 1 M
+> 0
+> 500
+
+Pendulum Swingup  
+
+> 500 k 1 M
+> 0
+> 250
+> 500
+> Return
+
+Quadruped Run  
+
+> 500 k 1 M
+> 0
+> 500
+
+Quadruped Walk  
+
+> 500 k 1 M
+> 0
+> 500
+> 1000
+
+Reacher Easy  
+
+> 500 k 1 M
+
+Steps 
+
+> 0
+> 500
+> 1000
+
+Reacher Hard  
+
+> 500 k 1 M
+
+Steps 
+
+> 0
+> 500
+> Return
+
+Walker Run  
+
+> 500 k 1 M
+
+Steps 
+
+> 500
+> 1000
+
+Walker Stand  
+
+> 500 k 1 M
+
+Steps 
+
+> 0
+> 500
+> 1000
+
+Walker Walk DreamerV3 O-DreamerV3 
+
+Figure 9. Comparison of Optimistic DreamerV3 and DreamerV3 on the DMC Vision Benchmark. 
+
+21 Optimistic World Models 250 k 500 k 
+
+Steps 
+
+0
+
+200 
+
+400 
+
+600 
+
+800 
+
+> Return
+> w/o entropy loss
+> with entropy loss
+
+(a) Cartpole Swing. Sparse 200 k 400 k 
+
+Steps 
+
+0
+
+500 
+
+1000 
+
+1500 
+
+2000 
+
+2500  
+
+> Return
+> w/o entropy loss
+> with entropy loss
+
+(b) MsPacman 200 k 400 k 
+
+Steps 
+
+20 
+
+15 
+
+10 
+
+5
+
+0 
+
+> Return
+> w/o entropy loss
+> with entropy loss
+
+(c) Pong 
+
+Figure 10. Ablation study of model entropy loss term for Optimistic DreamerV3 250 k 500 k 
+
+Steps 
+
+0
+
+200 
+
+400 
+
+600 
+
+800    
+
+> Return
+> α= 0 .0001
+> α= 0 .001
+> α= 0 .1
+
+(a) Cartpole Swing. Sparse 200 k 400 k 
+
+Steps 
+
+0
+
+500 
+
+1000 
+
+1500 
+
+2000 
+
+2500     
+
+> Return
+> α= 0 .0001
+> α= 0 .001
+> α= 0 .1
+
+(b) MsPacman 200 k 400 k 
+
+Steps 
+
+20 
+
+15 
+
+10 
+
+5
+
+0    
+
+> Return
+> α= 0 .0001
+> α= 0 .001
+> α= 0 .1
+
+(c) Pong 
+
+Figure 11. Performance of O-DreamerV3 for various values of α with η = 3 × 10 −6.250 k 500 k 
+
+Steps 
+
+0
+
+200 
+
+400 
+
+600 
+
+800    
+
+> Return
+> η= 0 .000003
+> η= 0 .0003
+> η= 0 .03
+
+(a) Cartpole Swing. Sparse 200 k 400 k 
+
+Steps 
+
+0
+
+500 
+
+1000 
+
+1500 
+
+2000 
+
+2500     
+
+> Return
+> η= 0 .000003
+> η= 0 .0003
+> η= 0 .03
+
+(b) MsPacman 200 k 400 k 
+
+Steps 
+
+20 
+
+15 
+
+10 
+
+5
+
+0    
+
+> Return
+> η= 0 .000003
+> η= 0 .0003
+> η= 0 .03
+
+(c) Pong 
+
+Figure 12. Performance of O-DreamerV3 for various values of η with α = 0 .0001 .
+
+22

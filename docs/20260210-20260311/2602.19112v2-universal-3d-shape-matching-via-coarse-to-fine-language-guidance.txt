@@ -1,0 +1,522 @@
+Title: Universal 3D Shape Matching via Coarse-to-Fine Language Guidance
+
+URL Source: https://arxiv.org/pdf/2602.19112v2
+
+Published Time: Wed, 25 Feb 2026 01:24:10 GMT
+
+Number of Pages: 14
+
+Markdown Content:
+# Universal 3D Shape Matching via Coarse-to-Fine Language Guidance 
+
+## Qinfeng Xiao 1 Guofeng Mei 2 Bo Yang 1 Zhang Liying 1 Jian Zhang 3 YICK Kit-lun 1*
+
+> 1
+
+## Hong Kong Polytechnic University, HK SAR 
+
+> 2
+
+## Fondazione Bruno Kessler, Italy 
+
+> 3
+
+## University of Technology Sydney, Australia 
+
+qin-feng.xiao@connect.polyu.hk, kit-lun.yick@polyu.edu.hk Co -Segmentation Cross -category Non -isometric   
+
+> Source DenseMatcher Ours
+> Correct
+> ✅
+> Wrong
+> ❌
+> Right
+> Hand
+> Wrong ❌
+> Correct ✅
+> Back Right
+> Leg
+> Tail
+> Wrong
+> ❌
+> Correct
+> ✅
+> Wrong
+> ❌
+> Front
+> Left Hand
+> Correct
+> ✅
+
+Figure 1. We propose UniMatch, a semantic-aware, coarse-to-fine framework for 3D shape matching. Our method yields high-quality semantic correspondences under challenging scenarios, e.g ., cross-category shapes and non-isometric deformations. Besides, UniMatch learns semantically consistent cross-shape features, enabling efficient co-segmentation for distinct categories. 
+
+## Abstract 
+
+Establishing dense correspondences between shapes is a crucial task in computer vision and graphics, while prior approaches depend on near-isometric assumptions and ho-mogeneous subject types ( i.e ., only operate for human shapes). However, building semantic correspondences for cross-category objects remains challenging and has re-ceived relatively little attention. To achieve this, we pro-pose UniMatch , a semantic-aware, coarse-to-fine frame-work for constructing dense semantic correspondences be-tween strongly non-isometric shapes without restricting ob-ject categories. The key insight is to lift “coarse” se-mantic cues into “fine” correspondence, which is achieved 
+
+> *Corresponding author
+
+through two stages. In the “coarse” stage, we perform class-agnostic 3D segmentation to obtain non-overlapping semantic parts and prompt multimodal large language mod-els (MLLMs) to identify part names. Then, we employ pretrained vision language models (VLMs) to extract text embeddings, enabling the construction of matched seman-tic parts. In the “fine” stage, we leverage these coarse correspondences to guide the learning of dense correspon-dences through a dedicated rank-based contrastive scheme. Thanks to class-agnostic segmentation, language guiding, and rank-based contrastive learning, our method is versa-tile for universal object categories and requires no prede-fined part proposals, enabling universal matching for inter-class and non-isometric shapes. Extensive experiments demonstrate UniMatch consistently outperforms competing 
+
+> arXiv:2602.19112v2 [cs.CV] 24 Feb 2026
+
+methods in various challenging scenarios. 
+
+## 1. Introduction 
+
+Shape matching aims to establish dense correspondences between 3D shapes and underpins a wide range of appli-cations, such as texture transfer [18], parametric human modeling [37], robotic manipulation [63], and shape inter-polation [10, 17]. A long-standing and effective paradigm represents point-to-point maps in a compact spectral rep-resentation through functional maps [46], enabling elegant regularization and efficient optimization. Deep functional map approaches further process geometric descriptors and operators in an end-to-end fashion [9, 13, 28, 31, 54]. De-spite strong performance, they typically rely on a near-isometric assumption, and thus degrade under substantial non-isometric deformations or topological noises [15, 26, 46]. Moreover, purely geometric cues struggle to support inter-class matching, where correspondences between inter-class variations must bridge semantic relations [14, 63]. In parallel, visual foundation models (VFMs) have un-locked rich, transferable semantics, and surprisingly robust correspondence cues from 2D images [45, 55]. Building on these priors, recent methods lift or distill 2D features into 3D for shape matching: Diff3F [14] decorates untextured meshes with diffusion models and learn correspondences via intermediate diffusion features; DenseMatcher [63] learns 3D semantic correspondences through SD-DINO features [61] and manual annotated parts for robot manipu-lation; and a zero-shot pipeline, ZSC, estimates dense cor-respondences by feeding coarse part-level correspondences into a spectral-based refinement algorithm [1]. Although compelling, these methods remain limited: they are not ver-satile for in-the-wild objects in fully unsupervised settings, while ZSC requires predefined part proposals, and Dense-Matcher requires manual part annotations. To address the limitations, we propose UniMatch , a se-mantically aware, coarse-to-fine framework for computing semantic correspondences without restricting object cate-gories. UniMatch operates in two stages. At the “coarse” stage, we first employ an effective class-agnostic 3D part segmentation algorithm to obtain non-overlapping semantic parts without predefined part proposals or category hints. Then we employ the multimodal reasoning capabilities of GPT-5 [44] to identify the name of each part and build coarse part-level correspondence by computing language embeddings using FG-CLIP [57]. At the “fine” stage, we extend the functional map framework by leveraging seman-tic feature fields calculated using SD-DINO [61] and the coarse correspondences. Specifically, we propose a novel group-wise rank-based contrastive loss that effectively en-forces semantic consistency across shapes without requiring explicit positive/negative hints, unlike conventional con-trastive losses. A comparison with major baselines on key features of our proposed method is summarized in Tab. 1. Our contributions are as follows: • We present UniMatch , a semantic-aware, coarse-to-fine 
+
+shape matching framework for universal object categories without predefined part priors. • We build coarse part-level correspondences via class-agnostic 3D part segmentation, MLLM prompting, and FG-CLIP language embeddings. • We compute point-to-point correspondences by extending the conventional functional map framework with seman-tic feature fields and our proposed group-wise rank-based contrastive loss that enforces semantic consistency with-out explicit positives/negatives. • Extensive experiments show consistent gains of our method on various challenging scenarios, including inter-/non-/near-isometric settings.                                
+
+> Table 1. Overview of our method and competing methods.
+> Method Semantic Features Language Guided Inter-class URSSM [9] [ToG 2023] No ✗No ✗No ✗
+> Diff3F [14] [CVPR 2024] Yes ✓No ✗Worse ZSC [1] [SIGGR. Asia 2023] No ✗No ✗Yes ✓
+> DenseMatcher [63] [ICLR 2025] Yes ✓No ✗Yes ✓
+> UniMatch (ours) Yes ✓Yes ✓Yes ✓
+
+## 2. Related Work 
+
+2.1. Shape Correspondences 
+
+Establishing 3D shape correspondences is crucial for var-ious applications, and most methods can be categorized into two dominant paradigms: the functional map approach and its variants, and recent advances that leverage large-scale models to explore semantic and part-guided corre-spondences. Functional map [46] methods model corre-spondences as compact linear operators in spectral domains, applying geometric constraints for regularization. Recent advances use learned descriptors and dedicated objectives to improve matching accuracy [9, 13, 21, 28, 31, 43, 52, 54]. Though effective for near-isometric deformations, they de-pend on mesh assumptions and weakly capture high-level semantic structure, resulting in degraded performance un-der strong non-isometric or cross-category variations. 
+
+Semantic correspondences. Due to the inefficiency of con-ventional approaches for tackling non-isometric deforma-tions, recent works have explored alternative approaches to find semantic correspondences between shapes, which are expected to capture high-level semantic relations beyond handcrafted geometric descriptors. Meanwhile, diffusion models [51] and VFMs have demonstrated strong capabil-ities in encoding semantic-rich features, enabling the com-putation of semantic correspondences across shapes. Since these models are designed for 2D images, existing meth-ods leverage multi-view rendering and aggregation to ob-tain 3D semantic features. Diff3F [14] utilizes a pre-trained diffusion model and DINO [45] to extract multi-view fea-tures, which are then aggregated to form 3D features for correspondence estimation. DenseMatcher [63] employs SD-DINO [61] features extracted from rendered images and learns matching with the help of manual part annotations. 
+
+Part-guided correspondences. 3D part segmentation can be categorized into two main approaches: text-prompted segmentation and class-agnostic segmentation. Text-prompted part segmentation lift 2D visual detectors, e.g .BLIP [27], from multi-view renderings and fuse the seg-mentation results [2, 24, 33, 62]. Instead of identifying cer-tain parts using text prompts, class-agnostic methods de-compose the entire object into semantic parts by distill-ing SAM masks [12, 22, 34, 58] or training in an end-to-end fashion [39, 64]. To achieve zero-shot and inter-class shape matching, ZSC [1] proposes using part segmenta-tion to build part-level relations and refine them to produce dense correspondences. However, it relies on predefined part proposals and text prompts for each category, limiting its generalization to in-the-wild objects. DenseMatcher [63] proposes to use a contrastive loss to enforce consistency between annotated parts. Although it incorporates visual features and semantic consistency, it requires manually la-beled semantic parts, which limits its broader applications in open-world scenarios. 
+
+2.2. Large-Scale Models 
+
+Recent advances in large-scale models have significantly pushed the boundaries of multimodal understanding [30, 59]. Multimodal Large Language Models (MLLMs) such as GPT-4 [3], GPT-5 [44], LLaVA [32], and QWen-VL [6] have demonstrated remarkable abilities in comprehending and reasoning about visual data in a conversational con-text. Concurrently, Vision-Language Models (VLMs) like CLIP [47] and its fine-grained variant FG-CLIP [57], as well as SigLIP [56], have excelled at learning powerful, generalizable visual representations from vast amounts of image-text data. These models provide robust semantic fea-tures that can be transferred to various downstream tasks. We employ the powerful multimodal reasoning capabili-ties of GPT-5 to identify semantic part names and leverage FG-CLIP to extract fine-grained language embeddings for building coarse part-level correspondences. 
+
+## 3. Method 
+
+Our method, as illustrated in Fig. 2, is a two-stage frame-work that operates in a coarse-to-fine manner. In the first, 
+
+coarse stage, we prompt MLLMs to retrieve semantic re-gions. We then utilize language embeddings to establish semantic-rich coarse correspondences between shape pairs. In the second, fine stage, these coarse correspondences “su-pervise” a functional map framework. This process is op-timized using a dedicated group-wise ranking-based con-trastive loss to yield the final dense correspondences. 
+
+3.1. The “coarse” stage: semantic region relations 
+
+Class-agnostic part segmentation. Many works utilize SAM [25] to achieve text-prompted 3D part segmenta-tion [1, 2, 33, 40], i.e . using 2D visual grounding mod-els and SAM to obtain 2D masks and aggregate them into 3D masks. In this paper, we consider an effective class-agnostic 3D segmentation method, PartField [34], instead of text-prompted segmentation. We obtain the correspond-ing non-intersecting 3D masks for each, representing a se-mantic region for the input shape X . The reasons are three-fold: (i) the segmentation accuracy of text-referred methods can be disastrous for existing shape matching benchmarks, as they are often untextured and low resolution; (ii) text-prompted methods require explicit names of semantic parts, which are limited for open-vocabulary objects; (iii) even given part definitions, they cannot cover the whole shape, leading to incomplete matches for the downstream shape-matching task; (iv) PartField demonstrates on-the-fly infer-ence speed due to the feedforward 3D architecture, while text-prompted 3D segmentation algorithms require complex rendering, grounding and aggregation processes. Given an input shape X and the number of parts nR, we denote the segmentation result as Rx.
+
+Multi-modal semantic region prompting. Despite the ef-ficiency and high accuracy of class-agnostic segmentation of PartField, the semantic regions obtained have no corre-sponding part names. To tackle this, we prompt MLLMs to obtain a part name for each semantic region, thereby estab-lishing coarse correspondences from the input shape pair. In detail, we first render the input shape with 3D masks into multi-view images and corresponding 2D masks using a differentiable renderer, by sequencing the cameras coun-terclockwise around the shape. Then, we overlay each 2D mask on the original image and prompt GPT-5 [44] to obtain the name of the shaded region. We discard too small masks, 
+
+i.e ., less than 5% pixels out of the whole object. Finally, we aggregate part names into the 3D domain using known camera parameters to obtain the final semantic region pro-posal Rx. More details can be found in Sec. 6.1. Com-pared to obtaining semantic regions with class-dependent part proposals [1], our method is more flexible in handling open-world 3D shapes and requires no predefined part pro-posals. Additionally, ZSC requires prompt MLLM during inference time for testing shapes. In contrast, our method only prompts MLLM for training. 
+
+Solving ambiguity by language. We attempt to build coarse correspondences among semantic regions. However, building explicit correspondences like ZSC [1] is challeng-Left               
+
+> Arm
+> Head
+> Left Arm
+> Left Thigh
+> Left Leg
+> Torso
+> Prompt
+> GPT -5
+> FG -CLIP  Query Language
+> Embeddings
+> Class -
+> agnostic
+> Segmentation
+> Semantic Feature
+> Fields 𝒇 !"
+> SD -DINO  Rank -based
+> Contrastive
+> Loss ℒ#"$
+> DiffusionNet
+> Part -level
+> Correspondences
+> Functional Map
+> 𝐶 %&
+> Functional
+> Map Loss
+> ℒ'( Dense
+> Correspondence Π%&
+> Colorization
+> &Rendering Aggregation
+> Embedding Space
+> Optimize
+
+(I) “Coarse” Stage 
+
+(II) “Fine” Stage        
+
+> Head
+> Left
+> Thigh
+> Left
+> Leg
+> Torso
+> Source Shape
+> Source Shape Segmentation Map Semantic Parts
+> Guidance
+> Concat with
+> Geo.
+> Features
+> Refined
+> Features  𝒇 !"#
+
+Figure 2. Our framework consists of two stages: (i) Coarse stage : class-agnostic 3D segmentation (PartField) produces non-overlapping semantic regions. Multi-view rendering and multimodal large language model (MLLM) prompting (using GPT-5 and FG-CLIP) assign part names and map them to unified language embeddings, enabling implicit, robust coarse correspondences across shapes. (ii) Fine stage : the coarse semantic matches guide dense correspondence learning within an extended functional map pipeline, leveraging SD-DINO semantic feature fields and a novel group-wise rank-based contrastive loss to enforce semantic consistency. UniMatch operates without predefined part priors and generalizes across object categories and non-isometric deformations. 
+
+ing and lacks flexibility because the input shape pair may not share the same semantic partitions, especially for cross-category shape matching. Besides, part names produced by MLLMs can be ambiguous, e.g . “mouth” of a human and “muzzle” of a dog should be semantically matched while they have totally different language outputs. To keep se-mantic consistency and robustness towards MLLM’s out-puts, we build implicit correspondences between semantic regions with language embeddings. In detail, we map part names into a unified embedding space by feeding them into FG-CLIP [57] to obtain language embeddings E ∈ RClang 
+
+where Clang is the embedding dimension. Later, the simi-larity between the two parts can be measured using a com-mon distance measurement. Compared with ZSC, which re-quires heavy MLLM prompting during inference to obtain part relations, our method only prompts GPT-5 for train-ing data curation. We show that smooth, continuous lan-guage embeddings benefit the optimization process rather than explicit and hard-coded correspondences and reveal the semantic-rich ranks among parts in Sec. 3.2. 
+
+3.2. Fine Stage 
+
+Functional map pipeline. The functional map [46] pipeline models 3D shape correspondences as linear op-erators between functional spaces, typically using a spec-tral basis. Instead of point-to-point mapping, it computes a compact representation that can be converted back when needed [43]. We adopt the advanced variant of the func-tional map framework, URSSM [9], in this work. Specifi-cally, given precomputed per-vertex features f in for n ver-tices, a trainable refiner, e.g ., DiffusionNet [53], F produces refined features: f out = Fθ (f in ), where Fθ (·) : Rn×Cin →
+
+Rn×Cout . The refiner F and the functional map Cyx are jointly optimized with: (1) data preserving loss Ldata to pre-serve input features f out ; (2) regularization loss Lreg to en-sure mathematical properties like bijectivity and orthogo-nality; (3) coupling loss Lcouple to ensure the consistency be-tween soft correspondences (calculated by the cosine simi-larity of f out ) and the functional map Cyx . The final func-tional map objective is: 
+
+Lfm = Ldata + λreg · L reg + λcouple · L couple . (1) This pipeline, while effective for near-isometric shapes, fails in non-isometric shape matching and heterogeneous subjects [1, 46, 63]. To this end, we enhance it by incorpo-rating semantic feature fields and a group-wise rank-based contrastive loss for robust matching across categories and non-isometric deformations. 
+
+Semantic feature fields. Previous functional map meth-ods [9, 21, 52] typically utilize geometric descriptors, e.g .wave kernel signature (WKS) [5] to feed the refiner F. In-spired by the success of VFMs [11, 45, 47, 51], recent work attempts to lift 2D semantic knowledge to 3D [1, 14, 63]. Similar to DenseMatcher [63], we build our semantic fea-ture fields using SD-DINO [61] but discard the use of posi-tional encoding, since it results in disastrous performance. Besides, we perform view-consistent texture synthesis for uncolored shapes using SyncMVD [36], unlike textured meshes used in DenseMatcher. Then we render K multi-view RGB images with uniformly distributed elevation and azimuthal angles in [0 ◦, 360 ◦). To extract semantic features, we use SD-DINO to get low-resolution features and employ the FeatUp upscaler [19] to upsample them. Lastly, given known camera parameters, we back-project and aggregate 2D semantic features into the 3D domain from all visible views. Finally, we input concatenation of the geometric de-scriptors f geo and semantic features f sem to the refiner F:
+
+f in = Concat (f geo , f sem ). (2) 
+
+Rank-based contrastive loss. We design a rank-based contrastive loss for learning semantic-aware correspon-dences. Given the shape pair X and Y with per-vertex features f x and f y , we use the implicit coarse correspon-dences to “supervise” the optimization for dense correspon-dences. The most straightforward solution is to adopt con-trastive learning, e.g ., SupCon loss [23], widely used in representation learning. However, conventional contrastive losses require explicit hints to distinguish positive and neg-ative samples, which are not available in our case. Besides, this scheme fails to recognize the underlying continuous relations between semantic regions provided by language embeddings. To tackle this, we utilize Rank-n-Contrastive (RnC) loss [60] to learn continuous representations that or-dered semantic relations between parts (see Fig. 3). Head Front        
+
+> Leg Back Leg Tail
+> >>>
+> “Anchor”
+> “Anchor” Positive Negatives
+> Source
+> Shape Target
+> Shape
+> Rank -based
+> Contrast
+> Conventional
+> Contrast
+
+Figure 3. Intuition of rank-based contrastive loss. Compared with standard contrastive loss, rank-based contrastive loss effectively utilizes the ordinal hints to optimize features. 
+
+Preliminaries of RnC loss. To align the distances in the fea-ture space ordered by similarities provided by label hints (i.e ., language embeddings in our case), RnC loss first ranks all samples based on label distances regarding an anchor sample, and then contrasts them according to their relative rankings. Specifically, given an anchor f xi , RnC loss con-structs the likelihood of a reference f yj conditioned on a set of negative samples Si,j := {f yk|d( yi, yk) ≥ d( yi, yj )},which contains all samples whose ranks (defined by the la-bel distance measure d( ·, ·)) to the anchor are lower than that of the reference. The likelihood is defined as: 
+
+P(f yj |f xi , Si,j ) = exp( sim (f xi , f yj )/τ )
+
+P   
+
+> fyk∈S i,j
+
+exp( sim (f xi , f yk)/τ ) , (3) where sim (·, ·) is the similarity measure and τ is the tem-perature parameter. Intuitively, maximizing P(f yj |f xi , Si,j )
+
+increases the likelihood that samples of higher ranks than the reference f yj and the reference are closer to the anchor 
+
+f xi than all negative samples in Si,j .
+
+The proposed group-wise RnC loss. To supervise dense cor-respondences with the RnC loss, one can contrast per-vertex features using coarse semantic rankings derived from lan-guage embeddings; however, this poses O(nx × ny ) time and memory complexity, and assumes vertex independence, ignoring the inherent grouping into semantic regions that provides structured ordinal relations. We propose a group-wise Rank-n-Contrastive loss that overcomes these limita-tions by contrasting at the semantic group level rather than per-sample, reducing complexity to O(nx × nR), where nR
+
+is the number of regions ( nR ≪ ny ), while explicitly mod-eling inter-group dependencies through embedding-based distances to enforce continuous semantic consistency. Specially, given an anchor feature f xi from the source shape and a reference group, denoted as Gyj , from the target shape, negatives Si,j := {f yk|k̸ = i, d( Ei, Ek) ≥ d( Ei, Ej )}
+
+are dynamically grouped by language embedding distances 
+
+d( ·, ·), yielding per-group likelihoods: 
+
+P(Gyj |f xi , Si,j ) = 
+
+P 
+
+> l
+
+exp( sim (f xi , f yl )/τ )
+
+P   
+
+> fyk∈S i,j
+
+exp( sim (f xi , f yk)/τ ) , (4) where τ is the temperature parameter, and the numerator is the summation of similarities of the anchor and the ref-erence group Gyj . The group-wise loss aggregates negative log-likelihoods over target regions: 
+
+ℓ(i)
+
+> RnC
+
+(X , Y) = 1
+
+nR
+
+> nR
+
+X
+
+> j=1
+
+− log P(f yj |f xi , Si,j ). (5) Finally, the group-wise RnC loss is the average over source anchors, calculated by: 
+
+LRnC = 1
+
+nxnxX
+
+> i=1
+
+ℓ(i)
+
+> RnC
+
+(X , Y). (6) This enables scalable, annotation-free alignment, preserves RnC’s ranking under grouped, language-guided supervi-sion, and yields smoother, more robust correspondences than vertex-wise/independent contrasts (see Tab. 5, Fig. 4). Source Shape  
+
+> (𝑖 )(𝑗 )
+> Attract
+> Pull
+> Ranks
+> Anchor
+> Reference
+> Group
+> Higher
+> Similarity
+> Lower
+> Similarity
+> Target Shape
+
+Figure 4. Illustration of our group-wise Rank-n-Contrastive Loss. For each anchor feature, we traverse the semantic regions as reference features, and group the negative samples by their se-mantic similarities (lower than reference). The darker the color, the closer the semantic similarity. 
+
+## 4. Experiments 
+
+4.1. Inter-class shape matching 
+
+Setup. We evaluate our method and baselines on three challenging cross-category benchmarks, Strongly Non-Isometric Shapes (SNIS) [1], TOSCA [8], and SHREC07 [20]. Details of datasets and baselines can be found in Sec. 7.1 and Sec. 8, respectively. Since no valid dense annotations are provided for inter-class matching, we follow prior works [1, 14] to compute the average geodesic error on sparse annotated vertices. 
+
+Table 2. Experimental results of inter-class shape matching. The best and the second-best are shown in blue and orange respectively. Method SNIS TOSCA SHREC07 
+
+Axiomatic Methods 
+
+ZoomOut [43] 0.51 0.55 0.57 
+
+Functional Map Methods 
+
+URSSM [9] 0.49 0.53 0.49 SimpFMap [41] 0.51 0.53 0.56 
+
+Semantic Methods 
+
+Diff3F [14] 0.57 0.45 0.50 ZSC [1] 0.36 0.56 0.60 DenseMatcher [63] 0.28 0.30 0.39 UniMatch (ours) 0.19 0.23 0.37 
+
+Results. Tab. 2 reports the numerical results of UniMatch and representative baselines on three cross-category bench-marks. UniMatch achieves the lowest average geodesic er-ror on all three cross-category benchmarks: 0.19 (SNIS), 
+
+0.23 (TOSCA), and 0.37 (SHREC07). This performance substantially outperforms all previous methods, includ-ing DenseMatcher, ZSC, and other functional map-based or axiomatic approaches. In detail, DenseMatcher, al-though competitive, falls short ( 0.28 –0.39 ) compared to UniMatch, suggesting that UniMatch’s universal part seg-mentation and group-wise contrastive loss contribute crit-ically to more substantial semantic alignment. The vi-sual comparison between UniMatch and DenseMatcher is shown in Fig. 5. Functional map approaches ( e.g ., URSSM, SimpFMap) exhibit higher errors ( 0.49 –0.56 ), validating that geometric-only solutions lack sufficient flexibility for inter-class matching. This consistent margin affirms the robustness and effectiveness of the semantic-aware match-ing paradigm in highly challenging cross-category scenar-ios. The superior performance paves the way for universal, scalable matching technology for in-the-wild 3D objects. 
+
+4.2. Non-Isometric Shape Matching 
+
+Setup. We evaluate UniMatch’s performance on non-isometric shape matching using two datasets, SMAL [65] and TOPKIDS [26], which present substantial shape vari-ations and deformations ( e.g ., quadruped animals and syn-thetic human children in different poses). We use average geodesic error ( ×100 ) as the evaluation metric. More de-tails of datasets and baseline implementation can be found in Sec. 7.2 and Sec. 8, respectively. 
+
+Table 3. Experimental results of non-isometric shape matching. Method SMAL TOPKIDS 
+
+Axiomatic Methods 
+
+ZoomOut [43] 38.4 33.7 Smooth Shells [16] 36.1 11.8 DiscreteOp [50] 38.1 35.5 
+
+Functional Map Methods 
+
+UnsupFMNet [21] - 38.5 SURFMNet [52] - 48.6 AttentiveFMaps [28] 5.4 23.4 URSSM [9] 6.0 8.9 
+
+Semantic Methods 
+
+Diff3F [14] 28.4 31.0 DenseMatcher [63] 4.7 6.2 UniMatch (ours) 4.8 5.9 
+
+Results. Tab. 3 reports average geodesic errors ( ×100 )on SMAL and TOPKIDS. UniMatch achieves average geodesic errors of 4.8 on SMAL and 5.9 on TOPKIDS, which is comparable or slightly better than DenseMatcher (4.7 and 6.2), and notably better than most other baselines. Functional map-based methods such as URSSM ( 6.0 and 
+
+8.9), AttentiveFMaps ( 5.4 and 23 .4), and SURFMNet, as well as semantic approaches like Diff3F ( 28 .4 and 31 .0), show higher errors. The visualization results compared with the representative functional map method, URSSM, is illus-trated in Fig. 6. Axiomatic methods, such as ZoomOut and Smooth Shells ( 38 .4/33 .7 and 36 .1/11 .8), are significantly less effective in this benchmark. The superior performance indicates that UniMatch is highly robust to substantial non-isometric deformations. The results confirm that our ap-proach effectively overcomes limitations of prior functional Source DenseMatcher Ours       
+
+> Wrong
+> ❌
+> Front
+> Left Hand
+> Correct
+> ✅
+> Left Leg
+> Wrong ❌
+> Correct ✅
+> Front
+> Right Leg
+> Wrong
+> ❌
+> Correct
+> ✅
+> Correct ✅
+> Wrong ❌
+> Right
+> Hand Right
+> Hand
+> Wrong ❌
+> Correct ✅
+
+Figure 5. Visual comparison with the state-of-the-art method, DenseMatcher [63] on inter-class shape matching. UniMatch demonstrates semantic consistency and smooth correspondences for challenging cross-category matching. Source ULRSSM Ours     
+
+> Wrong ❌
+> Correct ✅
+> Back Right
+> Leg
+> Tail
+> Wrong
+> ❌
+> Correct
+> ✅
+> Head
+> Wrong ❌
+> Correct ✅
+
+Figure 6. Visual comparison with the representative functional map method, URSSM [9] on non-isometric shapes. 
+
+map-based and semantic methods, especially for shapes that deviate strongly from near-isometric assumptions. 
+
+4.3. Near-Isometric Shape Matching 
+
+Setup. We use three widely-used benchmarks (FAUST [7], SCAPE [4], SHREC19 [42]) for near-isometric shape matching. Following [9], we consider the remeshed ver-sions from [13] and adopt average geodesic error ( ×100 ) as the evaluation metric. Details of datasets and baselines can be found in Sec. 7.3 and Sec. 8, respectively. 
+
+Results. Tab. 4 shows the average geodesic errors achieved by our proposed method and baselines. Among all methods, UniMatch achieves state-of-the-art performance, matching or exceeding the best baseline methods on FAUST and SCAPE, and very close to the best on SHREC19. Com-pared to semantic-driven methods like Diff3F and Dense-Matcher, UniMatch substantially reduces the geodesic er-ror, confirming its greater accuracy. The results suggest that 
+
+Table 4. Experimental results of near-isometric shape matching. Method FAUST SCAPE SHREC19 
+
+Axiomatic Methods 
+
+BCICP [49] 6.4 11.0 8.0 ZoomOut [43] 6.1 7.5 7.8 Smooth Shells [16] 2.5 4.7 7.6 
+
+Functional Map Methods 
+
+UnsupFMNet [21] 4.8 9.6 11.1 SURFMNet [52] 2.5 6.0 4.8 URSSM [9] 1.6 1.9 5.7 
+
+Semantic Methods 
+
+Diff3F [14] 20.7 22.1 26.3 DenseMatcher [63] 1.6 2.0 3.1 
+
+UniMatch (ours) 1.6 1.9 3.2 
+
+UniMatch is robust to near-isometric deformations, not just cross-category or non-isometric challenges, making it uni-versally applicable for dense shape matching tasks. 
+
+4.4. Ablation Studies 
+
+We ablate our components and design choices on SNIS, TOSCA, and SHREC07. 
+
+Language embedding calculation. We conducted an ab-lation study on language feature extraction to investigate the effects of different language embedding models, e.g .CLIP [47], SigLip [56], and the method used in this paper, FG-CLIP [57]. We design three variants that utilize lan-guage embeddings from the three models, respectively, and keep the remaining components unchanged. As shown in Tab. 5, FG-CLIP (our choice) achieves the lowest geodesic errors ( 0.19 /0.23 /0.37 ), matching or slightly outperforming SigLip and clearly better than CLIP, especially on TOSCA. This demonstrates FG-CLIP’s superior capacity to deliver fine-grained, continuous semantic signals, vital for robust cross-category correspondence learning. 
+
+Semantic feature fields. To investigate the effectiveness of semantic feature fields, we ablate to evaluate the per-formance of the functional map with and without seman-tic feature fields. The first variant utilizes only geometric features, while the second variant employs both geometric and semantic features. As demonstrated in Tab. 5, remov-ing semantic features and retaining only geometric features results in significantly higher errors ( 0.49 /0.53 /0.49 ), high-lighting the limitation of geometric-only representations for semantic matching. Integrating semantic feature fields, as proposed, drops the errors to 0.22 /0.26 /0.39 , confirming their critical role in bridging semantic gaps. 
+
+Rank-based contrastive loss. We also conducted an ab-lation study on leveraging rank-based contrastive loss to examine the effectiveness for inter-class shape matching. Compared with the variant without RnC loss, the proposed group-wise rank-based contrastive loss further enhances performance, reducing errors to 0.19 , 0.23 , and 0.37 , indi-cating that harnessing the relative ordering and continuous similarity from language embeddings enables more consis-tent and universal correspondence alignment. We also com-pare our method with the SupCon loss [23], by taking the top-1 similar sample as the “pseudo” positive according to language embeddings. Employing SupCon loss yields av-erage geodesic errors of 0.21 (SNIS), 0.29 (TOSCA), and 
+
+0.40 (SHREC07), notably higher than our group-wise RnC loss. This result reveals that SupCon loss, which relies on discrete positive selection, is less effective in capturing the continuous, semantic-rich relations between regions pro-vided by language embeddings.                           
+
+> Table 5. Quantitative results of ablation study. SNIS TOSCA SHREC07
+> Language Embedding
+> CLIP 0.21 0.26 0.37 SigLip 0.19 0.24 0.37 FG-CLIP (ours) 0.19 0.23 0.37
+> Semantic Feature Fields
+> w/o semantic 0.49 0.53 0.49 w. semantic (ours) 0.22 0.26 0.39
+> Rank-based Contrastive Loss
+> SupCon loss 0.21 0.29 0.40 w/o contrastive loss 0.22 0.26 0.39 w. contrastive loss (ours) 0.19 0.23 0.37
+
+4.5. Co-segmentation and In-the-wild Objects 
+
+We further explore the semantic consistency of learned fea-tures through a co-segmentation task. Specifically, we first adopt agglomerative clustering to segment an anchor shape with vertex connectivity. For the target shape, we initialize K-Means clustering based on the centroids obtained from the clustering result of the anchor shape and perform the K-Means clustering on the features of the target shape. As illustrated in Fig. 7 (left), although UniMatch is not deli-cately designed for segmentation, our method surprisingly emerges semantic consistency across shapes with different topologies and categories. The emerging property demon-strates that UniMatch is semantic-aware. We also conducted experiments on a broader range of ob-jects to test the capabilities of matching for in-the-wild ob-jects. Specifically, we evaluate our method on selected cate-gories from SHREC07, including plane, bird, ant, octopus, chair, and table. Other categories have too fuzzy geomet-ric characteristics, e.g ., vase and mechanical part, and thus are excluded from this experiment. Despite no consistent correspondence annotations being available for these cate-gories, we illustrate the matching results in Fig. 7 (right). UniMatch shows impressive semantic consistency across a wide range of challenging object categories, e.g ., wings of a plane and a bird are correctly matched. We also investi-gate a failure example for the chair category, i.e ., the legs are matched in the wrong order (see the purple square). The reason for such an issue is that all legs of the chair can be noted as the word “leg” and the algorithm can not infer the correct “leg” order from the given inputs. We will fix this issue by considering object orientation in future work. Plane & Bird      
+
+> Plane & Bird
+> Ant
+> Chair & Table Octopu s
+> Figure 7. Left: Co-segmentation results across human and ani-mals. Right: matching results on in-the-wild objects.
+
+## 5. Conclusion 
+
+We introduce UniMatch, a semantic-aware, coarse-to-fine 3D shape matching framework that generalizes across ob-ject categories and handles strong non-isometric deforma-tions. UniMatch employs class-agnostic part segmentation, MLLM prompting, and fine-grained language embeddings to establish dense correspondences from coarse guidance without part priors. Experiments show UniMatch consis-tently outperforms existing functional map and semantic-driven methods, opening the door to universal semantic shape matching for graphics, robotics, and other domains. 
+
+## References 
+
+[1] Ahmed Abdelreheem, Abdelrahman Eldesokey, Maks Ovs-janikov, and Peter Wonka. Zero-shot 3d shape correspon-dence. In SIGGRAPH Asia 2023 Conference Papers , pages 1–11, 2023. 2, 3, 4, 6, 1 [2] Ahmed Abdelreheem, Ivan Skorokhodov, Maks Ovsjanikov, and Peter Wonka. Satr: Zero-shot semantic segmentation of 3d shapes. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 15166–15179, 2023. 3, 1 [3] Josh Achiam, Steven Adler, Sandhini Agarwal, Lama Ah-mad, Ilge Akkaya, Florencia Leoni Aleman, Diogo Almeida, Janko Altenschmidt, Sam Altman, Shyamal Anadkat, et al. Gpt-4 technical report. arXiv preprint arXiv:2303.08774 ,2023. 3 [4] Dragomir Anguelov, Praveen Srinivasan, Daphne Koller, Se-bastian Thrun, Jim Rodgers, and James Davis. Scape: shape completion and animation of people. In ACM SIGGRAPH 2005 Papers , pages 408–416. 2005. 7, 2 [5] Mathieu Aubry, Ulrich Schlickewei, and Daniel Cremers. The wave kernel signature: A quantum mechanical approach to shape analysis. In 2011 IEEE international conference on computer vision workshops (ICCV workshops) , pages 1626– 1633. IEEE, 2011. 4 [6] Jinze Bai, Shuai Bai, Yunfei Chu, Zeyu Cui, Kai Dang, Xiaodong Deng, Yang Fan, Wenbin Ge, Yu Han, Fei Huang, et al. Qwen technical report. arXiv preprint arXiv:2309.16609 , 2023. 3 [7] Federica Bogo, Javier Romero, Matthew Loper, and Michael J Black. Faust: Dataset and evaluation for 3d mesh registration. In Proceedings of the IEEE conference on computer vision and pattern recognition , pages 3794–3801, 2014. 7, 1, 2 [8] Alexander M Bronstein, Michael M Bronstein, and Ron Kimmel. Numerical geometry of non-rigid shapes . Springer Science & Business Media, 2008. 6, 2 [9] Dongliang Cao, Paul Roetzer, and Florian Bernard. Unsu-pervised learning of robust spectral shape matching. ACM Transactions on Graphics (TOG) , 42(4):1–15, 2023. 2, 4, 6, 7, 1 [10] Dongliang Cao, Marvin Eisenberger, Nafie El Amrani, Daniel Cremers, and Florian Bernard. Spectral meets spa-tial: Harmonising 3d shape matching and interpolation. In 
+
+Proceedings of the IEEE/CVF Conference on Computer Vi-sion and Pattern Recognition , pages 3658–3668, 2024. 2 [11] Mathilde Caron, Hugo Touvron, Ishan Misra, Herv´ e J´ egou, Julien Mairal, Piotr Bojanowski, and Armand Joulin. Emerg-ing properties in self-supervised vision transformers. In Pro-ceedings of the IEEE/CVF international conference on com-puter vision , pages 9650–9660, 2021. 4 [12] Ken Deng, Yunhan Yang, Jingxiang Sun, Xihui Liu, Yebin Liu, Ding Liang, and Yan-Pei Cao. Geosam2: Unleashing the power of sam2 for 3d part segmentation. arXiv preprint arXiv:2508.14036 , 2025. 3 [13] Nicolas Donati, Abhishek Sharma, and Maks Ovsjanikov. Deep geometric functional maps: Robust feature learning for shape correspondence. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pages 8592–8601, 2020. 2, 7 [14] Niladri Shekhar Dutt, Sanjeev Muralikrishnan, and Niloy J Mitra. Diffusion 3d features (diff3f): Decorating untextured shapes with distilled semantic features. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 4494–4504, 2024. 2, 3, 4, 6, 7 [15] Roberto M Dyke, Yu-Kun Lai, Paul L Rosin, Stefano Zap-pal` a, Seana Dykes, Daoliang Guo, Kun Li, Riccardo Marin, Simone Melzi, and Jingyu Yang. Shrec’20: Shape corre-spondence with non-isometric deformations. Computers & Graphics , 92:28–43, 2020. 2 [16] Marvin Eisenberger, Zorah Lahner, and Daniel Cremers. Smooth shells: Multi-scale shape registration with functional maps. In Proceedings of the IEEE/CVF Conference on Com-puter Vision and Pattern Recognition , pages 12265–12274, 2020. 6, 7 [17] Marvin Eisenberger, David Novotny, Gael Kerchenbaum, Patrick Labatut, Natalia Neverova, Daniel Cremers, and An-drea Vedaldi. Neuromorph: Unsupervised shape interpo-lation and correspondence in one go. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 7473–7483, 2021. 2 [18] Danielle Ezuz and Mirela Ben-Chen. Deblurring and denois-ing of maps between shapes. In Computer Graphics Forum ,pages 165–174. Wiley Online Library, 2017. 2 [19] Stephanie Fu, Mark Hamilton, Laura Brandt, Axel Feldman, Zhoutong Zhang, and William T Freeman. Featup: A model-agnostic framework for features at any resolution. arXiv preprint arXiv:2403.10516 , 2024. 5, 1 [20] Daniela Giorgi, Silvia Biasotti, and Laura Paraboschi. Shape retrieval contest 2007: Watertight models track. 2007. 6, 2 [21] Oshri Halimi, Or Litany, Emanuele Rodola, Alex M Bron-stein, and Ron Kimmel. Unsupervised learning of dense shape correspondence. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pages 4370–4379, 2019. 2, 4, 6, 7 [22] Zhening Huang, Xiaoyang Wu, Xi Chen, Hengshuang Zhao, Lei Zhu, and Joan Lasenby. Openins3d: Snap and lookup for 3d open-vocabulary instance segmentation. In European Conference on Computer Vision , pages 169–185. Springer, 2024. 3 [23] Prannay Khosla, Piotr Teterwak, Chen Wang, Aaron Sarna, Yonglong Tian, Phillip Isola, Aaron Maschinot, Ce Liu, and Dilip Krishnan. Supervised contrastive learning. Advances in neural information processing systems , 33:18661–18673, 2020. 5, 8 [24] Hyunjin Kim and Minhyuk Sung. Partstad: 2d-to-3d part segmentation task adaptation. In European Conference on Computer Vision , pages 422–439. Springer, 2024. 3 [25] Alexander Kirillov, Eric Mintun, Nikhila Ravi, Hanzi Mao, Chloe Rolland, Laura Gustafson, Tete Xiao, Spencer White-head, Alexander C Berg, Wan-Yen Lo, et al. Segment any-thing. In Proceedings of the IEEE/CVF International Con-ference on Computer Vision , pages 4015–4026, 2023. 3, 2 [26] Zorah L¨ ahner, Emanuele Rodola, Michael M Bronstein, Daniel Cremers, Oliver Burghard, Luca Cosmo, Alexander Dieckmann, Reinhard Klein, Y Sahillioˇ glu, et al. Shrec’16: Matching of deformable shapes with topological noise. In 
+
+Eurographics Workshop on 3D Object Retrieval, EG 3DOR ,pages 55–60. Eurographics Association, 2016. 2, 6 [27] Junnan Li, Dongxu Li, Caiming Xiong, and Steven Hoi. Blip: Bootstrapping language-image pre-training for unified vision-language understanding and generation. In Interna-tional conference on machine learning , pages 12888–12900. PMLR, 2022. 3 [28] Lei Li, Nicolas Donati, and Maks Ovsjanikov. Learning multi-resolution functional maps with spectral attention for robust shape matching. Advances in Neural Information Pro-cessing Systems , 35:29336–29349, 2022. 2, 6 [29] Yang Li, Hikari Takehara, Takafumi Taketomi, Bo Zheng, and Matthias Nießner. 4dcomplete: Non-rigid motion es-timation beyond the observable surface. In Proceedings of the IEEE/CVF International Conference on Computer Vi-sion , pages 12706–12716, 2021. 1 [30] Zongxia Li, Xiyang Wu, Hongyang Du, Fuxiao Liu, Huy Nghiem, and Guangyao Shi. A survey of state of the art large vision language models: Alignment, benchmark, evaluations and challenges. arXiv preprint arXiv:2501.02189 , 2025. 3 [31] Or Litany, Tal Remez, Emanuele Rodola, Alex Bronstein, and Michael Bronstein. Deep functional maps: Structured prediction for dense shape correspondence. In Proceedings of the IEEE international conference on computer vision ,pages 5659–5667, 2017. 2 [32] Haotian Liu, Chunyuan Li, Qingyang Wu, and Yong Jae Lee. Visual instruction tuning. Advances in neural information processing systems , 36:34892–34916, 2023. 3 [33] Minghua Liu, Yinhao Zhu, Hong Cai, Shizhong Han, Zhan Ling, Fatih Porikli, and Hao Su. Partslip: Low-shot part segmentation for 3d point clouds via pretrained image-language models. In Proceedings of the IEEE/CVF con-ference on computer vision and pattern recognition , pages 21736–21746, 2023. 3 [34] Minghua Liu, Mikaela Angelina Uy, Donglai Xiang, Hao Su, Sanja Fidler, Nicholas Sharp, and Jun Gao. Partfield: Learn-ing 3d feature fields for part segmentation and beyond. arXiv preprint arXiv:2504.11451 , 2025. 3, 1 [35] Shilong Liu, Zhaoyang Zeng, Tianhe Ren, Feng Li, Hao Zhang, Jie Yang, Qing Jiang, Chunyuan Li, Jianwei Yang, Hang Su, et al. Grounding dino: Marrying dino with grounded pre-training for open-set object detection. In 
+
+European Conference on Computer Vision , pages 38–55. Springer, 2024. 2 [36] Yuxin Liu, Minshan Xie, Hanyuan Liu, and Tien-Tsin Wong. Text-guided texturing by synchronized multi-view diffusion. In SIGGRAPH Asia 2024 Conference Papers , pages 1–11, 2024. 5, 1 [37] Matthew Loper, Naureen Mahmood, Javier Romero, Gerard Pons-Moll, and Michael J Black. Smpl: A skinned multi-person linear model. In Seminal Graphics Papers: Pushing the Boundaries, Volume 2 , pages 851–866. 2023. 2 [38] Ilya Loshchilov and Frank Hutter. Decoupled weight decay regularization. arXiv preprint arXiv:1711.05101 , 2017. 1 [39] Changfeng Ma, Yang Li, Xinhao Yan, Jiachen Xu, Yunhan Yang, Chunshi Wang, Zibo Zhao, Yanwen Guo, Zhuo Chen, and Chunchao Guo. P3-sam: Native 3d part segmentation. 
+
+arXiv preprint arXiv:2509.06784 , 2025. 3 [40] Ziqi Ma, Yisong Yue, and Georgia Gkioxari. Find any part in 3d. arXiv preprint arXiv:2411.13550 , 2024. 3, 1 [41] Robin Magnet and Maks Ovsjanikov. Memory-scalable and simplified functional map learning. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 4041–4050, 2024. 6 [42] Simone Melzi, Riccardo Marin, Emanuele Rodol` a, Umberto Castellani, Jing Ren, Adrien Poulenard, et al. Shrec’19: matching humans with different connectivity. In Eurograph-ics Workshop on 3D Object Retrieval . The Eurographics As-sociation, 2019. 7, 2 [43] Simone Melzi, Jing Ren, Emanuele Rodol` a, Abhishek Sharma, Peter Wonka, Maks Ovsjanikov, et al. Zoomout: spectral upsampling for efficient shape correspondence. 
+
+ACM TRANSACTIONS ON GRAPHICS , 38(6):1–14, 2019. 2, 4, 6, 7 [44] OpenAI. GPT-5 System Card. Technical report, OpenAI, 2025. Accessed: 2025-08-10. 2, 3 [45] Maxime Oquab, Timoth´ ee Darcet, Th´ eo Moutakanni, Huy Vo, Marc Szafraniec, Vasil Khalidov, Pierre Fernandez, Daniel Haziza, Francisco Massa, Alaaeldin El-Nouby, et al. Dinov2: Learning robust visual features without supervision. 
+
+arXiv preprint arXiv:2304.07193 , 2023. 2, 3, 4 [46] Maks Ovsjanikov, Mirela Ben-Chen, Justin Solomon, Adrian Butscher, and Leonidas Guibas. Functional maps: a flexible representation of maps between shapes. ACM Transactions on Graphics (ToG) , 31(4):1–11, 2012. 2, 4 [47] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learning transferable visual models from natural language supervi-sion. In International conference on machine learning , pages 8748–8763. PmLR, 2021. 3, 4, 7 [48] Nikhila Ravi, Jeremy Reizenstein, David Novotny, Tay-lor Gordon, Wan-Yen Lo, Justin Johnson, and Georgia Gkioxari. Accelerating 3d deep learning with pytorch3d. 
+
+arXiv:2007.08501 , 2020. 1 [49] Jing Ren, Adrien Poulenard, Peter Wonka, and Maks Ovs-janikov. Continuous and orientation-preserving correspon-dences via functional maps. ACM Transactions on Graphics (ToG) , 37(6):1–16, 2018. 7, 2 [50] Jing Ren, Simone Melzi, Peter Wonka, and Maks Ovs-janikov. Discrete optimization for shape matching. In Com-puter Graphics Forum , pages 81–96. Wiley Online Library, 2021. 6 [51] Robin Rombach, Andreas Blattmann, Dominik Lorenz, Patrick Esser, and Bj¨ orn Ommer. High-resolution image synthesis with latent diffusion models. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 10684–10695, 2022. 2, 4 [52] Jean-Michel Roufosse, Abhishek Sharma, and Maks Ovs-janikov. Unsupervised deep learning for structured shape matching. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 1617–1627, 2019. 2, 4, 6, 7 [53] Nicholas Sharp, Souhaib Attaiki, Keenan Crane, and Maks Ovsjanikov. Diffusionnet: Discretization agnostic learning on surfaces. ACM Transactions on Graphics (TOG) , 41(3): 1–16, 2022. 4, 1 [54] Mingze Sun, Shiwei Mao, Puhua Jiang, Maks Ovsjanikov, and Ruqi Huang. Spatially and spectrally consistent deep functional maps. In Proceedings of the IEEE/CVF Interna-tional Conference on Computer Vision , pages 14497–14507, 2023. 2 [55] Luming Tang, Menglin Jia, Qianqian Wang, Cheng Perng Phoo, and Bharath Hariharan. Emergent correspondence from image diffusion. Advances in Neural Information Pro-cessing Systems , 36:1363–1389, 2023. 2 [56] Michael Tschannen, Alexey Gritsenko, Xiao Wang, Muham-mad Ferjad Naeem, Ibrahim Alabdulmohsin, Nikhil Parthasarathy, Talfan Evans, Lucas Beyer, Ye Xia, Basil Mustafa, et al. Siglip 2: Multilingual vision-language en-coders with improved semantic understanding, localization, and dense features. arXiv preprint arXiv:2502.14786 , 2025. 3, 7 [57] Chunyu Xie, Bin Wang, Fanjing Kong, Jincheng Li, Dawei Liang, Gengshen Zhang, Dawei Leng, and Yuhui Yin. Fg-clip: Fine-grained visual and textual alignment. arXiv preprint arXiv:2505.05071 , 2025. 2, 3, 4, 7 [58] Yunhan Yang, Yukun Huang, Yuan-Chen Guo, Liangjun Lu, Xiaoyang Wu, Edmund Y Lam, Yan-Pei Cao, and Xihui Liu. Sampart3d: Segment any part in 3d objects. arXiv preprint arXiv:2411.07184 , 2024. 3 [59] Shukang Yin, Chaoyou Fu, Sirui Zhao, Ke Li, Xing Sun, Tong Xu, and Enhong Chen. A survey on multimodal large language models. National Science Review , 11(12): nwae403, 2024. 3 [60] Kaiwen Zha, Peng Cao, Jeany Son, Yuzhe Yang, and Dina Katabi. Rank-n-contrast: learning continuous representa-tions for regression. Advances in Neural Information Pro-cessing Systems , 36:17882–17903, 2023. 5 [61] Junyi Zhang, Charles Herrmann, Junhwa Hur, Luisa Pola-nia Cabrera, Varun Jampani, Deqing Sun, and Ming-Hsuan Yang. A tale of two features: Stable diffusion complements dino for zero-shot semantic correspondence. Advances in Neural Information Processing Systems , 36:45533–45547, 2023. 2, 3, 5 [62] Yuchen Zhou, Jiayuan Gu, Xuanlin Li, Minghua Liu, Yun-hao Fang, and Hao Su. Partslip++: Enhancing low-shot 3d part segmentation via multi-view instance segmenta-tion and maximum likelihood estimation. arXiv preprint arXiv:2312.03015 , 2023. 3 [63] Junzhe Zhu, Yuanchen Ju, Junyi Zhang, Muhan Wang, Zhecheng Yuan, Kaizhe Hu, and Huazhe Xu. Densematcher: Learning 3d semantic correspondence for category-level ma-nipulation from a single demo. In ICLR , 2025. 2, 3, 4, 6, 7 [64] Zhe Zhu, Le Wan, Rui Xu, Yiheng Zhang, Honghua Chen, Zhiyang Dou, Cheng Lin, Yuan Liu, and Mingqiang Wei. Partsam: A scalable promptable part segmentation model trained on native 3d data. arXiv preprint arXiv:2509.21965 ,2025. 3 [65] Silvia Zuffi, Angjoo Kanazawa, David W Jacobs, and Michael J Black. 3d menagerie: Modeling the 3d shape and pose of animals. In Proceedings of the IEEE conference on computer vision and pattern recognition , pages 6365–6373, 2017. 6, 1, 2 Universal 3D Shape Matching via Coarse-to-Fine Language Guidance 
+
+# Supplementary Material 
+
+## 6. Implementation Details 
+
+6.1. Details of MLLM prompting 
+
+After class-agnostic segmentation, we first render 3D ob-jects with 3D masks into 2D images, by a front view and a back view, as shown in Fig. 8. We discard too small masks, 
+
+i.e ., less than 5% pixels out of the whole object. This ratio is selected empirically to avoid misleading GPT-5. Similar to Find3D [40], we later feed the images into GPT-5 and the following prompt to obtain part names:  
+
+> Infer region names
+> - What is the name of the part that is masked as [COLOR]? If you cannot find the part visible or are not sure, just say unknown. Only output one word or one phrase.
+
+Finally, we aggregate part names into the 3D domain us-ing known camera parameters to obtain the final semantic region proposal. As shown in Fig. 8, although the same concept can be expressed in different ways ( e.g ., body and torso), our method can flexibly match them. Human Front Human Back 
+
+Cougar Front 
+
+Cougar Back    
+
+> Hea d
+> Shoe Le g
+> Le g
+> Tors o
+> Ar mBack Right
+> Ar m
+> Thigh
+> Hind
+> Leg
+> Tail
+> Tors o
+> Front
+> Leg
+> Hea d
+> Tail
+> Leg
+> Hind
+> Leg
+> Body
+> Front
+> Leg
+> Hea d
+
+Figure 8. Examples of mask rendering and part names obtained from GPT-5. 
+
+6.2. Details of UniMatch 
+
+Class-agnostic segmentation. We consider an effective class-agnostic 3D segmentation method, PartField [34] to segment the 3D shape into non-intersecting parts. The num-ber of semantic parts nR is selected empirically to provide enough semantic information and avoid over-segmentation. We use nR = 9 for human data and nR = 8 for animal data. We also illustrate the segmentation results from Part-Field [34] and text-prompted method SATR [2] in Fig. 9. Compared with PartField, the segmentation results of SATR contain significant noise and ambiguous boundaries. 
+
+Semantic feature fields. We first perform view-consistent texture synthesis, SyncMVD [36], for uncolored Text -prompted Class -agnostic 
+
+Figure 9. Comparison between class-agnostic segmentation Part-Field [34] and text-prompted segmentation SATR [2]. Different parts are rendered in random colors. 
+
+shapes and render them into K multi-view RGB images using PyTorch3D [48] ( K = 10 for all experiments). We use uniformly distributed elevation and azimuthal angles in 
+
+[0 ◦, 360 ◦). Then we extract semantic features using SD-DINO and employ the FeatUp upscaler [19] to upsample them. Lastly, we back-project 2D semantic features into the 3D domain from all visible views using known camera parameters and average them to obtain per-vertex features. 
+
+Network and functional map. We use DiffusionNet [53] as our feature refiner F. The dimensions of f geo and f sem 
+
+are 128 and 768 respectively. The output dimension of 
+
+f out is 256 . For functional map calculation, we empiri-cally set λcouple = 1 .0 and λreg = 1 .0 in Eq. (1), following URSSM [9]. 
+
+Training. We use the AdamW [38] optimizer with learn-ing rate 10 −3 for all experiments. We train our framework for 15 epochs. 
+
+## 7. Details of Datasets 
+
+7.1. Inter-Class Datasets 
+
+• SNIS [1] is a dataset to test strongly non-isometric and cross-category matching ( e.g . a human vs . a dog), containing 211 shapes from different sources, including FAUST [7] (human), SMAL [65] (animals), and Deform-ingThings4D (DT4D) [29] (humanoid). Annotations in-clude 34 semantically corresponding keypoints for each shape. We use 250 test pairs provided by SNIS for evalu-ation (all test pairs are cross-category) and other pair com-binations for training. Fig. 10 shows some example pairs from SNIS. • TOSCA [8] consists of synthetic high-resolution meshes of humans and animals captured in different poses. It contains 80 objects that span several categories, includ-ing cats, dogs, horses, centaurs, gorillas, humans, etc . We remesh the original meshes to keep about 10 , 000 faces. Since no cross-category annotations are provided, we prompted GPT-5 to find semantically matched keypoints between categories and finally filtered 20 keypoints. Sim-ilar with SNIS, we randomly select half samples from each category, and build the test pairs cross categories, result in 380 pairs for evaluation. We use the rest pair combinations for training. • SHREC07 [20] consists of 400 watertight shapes and 20 semantic categories with 20 shapes per class, representing a wide range of objects such as humanoids, mechanical parts, animals, and furniture. Since some categories con-tain extremely sparse keypoints and share almost no com-mon structures, e.g . table, vase, and fish, we only con-duct experiments on filtered categories, including human, teddy, armadillo, and four-legged animals, and prompted GPT-5 to find semantically matched keypoints between them, finally obtaining 15 keypoints. Similar to TOSCA, we randomly select half samples from each category, and build 100 pairs for evaluation and the rest pair combina-tions for training. Human vs. Human Animal vs. Human 
+
+> Figure 10. Example shape pairs and annotations from SNIS [1]. SNIS contains strongly non-isometric and cross-category shape pairs, such as human vs. animal and human vs. humanoid, with semantically annotated keypoint correspondences.
+
+7.2. Non-Isometric Datasets 
+
+• SMAL [65] contains 49 four-legged animal shapes rep-resenting 8 species, such as dogs, cats, lions, horses, and 
+
+etc . Each shape is represented as a watertight mesh with about 8,000 faces. Following Cao et al. [9], we use five species for training and three unseen species for evalua-tion. • TOPKIDS [26] is designed for evaluating non-isometric deformations and topological noises. It contains 26 shapes of synthetic human (“fat kid”) in various poses. Each shape includes ground-truth dense correspondences to a reference template shape. 
+
+7.3. Near-Isometric Datasets 
+
+• FAUST [7] consists of 10 human subjects with 10 differ-ent poses, where 80 shapes are provided for training and 20 shapes for testing. Following Cao et al. [9], we con-sider the remeshed versions from Donati et al. [13]. Each shape contains around 5,000 vertices with ground-truth dense correspondences to a template shape. • SCAPE [4] contains 71 human shapes with various poses of the same person. The dataset is split into 51 training shapes and 20 testing shapes. • SHREC19 [42] is a benchmark to evaluate non-rigid shape matching, with a particular focus on different mesh connectivities in human shapes. It contains 44 human shapes with various identities and poses. 
+
+## 8. Details of Baselines 
+
+For URSSM [9], we use the same training scheme and pa-rameter settings with UniMatch. To keep a fair compari-son, we disable the test-time adaptation. For Diff3F [14], we follow the original implementation. Since the code of ZSC [1] is not open-source, we implement it according to the original paper. We use Grounding-DINO [35] for vi-sual grounding and SAM [25] to obtain masks. Given seg-mentation results, the final dense correspondences are cal-culated by BCICP [49]. For DenseMatcher [63], we use the same training scheme, parameter settings, and the same se-mantic features on textured meshes with UniMatch. Since DenseMatcher requires predefined semantic parts, we use the same segmentation results of ZSC. 
+
+## 9. Limitation and Future Work 
+
+While UniMatch demonstrates strong performance in uni-versal 3D shape matching under non-isometric and inter-class scenarios, several limitations remain. First, GPT-5 may fail to correctly order symmetric or repetitive parts (e.g ., chair legs), as semantic part names alone cannot in-fer geometric arrangement. Incorporating explicit object orientation cues or relational priors may alleviate such is-sues. Second, our method still needs a separate procedure to extract semantic features using vision foundation models. Training a unified feed-forward feature extractor that dis-tills visual knowledge from foundation models, rather than a feature refiner, may address this issue. Finally, the cur-rent framework relies on multimodal large language mod-els for prompting during training-time part naming to en-able semantic awareness. Extending this to more efficient pipelines could improve scalability and practicality. Future work will address these challenges by exploring enhanced structural priors of shapes, a unified feed-forward feature extractor, and reducing model intervention during match-ing.

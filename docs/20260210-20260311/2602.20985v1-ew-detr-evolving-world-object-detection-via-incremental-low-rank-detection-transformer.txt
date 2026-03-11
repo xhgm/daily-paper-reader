@@ -1,0 +1,810 @@
+Title: EW-DETR: Evolving World Object Detection via Incremental Low-Rank DEtection TRansformer
+
+URL Source: https://arxiv.org/pdf/2602.20985v1
+
+Published Time: Wed, 25 Feb 2026 02:12:13 GMT
+
+Number of Pages: 18
+
+Markdown Content:
+# EW-DETR: Evolving World Object Detection via Incremental Low-Rank DEtection TRansformer 
+
+## Munish Monga 1 Vishal Chudasama 1 Pankaj Wasnik 1 C.V. Jawahar 21Sony Research India 2IIIT Hyderabad 
+
+{munish.monga, vishal.chudasama1, pankaj.wasnik }@sony.com, jawahar@iiit.ac.in 
+
+Figure 1. Overview of Evolving World Object Detection (EWOD). Top (Training) : Sequential tasks introduce disjoint classes Kt across shifting domains Dt (Day → Night → Fog). Bottom (Deployment) : The detector must (i) identify unseen objects Ut without supervision; (ii) retain knowledge of all prior classes across all domains; (iii) incrementally learn former unknowns when their labels are revealed later (e.g., U2 → K 3) and (iv) achieve all these objectives without revisiting any previous data. Best viewed in colour with zoom 1.
+
+## Abstract 
+
+Real-world object detection must operate in evolving en-vironments where new classes emerge, domains shift, and unseen objects must be identified as “unknown”—all with-out accessing prior data. We introduce Evolving World Ob-ject Detection (EWOD), a paradigm coupling incremental learning, domain adaptation, and unknown detection un-der exemplar-free constraints. To tackle EWOD, we propose EW-DETR framework that augments DETR-based detectors with three synergistic modules: Incremental LoRA Adapters for exemplar-free incremental learning under evolving do-mains; a Query-Norm Objectness Adapter that decouples objectness-aware features from DETR decoder queries; and Entropy-Aware Unknown Mixing for calibrated unknown detection. This framework generalises across DETR-based detectors, enabling state-of-the-art RF-DETR to op-erate effectively in evolving-world settings. We also intro-duce FOGS (Forgetting, Openness, Generalisation Score) to holistically evaluate performance across these dimen-sions. Extensive experiments on Pascal Series and Diverse Weather benchmarks show EW-DETR outperforms other methods, improving FOGS by 57.24 %. 
+
+## 1. Introduction 
+
+Object detection has witnessed remarkable progress in re-cent years, yet most state-of-the-art detectors remain con-fined to closed-world assumptions [3, 31, 41, 44]. However, real-world deployment scenarios demand fundamentally different capabilities. Consider an autonomous vehicle: it must continuously identify new object types (construction equipment, novel vehicle models), adapt to diverse environ-mental conditions (day to night, clear to foggy weather), and critically, recognise unseen objects as “unknown” to avoid catastrophic failures. Similarly, warehouse robots must handle evolving product inventories while adapting to varying lighting and seasonal conditions, all without revis-iting past training data. These scenarios exemplify the need for object detectors that can operate in an Evolving World .We introduce Evolving World Object Detection (EWOD) , a novel paradigm that reflects how object detec-tors must operate in real, dynamic, and continuously evolv-ing environments. As illustrated in Figure 1, EWOD cou-ples three evolving dimensions: new object classes emerge across tasks, visual domains shift significantly (day → night 
+
+→ fog), and truly novel objects must be identified as “un-known” without explicit supervision. More importantly, de-1          
+
+> arXiv:2602.20985v1 [cs.CV] 24 Feb 2026 Figure 2. Top Row: gives an overview of the EW-DETR frame-work, which augments the standard DETR pipeline with three key modules: Incremental LoRA Adapters for exemplar-free incre-mental learning under evolving domains, Query-Norm Objectness Adapter for decoupled objectness-aware features, and Entropy-Aware Unknown Mixing for calibrated unknown detection. Bot-tom Row: illustrates a quick qualitative comparison of EWOD with other OD approaches. Best viewed in colour with zoom 1.
+
+tectors must handle all of this without storing or revisiting any previous training data. Unlike EWOD, existing paradigms address only sub-sets of these challenges. Open-World Object Detection (OWOD) [10, 15, 21, 42, 45] focuses on detecting un-knowns and incrementally learning new classes, but criti-cally assumes a single static domain and relies heavily on exemplar replay—storing representative samples from pre-vious tasks to mitigate catastrophic forgetting. This lim-its scalability when data storage is limited or when privacy regulations restrict data retention, such as in healthcare sys-tems [35]. Other recent approaches like Domain Incremen-tal Object Detection (DIOD) [33] and Dual Incremental Ob-ject Detection (DuIOD) [24] operate under closed-world as-sumptions where all foreground objects are assumed to be-long to known categories. As shown in Figure 2, when de-ployed in evolving-world settings, such detectors fail catas-trophically: they either misclassify unknown objects into known categories (leading to overconfident, incorrect pre-dictions) or absorb them into the background class (causing missed detections of potentially critical novel objects). EWOD introduces fundamentally harder challenges than standard OWOD, where domain consistency provides a sta-ble feature space for unknown detection, or DuIOD, where a closed label space eliminates the need for calibrated un-known modelling. Furthermore, EWOD faces a severe data imbalance across tasks, as different domains and class dis-tributions yield vastly different sample sizes per task. More-over, EWOD restricts access to previous data and eliminates replay-based rehearsal, which is used by OWOD meth-ods [10, 15, 21, 42, 45], requiring alternative approaches. To address these challenges, we propose EW-DETR , an exemplar-free framework that augments DETR-based de-tectors [3, 31, 44] with three synergistic modules (Figure 2). First, Incremental LoRA Adapters (Section 3.3) employ a dual-adapter architecture: an aggregate adapter that accu-mulates compressed knowledge from all previous tasks and a task-specific adapter that captures current task updates. Through data-aware merging guided by per-task sample ra-tios and low-rank projection via truncated SVD, we achieve stable knowledge consolidation without storing any exem-plars while explicitly addressing data imbalance. Second, 
+
+Query-Norm Objectness Adapter (Section 3.4) decouples query semantics from magnitude by normalizing decoder features, yielding domain-invariant class-agnostic represen-tations that enable robust unknown detection even under se-vere domain shifts—crucially, without requiring any aux-iliary supervision or additional losses. Third, Entropy-Aware Unknown Mixing (Section 3.5) calibrates unknown predictions by combining classification uncertainty with objectness evidence, ensuring that high-objectness, high-uncertainty queries are correctly identified as unknowns rather than spuriously absorbed into known classes or back-ground. We highlight our contributions as: • To the best of our knowledge, EW-DETR is the first framework for the proposed EWOD paradigm, simulta-neously tackling incrementally evolving classes, gener-alising across shifting domains, and detecting unknown objects, all under strict exemplar-free constraints. • We propose a novel incremental dual LoRA adapter mechanism with data-aware merging that effectively mit-igates catastrophic forgetting under joint class-domain evolution without storing any previous data. • We introduce Query-Norm Objectness Adapter that op-erates on class-agnostic decoder queries of DETR-based detectors with an Entropy-Aware Unknown Mixing mod-ule to enable robust unknown detection without any aux-iliary losses, helping current SOTA RF-DETR [31] to op-erate in evolving-world settings. • We introduce FOGS (Forgetting, Openness, Generalisa-tion Score), a comprehensive metric that holistically eval-uates detector performance across the three critical di-mensions of EWOD: retention of past knowledge, detec-tion of unknowns, and generalisation across domains. 
+
+> 1Images are generated using Gemini 2.5 Pro for illustration purposes.
+
+22. Related Works 
+
+Open-World Object Detection. Open-world object de-tection (OWOD) extends traditional closed-set detection to identify novel objects as ”unknown” while incremen-tally learning their labels when revealed. ORE [15] pi-oneers this setting by introducing an energy-based un-known identifier and contrastive clustering to discover un-knowns. OW-DETR [10] adapts DETR with multi-scale context encoding and pseudo-labelling of high-objectness proposals for unknown detection. CAT [21] employs a cas-cade architecture with separate localisation and identifica-tion stages to decouple unknown discovery from classifica-tion. PROB [45] models objectness probabilistically using mixture models to better separate known and unknown dis-tributions. ORTH [34] subsequently explored orthogonali-sation techniques to tackle OWOD. OWOBJ [42] is a recent method that unifies novel object detection through object-ness modelling that generalises across both known and un-known categories. However, these methods assume a single static domain and rely on exemplar replay, failing to address the joint challenges of domain shift and class evolution that real-world deployments face. EWOD requires detectors to simultaneously handle evolving visual domains while maintaining open-world capabilities exemplar-free, which EW-DETR achieves through parameter-efficient dual LoRA adapters and entropy-aware unknown calibration without storing any data. 
+
+Class (and Domain) Incremental Object Detection. 
+
+Class-incremental object detection (CIOD) methods [4, 9, 18, 19, 27–29, 32] addresses the learning of new object cat-egories sequentially while preventing catastrophic forget-ting of previously learned ones. However, most approaches rely heavily on exemplar replay and knowledge distillation to maintain performance on old classes [1, 16, 20, 43]. ORE [15] extends CIOD to the open-world setting but still depends on stored exemplars. Unlike CIOD, Domain-Incremental Object Detection (DIOD) methods [23, 33, 36, 37] focus on adapting a detector to a sequence of shift-ing domains. LDB [33] is a non-exemplar DIOD method that freezes a base detector and learns domain-specific bias terms for each new domain. However, DIOD methods still operate under a closed-set label space where all fore-ground categories are known a priori. DuET [24] intro-duced Dual Incremental Object Detection (DuIOD) to han-dle both class and domain increments through exemplar-free task arithmetic, decomposing model updates into task-generic and task-specific components. However, these approaches largely remain closed-world: unlabeled fore-ground is treated as background, and no explicit unknown category is modelled. In contrast, EWOD couples domain evolution with a growing label space and explicit unknown detection. EW-DETR addresses these joint challenges by using incremental LoRA adapters to specialise to each new domain, and task-agnostic objectness-based unknown mod-elling to ensure stability under shifting conditions. 
+
+## 3. Method 
+
+3.1. Problem Formulation 
+
+In Evolving World Object Detection (EWOD), we consider a sequence of tasks T = {T 1, T2, . . . , TT }, where each task Tt provides a dataset Xt ∼ P (Xt) and introduces a disjoint set of object classes Kt from a new domain Dt
+
+(see Figure 1). During training on Tt, annotations are pro-vided only for the known classes Kt of the current task; any instances of previously learned classes Kt−1 or truly novel classes (Ut) that appear in Xt remain unlabeled, as in [15, 45]. Moreover, for t ≥ 2, the classes are disjoint across tasks (Kt ∩ K 1: t−1 = ∅), and the image distribu-tions shift between tasks, i.e., for t̸ = t′, P (Xt)̸ = P (Xt′ ),as in [24]. During inference, both the category space and domains evolve incrementally across tasks: 
+
+Ct = ( K1 ∪ . . . ∪ K t) ∪ U t, Dt = ( D1 ∪ . . . ∪ D t). (1) Hence, EWOD generalizes beyond prior works in OWOD [15, 42] and DuIOD [24] and requires object detectors to simultaneously: (i) detect all known classes Kt across all seen domains {D 1, . . . , Dt}; (ii) detect all unseen objects as “unknown” without explicit unknown supervision; (iii) incrementally learn a subset of unknowns as knowns when their labels are revealed in later tasks (Ut → K t+1 ; Kt+1 ⊆Ut); and (iv) achieve these objectives in an exemplar-free manner without storing any previous data {X 1, . . . , Xt−1}.
+
+3.2. Overall Architecture 
+
+EW-DETR framework builds upon DETR-based object de-tectors [3, 31, 44] while introducing three key modules to tackle the challenges of EWOD effectively: Incremen-tal LoRA Adapters (Section 3.3), Query-Norm Objectness Adapter (Section 3.4), and Entropy-Aware Unknown Mix-ing (Section 3.5). It enables the state-of-the-art DETR-based object detector RF-DETR [31] to operate in the evolving world setting while also generalising to the tra-ditional Deformable DETR detector [44] (see Table 1). As shown in Figure 3, the EW-DETR framework augments the generic DETR pipeline with three modular components. First, Incremental LoRA adapters are attached to all trans-former encoder and decoder linear layers, providing a com-pact memory of past tasks, mitigating catastrophic forget-ting without storing any data from previous tasks. Second, a Query-Norm Objectness Adapter reparameterises the de-coder output features to yield a decoupled representation that helps in “unknown” detection. Finally, an Entropy-Aware Unknown Mixing module uses both objectness and classification uncertainty to modulate the final class scores in a balanced manner. 3Figure 3. EW-DETR framework for Evolving-World Object Detection. An input image is processed by a frozen backbone and transformer encoder–decoder equipped with aggregate  ∆Wt−1   
+
+> agg
+> and task-specific  ∆Wt
+> task
+> LoRA adapters, yielding class-agnostic query features. These queries are reparameterised by the Query-Norm Objectness Adapter and passed through a classification head and an objectness head, whose outputs are combined by Entropy-aware Unknown Mixing module to produce calibrated class scores, while a localisation head predicts bounding boxes to form final detections across tasks 1.
+
+3.3. Incremental LoRA Adapters 
+
+In EWOD, evolving label space and shifting domain dis-tributions jointly exacerbate severe catastrophic forgetting across tasks. Moreover, since there is no reliance on exem-plar replay unlike other methods [10, 21, 42, 45], the model cannot revisit past data to re-balance its gradients or cor-rect drift from earlier decision boundaries. To tackle these challenges, we propose a Data-Aware Incremental LoRA Merging strategy. Specifically, we decouple stability from plasticity by adapting each targeted linear layer in the trans-former encoder and decoder using Low-Rank Adaptation (LoRA) [13]. For each targeted layer at task t with frozen base weight W0, we maintain two low-rank adapters: • Aggregate LoRA Adapter  ∆Wt−1
+
+> agg
+
+: a non-trainable buffer that accumulates knowledge from all previous tasks {T 1, . . . , Tt−1}, reused in subsequent tasks. • Task-Specific LoRA Adapter  ∆Wt
+
+> task
+
+: Trainable pa-rameters for the current task Tt to capture task-specific shifts in classes/domains, resets at each task transition. Each adapter is parameterised by a compact memory-efficient product of two low-rank matrices: 
+
+∆Wt 
+
+> task
+
+= Bt
+
+> task
+
+At
+
+> task
+
+, ∆Wt−1 
+
+> agg
+
+= Bt−1 
+
+> agg
+
+At−1 
+
+> agg
+
+, (2) During training at task t, only the task-specific LoRA matri-ces At 
+
+> task
+
+and Bt 
+
+> task
+
+(plus the detection heads and open-world specific parameters) receive gradients; the base weights and aggregate LoRA adapters are kept frozen. This design en-sures plasticity required for updates specific to Tt is con-fined to a small, low-capacity subspace, while the shared representation used across all tasks remains stable. A distinctive challenge in EWOD is the severe data imbal-ance across tasks (details in Appendix B ). In such sce-narios, the choice of how the Task-Specific and Aggre-gate LoRA adapters are merged is a key factor that gov-erns the stability–plasticity trade-off: an overly aggressive merge can quickly overwrite useful representations from past tasks, while an overly conservative one can prevent the model from adapting to genuinely new domains. To balance these effects, in EW-DETR, we adopt a deliber-ately simple, data-aware merging coefficient (βt) that is computed using the ratio between samples seen in current task (Nt) and the cumulative number of samples seen so far previously (N1: t−1) (see equation 3). As a result, tasks with relatively fewer samples are assigned a larger βt, so that under-represented domains exert a stronger influence on the Aggregate LoRA adapter. This keeps the merging rule inter-pretable while still addressing data imbalance across tasks. 
+
+βt =
+
+
+
+1, t = 1 ,βmax − (βmax − βmin ) Nt
+
+N1: t−1
+
+, t ≥ 2. (3) 4For task t, the dense merged update is then computed as: 
+
+∆Wt 
+
+> merged
+
+= (1 − βt) ∆ Wt−1 
+
+> agg
+
++ βt ∆Wt
+
+> task
+
+. (4) To keep the Aggregate LoRA adapter low-rank, we project this matrix back to rank r using a truncated Singular Value Decomposition (SVD): ∆Wt 
+
+> merged
+
+= U Σ V ⊤, and re-tain the top-r singular components, so that ∆Wt 
+
+> merged
+
+≈
+
+Ur Σr V⊤ 
+
+> r
+
+. We store this low-rank approximation and use it to compute Aggregate LoRA adapter for Tt:
+
+Bt 
+
+> agg
+
+= Ur Σr , At 
+
+> agg
+
+= V⊤ 
+
+> r
+
+, (5) 
+
+∆Wt 
+
+> agg
+
+= Bt
+
+> agg
+
+At 
+
+> agg
+
+(6) While the Task-Specific LoRA adapter is reset to zero  ∆Wt 
+
+> task
+
+→ 0 in preparation for the next task. 
+
+3.4. Query-Norm Objectness Adapter 
+
+In EWOD, there is no explicit supervision for unknown ob-jects, so standard classification heads tend to absorb them into the background or misclassify them as known. We therefore introduce the Query-Norm Objectness Adapter (QNorm-Obj) , which decouples the semantics and mag-nitude of decoder queries: the feature direction encodes class semantics, while the feature norm acts as a soft, class-agnostic objectness cue. Unlike prior open-world detectors that introduce dedicated objectness or unknown-supervision losses [10, 15, 45], QNorm-Obj does not introduce any ad-ditional supervision or auxiliary loss. In DETR, decoder features (H) can be interpreted as class-agnostic object slots [17, 40]: a fixed set of queries attends to image regions, and the classification head maps them to task-specific labels. We exploit these class-agnostic queries to estimate objectness and expose “unknowns” in EWOD. Let hi denote the decoder feature for query i at the last decoder layer. We first apply LayerNorm followed by ℓ2
+
+normalisation to obtain a direction-only vector: 
+
+hnorm = LN( hi)
+
+∥LN( hi)∥2
+
+. (7) The normalised vector lies on the unit sphere and is thus insensitive to changes in feature magnitude that often come from domain-specific covariate shift in EWOD. We then de-fine the classification feature as a convex combination of the original and normalised vectors using a learnable mixing coefficient αmix :
+
+hcls = (1 − αmix )hi + αmix hnorm , (8) and obtain classification logits by: 
+
+zcls = Wcls hcls + bcls . (9) In DETR-based detectors, queries matched to real ob-jects empirically develop larger norms than unmatched background queries. QNorm-Obj exploits this by passing the scalar norm ∥hi∥2 through an objectness head fobj fol-lowed by temperature scaling: 
+
+zobj  
+
+> i
+
+= fobj 
+
+ ∥hi∥2
+
+
+
+τ + ϵ . (10) Since no auxiliary loss is introduced, both the normalised classification features and the objectness MLP are trained implicitly through the standard detection loss. Queries matched to ground-truth boxes receive positive gradients on their foreground class and box, encouraging their norms and directions to jointly encode objectness and semantics, while unmatched queries are pushed towards the background. As a result, QNorm-Obj remains compatible with DETR-based detectors, adds negligible overhead, and yields features that are substantially more informative for downstream un-known detection. 
+
+3.5. Entropy-Aware Unknown Mixing 
+
+Calibrating the unknown class in EWOD is challenging be-cause unknown instances are never directly labelled, and the detector is trained only on the current known classes. As a result, unknown evidence tends to be either under-confident or spuriously absorbed into nearby known classes by the softmax, especially under domain shift. To address this, we introduce Entropy-Aware Unknown Mixing (EU-Mix) , which turns classification uncertainty and objectness into a calibrated unknown score. Given the Query-Norm Objectness Adapter (Sec. 3.4), each query produces (i) classification logits over the |K t|
+
+known classes plus a dedicated unknown logit, and (ii) an auxiliary objectness logit. We interpret high objectness as evidence that there is some object at the query location, re-gardless of class, and the entropy of the known predictions as a measure of how well any known category explains that object. EUMix combines these two signals into: (1) an objectness-driven unknown probability that is high when the detector believes there is an object but all known classes are uncertain, and (2) a classifier-driven unknown probabil-ity derived from the learned unknown logit. These two estimates are blended through a single learn-able mixing weight α ∈ (0 , 1) ,
+
+punk final ,i = α p unk cls ,i + (1 − α) punk obj ,i , (11) and converted back to a logit that replaces the original un-known logit. In parallel, we apply a soft suppression to the known-class logits proportional to the objectness-driven unknown score, so that high-uncertainty, high-objectness queries are not forced into a known label purely by the soft-max normalisation. All parameters of this module are trained jointly with the detector using the standard detector loss, with no explicit 5unknown supervision. Unlike prior open-world methods that rely on external energy-based classifiers [15], proposal memories or OOD proposal banks [2, 10], or multi-stage pseudo-labelling pipelines [10, 15, 25], our design operates as a single, lightweight logit-calibration layer on top of the base detector. Appendix A details the mathematical for-mulation behind EUMix. 
+
+## 4. Experiments 
+
+4.1. Datasets 
+
+Since EWOD requires a series of domain-incremental datasets that also support class evolution across tasks, we follow [24] and formulate the EWOD experiments using two dataset series. The Pascal Series comprises four vi-sually distinct domains: Pascal VOC [8], Clipart, Water-color, and Comic [14]. Among these, Pascal VOC and Cli-part share 20 object classes, while Watercolour and Comic each contain six classes that form subsets of the former. For the Diverse Weather Series, we consider five weather conditions featuring seven common object categories: Day-time Sunny, Night Sunny, Night Rainy, Daytime Foggy, and Dusk Rainy. These are sourced from BDD-100k [39], FoggyCityscapes [6], and Adverse-Weather [11]. Detailed dataset statistics are provided in Appendix D.
+
+4.2. Evaluation Protocol and Metrics 
+
+Evaluation Protocol. EWOD requires both: exemplar-free progression over evolving classes & domains along with explicit unknown modelling. Hence, we build the EWOD protocol by re-formulating the dual-incremental schedule followed in [24] for Pascal Series and Diverse Weather benchmarks, while integrating open-world con-straints as formulated in OWOD methods [10, 15, 42]. Table S1 illustrates our protocol on the Diverse Weather benchmark. Following OWOD [10, 15], during training on task Tt, only the current task’s known classes receive su-pervision, while instances of previously learned classes and truly novel objects remain unlabeled. During evaluation at Tt, the detector is supposed to detect all known classes learned so far {K 1 ∪ . . . ∪ K t} across all encountered do-mains {D 1, . . . , Dt} and any unseen objects as “unknown” 
+
+class. Moreover, to create a stationary, non-leaking un-known prior pool, we intentionally withhold certain classes (e.g., truck in Table S1) across all tasks to serve as con-sistent unknown objects throughout the evaluation, unlike standard OWOD benchmarks: M-OWODB [15] and S-OWODB [10] where there are no unknowns in last task TT .
+
+Evaluation Metrics. While existing metrics like Fmap [5] and RAI [24] measure forgetting and generalisation, they do not account for open-set behaviour. Conversely, OWOD metrics [10, 15] focus on unknown detection but ignore domain shifts. However, EWOD couples these three fail-ure modes: catastrophic forgetting of past classes, collapse under open-set exposure, and lack of domain generalisa-tion ability to identify known classes across evolving do-mains, where these isolated evaluations might fall short. Hence, to capture these coupled failure modes and facilitate a holistically simpler comparison with a single number, we introduce FOGS (Forgetting–Openness–Generalisation Score) , a comprehensive score that is calculated as the mean of three calibrated sub-scores, each quantifying a distinct EWOD dimension: 
+
+Forgetting Sub-Score (FSS) quantifies catastrophic for-getting by measuring how well the detector retains perfor-mance on previously learned classes. FSS = 1
+
+T − 1 
+
+> T−1
+
+X
+
+> t=1
+
+mAP TT
+
+> prev
+
+Avg (mAP curr )[1: t]
+
+, (12) where mAP TT 
+
+> prev
+
+is the final-task performance on classes learned in task t, and Avg (mAP curr )[1: t] is the average ini-tial performance when those classes were first introduced across tasks 1 to t. Higher FSS indicates better retention of past knowledge. 
+
+Openness Sub-Score (OSS) captures the open-set be-haviour by combining three unknown detection metrics from OWOD works [10, 15, 42]: OSS = 1
+
+T
+
+> T
+
+X
+
+> t=1
+
+U-Recall t + (1 − WI t) + 11+ A-OSE t/GT unk ,t 
+
+3 ,
+
+(13) where U-Recall measures the detector’s ability to recover unknown objects, (1 − WI ) rewards resisting precision col-lapse when unknowns are present (WI: Wilderness Im-pact [7]), and the normalised A-OSE (Absolute Open-Set Error [22]) penalizes misclassification of unknowns as known classes with respect to ground-truth unknowns GT unk ,t at task t. Higher OSS indicates robust unknown detection. 
+
+Generalisation Sub-Score (GSS) evaluates cross-domain adaptability and measures how well newly learned classes transfer across the mixed domains seen so far. GSS = 1
+
+T − 1
+
+> T
+
+X
+
+> t=2
+
+mAP Tt
+
+> curr
+
+, (14) where mAP Tt 
+
+> curr
+
+is the performance on current task classes when evaluated across the union of all domains seen up to task t. Higher GSS reflects stronger domain generalisation. Detailed metric formulations are provided in 
+
+Appendix C .
+
+## 5. Results & Discussion 
+
+Quantitative Results: We compare EW-DETR against the recent OWOBJ [42] and DuET [24], as well as ear-6Table 1. EWOD on Pascal Series: VOC [1:10] → Clipart [11:18]. Along with proposed metrics, per-task OWOD metrics: U-Recall and mAP@0.5 are also reported for completeness. Best results per column in bold , second-best underlined .
+
+Method Trainable Params (M) 
+
+T1: VOC [1:10] T2: Clipart [11:18] Metrics mAP ( ↑) mAP ( ↑)U-Recall (↑) Curr. Known U-Recall (↑) Prev. Known Curr. Known Both FSS (↑)OSS (↑)GSS (↑)FOGS (↑)
+
+ORE-EBUI CVPR’ 21 [15] 32.96 9.84 23.7 6.97 0 11.37 5.05 0 55.48 11.37 22.28 OW-DETR CVPR’ 22 [10] 24.22 16.25 31.51 8.07 3.6 7.96 5.54 11.42 40.47 7.96 19.95 PROB CVPR’ 23 [45] 23.99 52.73 12.68 46.27 0 0.27 0.12 0 67.58 0.27 22.62 CAT CVPR’ 23 [21] 24.25 20.23 30.18 8.1 8.91 8.05 8.53 29.52 41.29 8.05 26.29 ORTH CVPR’ 24 [34] 105.9 63.92 67.28 41.61 3.92 32.44 16.59 5.83 51.06 32.44 29.78 DuET ICCV’ 25 [24] 24.22 0 34.35 0 14.1 1.46 8.47 41.05 35.49 1.46 26 OWOBJ CVPR’ 25 [42] 23.99 45.93 17.47 35.72 0 0.51 0.22 0 60.73 0.51 20.41 
+
+EW-DETR D-DETR 0.46 44.98 61.64 41.45 39.98 7.92 25.73 64.86 61.67 7.92 44.82 
+
+EW-DETR RF-DETR 1.8 77.35 76.05 78.23 73.15 8.42 45.08 96.19 78.62 8.42 61.08 
+
+Table 2. EWOD results on Pascal Series (left: two-phase) and Diverse Weather (right: multi-phase). Best in bold , second-best underlined .
+
+Method VOC [1:10] → Watercolor [11:14] VOC [1:10] → Comic [11:14] Daytime Sunny [1:2] → Night Sunny [3:4] → Night Rainy [5:6] Daytime Sunny [1:2] → Daytime Foggy [3:4] → Dusk Rainy [5:6] FSS OSS GSS FOGS FSS OSS GSS FOGS FSS OSS GSS FOGS FSS OSS GSS FOGS 
+
+ORE-EBUI [15] 0 50.7 21.46 24.05 0 52.34 18.25 23.53 0 61.51 18.96 26.82 0 61.14 24.73 28.62 OW-DETR [10] 11.9 41.57 10.16 21.21 1.43 41.83 8.75 17.34 0.76 61.95 21 27.9 2.31 63.02 22.23 29.19 PROB [45] 0 63.98 3.45 22.48 0 63.75 4.06 22.6 1.24 66.25 14.8 27.43 0 66.9 12.35 26.42 CAT [21] 1.51 44.03 12.57 23.7 7.82 43 10.31 20.38 4.01 62.92 23.66 30.2 4.85 63.87 20.5 29.74 ORTH [34] 12.32 46.89 45.01 34.74 5.28 51.56 38.49 31.78 0.08 62.68 40.38 34.38 0.31 61.81 48.56 36.89 
+
+DuET [24] 46.7 33.01 4.67 28.13 56.22 35 4.99 32.07 20.66 56.47 2.68 26.6 29.01 55.42 3.97 29.47 OWOBJ [42] 0 56.6 18.37 24.99 0 63.11 4.97 22.69 0 64.22 12.09 25.44 0 55.59 9.02 21.54 
+
+EW-DETR D-DETR 79.61 54.46 19.99 51.35 83.18 54.38 4.19 47.25 26.84 56.09 19.86 34.26 20.55 59.58 20.86 33.66 
+
+EW-DETR RF-DETR 98.96 58.17 40.5 65.88 98.51 56.68 32.91 62.7 73.63 73.43 18.68 55.25 82.80 65.75 18.13 55.56 
+
+Table 3. EWOD on Diverse Weather Series: Daytime Sunny → Night/Foggy/Rainy transitions. Best in bold , second-best underlined .
+
+Method Daytime Sunny [1:3] 
+
+→ Night Sunny [4:6] Daytime Sunny [1:3] 
+
+→ Night Rainy [4:6] Daytime Sunny [1:3] 
+
+→ Daytime Foggy[4:6] Daytime Sunny [1:3] 
+
+→ Dusk Rainy [4:6] FSS OSS GSS FOGS FSS OSS GSS FOGS FSS OSS GSS FOGS FSS OSS GSS FOGS 
+
+ORE-EBUI [15] 0 61.06 20.41 27.16 0 61.44 9.18 23.54 0 60.35 24.36 28.24 0 61.51 16.45 25.99 OW-DETR [10] 0 61.06 23 28.02 6.54 61.79 6.84 25.06 0 61.49 23.39 28.29 0.71 60.39 12.47 24.52 PROB [45] 0 69.01 8.25 25.75 0.96 69.35 3.98 24.76 0 69.49 10.57 26.69 0 69.15 11.34 26.83 CAT [21] 0 60.77 24.43 28.4 7.71 61.47 7.9 25.69 0 60.72 29.02 29.91 1.1 60.85 12.41 24.56 ORTH [34] 0.31 59.33 40.56 33.4 2.61 64.21 22.81 29.88 0.54 60.94 52.89 38.12 0.49 67.88 36.31 34.89 
+
+DuET [24] 3.07 55.07 0.75 19.63 16.45 53.78 0.49 23.57 20.41 50.36 8.6 26.46 5.84 52.79 0.87 19.83 OWOBJ [42] 0 67.4 9.17 25.52 0 62.27 1.99 21.42 0 64.57 16.61 27.06 0 64.59 6.72 23.77 
+
+EW-DETR D-DETR 22.85 56.03 10.35 29.74 31.74 55.44 6.81 31.33 14.36 57.39 20.01 30.59 14.5 57.08 14.09 28.56 
+
+EW-DETR RF-DETR 54.47 71.55 15.78 47.27 85.25 69.68 3.35 52.76 58.93 64.25 22.18 48.45 67.12 73.56 15.42 52.03 
+
+lier approaches OW-DETR [10], PROB [45], CAT [21], ORTH [34], and the pioneering ORE [15], all re-implemented under our EWOD protocol, as shown in Ta-bles 1, 2 and 3. Standard replay-based OWOD meth-ods (ORE, OW-DETR, CAT, OWOBJ) suffer from severe catastrophic forgetting, with Forgetting scores near zero. PROB [45] attains strong open-set performance (OSS) but fails in retention and generalisation. ORTH [34] shows strong generalisation yet poor retention, while DuET [24] retains some knowledge but performs weakly under open-world settings. In contrast, EW-DETR delivers balanced performance, achieving the highest average retention (FSS: 
+
+75.69 ) with comparatively fewer parameters, the best open-set performance (OSS: 67.3 ), and competitive generalisa-tion (GSS: 14.02 ). Overall, EW-DETR achieves the highest average FOGS score of 52.33 , making it the most feasible solution for EWOD. Comprehensive results, including ad-ditional metrics (WI [7] and A-OSE [22]) that are also part of OSS, are provided in Appendix F2 .
+
+Qualitative Visualizations To evaluate semantic preser-vation and separation across domains, we visualise t-SNE embeddings of decoder query features in Figure S3. All methods form reasonably distinct clusters in T1, where eval-uation is confined to VOC [1:10] classes. However, the true challenge lies in T2, where evaluation involves all seen classes across both domains: VOC [1:18] and Clipart [1:18], including class–domain pairs unseen during training (VOC [11:18] & Clipart [1:10]), which effectively capture the domain generalisation ability of the detector. Only EW-DETR preserves old class clusters while distinctly separat-ing new ones under severe domain shifts (as also evident in Table 1), demonstrating the effectiveness of the proposed modules. Further visualisations are provided in Appendix F3 .
+
+## 6. Ablations 
+
+This section covers the component-wise ablation studies of each proposed module in EW-DETR, while additional ab-7Figure 4. t-SNE visualisation of decoder query features comparing EW-DETR with recent methods on VOC [1:10] → Clipart [11:18] task. The top row shows features obtained during inference on VOC [1:10] classes, while the bottom row shows features evaluated on the combined test set comprising VOC [1:18] and Clipart [1:18] classes. Notably, EW-DETR is only able to preserve distinct class clusters even under severe domain shift (VOC → Clipart) while also generalising to unseen class-domain pairs: VOC [11:18] and Clipart [1:10], whereas other recent methods exhibit severe feature collapse in T2. Best viewed in colour with zoom. Table 4. Ablations of proposed modules of the EW-DETR framework on RF-DETR [31] for: VOC [1:10] → Clipart [11:18] benchmark.                                                    
+
+> Configuration
+> T1: VOC [1:10] T2: Clipart [11:18] Metrics Trainable Params (M) mAP ( ↑)mAP ( ↑)U-Recall (↑)Curr. Known U-Recall (↑)Prev. Known Curr. Known Both FSS (↑)OSS (↑)GSS (↑)FOGS (↑)
+> Baseline 1.46 77.21 0.56 5.81 51.49 26.11 7.52 33.78 51.49 30.93 30.8672 + Incre. LoRA 1.08 76.29 0.29 74.85 0.07 41.61 98.11 33.53 0.07 43.9 1.7997 + Incre. LoRA + QNorm-Obj 4.24 76.11 2.53 74.42 5.07 42.89 97.78 42.04 5.07 48.3 1.8004 + Incre. LoRA + QNorm-Obj + EUMix 77.35 76.05 78.23 73.15 8.42 45.08 96.19 78.62 8.42 61.08 1.8004
+
+lations, including hyperparameter sensitivity analysis, sta-bility under random class-domain sequences and computa-tional complexity analysis, are provided in Appendix F .
+
+Incremental LoRA Adapters. As shown in Table 4, Incremental LoRA Adapters significantly mitigate catas-trophic forgetting, boosting FSS from 7.52 to 98.11. This is because of the substantial recovery of previous known classes in Task T2 (mAP 5.81 → 74.85). Moreover, as dis-cussed in Section 3.3, base model and transformer encoder-decoder weights are frozen, along with the Aggregate LoRA adapters; this effectively reduces trainable parameters by 
+
+94.2% . However, this stability severely costs plasticity, as the T2 ’Curr. Known’ mAP drops from 51.49 to 0.07. 
+
+Query-Norm Objectness Adapter. Since QNorm-Obj decouples objectness-aware features, incorporating it par-tially mitigates the open-set deficiency, as indicated by mi-nor increases in U-Recall across both tasks. More impor-tantly, this module preserves strong forgetting resistance (FSS remains high at 97.78) while enhancing generalisa-tion (GSS), which results from the rise in the current known mAP in T2.
+
+Entropy-Aware Unknown Mixing. Table 6 depicts EU-Mix works synergistically with the previous two modules and not only improves unknown detection but also enhances the model’s ability to generalise current task knowledge, while slightly reducing FSS. 
+
+## 7. Conclusion 
+
+In this work, we formalised Evolving World Object De-tection to solve real-world coupled challenges of open-set recognition and domain-adaptive incremental learning un-der exemplar-free constraints. To address these challenges, we proposed EW-DETR, which integrates Data-Aware In-cremental LoRA Merging for domain plasticity, Query-Norm Objectness Adapter for robust unknown detection, and Entropy-Aware Unknown Mixing for calibrated open-set recognition. Extensive experiments on two challenging benchmarks demonstrated that EW-DETR significantly out-performs existing methods across all EWOD dimensions. Qualitative analyses further confirmed its ability to main-tain discriminative, domain-invariant representations with-out replay. We believe EW-DETR opens a promising di-rection for real-world object detection in dynamic envi-ronments, and we hope our work inspires further research at the intersection of open-world recognition and domain-adaptive continual learning. 8References 
+
+[1] Manoj Acharya, Tyler L. Hayes, and Christopher Kanan. Rodeo: Replay for online object detection. In The British Machine Vision Conference , 2020. 3 [2] Garvita Allabadi, Ana Lucic, Siddarth Aananth, Tiffany Yang, Yu-Xiong Wang, and Vikram Adve. Generalized open-world semi-supervised object detection. arXiv preprint arXiv:2307.15710 , 2023. 6 [3] Nicolas Carion, Francisco Massa, Gabriel Synnaeve, Nicolas Usunier, Alexander Kirillov, and Sergey Zagoruyko. End-to-end object detection with transformers. In European confer-ence on computer vision , pages 213–229. Springer, 2020. 1, 2, 3 [4] Fabio Cermelli, Antonino Geraci, Dario Fontanel, and Bar-bara Caputo. Modeling missing annotations for incremental learning in object detection. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pages 3700–3710, 2022. 3 [5] Li Chen, Chunyan Yu, and Lvcai Chen. A new knowledge distillation for incremental object detection. In 2019 Interna-tional Joint Conference on Neural Networks (IJCNN) , pages 1–7. IEEE, 2019. 6 [6] Marius Cordts, Mohamed Omran, Sebastian Ramos, Timo Rehfeld, Markus Enzweiler, Rodrigo Benenson, Uwe Franke, Stefan Roth, and Bernt Schiele. The cityscapes dataset for semantic urban scene understanding. In Proceed-ings of the IEEE conference on computer vision and pattern recognition , pages 3213–3223, 2016. 6, 13 [7] Akshay Dhamija, Manuel Gunther, Jonathan Ventura, and Terrance Boult. The overlooked elephant of object detection: Open set. In Proceedings of the IEEE/CVF winter conference on applications of computer vision , pages 1021–1030, 2020. 6, 7, 15 [8] Mark Everingham, Luc Van Gool, Christopher KI Williams, John Winn, and Andrew Zisserman. The pascal visual object classes (voc) challenge. International journal of computer vision , 88:303–338, 2010. 6, 13 [9] Tao Feng, Mang Wang, and Hangjie Yuan. Overcoming catastrophic forgetting in incremental object detection via elastic response distillation. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition ,pages 9427–9436, 2022. 3 [10] Akshita Gupta, Sanath Narayan, KJ Joseph, Salman Khan, Fahad Shahbaz Khan, and Mubarak Shah. Ow-detr: Open-world detection transformer. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 9235–9244, 2022. 2, 3, 4, 5, 6, 7, 12, 13, 15, 16 [11] Mahmoud Hassaballah, Mourad A Kenk, Khan Muhammad, and Shervin Minaee. Vehicle detection and tracking in ad-verse weather using a deep learning framework. IEEE trans-actions on intelligent transportation systems , 22(7):4230– 4242, 2020. 6, 13 [12] Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun. Deep residual learning for image recognition. In Proceed-ings of the IEEE conference on computer vision and pattern recognition , pages 770–778, 2016. 15 [13] Edward J Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, Weizhu Chen, et al. Lora: Low-rank adaptation of large language models. ICLR ,1(2):3, 2022. 4 [14] Naoto Inoue, Ryosuke Furuta, Toshihiko Yamasaki, and Kiy-oharu Aizawa. Cross-domain weakly-supervised object de-tection through progressive domain adaptation. In Proceed-ings of the IEEE conference on computer vision and pattern recognition , pages 5001–5009, 2018. 6, 13 [15] KJ Joseph, Salman Khan, Fahad Shahbaz Khan, and Vi-neeth N Balasubramanian. Towards open world object de-tection. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 5830–5840, 2021. 2, 3, 5, 6, 7, 12, 13, 15, 16 [16] Junsu Kim, Hoseong Cho, Jihyeon Kim, Yihalem Yimolal Tiruneh, and Seungryul Baek. Sddgr: Stable diffusion-based deep generative replay for class incremental object detection. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 28772–28781, 2024. 3[17] Tyler LaBonte, Yale Song, Xin Wang, Vibhav Vineet, and Neel Joshi. Scaling novel object detection with weakly supervised detection transformers. In Proceedings of the IEEE/CVF winter conference on applications of computer vision , pages 85–96, 2023. 5 [18] Dawei Li, Serafettin Tasci, Shalini Ghosh, Jingwen Zhu, Junting Zhang, and Larry Heck. Rilod: Near real-time incre-mental learning for object detection at the edge. In Proceed-ings of the 4th ACM/IEEE Symposium on Edge Computing ,pages 113–126, 2019. 3 [19] Yuyang Liu, Yang Cong, Dipam Goswami, Xialei Liu, and Joost van de Weijer. Augmented box replay: Overcom-ing foreground shift for incremental object detection. In 
+
+Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV) , pages 11367–11377, 2023. 3 [20] Yaoyao Liu, Bernt Schiele, Andrea Vedaldi, and Christian Rupprecht. Continual detection transformer for incremen-tal object detection. In Proceedings of the IEEE/CVF Con-ference on Computer Vision and Pattern Recognition , pages 23799–23808, 2023. 3 [21] Shuailei Ma, Yuefeng Wang, Ying Wei, Jiaqi Fan, Thomas H Li, Hongli Liu, and Fanbing Lv. Cat: Localization and iden-tification cascade detection transformer for open-world ob-ject detection. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 19681– 19690, 2023. 2, 3, 4, 7, 15, 16 [22] Dimity Miller, Lachlan Nicholson, Feras Dayoub, and Niko S¨ underhauf. Dropout sampling for robust object detection in open-set conditions. In 2018 IEEE International Confer-ence on Robotics and Automation (ICRA) , pages 3243–3249. IEEE, 2018. 6, 7, 15 [23] M Jehanzeb Mirza, Marc Masana, Horst Possegger, and Horst Bischof. An efficient domain-incremental learning ap-proach to drive in all weather conditions. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 3001–3011, 2022. 3 [24] Munish Monga, Vishal Chudasama, Pankaj Wasnik, and Bi-plab Banerjee. Duet: Dual incremental object detection 
+
+9via exemplar-free task arithmetic. In Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV) , pages 3121–3131, 2025. 2, 3, 6, 7, 12, 15, 16 [25] Sahal Shaji Mullappilly, Abhishek Singh Gehlot, Rao Muhammad Anwer, Fahad Shahbaz Khan, and Hisham Cholakkal. Semi-supervised open-world object detection. In Proceedings of the AAAI Conference on Artificial Intelligence , pages 4305–4314, 2024. 6 [26] Maxime Oquab, Timoth´ ee Darcet, Th´ eo Moutakanni, Huy Vo, Marc Szafraniec, Vasil Khalidov, Pierre Fernandez, Daniel Haziza, Francisco Massa, Alaaeldin El-Nouby, et al. Dinov2: Learning robust visual features without supervision. 
+
+arXiv preprint arXiv:2304.07193 , 2023. 15 [27] Jiangmiao Pang, Kai Chen, Jianping Shi, Huajun Feng, Wanli Ouyang, and Dahua Lin. Libra r-cnn: Towards balanced learning for object detection. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 821–830, 2019. 3 [28] Can Peng, Kun Zhao, and Brian C Lovell. Faster ilod: In-cremental learning for object detectors based on faster rcnn. 
+
+Pattern recognition letters , 140:109–115, 2020. [29] Can Peng, Kun Zhao, Sam Maksoud, Meng Li, and Brian C Lovell. Sid: incremental learning for anchor-free object de-tection via selective and inter-related distillation. Computer vision and image understanding , 210:103229, 2021. 3 [30] Shaoqing Ren, Kaiming He, Ross Girshick, and Jian Sun. Faster r-cnn: Towards real-time object detection with region proposal networks. Advances in neural information process-ing systems , 28, 2015. 15 [31] Isaac Robinson, Peter Robicheaux, Matvei Popov, Deva Ramanan, and Neehar Peri. Rf-detr: Neural architecture search for real-time detection transformers. arXiv preprint arXiv:2511.09554 , 2025. 1, 2, 3, 8, 14, 15 [32] Konstantin Shmelkov, Cordelia Schmid, and Karteek Ala-hari. Incremental learning of object detectors without catas-trophic forgetting. In Proceedings of the IEEE international conference on computer vision , pages 3400–3409, 2017. 3 [33] Xiang Song, Yuhang He, Songlin Dong, and Yihong Gong. Non-exemplar domain incremental object detection via learning domain bias. In Proceedings of the AAAI Con-ference on Artificial Intelligence , pages 15056–15065, 2024. 2, 3 [34] Zhicheng Sun, Jinghan Li, and Yadong Mu. Exploring or-thogonality in open world object detection. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 17302–17312, 2024. 3, 7, 15, 16 [35] Tanvi Verma, Liyuan Jin, Jun Zhou, Jia Huang, Mingrui Tan, Benjamin Chen Ming Choong, Ting Fang Tan, Fei Gao, Xinxing Xu, Daniel S Ting, et al. Privacy-preserving con-tinual learning methods for medical image classification: a comparative analysis. Frontiers in Medicine , 10:1227515, 2023. 2 [36] Qiang Wang, Yuhang He, Songlin Dong, Xinyuan Gao, Shaokun Wang, and Yihong Gong. Non-exemplar domain incremental learning via cross-domain concept integration. In European Conference on Computer Vision , pages 144– 162. Springer, 2025. 3 [37] Yabin Wang, Zhiwu Huang, and Xiaopeng Hong. S-prompts learning with pre-trained transformers: An occam’s razor for domain incremental learning. Advances in Neural Informa-tion Processing Systems , 35:5682–5695, 2022. 3 [38] Yanghao Wang, Zhongqi Yue, Xian-Sheng Hua, and Han-wang Zhang. Random boxes are open-world object detec-tors. In Proceedings of the IEEE/CVF international confer-ence on computer vision , pages 6233–6243, 2023. 15 [39] Fisher Yu, Haofeng Chen, Xin Wang, Wenqi Xian, Yingying Chen, Fangchen Liu, Vashisht Madhavan, and Trevor Dar-rell. Bdd100k: A diverse driving dataset for heterogeneous multitask learning. In Proceedings of the IEEE/CVF con-ference on computer vision and pattern recognition , pages 2636–2645, 2020. 6, 13 [40] Yuhang Zang, Wei Li, Kaiyang Zhou, Chen Huang, and Chen Change Loy. Open-vocabulary detr with conditional matching. In European conference on computer vision ,pages 106–122. Springer, 2022. 5 [41] Hao Zhang, Feng Li, Shilong Liu, Lei Zhang, Hang Su, Jun Zhu, Lionel M Ni, and Heung-Yeung Shum. Dino: Detr with improved denoising anchor boxes for end-to-end object detection. arXiv preprint arXiv:2203.03605 , 2022. 1, 15 [42] Shan Zhang, Yao Ni, Jinhao Du, Yuan Xue, Philip Torr, Piotr Koniusz, and Anton van den Hengel. Open-world objectness modeling unifies novel object detection. In Proceedings of the Computer Vision and Pattern Recognition Conference ,pages 30332–30342, 2025. 2, 3, 4, 6, 7, 12, 13, 15, 16 [43] Jian Zhong, Yifan Jiao, and Bing-Kun Bao. Replay-based incremental object detection with local response exploration. 
+
+IEEE Transactions on Multimedia , 2025. 3 [44] Xizhou Zhu, Weijie Su, Lewei Lu, Bin Li, Xiaogang Wang, and Jifeng Dai. Deformable detr: Deformable trans-formers for end-to-end object detection. arXiv preprint arXiv:2010.04159 , 2020. 1, 2, 3, 14, 15 [45] Orr Zohar, Kuan-Chieh Wang, and Serena Yeung. Prob: Probabilistic objectness for open world object detection. In 
+
+Proceedings of the IEEE/CVF Conference on Computer Vi-sion and Pattern Recognition , pages 11444–11453, 2023. 2, 3, 4, 5, 7, 15, 16 
+
+10 EW-DETR: Evolving World Object Detection via Incremental Low-Rank DEtection TRansformer 
+
+# Supplementary Material 
+
+## A. EUMix Mathmematical Formulation 
+
+For completeness, we detail the formulation of the Entropy-Aware Unknown Mixing (EUMix) module in this section. For a given query i at task t, let 
+
+zcls  
+
+> i
+
+= zknown  
+
+> i
+
+, z unk 
+
+> i
+
+ (15) denote the raw classification logits over the |K t| known classes and the single unknown class, where zknown  
+
+> i
+
+∈
+
+R|K t| and zunk  
+
+> i
+
+∈ R. We write zknown  
+
+> i,c
+
+for the logit of known class c ∈ K t. In addition, let zobj  
+
+> i
+
+be the objectness logit produced by the Query-Norm Objectness Adapter for the same query. We first compute the maximum known-class confidence 
+
+pknown ,max  
+
+> i
+
+= max  
+
+> c∈K t
+
+σ zknown 
+
+> i,c
+
+, (16) where σ(·) denotes the logistic sigmoid. If the model is highly confident in some known class, pknown ,max  
+
+> i
+
+is close to 1, whereas ambiguous or out-of-distribution objects yield lower values. We convert this observation into a calibrated gap gi that measures how much probability mass is avail-able for the unknown class: 
+
+gi =  1 − pknown ,max 
+
+> i
+
+γ , γ = softplus( θγ ), (17) where θγ is a learned scalar and γ > 0 acts as a tempera-ture on the gap. When γ > 1 the gap is sharpened, so that only strongly uncertain predictions yield a significant gi;when γ < 1 the transition is smoother, which is beneficial if known-class logits are noisy. We interpret the product of objectness and gi as an objectness-derived unknown probability: 
+
+punk obj ,i = σ zobj 
+
+> i
+
+ gi, (18) which is high exactly when the model believes there is an object at the query location but no known class explains it confidently. In parallel, we convert the learned unknown logit into a probability, allowing a learnable bias bobj to compensate for the fact that the unknown logit rarely sees positive supervision: 
+
+punk cls ,i = σ zunk  
+
+> i
+
++ bobj 
+
+. (19) EUMix combines these two estimates through a learn-able mixing coefficient 
+
+α = σ(θα), (20) where θα is a scalar parameter. The final unknown proba-bility is 
+
+punk final ,i = α p unk cls ,i + (1 − α) punk obj ,i , (21) which is then converted back to a logit: 
+
+zunk final ,i = logit  punk final ,i 
+
+, (22) where logit denotes the inverse of the logistic sigmoid. The mixing weight α is initialised to favour the classifier and is learned end-to-end; if the classifier becomes reliable on unknowns, α naturally increases, but in early tasks or under strong domain shift the model can lean more heavily on the objectness–gap signal. The final logits fed into the detection loss are then 
+
+zfinal  
+
+> i
+
+= zknown final ,i , z unk final ,i 
+
+. (23) All parameters in this module, θγ , θ α, θ λ, b obj , are trained jointly with the rest of the network using exactly the same detection loss as the base detector, without any explicit su-pervision on the unknown category. Their role is purely to reshape the logit space so that unknown evidence coming from objectness and classification uncertainty is translated into calibrated unknown scores. 
+
+## B. Addressing data imbalance across tasks  
+
+> (a) (b)
+
+Figure S1. Effect of (a) data-aware vs. (b) fixed merging. 
+
+A distinctive challenge in EWOD is the severe data im-balance across tasks, where different domains and class dis-tributions yield vastly different sample sizes. As illustrated in Table S2, the Diverse Weather benchmark exhibits severe data imbalance across tasks, with Task T2 (Night Sunny) containing approximately 40 times more training samples than Task T3 (Night Rainy). This imbalance poses a criti-cal challenge for knowledge consolidation in exemplar-free incremental learning: naively merging task-specific updates 11 into the aggregate adapter can either cause catastrophic for-getting when large tasks dominate, or prevent adaptation when small tasks are under-weighted. In Figure S1a, our data-aware merging coefficient βt (Eq. 3, main) dynami-cally adjusts based on the ratio between current and aggre-gate samples. At Task T1, β1 = 1 .0 initialises the aggre-gate adapter entirely from the first task. At Task T2, the large training sample count relative to T1 results in a low 
+
+β2 = 0 .317 , limiting the influence of this data-rich task to prevent it from overwhelming prior knowledge. Con-sequently, the model retains strong performance (average mAP: 26.54), while if we compare it to fixed β (Figure S1b) case, the uniform weighting causes the data-rich Task T2 to dominate the aggregate adapter, resulting in severe perfor-mance degradation, resulting in severe performance degra-dation: the average mAP drops from 31.36 to 12.84 at 
+
+T2. Hence, the fixed strategy fails to preserve knowledge from data-scarce tasks ( T1, T3) as their contributions are insufficiently weighted during merging. The effectiveness of data-aware merging is further validated in Figure S4b (Appendix F.5 ), where we ablate different data-aware merging bounds (βmin , β max ) for the merging coefficient 
+
+βt. The fixed-β baseline (βmin = βmax = 0 .5) achieves the lowest FOGS score (54.04) with catastrophic GSS collapse (0.02), confirming that ignoring data imbalance severely impairs both retention and generalisation. Hence, data-aware merging is crucial for balancing stability and plas-ticity in EWOD under heterogeneous data distributions. 
+
+## C. EWOD Protocol and Metrics 
+
+Table S1 illustrates the proposed EWOD training and eval-uation protocol on the Diverse Weather benchmark. EWOD evaluation protocol builds upon the dual-incremental sched-ule of DuIOD [24], while integrating open-world con-straints from OWOD methods [10, 15, 42]. As shown in Table S1, the protocol spans multiple tasks T1, T2, . . . , TT ,where each task introduces new classes from a new domain. 
+
+Training Protocol. During training on task Tt, only the current task’s known classes Kt receive supervision through bounding box annotations. Crucially, instances of previ-ously learned classes {K 1 ∪ . . . ∪ K t−1} and truly novel objects remain unlabeled in the training set, mimicking real-world scenarios where exhaustive annotation is impractical. Additionally, certain classes are intentionally withheld from training across all tasks (e.g., truck in Table S1) to serve as consistent unknown objects throughout the evaluation. 
+
+Evaluation Protocol. At task Tt, the detector is eval-uated on its ability to: (i) detect all previously learned classes {K 1 ∪ . . . ∪ K t} across all encountered domains 
+
+{D 1, . . . , Dt}, (ii) identify unseen objects as “unknown” ,and (iii) generalize to domain shifts by detecting current task classes across mixed domains. To illustrate this protocol, consider the 3-task scenario in Table S1: Daytime Sunny [1:2] → Night Sunny [3:4] 
+
+→ Night Rainy [5:6] . In T1, the model learns bike, bus from Daytime Sunny and is evaluated on these classes plus 
+
+unknown detection in Daytime Sunny. In T2, the model learns car, motor from Night Sunny (without annotations for bike, bus) and is evaluated on bike, bus + car, motor + unknown across both Daytime Sunny and Night Sunny domains. Finally, in T3, the model learns person, rider from Night Rainy (excluding truck) and is evaluated on all six learned classes plus unknowns across all three seen do-mains: Daytime Sunny, Night Sunny, and Night Rainy. Hence, EWOD protocol ensures that the detector is chal-lenged with: (1) retaining past knowledge without explicit supervision, (2) rejecting unknowns while maintaining pre-cision on known classes, and (3) adapting to domain shifts for both old and new classes. 
+
+FOGS: Forgetting-Openness-Generalisation Score As discussed in Section 4.2 (main), existing metrics ei-ther focus on individual EWOD dimensions or fail to cap-ture their interplay. To capture the coupled failure modes in EWOD and facilitate holistic comparison, we introduce FOGS as the mean of three calibrated sub-scores: FOGS = FSS + OSS + GSS 
+
+3 (24) where each sub-score quantifies a distinct dimension of EWOD performance. Higher FOGS indicates better overall performance across forgetting resistance, open-set robust-ness, and domain generalisation. 
+
+FSS: Forgetting Sub-Score As discussed in Section 4.2 (main) , FSS quantifies the detector’s ability to re-tain performance on previously learned classes across all cumulative tasks. As defined in Eq. 12 (main), FSS mea-sures retention by comparing the performance on previously learned classes at each task with their average initial perfor-mance when first introduced. To illustrate the computation, consider the 3-task sce-nario from Table S1: Daytime Sunny [1:2] → Night Sunny [3:4] → Night Rainy [5:6] . Here, we have T = 3 tasks, and FSS is computed by averaging retention ratios across tasks 
+
+T2 and T3:FSS = 12   
+
+> mAP T2
+> prev (bike, bus )
+> mAP T1
+> curr (bike, bus )+mAP T3
+> prev (bike, bus, car, motor )
+> 12
+> 
+> mAP T1
+> curr (bike, bus )+ mAP T2
+> curr (car, motor )
+> 
+> 
+
+(25) The first term measures how well the detector retains bike, bus (learned in T1 from Daytime Sunny) when eval-uated at T2 while the second term measures retention of all previously learned classes bike, bus, car, motor when eval-uated at T3. A higher FSS indicates better retention of past knowledge, while lower values indicate catastrophic forget-ting. 12 Table S1. EWOD Training and Evaluation Protocol in Diverse Weather benchmark. Blue, orange, and olive denote classes introduced in     
+
+> T1,T2, and T3, respectively; red indicates classes excluded during training in all tasks but treated as unknown during testing.
+
+Daytime Sunny [1:3] → Night Sunny [4:6] Task Train Classes Train Domain Test Classes Test Domains 
+
+T1
+
+Daytime Sunny [1:3] bike, bus, car Daytime Sunny Daytime Sunny [1:3] bike, bus, car + unknown Daytime Sunny 
+
+T2
+
+Night Sunny [4:6] motor, person, rider, truck Night Sunny Daytime Sunny [1:6] + Night Sunny [1:6] bike, bus, car + motor, person, rider + unknown 
+
+Daytime Sunny + Night Sunny 
+
+Daytime Sunny [1:2] → Night Sunny [3:4] → Night Rainy [5:6] Task Train Classes Train Domain Test Classes Test Domains 
+
+T1
+
+Daytime Sunny [1:2] bike, bus Daytime Sunny Daytime Sunny [1:2] bike, bus + unknown Daytime Sunny 
+
+T2
+
+Night Sunny [3:4] car, motor Night Sunny Daytime Sunny [1:4] + Night Sunny [1:4] bike, bus + car, motor + unknown 
+
+Daytime Sunny + Night Sunny 
+
+T3
+
+Night Rainy [5:6] person, rider, truck Night Rainy Daytime Sunny [1:6] + Night Sunny [1:6] + Night Rainy [1:6] bike, bus + car, motor + person, rider + unknown 
+
+Daytime Sunny + Night Sunny + Night Rainy 
+
+OSS: Openness Sub-Score OSS captures the detector’s open-set behaviour by combining three complementary metrics from OWOD literature [10, 15, 42], as defined in Eq. 13 (main). For the 3-task scenario in Table S1, we compute OSS by averaging the openness scores across all three tasks: OSS = 13
+
+P3
+
+> t=1
+
+ U-Recall t+(1 −WI t)+ 11+ A-OSE t/GT unk, t 
+
+> 3
+
+
+
+(26) Higher OSS values indicate robust unknown detection with minimal impact on known class precision, while lower val-ues suggest open-set collapse. 
+
+GSS: Generalisation Sub-Score GSS evaluates the de-tector’s ability to adapt to domain shifts, as defined in Eq. 14 (main). GSS measures how well newly learned classes transfer across the mixed domains encountered so far. For the 3-task scenario from Table S1, GSS is computed by averaging the cross-domain performance for tasks T2 and 
+
+T3:GSS = 12 
+
+>  mAP T2
+> curr (car, motor ) + mAP T3
+> curr (person, rider )
+
+(27) Here, mAP T2
+
+> curr
+
+(car, motor ) essentially measures whether the detector can generalise car, motor to Daytime Sunny, despite being trained only on Night Sunny. Simi-larly, mAP T3
+
+> curr
+
+(person, rider ) measures the performance on classes person, rider (learned from Night Rainy) when eval-uated across all three Daytime Sunny, Night Sunny and Night Rainy domains, testing cross-domain adaptability for these newly learned classes. Higher GSS reflects stronger domain generalisation, while lower values indicate domain-specific overfitting. 
+
+## D. Dataset Statistics 
+
+As mentioned in Section 4.1 (main) , we evaluate our approach on two dataset series that support evolv-ing open-world object detection across domain-incremental tasks. Here, we provide detailed statistics for both bench-marks. 
+
+Diverse Weather benchmark Table S2 presents the class-wise distribution across three weather conditions: Daytime Sunny, Daytime Foggy, and Night Rainy, sourced from BDD-100k [39], FoggyCityscapes [6], and Adverse-Weather [11]. The benchmark follows a 2+2+2 class split across three incremental tasks T1, T2, and T3. Each task in-troduces two new object categories while encountering data from a new weather domain. The testing phase at each task evaluates on the union of all domains seen up to that point, including instances of the truck class treated as unknown 
+
+in all tasks to simulate open-world scenarios. The dataset exhibits significant domain shift across weather conditions, with Daytime Foggy providing substantially more annota-tions compared to the other two domains, reflecting realis-tic data availability patterns across different environmental conditions. 
+
+Pascal Series benchmark Table S3 illustrates the class distribution across four visually distinct domains: Pascal VOC [8], Clipart, Watercolor, and Comic [14] for three different Pascal Series benchmarks: VOC [1:10] → Cli-part [11:18], VOC [1:10] → Watercolor [11:14], and VOC [1:10] → Comic [11:14]. Each benchmark follows a two-task incremental learning setup where T1 trains on VOC with 10 base classes, followed by T2 introducing a differ-13 Table S2. Class-wise distribution on Diverse Weather benchmark: Daytime Sunny [1:2] → Night Sunny [3:4] → Night Rainy [5:6]; red indicates classes (i.e., truck) excluded during training in all tasks but treated as unknown during testing. Best viewed in colour. 
+
+Class ID Class Name Training Testing 
+
+T1 : Daytime Sunny 
+
+T2 : Night Sunny 
+
+T3 : Night Rainy 
+
+T1 : Daytime Sunny 
+
+T2 : Daytime Sunny + Night Sunny 
+
+T3 : Daytime Sunny + Night Sunny + Night Rainy 1 bike ✓ ✓ ✓✓ ✓✓✓ 
+
+2 bus ✓ ✓ ✓✓ ✓✓✓ 
+
+3 car ✓ ✓✓ ✓✓✓ 
+
+4 motor ✓ ✓✓ ✓✓✓ 
+
+5 person ✓ ✓✓✓ 
+
+6 rider ✓ ✓✓✓ 
+
+– truck 
+
+7 unknown ✓ ✓ ✓
+
+# Classes 2 2 2 2+ 1 2+2+ 1 2+2+2+ 1
+
+# images 4709 18459 471 10219 26754 29527 # annotations 6772 169460 1341 116785 197711 364231 
+
+Table S3. Class-wise distribution on three Pascal Series benchmarks: T1 : VOC [1:10] → T 2 : {Clipart [11:18] / Watercolor [11:14] / Comic [11:14] }. Note that while Watercolor and Comic classes are listed here as IDs 15–18 for visual continuity, they are strict subsets of the whole label space and are mapped to IDs 11–14 during experiments; red indicates classes (i.e., dog, person) excluded during training in all tasks but treated as unknown during testing. Best viewed in colour.                                                                                                                                                                
+
+> Class ID Class Name Training Testing
+> T1:VOC T2:Clipart T2:Watercolor T2:Comic T1:VOC T2:VOC + Clipart T2:VOC + Watercolor T2:VOC + Comic 1aeroplane ✓✓✓✓ ✓✓
+> 2boat ✓✓✓✓ ✓✓
+> 3bottle ✓✓✓✓ ✓✓
+> 4bus ✓✓✓✓ ✓✓
+> 5chair ✓✓✓✓ ✓✓
+> 6cow ✓✓✓✓ ✓✓
+> 7diningtable ✓✓✓✓ ✓✓
+> 8horse ✓✓✓✓ ✓✓
+> 9motorbike ✓✓✓✓ ✓✓
+> 10 pottedplant ✓✓✓✓ ✓✓
+> 11 sheep ✓✓✓
+> 12 sofa ✓✓✓
+> 13 train ✓✓✓
+> 14 tvmonitor ✓✓✓
+> 15 bicycle ✓✓✓✓✓ ✓✓ ✓✓
+> 16 bird ✓✓✓✓✓ ✓✓ ✓✓
+> 17 car ✓✓✓✓✓ ✓✓ ✓✓
+> 18 cat ✓✓✓✓✓ ✓✓ ✓✓
+> –dog –person
+> 19 unknown ✓✓✓✓
+> # Classes 10 84410 + 110 + 8 + 110 + 4 + 110 + 4 + 1
+> # images 8909 165 1072 1150 6041 7774 8657 16630 # annotations 16181 270 1661 3214 14976 16502 8719 18151
+
+ent domain variant. The Clipart configuration introduces 8 new classes following class split of 10 + 8, while Watercolor and Comic configurations each introduce 4 classes follow-ing class split of 10 + 4. Notably, Watercolor and Comic contain only 6 classes in total, which are strict subsets of the 20-class label space shared by VOC and Clipart. Con-sequently, these domains lack annotations for the 14 classes present in VOC and Clipart. Similar to the Diverse Weather Series, the dog and person classes are excluded during train-ing across all tasks and treated as unknown during testing. The testing phase for each T2 configuration evaluates on the union of VOC and the respective domain, with a significant data imbalance as reflected in the counts of images and an-notations. 
+
+## E. Implementation Details 
+
+We instantiate EW-DETR on top of DETR-based detectors (RF-DETR-N [31] and Deformable DETR [44]), retain-14 ing the original detector pipelines and losses unchanged. As discussed in Section 3 (main) , for each task, the backbone and transformer encoder–decoder layers are kept frozen, along with Aggregate LoRA adapters. For Incremental LoRA Adapters, we set rank r = 8, while for data-aware merging coefficient calculation, we keep 
+
+(βmin , β max ) = (0.2, 0.8), as detailed in Appendix F.5 .All methods are based on DINO-pretrained ResNet-50 backbones [12, 41], while the recent RF-DETR-N supports DINOv2-S [26, 31]. For all methods in each task, the de-tector is trained for 100 epochs using the AdamW optimiser with an initial learning rate of 1e-4, weight decay of 1e-4, and batch size of 16 on a single NVIDIA H100 80GB card. All methods follow the evaluation protocol detailed in 
+
+Appendix C for a fair comparison. 
+
+## F. Additional Results & Ablations 
+
+F.1. Complexity Analysis 
+
+Table S4. Computational complexity analysis of various methods evaluated on Pascal Series (VOC [1:10] → Clipart [11:18]) bench-mark, all evaluated on a single NVIDIA H100 80GB card.                                                 
+
+> Method Underlying Detector Trainable Params (M) GFLOPs Avg. Inference Speed (ms) Avg. Memory Footprint (GB)
+> ORE [15] Faster RCNN [30] 32.96 1665.03 60.41 3.75 OW-DETR [10] D-DETR [44] 24.22 157.71 59.82 1.33 PROB [45] D-DETR [44] 23.99 135.31 97.71 1.32 CAT [21] D-DETR [44] 24.25 135.34 112.54 1.35 ORTH [34] RandBox [38] 105.9 2073.57 1151.19 1.26 DuET [24] D-DETR [44] 24.22 135.3 150.61 1.41 OWOBJ [42] D-DETR [44] 23.99 135.3 80.85 1.32
+> EW-DETR D-DETR [44] 0.46 171.23 131.92 1.55
+> EW-DETR RF-DETR [31] 1.8 32.22 57.38 0.32
+
+Table S4 presents a comprehensive computational com-plexity analysis of EW-DETR against recent methods on the Pascal Series benchmark. Since Incremental LoRA adapters ( Section 3.3, main ) freeze the base model and transformer encoder-decoder weights, EW-DETR achieves a drastic reduction in trainable parame-ters: only 0.46M when built upon Deformable DETR [44] and 1.8M when built upon RF-DETR [31], compared to 23.99M–105.9M for other methods. This represents a 
+
+98.1% parameter reduction relative to standard Deformable DETR-based approaches, making EW-DETR highly suit-able for resource-constrained deployment scenarios. Regarding comparison of FLOPs, the D-DETR variant requires 171.23 GFLOPs, which is moderately higher than other D-DETR-based methods (135.3–157.71 GFLOPs) due to the QNorm-Obj and EUMix modules, yet sub-stantially lower than ORE [15] (1665.03 GFLOPs) and ORTH [34] (2073.57 GFLOPs). However, the RF-DETR variant achieves remarkable efficiency with only 32.22 GFLOPs. Inference speed remains practical, with EW-DETR (D-DETR) averaging 131.92 ms per image, com-parable to other D-DETR methods, while EW-DETR (RF-DETR) achieves 57.38 ms, making it among the fastest approaches evaluated. Following [31], we use PyTorch’s 
+
+FlopCounterMode to calculate FLOPs for all methods. Memory footprint analysis reveals that EW-DETR (D-DETR) requires 1.55 GB, slightly higher than other D-DETR methods (1.32–1.41 GB) due to the dual LoRA adapter architecture maintaining both aggregate and task-specific adapters during training. However, EW-DETR (RF-DETR) depicts a memory efficiency at only 0.32 GB, significantly lower than all compared methods. Hence, overall complexity analysis demonstrates that the EW-DETR framework is suitable for real and dynamic evolving world scenarios where continuous adaptation, storage con-straints, and deployment efficiency are required. 
+
+F.2. Comprehensive Results 
+
+Figure S2 presents a holistic comparison of all eval-uated methods across the three critical dimensions of EWOD. EW-DETR (RF-DETR) demonstrates superior performance and achieves an average FOGS of 52.33 ,which represents a 57.24% improvement over the next-best method ORTH [34] (FOGS: 33.28). Notably, EW-DETR (RF-DETR) achieves the highest Forgetting Sub-Score (FSS: 75.69 ), indicating exceptional retention of pre-viously learned classes without exemplar replay. While PROB [45] demonstrates strong Openness performance (OSS: 66.67), it suffers from severe catastrophic forget-ting (FSS: 0.61), highlighting the fundamental trade-off that exemplar-free methods must navigate. EW-DETR suc-cessfully balances all three dimensions, achieving compet-itive OSS ( 67.3 ) while maintaining stability (FSS: 75.69 )and reasonable generalisation (GSS: 14.02). In contrast, all OWOD methods [10, 15, 21, 34, 42, 45] exhibit near-zero forgetting scores, demonstrating their inability to op-erate under exemplar-free constraints, while DuET [24], despite being an exemplar-free method, achieves moderate FSS (25.9) in comparison to EW-DETR (75.69). Table S5 provides a detailed breakdown of the unknown class confusion metrics: Wilderness Impact (WI) [7] and Absolute Open-Set Error (A-OSE) [22], that contribute to the overall Openness Sub-Score (OSS). As shown in Ta-ble S5, EW-DETR (RF-DETR) achieves the lowest WI val-ues across both tasks ( 0.012 in T1 and 0.0038 in T2), in-dicating minimal precision degradation when unknown ob-jects are present. Moreover, it attains high Unknown Re-call values ( 77.35 in T1 and 78.23 in T2), demonstrating its effectiveness in identifying unknown objects without auxil-iary supervision, while attaining competitive A-OSE values in comparison to other methods. 
+
+F.3. Qualitative Visualizations 
+
+Figure S3 presents qualitative comparisons on the VOC [1:10] → Clipart [11:18] benchmark, revealing distinct fail-ure modes of each approach. OWOBJ successfully detects 15 0
+
+> 58.45
+> 17.23
+> 25.23
+> 5.15
+> 53.53
+> 13.87
+> 24.18
+> 0.61
+> 66.67
+> 6.92
+> 24.73
+> 8.88
+> 54.03
+> 15.32
+> 26.08
+> 2.86
+> 59.08
+> 37.91
+> 33.28
+> 25.9
+> 46.55
+> 2.96
+> 25.14
+> 0.42
+> 62.04
+> 8.02
+> 23.49
+> 39.04
+> 57.21
+> 12.41
+> 36.22
+> 75.69
+> 67.3
+> 14.02
+> 52.33
+
+0
+
+10 
+
+20 
+
+30 
+
+40 
+
+50 
+
+60 
+
+70 
+
+80 
+
+Forgetting 
+
+FSS (↑) 
+
+Openness 
+
+OSS (↑) 
+
+Generalization 
+
+GSS (↑) 
+
+Average 
+
+FOGS (↑) 
+
+> Metrics →
+
+ORE-EBUI OW-DETR PROB CAT ORTH DuET OWOBJ EW-DETR (D-DETR) EW-DETR (RF-DETR) Figure S2. Comprehensive comparison of various methods across all three dimensions of EWOD: Forgetting, Openness, and Generalisa-tion, quantified by FSS, OSS, and GSS, respectively, averaged across all EWOD experiments. Table S5. Analysis of unknown object confusion on Pascal Series benchmark: VOC [1:10] → Clipart [11:18]. The table compares all methods using unknown class confusion metrics, including U-Recall, WI and A-OSE. Best results per column in bold , second-best 
+
+underlined .
+
+Method T1: VOC [1:10] T2: Clipart [11:18] Metrics U-Recall ( ↑) WI ( ↓) A-OSE ( ↓) U-Recall ( ↑) WI ( ↓) A-OSE ( ↓) FSS ( ↑) OSS ( ↑) GSS ( ↑) FOGS ( ↑)
+
+ORE-EBUI [15] 9.84 0.0985 12916 6.97 0.0592 852 0 55.48 11.37 22.28 OW-DETR [10] 16.25 0.0851 55228 8.07 0.0644 28689 11.42 40.47 7.96 19.95 PROB [45] 52.73 0.1603 12700 46.27 0.0216 1529 0 67.58 0.27 22.62 CAT [21] 20.23 0.083 57094 8.1 0.0566 28045 29.52 41.29 8.05 26.29 ORTH [34] 63.92 0.757 32519 41.61 0.0213 5160 5.83 51.06 32.44 29.78 DuET [24] 0 0.0714 80714 0 0.0622 35214 41.05 35.49 1.46 26 OWOBJ [42] 45.93 0.155 14947 35.72 0.0383 3898 0 60.73 0.51 20.41 
+
+EW-DETR D-DETR 44.98 0.1382 20236 41.45 0.1096 2086 64.86 61.67 7.92 44.82 
+
+EW-DETR RF-DETR 77.35 0.012 12773 78.23 0.0038 2251 96.19 78.62 8.42 61.08 
+
+unknown objects (black bounding boxes) but suffers from severe catastrophic forgetting, missing several previously learned instances, confirming its reliance on exemplar re-play. DuET, operating under closed-world assumptions, ab-sorbs unknown objects into the background. In contrast, EW-DETR correctly identifies unknown objects while si-multaneously maintaining accurate detection of all previ-ously learned instances across both domains, demonstrat-ing an effective balance between open-set robustness, catas-trophic forgetting mitigation, and cross-domain generalisa-tion, which validates the quantitative findings in Table 1 (main) .
+
+F.4. Ablation analysis for random task sequences 
+
+In real-world, evolving environments, the order in which new classes and domains appear can vary unpredictably. To evaluate the robustness of EW-DETR under such condi-
+
+Table S6. Sensitivity analysis for random task permutations on Diverse Weather benchmark.                                         
+
+> T1T2T3FSS OSS GSS FOGS
+> Daytime Sunny [5:6] Night Sunny [1:2] Night Rainy [3:4] 73.30 73.45 24.62 57.12 Daytime Sunny [3:4] Night Sunny [5:6] Night Rainy [1:2] 75.03 71.31 17.94 54.76 Daytime Sunny [1:2] Night Sunny [3:4] Night Rainy [5:6] 73.63 73.43 18.68 55.25 Night Rainy [1:2] Daytime Sunny [3:4] Night Sunny [5:6] 71.79 72.50 28.67 57.65 Night Sunny [1:2] Night Rainy [3:4] Daytime Sunny [5:6] 71.93 70.69 21.25 54.62
+> Standard Deviation across tasks: 1.19 1.11 3.98 1.26
+
+tions, we conducted experiments with different task permu-tations on the Diverse Weather benchmark. Following [24], we randomly shuffled both the class assignments and the domain order across five distinct configurations. As shown in Table S6, EW-DETR delivers consistent performance across all permutations. FSS remains highly stable, with a standard deviation of only 1.19 , indicating that the proposed Incremental LoRA Adapters effectively preserve previously learned knowledge regardless of task order. Similarly, OSS 16 Figure S3. Qualitative comparison of EW-DETR with other methods on: VOC [1:10] → Clipart [11:18]. Best viewed in colour with zoom.        
+
+> (a) Sensitivity to LoRA rank r(b) Sensitivity to data-aware merging bounds (βmin , β max )
+> Figure S4. Ablation analysis for key hyperparameters in the EW-DETR framework. (a) Sensitivity to LoRA rank r. (b) Sensitivity to data-aware merging bounds (βmin , β max ).
+
+exhibits very low standard deviation ( 1.11 ), demonstrat-ing that the QNorm-Obj and EUMix modules maintain strong unknown-detection capabilities across different se-quences. However, GSS shows comparatively larger varia-tion, which could be attributed to significant data imbalance across domains: because GSS measures how well current-task classes generalise to all previously seen domains, con-figurations in which data-rich domains appear in later tasks naturally achieve higher GSS. Conversely, when data-scarce domains appear in later tasks, GSS declines noticeably. De-spite these variations in individual sub-scores, the overall FOGS metric remains stable with a standard deviation of 
+
+1.26 , confirming that EW-DETR maintains consistent holis-tic performance across the three critical EWOD dimensions irrespective of task ordering. 
+
+F.5. Ablation analysis for key hyperparameters 
+
+LoRA rank ( r). Figure S4a demonstrates the sensitiv-ity of EW-DETR to LoRA rank r, which governs the ca-pacity of the Incremental LoRA Adapters. FSS remains remarkably stable across all ranks (94.95–97.86). OSS similarly exhibits robustness (77.4–79.28), indicating that the QNorm-Obj and EUMix operate reliably regardless of adapter capacity. However, GSS varies more significantly, peaking at r = 16 (8.42) before declining at higher ranks, suggesting that excessive capacity may lead to domain-specific overfitting. The overall FOGS metric peaks at 
+
+r = 16 (61.08) while maintaining a manageable parameter count (1.8 M), representing the optimal trade-off between model capacity and generalisation. Hence, we select r = 16 
+
+as the default ( Appendix E ) for EW-DETR. 
+
+Data-aware merging bounds (βmin , β max ). Figure S4b illustrates how the data-aware merging coefficient bounds impact the stability-plasticity trade-off during LoRA adapter fusion. The fixed-β baseline ( βmin = βmax = 0 .5), which ignores task-specific data imbalance, exhibits severe GSS collapse (0.02) and the lowest FOGS (54.04), demon-strating that uniform merging fails under heterogeneous 17 data distributions. Configuration biased towards stability 
+
+(0 .2, 0.4) achieve the highest FSS (98.25) by limiting the influence of new tasks, effectively preventing forgetting but at the cost of reduced plasticity (GSS: 6.66). Conversely, plasticity-biased configurations (0 .6, 0.8) sacrifice some re-tention (FSS: 86.63) but enable better adaptation to current domains (GSS: 12.55). Overall, (βmin , β max ) = (0 .2, 0.8) 
+
+emerges as the optimal choice for EWOD, and hence is adopted as the default setting ( Appendix E), achieving a balanced trade-off with FOGS score of 61.08. 
+
+## G. Takeaways and Future Directions 
+
+EW-DETR demonstrates that DETR-based detectors can effectively operate in evolving-world settings through parameter-efficient incremental adaptation, achieving strong retention (FSS: 75.69) and robust open-set detection (OSS: 67.3) without storing any previous data. However, domain generalisation (GSS: 14.02) remains modest, indicating room for improvement in cross-domain transfer under exemplar-free constraints. This work establishes EWOD as a challenging yet practical paradigm that bridges continual learning, domain adaptation, and open-world recognition. We hope our framework and comprehensive evaluation protocol inspire further research in this direction. 18

@@ -1,0 +1,399 @@
+Title: DynaGuide: A Generalizable Dynamic Guidance Framework for Unsupervised Semantic Segmentation
+
+URL Source: https://arxiv.org/pdf/2602.13020v1
+
+Published Time: Mon, 16 Feb 2026 02:11:30 GMT
+
+Number of Pages: 19
+
+Markdown Content:
+# DYNA GUIDE : A G ENERALIZABLE DYNAMIC GUIDANCE 
+
+# FRAMEWORK FOR UNSUPERVISED SEMANTIC SEGMENTATION 
+
+Boujemaa Guermazi ∗
+
+Electrical and Computer Engineering Toronto Metropolitan University Toronto, Ontario, Canada 
+
+bguermazi@torontomu.ca 
+
+Riadh Ksantini 
+
+Computer Science University of Bahrain Zallaq, Sakhir, Kingdom of Bahrain 
+
+rksantini@uob.edu.bh 
+
+Naimul Khan 
+
+Electrical, Computer, and Biomedical Engineering Toronto Metropolitan University Toronto, Ontario, Canada 
+
+n77khan@torontomu.ca 
+
+# ABSTRACT 
+
+Unsupervised image segmentation is a critical task in computer vision. It enables dense scene understanding without human annotations, which is especially valuable in domains where labelled data is scarce. However, existing methods often struggle to reconcile global semantic structure with fine-grained boundary accuracy. This paper introduces DynaGuide, an adaptive segmentation framework that addresses these challenges through a novel dual-guidance strategy and dynamic loss optimization. Building on our previous work, DynaSeg, DynaGuide combines global pseudo-labels from zero-shot models such as DiffSeg or SegFormer with local boundary refinement using a lightweight CNN trained from scratch. This synergy allows the model to correct coarse or noisy global predictions and produce high-precision segmentations. At the heart of DynaGuide is a multi-component loss that dynamically balances feature similarity, Huber-smoothed spatial continuity, including diagonal relationships, and semantic alignment with the global pseudo-labels. Unlike prior approaches, DynaGuide trains entirely without ground-truth labels in the target domain and supports plug-and-play integration of diverse guidance sources. Extensive experiments on BSD500, PASCAL VOC2012, and COCO demonstrate that DynaGuide achieves state-of-the-art performance, improving mIoU by 17.5% on BSD500, 3.1% on PASCAL VOC2012, and 11.66% on COCO. With its modular design, strong generalization, and minimal computational footprint, DynaGuide offers a scalable and practical solution for unsupervised segmentation in real-world settings. Code available at https://github.com/RyersonMultimediaLab/DynaGuide 
+
+Keywords Unsupervised image segmentation · self-attention · dynamic pseudo-labeling · dual guidance ·
+
+CNN-Transformer hybrid · adaptive loss function · attention-guided segmentation 
+
+# 1 Introduction 
+
+Semantic segmentation aims to assign a category label to every pixel in an image, enabling a fine-grained understanding of visual scenes. While supervised methods have achieved remarkable performance, they rely on large-scale annotated datasets, which are costly and labour-intensive to create. This limitation has driven growing interest in unsupervised segmentation, where models are trained without ground-truth labels, an essential capability in domains such as medical imaging, satellite analysis, and autonomous systems. 
+
+> ∗
+
+Corresponding author. 
+
+> arXiv:2602.13020v1 [cs.CV] 13 Feb 2026
+
+DynaGuide: A Generalizable Dynamic Guidance Framework Despite notable progress, most unsupervised methods struggle to balance global semantic consistency with precise spatial delineation. Clustering-based techniques and contrastive learning approaches often rely on fixed loss functions or static pseudo-labels, limiting their adaptability during training. Recent self-supervised and zero-shot learning approaches have further advanced the field, utilizing pre-trained vision models to generate semantic features. Notably, diffusion-based models like DiffSeg have demonstrated remarkable zero-shot segmentation capabilities by extracting attention maps from stable diffusion models. However, these methods often produce coarse segmentations with unclear boundaries, limiting their effectiveness in fine-grained segmentation scenarios. 
+
+Figure 1: Illustration of the DynaGuide segmentation approach, showcasing the Original Image (I), Ground Truth (GT) Mask, and Predicted (Pr) outputs. The results highlight the model’s ability to segment "Things" (Th) and "Stuff" (St) categories, emphasizing its robustness in handling complex visual scenes. To overcome these challenges, we propose DynaGuide, a flexible and generalizable framework that refines segmentation predictions through global-to-local dynamic guidance. DynaGuide employs a dual pseudo-label mechanism, combining global segmentation priors from external models with a lightweight convolutional neural network (CNN) that refines spatial accuracy. The model optimizes feature similarity, spatial continuity using Huber-based smoothing, and alignment with the global pseudo-labels through a novel adaptive multi-component loss function. This asymmetric dual-guidance process enhances boundary precision while maintaining semantic coherence. A key strength of DynaGuide is its flexibility. While it operates in a fully unsupervised setting using DiffSeg for zero-shot segmentation, it also generalizes effectively to segmentation priors from supervised-pretrained models like SegFormer without requiring fine-tuning. Although SegFormer was originally trained with labeled data, it is used here solely to generate coarse semantic priors on unseen target datasets, maintaining DynaGuide’s unsupervised training protocol without accessing ground-truth annotations. By employing a lightweight CNN at inference, DynaGuide ensures computational efficiency, making it suitable for real-time and resource-constrained applications. Our experiments show that DynaGuide achieves state-of-the-art performance, with significant improvements in mean Intersection over Union (mIoU) across benchmark datasets. The model effectively captures fine-grained details and accurately segments complex scenes. Figure 1 illustrates the DynaGuide segmentation approach, showcasing the Original Image (I) from the COCO dataset, Ground Truth (GT) Mask, and Predicted (Pr) outputs. The results highlight the model’s ability to segment “Things” (Th) and “Stuff” (St) categories, emphasizing its robustness in handling complex visual scenes. In summary, our key contributions are: • Generalizable Dual-Guidance Framework: A hybrid CNN-Transformer architecture that integrates global pseudo-labels with local CNN refinement for improved segmentation accuracy. • Adaptive Multi-Component Loss Function: A dynamic loss that balances feature similarity, spatial continu-ity, and global guidance alignment. • Unsupervised and Modular Guidance: DynaGuide effectively utilizes unsupervised segmentation with DiffSeg and offers a plug-and-play capability to adapt to supervised priors like SegFormer without fine-tuning, while maintaining its unsupervised training protocol. • State-of-the-Art Performance: Significant improvements over existing unsupervised methods across multiple datasets, with efficient inference using a lightweight CNN. The remainder of this paper is organized as follows: Section 2 discusses related work, including recent advances in unsupervised segmentation and pseudo-labeling techniques. Section 3 presents the detailed architecture of DynaGuide, 2DynaGuide: A Generalizable Dynamic Guidance Framework including its dual-guidance mechanism and adaptive loss function. Section 4 provides extensive experimental results and comparisons with state-of-the-art methods. Finally, Section 5 concludes the paper and highlights potential future directions. 
+
+# 2 Related Work 
+
+2.1 Unsupervised Semantic Segmentation 
+
+Unsupervised segmentation aims to group pixels into semantically coherent regions without access to annotated labels. Traditional clustering-based methods, such as K-means [ 1 ], mean shift [ 2], and graph-based segmentation [ 3], laid foundational principles for grouping pixels by appearance and proximity. However, these methods are limited by handcrafted features, sensitivity to noise, and lack of semantic abstraction. Deep learning-based unsupervised segmentation has advanced the field by leveraging learned feature representations [ 4,5]. Notable methods include Invariant Information Clustering (IIC)[ 4] and PiCIE[ 6], which use mutual information and equivariance constraints to guide pixel-level grouping. More recent techniques have exploited self-supervised vision models for clustering [ 7 , 8 ]. STEGO [ 9] and DeepSpectral [ 10 ] extract object-level semantics from DINO-ViT features using contrastive mechanisms, while COMUS [ 8 ] introduces attention-based refinement. While effective, these methods typically rely on fixed label assignments or post-hoc clustering, lacking mechanisms for iterative refinement or structured label evolution. DynaGuide builds on these advances by introducing a dynamic training loop that unifies global semantic priors and local feature refinement. Unlike previous methods, it allows iterative improvement of segmentation maps through continuous feedback, producing results that are both semantically coherent and spatially precise. 
+
+2.2 Pseudo-Labeling and Guidance Strategies 
+
+Pseudo-labeling has become a central strategy in unsupervised and semi-supervised segmentation. Early works such DeepCluster [ 5 ] and DIC [ 11 ], followed a cluster-and-train approach in which pseudo-labels are generated through clustering and then treated as fixed supervision targets. However, this static nature often results in confirmation bias and limited adaptability to evolving representations. More recent models have proposed dynamic pseudo-label refinement strategies. Differentiable frameworks like DFC [ 12 ] optimize clustering objectives jointly with feature learning, while methods such as IIC [ 4 ], DenseSiam [ 13 ], and ProtoCon [ 14 ] improve pseudo-label quality by enforcing consistency across augmentations or across prototype assignments. Some approaches further incorporate uncertainty modeling [ 15 ] or semantic alignment [ 16 ] to stabilize predictions over time. While pseudo-label refinement has improved significantly in semi-supervised learning and domain adaptation, most frameworks assume access to labelled data, supervised source-domain pretraining, or ensemble-based guidance mechanisms. In related domains, methods such as DUMM [ 17 ] (semi-supervised segmentation), GLoDe [ 18 ], and Pseudo MAE [ 19 ] explore dual-guidance or multi-teacher strategies. However, these approaches are typically applied to classification or cross-domain transfer tasks and rely on either labelled data or supervised pretraining. Moreover, they generally employ multi-stage optimization rather than unified training with interdependent guidance streams. DynaGuide sets itself apart from prior pseudo-labeling methods by employing a structured dual-guidance mechanism that ensures adaptive refinement through continuous feedback. Unlike existing works that typically operate in a single feedback loop or apply multi-stage refinement, DynaGuide integrates fixed global pseudo-labels and evolving local predictions into a unified training framework. This duality is enforced through a dynamic loss function that aligns semantic consistency with spatial precision. Crucially, the framework operates in a fully unsupervised setting when paired with DiffSeg [ 20 ] as the global prior. It maintains label-free training even when integrating pre-trained models like SegFormer [ 21 ]— by applying them only to unseen datasets. This design enables robust segmentation without reliance on any ground-truth labels or supervised pretraining, setting DynaGuide apart from both unsupervised and semi-supervised alternatives. 
+
+2.3 Hybrid Architectures and Diffusion-Based Guidance 
+
+Recent advances in semantic segmentation have shown that combining local feature extraction with global context modelling can significantly improve performance. CNNs remain the backbone of many segmentation frameworks due to their efficiency and ability to preserve fine-grained spatial information. However, their limited receptive field restricts the modelling of long-range dependencies, which are essential for capturing semantic coherence in complex 3DynaGuide: A Generalizable Dynamic Guidance Framework scenes. Transformer-based architectures address this limitation by using self-attention mechanisms to model global interactions. Models like TransUNet [ 22 ], Swin-Unet [ 23 ], and SegFormer [ 21 ] exemplify this synergy, achieving state-of-the-art results in supervised settings. However, these approaches rely heavily on labelled data for training, limiting their applicability in fully unsupervised scenarios. Diffusion-based methods have recently emerged as powerful tools for unsupervised segmentation. DiffSeg [ 20 ]leverages attention maps from stable diffusion models to produce zero-shot segmentation masks without requiring labeled data or training. These masks capture global semantic structures but often lack boundary precision and spatial consistency, necessitating additional refinement. DynaGuide builds on this insight by integrating hybrid CNN-Transformer guidance in a fully unsupervised segmentation framework. Specifically, it uses global pseudo-labels from an external segmentation prior—such as DiffSeg or SegFormer applied to unseen datasets—to guide the learning of a lightweight CNN trained from scratch. The global priors provide semantic layout, while the CNN progressively refines spatial structure and boundary accuracy. This dual-source guidance is integrated through a dynamic training loop that does not require any ground-truth labels in the target domain. Importantly, DynaGuide preserves its unsupervised nature when using DiffSeg as the prior and maintains modularity by generalizing across domains and segmentation priors. This allows the framework to adapt to diverse scenarios while maintaining a unified, end-to-end learning strategy. To the best of our knowledge, DynaGuide is the first to explicitly combine transformer-derived global context with CNN-based local refinement in a fully unsupervised dual-guidance framework for semantic segmentation. In addition to transformer and diffusion-based models, the recent Segment Anything Model (SAM) [ 24 ] has further pushed the boundaries of segmentation by enabling prompt-driven, zero-shot generalization across diverse domains. SAM leverages extensive supervised pretraining and powerful image-text embeddings to support segmentation from points, boxes, or masks, making it highly flexible and interactive. However, SAM requires explicit user input at inference and does not operate in a fully autonomous manner. In contrast, DynaGuide is designed for fully unsupervised settings, requiring no prompts, annotations, or supervision in the target domain. Even when using SegFormer or DiffSeg as guidance sources, DynaGuide maintains a label-free training regime and performs segmentation autonomously at inference. 
+
+# 3 Methodology 
+
+DynaGuide is a fully unsupervised segmentation framework designed to achieve robust semantic segmentation by integrating global contextual guidance with local boundary refinement. It introduces a hybrid dual-guidance approach that combines the strengths of a global segmentation model and a convolutional neural network (CNN). Unlike traditional segmentation methods that rely on labeled data, DynaGuide leverages external pseudo-labels for global structure awareness while iteratively refining boundaries using a dynamic loss function. 
+
+3.1 Overview of the DynaGuide Framework 
+
+At the core of DynaGuide is the iterative enhancement of segmentation predictions through a synergy of global guidance and local feature extraction. As illustrated in figure 2, the framework consists of three primary components: 1. Global Pseudo-Label Guidance: A diffusion-based model such as DiffSeg generates static pseudo-labels through zero-shot segmentation, utilizing attention maps to capture high-level semantic structures. These global pseudo-labels offer an initial coarse segmentation that serves as a structural prior during training. Importantly, the framework supports flexibility in adopting other global segmentation models like SegFormer. 2. Local Refinement: A CNN is responsible for learning localized spatial features, enhancing boundary precision, and correcting segmentation inconsistencies. Through iterative learning, the CNN adapts to regions where the global guidance is inaccurate, effectively refining the segmentation mask. Residual learning mechanisms further facilitate the capture of fine details. 3. Adaptive Loss Optimization: The training process is governed by a dynamic, multi-component loss function that continuously adjusts the model parameters. This function integrates three key objectives: maintaining feature similarity, ensuring spatial continuity using Huber loss with diagonal regularization, and aligning local predictions with the global pseudo-labels. At inference, the model relies solely on the refined CNN predictions, achieving efficient, fully unsupervised segmentation. 4DynaGuide: A Generalizable Dynamic Guidance Framework 
+
+Figure 2: Architecture of DynaGuide for unsupervised image segmentation. The model uses a CNN Feature Extractor with convolutional layers, ReLU activation, and Batch Normalization (denoted by Mean ( μ) and Std Dev ( σ) boxes) to generate p-dimensional feature map. A linear classifier and normalization produce a Normalized Response Map, which is clustered to generate the final segmentation. The Global Pseudo-Label Generator provides external pseudo-labels using a global segmentation model (e.g., DiffSeg or SegFormer) to guide the segmentation process. The Adaptive Multi-Component Loss combines Feature Similarity Loss ( Lsim ), Spatial Continuity Loss ( Lcon ) using Huber Loss with diagonal components, and Global Pseudo-Label Guidance Loss ( LGP ) for iterative refinement. The detailed segmentation process is outlined in Algorithm 1. During each iteration, the CNN extracts multi-scale features, generates response maps x, and assigns cluster labels C. The loss function is computed to optimize the CNN parameters using gradient descent. This iterative refinement continues until convergence, ensuring robust segmentation results. 
+
+Algorithm 1 DynaGuide Unsupervised Image Segmentation 
+
+Require: I ∈ RH×W ×3 ▷ Input image 
+
+Require: T ▷ Number of iterations 
+
+Ensure: C ∈ { 1, . . . , q ′}H×W ▷ Segmentation map  
+
+> 1:
+
+PGP ← GlobalModel (I) ▷ Generate global pseudo-labels  
+
+> 2:
+
+θ ← RandomInit () ▷ Initialize CNN parameters  
+
+> 3:
+
+for t = 1 to T do  
+
+> 4:
+
+x ← CNN (I; θ) ▷ Local feature extraction  
+
+> 5:
+
+R ← Conv 1×1(x) ▷ Response map  
+
+> 6:
+
+R′ ← BatchNorm (R) 
+
+> 7:
+
+Cn ← arg max j R′n,j ∀n ∈ { 1, . . . , N } ▷ Cluster assignment  
+
+> 8:
+
+▷ Compute total loss 
+
+L = Lsim (R′, C) + q′ 
+
+> α
+
+Lcon (R′) + 1 
+
+> q′
+
+LGP (R′, PGP ) 
+
+> 9:
+
+θ ← θ − η∇θ L ▷ Gradient descent  
+
+> 10:
+
+return C
+
+3.2 DiffSeg and Unsupervised Global Guidance 
+
+DiffSeg serves as the primary external guidance source in DynaGuide, providing high-level semantic information through zero-shot segmentation. It utilizes stable diffusion models to generate segmentation masks from self-attention maps, capturing essential semantic structures across an image without requiring labeled data. 5DynaGuide: A Generalizable Dynamic Guidance Framework In DynaGuide, DiffSeg produces a set of global pseudo-labels, denoted as PDS , representing the initial segmentation predictions. These pseudo-labels remain static throughout the training process and serve as a reliable external guidance source. By maintaining the global context, they provide a coarse understanding of object boundaries and regions of interest. The CNN, acting as the local refinement module, leverages these pseudo-labels to iteratively enhance segmentation accuracy. The static nature of DiffSeg’s outputs ensures that DynaGuide maintains robust semantic consistency, preventing overfitting during the refinement process. While the primary implementation in this study uses DiffSeg for global guidance, DynaGuide’s modular design allows easy integration of other models. Alternatives such as SegFormer or similar supervised segmentation models can also provide pseudo-labels, offering flexibility in adapting the framework to various applications. Crucially, no fine-tuning is performed on the global model, ensuring the segmentation remains fully unsupervised. 
+
+3.3 Local Feature Extraction and CNN Refinement 
+
+The CNN backbone in DynaGuide is designed to capture fine-grained spatial features essential for boundary refinement. Unlike traditional approaches that apply aggressive downsampling, DynaGuide maintains the input resolution throughout the process. This ensures the preservation of spatial information, leading to more accurate boundary segmentation. The architecture consists of three convolutional blocks, each comprising a convolutional layer, batch normalization and ReLU activation. To further enhance the learning capacity, residual connections are incorporated, addressing the vanishing gradient problem often encountered in deeper networks. These skip connections provide an additional pathway for gradients to flow, facilitating effective training convergence. The extracted feature maps, denoted as x ∈ RH×W ×p, are subsequently processed using a 1x1 convolutional layer with 
+
+q filters to produce response maps R ∈ RH×W ×q .The output response maps are normalized using batch normalization to produce the final response map: R′ ∈ RH×W ×q .
+
+Following this, each pixel is assigned a cluster label Cn using the argmax function: 
+
+Cn = arg max  
+
+> j
+
+R′n,j , ∀n ∈ { 1, . . . , N }, (1) where: 
+
+N = H × W denotes the total number of pixels, 
+
+C ∈ { 1, . . . , q ′}H×W ,q′ is the dynamically updated number of clusters 
+
+3.4 Dynamic Dual-Guidance and Loss Function Components 
+
+A key innovation of DynaGuide’s segmentation process is its dynamic loss function, which refines segmentation predictions through adaptive optimization. Unlike static pseudo-labeling approaches that are prone to confirmation bias, DynaGuide’s loss function continuously adapts by aligning local predictions with global guidance. This adaptive nature allows the model to iteratively enhance boundary accuracy and segmentation coherence. The dynamic loss function comprises three main components: • Feature Similarity Loss (Lsim ) promotes the clustering of pixels with similar features. • Spatial Continuity Loss (Lcon ) enforces smooth and coherent segmentation by applying the Huber Loss to minimize discontinuities in pixel labels. • Global Pseudo-Label Guidance Loss (LGP ) aligns local predictions with the global guidance provided by DiffSeg. The total loss function is defined as: 
+
+L = Lsim + q′
+
+α Lcon + 1
+
+q′ LGP , (2) where: α is a scaling factor used to control the influence of spatial continuity loss. Crucially, α does not directly balance the loss components. Instead, it modulates the sensitivity of the dynamic weight with respect to the evolving number of predicted clusters q′. This distinction makes the weighing balance more stable and generalizable parameter. To ensure robustness across datasets and eliminate the need for dataset-specific tuning, we fix α = 15 in all experiments. This value was chosen based on a limited grid search, balancing boundary sharpness and noise resilience. 6DynaGuide: A Generalizable Dynamic Guidance Framework 
+
+3.4.1 Feature Similarity Loss 
+
+The feature similarity loss Lsim , originally introduced in Differentiable Feature Clustering (DFC) [ 12 ], promotes clustering of pixels with similar features. It is defined as the cross-entropy loss between the normalized response map 
+
+R′n and the predicted cluster labels Cn. Mathematically, it is expressed as: 
+
+Lsim (R′n, C n) = −
+
+> N
+
+X
+
+> n=1
+> q
+
+X
+
+> j=1
+
+δ(j − Cn) ln R′n,j (3) where: 
+
+δ(t) = 
+
+1 if t = 0 ,
+
+0 otherwise .
+
+This formulation ensures that pixels assigned to the same cluster share similar feature representations, promoting accurate and coherent segmentation results. 
+
+3.4.2 Spatial Continuity Loss 
+
+The spatial continuity loss in DynaGuide builds on the original design introduced in our previous work DynaSeg [ 25 ], where it was first formulated as a high-pass filter that encourages spatially continuous pixels to receive the same label by minimizing horizontal and vertical differences in the response map. The initial approach used an L1 norm-based formulation, which effectively reduced label noise and improved segmentation coherence. However, while effective, this approach had limitations, particularly in preserving spatial consistency for complex structures and textures. To address these limitations, we introduce two key enhancements in DynaGuide: • Huber Loss for Enhanced Robustness : Instead of the L1 norm, we employ Huber Loss to better manage continuity differences. Huber Loss provides a balance between quadratic and linear penalties, making it more robust to noise and improving segmentation accuracy. This formulation helps in preserving fine-grained details while preventing excessive smoothing of object boundaries. • Diagonal Losses for Comprehensive Continuity : While DynaSeg approach considered only horizontal and vertical pixel relationships, we extend the spatial continuity loss to account for diagonal differences as well. This modification ensures that segmentation remains coherent across all directions, which is particularly useful for handling images with complex textures or diagonal structures. The complete spatial continuity loss in DynaGuide is defined as: 
+
+Lcon (R′n) = Lh(R′n) + Lh(R′n) + Ld(R′n), (4) 
+
+Lh(R′n) = 
+
+> H
+
+X 
+
+> i=1
+> W−1
+
+X
+
+> j=1
+
+Huber (R′i,j +1 − R′i,j ), (5) 
+
+Lv (R′n) = 
+
+> H−1
+
+X
+
+> i=1
+> W
+
+X
+
+> j=1
+
+Huber (R′i+1 ,j − R′i,j ), (6) 
+
+Ld(R′n) = 
+
+> H−1
+
+X 
+
+> i=1
+> W−1
+
+X
+
+> j=1
+
+Huber (R′i+1 ,j +1 − R′i,j ), (7) where: 
+
+– Lh(R′n), Lh(R′n) and Ld(R′n) captures horizontal, vertical and diagonal continuities using Huber Loss: By incorporating Huber Loss and diagonal continuity components, DynaGuide improves upon the spatial continuity loss from DynaSeg [ 25 ], offering better segmentation robustness, sharper object boundaries, and enhanced adaptability across various datasets. 
+
+3.4.3 Global Pseudo-Label Guidance Loss 
+
+The Global Pseudo-Label Guidance Loss LGP is introduced in DynaGuide to refine segmentation by incorporating high-level global guidance. While DynaSeg and DFC focused solely on feature similarity and spatial continuity, DynaGuide enhances segmentation robustness by integrating pseudo-labels from DiffSeg. These pseudo-labels provide 7DynaGuide: A Generalizable Dynamic Guidance Framework 
+
+Method BSD500 All Fine Coarse Mean PASCAL VOC2012 
+
+IIC [4] 0.172 0.151 0.207 0.177 0.273 k-means clustering 0.240 0.221 0.265 0.242 0.317 Graph-based Segmentation [3] 0.313 0.295 0.325 0.311 0.365 CNN-based + superpixels [29] 0.226 0.169 0.324 0.240 0.308 CNN-based + weighted loss, μ = 5 [12] 0.305 0.259 0.374 0.313 0.352 Self-supervised Multi-view Clustering [30] 0.316 0.266 0.391 0.339 0.383 Double Clustering with Superpixel Fitting [31] 0.338 0.291 0.385 0.348 0.376 DynaSeg - SCF [25] 0.330 0.290 0.407 0.342 0.396 DynaSeg - FSF [25] 0.349 0.307 0.420 0.359 0.391 DiffSeg [20] 0.364 0.357 0.357 0.359 0.443 
+
+DynaGuide (DiffSeg) 0.566 0.512 0.523 0.534 0.474 DynaGuide (SegFormer) 0.570 0.553 0.543 0.555 0.481 
+
+Table 1: Comparison of mean Intersection over Union (mIoU) for unsupervised segmentation across different granularity levels on the BSD500 dataset and on the PASCAL VOC2012 dataset using DynaGuide with DiffSeg and SegFormer pseudo-labels. a global segmentation map that complements the local refinements produced by the CNN. By leveraging the hierarchical attention-based representations of the global model (DiffSeg or SegFormer), this loss ensures label consistency across large structures while refining details at the pixel level. The Global Pseudo-Label Guidance Loss is computed as the cross-entropy loss between the CNN-normalized response map R′n and global model’s pseudo-labels (DiffSeg) PGP :
+
+LGP (R′n, PGP ) = −
+
+> N
+
+X
+
+> i=1
+> QGP
+
+X
+
+> j=1
+
+δ(j − P GP ,i ) ln R′i,j (8) In the following section, we present the experimental setup and evaluate DynaGuide’s performance using benchmark datasets. 
+
+# 4 Experimental Results 
+
+We evaluate DynaGuide across three benchmark datasets: BSD500 [ 26 ], PASCAL VOC2012 [ 27 ], and COCO [ 28 ]. The primary evaluation uses DiffSeg as the unsupervised global pseudo-label generator, demonstrating DynaGuide’s effectiveness in a fully unsupervised setting. Additionally, to assess its adaptability, we evaluate DynaGuide using SegFormer-generated pseudo-labels. While SegFormer was originally trained with labeled data, it is used solely as a source of global semantic priors in unseen datasets. DynaGuide applies these pseudo-labels to guide its unsupervised segmentation process without using any ground-truth annotations or fine-tuning on the target datasets. This highlights DynaGuide’s flexibility in leveraging different global guidance models. The results are presented through quantitative comparisons with state-of-the-art methods, qualitative visualizations, and ablation studies that investigate the impact of key components. 
+
+4.1 Experimental Setup 
+
+For our experiments, DynaGuide uses a CNN-based feature extractor consisting of 3 convolutional blocks, each followed by batch normalization and ReLU activation. This lightweight design was chosen to ensure computational efficiency while maintaining sufficient capacity to capture local spatial details. Preliminary experiments demonstrated that increasing the number of convolutional blocks did not yield significant improvements in mIoU, while reducing blocks led to degraded segmentation accuracy. Therefore, the three-block configuration strikes a balance between accuracy and efficiency. Both the feature dimension p and the cluster dimension q are set to 100 to maintain consistent latent representations. The model is optimized using Stochastic Gradient Descent (SGD) with a learning rate of 0.1, momentum of 0.9, and no weight decay. In our dynamic loss formulation, the parameter α plays a distinct role from the static weighting parameter μ used in DFC [ 12 ]. Unlike μ, which must be manually tuned for each dataset to balance feature similarity and spatial continuity, α serves as a dataset-independent scaling factor that regulates the rate of variation in the dynamic 8DynaGuide: A Generalizable Dynamic Guidance Framework balancing weight μ(k) throughout training. In this context, the number of active clusters q′ dynamically adapts the loss composition, while α determines how sharply or smoothly this balance evolves as q′ changes. Through extensive hyperparameter tuning across multiple datasets, we found that setting α = 15 provides the best trade-off between enforcing spatial coherence and allowing flexible cluster formation. α is fixed across all datasets and experiments. This configuration enhances segmentation accuracy, particularly in challenging scenes with fine object boundaries and diverse textures. 
+
+4.2 Evaluation Metrics 
+
+To evaluate the performance of DynaGuide, which operates without labeled data during training, we establish a correspondence between the model’s label space and ground truth categories through a remapping and alignment process. This ensures fair and accurate performance measurement across different datasets. For the COCO-Stuff dataset, we generate predictions for the validation images and construct a confusion matrix between the predicted labels and the ground truth classes. The Hungarian algorithm is applied to solve the label assignment problem by finding a one-to-one mapping that minimizes assignment costs based on Intersection over Union (IoU) scores. This alignment allows us to calculate the mean Intersection over Union (mIoU) and pixel accuracy (pAcc) across both "stuff" and "thing" categories. BSD500 provides multiple ground truth annotations for each image, allowing evaluation at different levels of segmenta-tion detail. BSD500 Fine evaluates the model using annotations with the highest segment count, while BSD500 Coarse uses the annotation with the fewest segments. BSD500 All averages results across all available annotations, providing a balanced measure of segmentation quality. The BSD500 Mean is calculated as the average of the All, Fine, and Coarse results, offering a balanced assessment of the model’s overall segmentation capability. This multi-level evaluation provides a comprehensive understanding of DynaGuide’s performance across diverse segmentation scenarios. For PASCAL VOC2012, we calculate mIoU by matching predicted labels to ground truth segments using the IoU score. The Hungarian algorithm is applied to optimize the label assignment. This metric is then averaged across all annotated segments to provide a robust assessment of segmentation performance. These evaluation metrics provide a fair and reliable comparison with state-of-the-art methods, capturing both segmenta-tion accuracy and label consistency in various segmentation scenarios. 
+
+4.3 Quantitative Results 
+
+We evaluate DynaGuide’s segmentation performance using DiffSeg as the primary unsupervised baseline and SegFormer-generated pseudo-labels in a zero-shot manner. Results are reported using mean Intersection over Union (mIoU) and pixel accuracy (pAcc) across BSD500, PASCAL VOC2012, and COCO datasets. Comparative results with state-of-the-art methods are presented. 
+
+4.3.1 BSD500 Evaluation 
+
+Table 4 summarizes the segmentation performance of DynaGuide on BSD500 across different granularity levels. Using DiffSeg as the primary unsupervised baseline, DynaGuide achieves an mIoU of 0.566 on BSD500 Fine, significantly outperforming the baseline DiffSeg, which attained an mIoU of 0.364. This demonstrates DynaGuide’s ability to accurately capture fine-grained segmentation details. On BSD500 Coarse, DynaGuide maintains robust performance with an mIoU of 0.512, exhibiting superior adaptability in segmenting broader regions compared to DiffSeg’s 0.357 mIoU. The overall mIoU for BSD500 (All) is 0.523, further highlighting DynaGuide’s consistent effectiveness across varying annotation granularities. 
+
+4.3.2 PASCAL VOC2012 Evaluation 
+
+For PASCAL VOC2012, DynaGuide also demonstrates strong segmentation performance, achieving an mIoU of 0.474, surpassing DiffSeg’s baseline result of 0.443. The improved results confirm DynaGuide’s capability to effectively segment complex objects and maintain semantic coherence in challenging real-world scenarios. 
+
+4.3.3 COCO Dataset Evaluation 
+
+The COCO dataset presents a challenging segmentation task due to its large variety of object categories and complex background structures. Tables 4.3.3 and 4.3.4 report DynaGuide’s performance using DiffSeg as the global pseudo-label generator. DynaGuide achieves a notable mIoU of 42.18 on COCO-All, demonstrating significant improvements over 9DynaGuide: A Generalizable Dynamic Guidance Framework 
+
+Method Backbone mIoU All 
+
+Modified DC [5] - 9.8 IIC [4] ResNet18 6.7 PiCIE [6] ResNet18 14.4 DenseSiam [13] ResNet18 16.4 DynaSeg - FSF [25] CNN-Based 30.51 DynaSeg - SCF [25] ResNet18 + FPN 30.52 DiffSeg [20] ViT (UNet) –
+
+Ours: DynaGuide (DiffSeg) CNN-Based 42.18 Ours: DynaGuide (SegFormer) CNN-Based 52.38 
+
+Table 2: Comparison of mIoU for unsupervised segmentation on COCO-All. DynaGuide demonstrates notable improvements with DiffSeg-based global pseudo-label guidance. 
+
+Method Backbone mIoU pAcc 
+
+IIC [4] ResNet18 27.7 21.8 PiCIE [6] ResNet18 31.5 50.0 DenseSiam [13] ResNet18 24.5 –HSG [33] ResNet50 23.8 57.6 ReCo+ [34] DeiT-B/8 32.6 54.1 STEGO [9] ViT-B/16 23.7 52.5 DINO + ACSeg [14] ViT-B/8 16.4 –DINO + HP [15] ViT-B/8 24.6 57.2 DINO + CAUSE-TR [32] ViT-B/8 41.9 74.9 DynaSeg - SCF [25] CNN-Based 42.4 76.7 DynaSeg - FSF [25] ResNet18 + FPN 54.1 81.1 DiffSeg [20] ViT (UNet) 43.6 72.5 
+
+Ours: DynaGuide (DiffSeg) CNN-Based 45.6 73.6 Ours: DynaGuide (SegFormer) CNN-Based 55.2 82.4 
+
+Table 3: Comparison of mIoU and pixel accuracy (pAcc) for ’Stuff’ categories on COCO-Stuff. DynaGuide consistently outperforms existing methods using DiffSeg pseudo-labels. DynaSeg SCF [ 25 ] (30.52 mIoU) and other state-of-the-art unsupervised methods. This emphasizes the effectiveness of the dual-guidance strategy in capturing both global context and fine-grained details. For the more challenging ’Stuff’ categories, DynaGuide further improves performance with an mIoU of 45.59 and a pixel accuracy (pAcc) of 73.6, outperforming approaches like DINO + CAUSE-TR [ 32 ] (41.9 mIoU, 74.9 pAcc) and DynaSeg FSF (54.10 mIoU, 81.1 pAcc). These results illustrate DynaGuide’s superior ability to ensure spatial consistency and refine boundary details. 
+
+4.3.4 Versatility Evaluation with SegFormer Guidance 
+
+To assess DynaGuide’s versatility, we evaluated its performance using SegFormer-generated pseudo-labels as global guidance. Applied in a zero-shot manner without fine-tuning, although SegFormer is a supervised segmentation network trained with labeled data, it is used solely to generate global semantic priors in this context, maintaining DynaGuide’s unsupervised setting. This effectively highlights DynaGuide’s adaptability to different sources of global guidance. Using SegFormer pseudo-labels, DynaGuide achieved an mIoU of 0.570 on BSD500 All, 0.481 on PASCAL VOC2012, 0.523 on COCO-All, and an impressive 0.552 on COCO-Stuff. These results surpass previous state-of-the-art methods, demonstrating DynaGuide’s superior ability to segment both object-centric and scene-level categories. The model’s consistent performance across diverse datasets highlights its robust adaptability, excelling in capturing fine-grained object boundaries and maintaining spatial coherence without requiring ground-truth labels or fine-tuning. The quantitative results across BSD500 and PASCAL VOC2012, including comparisons with various state-of-the-art methods, are presented in Table 4. 10 DynaGuide: A Generalizable Dynamic Guidance Framework 
+
+Method Total Parameters GFLOPs 
+
+DINO + HP [15] 39.6M 164.15 IIC [4] 4.5M 17.94 PiCIE [6] 23.6M 4.32 DenseSiam [13] 23.7M 4.38 STEGO [9] 86.6M 67.42 HSG [33] 28.0M 7.13 DynaSeg (CNN-based) [25] 0.19M 9.75 DynaSeg (ResNet-18) [25] 12.0M 1.84 
+
+DynaGuide (Ours) 0.11M 6.99 
+
+Table 4: Comparison of computational efficiency between DynaGuide and other state-of-the-art segmentation methods. DynaGuide achieves a strong balance between accuracy and efficiency. 
+
+4.3.5 Computational Efficiency Experiments 
+
+To evaluate the computational efficiency of DynaGuide, we compared its parameter count and floating point operations (FLOPs) with various state-of-the-art segmentation models, as summarized in Table 4.3.4. DynaGuide demonstrates a clear advantage in computational cost, requiring only 106.4K parameters and approximately 6.99 GFLOPs. Compared to large transformer-based models like DINO + HP [ 15 ], which require 164.15 GFLOPs and 39.6M parameters, DynaGuide achieves significantly greater efficiency. This makes it well-suited for real-time and resource-constrained applications. Furthermore, DynaGuide outperforms CNN-based approaches, offering a more efficient alternative to DynaSeg [ 25 ], which uses 193.9K parameters and 9.75 GFLOPs. While models like PiCIE [ 6] and DenseSiam [ 13 ] have slightly lower FLOPs, they rely heavily on pre-trained backbones, whereas DynaGuide is trained from scratch, demonstrating its robustness and versatility. Overall, DynaGuide’s lightweight architecture and minimal computational demands ensure efficient segmentation without compromising accuracy, making it a practical choice for diverse segmentation tasks. DynaGuide’s computational advantages are evident in its low parameter count and FLOPs compared to state-of-the-art methods. With a lightweight CNN architecture and an efficient inference pipeline, DynaGuide achieves significant resource savings. In practical applications, this makes it suitable for deployment on edge devices, mobile platforms, and real-time systems where computational resources are limited. The reduced memory and processing demands translate into faster inference times and lower energy consumption, which is particularly beneficial for large-scale applications in fields like autonomous driving, medical imaging, and video surveillance. 
+
+4.4 Qualitative Evaluation 4.4.1 Qualitative Comparison Overview 
+
+Figure 3 presents qualitative comparisons of segmentation outputs from DynaGuide, Differentiable Clustering [ 12 ], and DynaSeg [ 25 ], alongside the original image and ground truth. These examples underscore the robustness of DynaGuide in tackling diverse segmentation challenges: • Airplane Image: Variations in brightness cause Differentiable Clustering and DynaSeg to undersegment the airplane, blending it with the background. In contrast, DynaGuide produces a distinct segmentation with precise boundaries, achieving refined boundary definitions comparable to the ground truth and offering plausible alternative segmentation results. • Seahorses Image: Multiple seahorses with varying colors lead Differentiable Clustering to oversegment the objects. However, DynaGuide accurately segments each seahorse as a cohesive entity while preserving their boundaries. • Clock Structure Image: Brightness variations result in oversegmentation by Differentiable Clustering and DynaSeg, creating unnecessary divisions within the clock structure and background. DynaGuide effectively preserves the integrity of the structure with consistent segmentation. • Sheep Image: Shadows in the scene cause both Differentiable Clustering and DynaSeg to oversegment the image, misidentifying shadow regions as distinct entities. DynaGuide handles shadows effectively, yielding accurate segmentation of the sheep. 11 DynaGuide: A Generalizable Dynamic Guidance Framework 
+
+Figure 3: Qualitative comparison of segmentation outputs across different methods: Original Image, Differentiable Clustering [ 31 ], DynaSeg [ 25 ], DynaGuide , and Ground Truth. Detailed examples highlight DynaGuide’s ability to address varying brightness, object color differences, and complex shadows. • Skiing Image: A crowded scene with multiple skiers proves challenging for Differentiable Clustering and DynaSeg, which fail to locate all individuals. DynaGuide, however, segments each skier accurately and achieves precise boundary definitions, even capturing details that the ground-truth mask did not annotate. 
+
+4.4.2 Attention Refinement with Global Pseudo-Labels 
+
+One of the key innovations in DynaGuide is the integration of global pseudo-labels (e.g., DiffSeg or SegFormer) to guide CNN-based local segmentation refinement. Pseudo-labels provide strong global priors, which guide the CNN in refining spatial details and achieving boundary precision. This addition ensures that segmentation remains globally coherent, reducing label inconsistencies while maintaining fine details. By combining global pseudo-labels with localized CNN predictions, DynaGuide effectively reduces over-segmentation and enhances fine-grained detail accuracy, particularly in complex scenes. 12 DynaGuide: A Generalizable Dynamic Guidance Framework 
+
+Figure 4: Qualitative comparisons of segmentation outputs for DynaGuide, SegFormer, and ground truth. The first row showcases an airplane scene, and the second row highlights wooden utensils. While SegFormer provides useful attention maps, DynaGuide effectively refines these predictions for enhanced segmentation accuracy. Figure 4 highlights qualitative comparisons between DynaGuide, SegFormer, and ground truth segmentation. Two representative cases are presented: • Airplane Image: While SegFormer effectively captures key regions of the airplane, it struggles with precise boundary delineation. DynaGuide refines these boundaries, producing sharper segmentation results that, in some areas, even outperform the ground truth. • Wooden Tools: SegFormer’s attention maps provide strong global cues, but fail to capture the intricate structures of the wooden utensils. DynaGuide’s local refinement mechanism preserves these fine-grained details, ensuring that each object is segmented with greater accuracy. 
+
+4.4.3 Limitations and Comparative Analysis with DiffSeg and SegFormer 
+
+Figure 5 further compares DynaGuide’s performance using DiffSeg and SegFormer pseudo-labels. While both approaches demonstrate strong results, certain limitations become evident in specific scenarios, especially when DiffSeg is used as the global guidance. In the airplane formation scene, both DynaGuide versions produce segmentations comparable to the ground truth, accurately identifying the airplanes. However, in the airshow image, DynaGuide with DiffSeg captures not only the airplanes and the sky but also the smoke trails in distinct clusters, demonstrating its sensitivity to texture variations. Conversely, DynaGuide with SegFormer simplifies the segmentation to two clusters, merging the smoke and sky, which results in a loss of finer details. A more challenging scenario is presented in the building image. The ground truth and SegFormer segment the scene into two regions: the sky and the building, offering a clean and clear segmentation. In contrast, DynaGuide with DiffSeg produces a noisier result, segmenting the building into multiple clusters due to its heightened sensitivity to material differences, shadows, and lighting variations. While this can reveal fine-grained structural details, it also introduces unnecessary fragmentation, demonstrating a limitation in complex scenes with subtle textures. In the landscape scene with zebras, DynaGuide’s segmentation remains effective, separating both animals and back-ground elements. While both DiffSeg and SegFormer-guided versions perform well, the DiffSeg-guided version introduces minor over-segmentation, particularly in areas with indistinct boundaries, revealing the challenges in maintaining coherence in complex natural scenes. It is important to note that all results are presented without label matching to the ground truth, as DynaGuide operates in an unsupervised setting. Despite this, its qualitative outputs demonstrate strong segmentation coherence, effective boundary refinement, and adaptability to diverse visual scenarios. By combining global semantic guidance from pseudo-labels with local prediction refinement, DynaGuide shows considerable robustness, though further improvements could address its sensitivity to material variation and texture complexity. 13 DynaGuide: A Generalizable Dynamic Guidance Framework 
+
+Figure 5: Qualitative comparisons of segmentation outputs using DynaGuide with DiffSeg and SegFormer pseudo-labels. While both approaches perform well, limitations are evident in certain scenarios. DiffSeg often introduces over-segmentation in complex scenes, while SegFormer may oversimplify details. The figure shows results on airplane formations, airshows, buildings, and landscapes, demonstrating the strengths and limitations of both guidance methods. 
+
+4.5 Ablation Study 
+
+To validate the contributions of different components in DynaGuide and justify their inclusion in the final architecture, we conduct an ablation study on the BSD500 dataset. By systematically removing or modifying individual elements, we evaluate their impact on segmentation performance using the mean Intersection over Union (mIoU) across all granularity levels. 
+
+4.5.1 Impact of Model Components 
+
+Table 4.5.1 presents the results of the ablation study. Replacing the diagonal loss with a standard L1 loss reduces performance, confirming its role in promoting spatial continuity. Removing skip connections results in a notable mIoU drop, demonstrating their effectiveness in enhancing information flow. The absence of global pseudo-label guidance leads to a significant performance reduction, emphasizing the importance of global context. The most severe performance degradation occurs when all three components are removed, underlining their combined effect on accurate segmentation. 14 DynaGuide: A Generalizable Dynamic Guidance Framework 
+
+Configuration All Fine Coarse Mean 
+
+DynaGuide (L1 Loss) 48.77 48.36 45.53 47.55 No Skip Connection 56.56 53.99 53.72 54.76 No Diagonal Loss 53.74 54.57 52.83 53.71 No Global Guidance 50.20 50.13 45.66 48.66 No Skip, Diagonal, or Guidance 34.90 30.70 42.00 35.87 
+
+DynaGuide (Full) 57.96 55.30 54.28 55.84 
+
+Table 5: Ablation study results for different configurations of DynaGuide on BSD500, showing mIoU for all granularity levels. The full DynaGuide uses SegFormer as the global pseudo-label generator. These results indicate that diagonal loss aids in maintaining spatial coherence, skip connections mitigate information loss, and global guidance introduces essential semantic context. Their combined effect leads to more accurate and consistent segmentation across different levels of granularity. 
+
+4.5.2 Comparison of Feature Extractors 
+
+We further evaluate the effect of using different feature extractors within DynaGuide. Table 5 presents the mIoU results using various architectures, including ResNet18 + FPN, DenseNet, Pointwise DenseNet, and Depthwise Separable Convolutions. ResNet18 + FPN provides a balanced trade-off between accuracy and computational efficiency, achieving a mean mIoU of 48.73. Depthwise Separable Convolutions demonstrate the best performance among alternative configurations, showing the potential of reducing computational complexity without compromising accuracy. DenseNet and Pointwise DenseNet perform moderately well but are outperformed by DynaGuide’s optimized design. The results confirm that the combination of diagonal loss, skip connections, and global pseudo-label guidance contributes significantly to DynaGuide’s strong performance. Additionally, the choice of feature extractor further influences the model’s effectiveness, with the complete DynaGuide configuration consistently achieving the highest mIoU scores. 
+
+4.5.3 Visual Impact of Key Components 
+
+To further illustrate the role of key design choices in DynaGuide, Figure 6 presents qualitative comparisons across various configurations. The following observations highlight the impact of the loss function and the diagonal continuity component: • Effect of Huber Loss: Rows 4 and 5 depict scenes with airplanes and horses, respectively. When using L1 loss, these objects are partially merged with the background, resulting in undersegmentation. Specifically, the airplanes in Row 4 are incorrectly labeled as background, while in Row 5, the horses lack clear separation. Replacing L1 with Huber loss resolves these issues, producing more distinct boundaries and preserving object structure. • Effect of Diagonal Continuity: Row 7 presents a complex image of Barack Obama. The addition of the diagonal continuity component significantly enhances boundary sharpness and segmentation granularity for both L1 and Huber loss configurations. A similar refinement is visible in Row 5, where the inclusion of diagonal terms results in sharper object boundaries. • Combined Configuration (Huber + Diagonal): Across all rows, the full configuration—denoted as Dy-naGuide (LH + Diagonal) —consistently yields the most accurate results, with clean segment boundaries and minimized under-/over-segmentation. These qualitative results corroborate our quantitative findings and demonstrate that the combined use of Huber loss and diagonal continuity leads to more robust and visually coherent segmentation. The hybrid CNN-Transformer architecture in DynaGuide is thus not only effective in terms of accuracy but also capable of handling complex real-world segmentation scenarios with greater consistency. 
+
+# 5 Conclusion 
+
+In this paper, we introduced DynaGuide, a novel generalizable dynamic guidance framework for unsupervised semantic segmentation. By leveraging a dual-guidance mechanism that combines global pseudo-labels and local feature refinement, DynaGuide effectively captures both global context and fine-grained details. Our adaptive loss design, 15 DynaGuide: A Generalizable Dynamic Guidance Framework 
+
+Figure 6: Qualitative ablation results showing how Huber loss (LH) (Rows 4, 5) and the diagonal component (Row 7) improve segmentation. Configurations are annotated as: - (without diagonal) and + (with diagonal). DynaGuide (LH + Diagonal) provides the most accurate and refined segmentations. 16 DynaGuide: A Generalizable Dynamic Guidance Framework 
+
+Feature Extractor All Fine Coarse Mean 
+
+ResNet18 + FPN 48.53 48.35 47.31 48.73 DenseNet 47.24 44.05 43.95 45.08 Pointwise DenseNet 48.29 46.36 44.07 46.91 Depthwise Separable 49.53 45.35 45.56 46.81 
+
+DynaGuide (Full) 57.96 55.30 54.28 55.84 
+
+Table 6: Performance comparison of different feature extractors for DynaGuide on BSD500, showing mIoU for all granularity levels. incorporating a diagonal continuity loss and multi-component optimization, ensures consistent segmentation results across diverse datasets. Comprehensive evaluations on benchmark datasets, including BSD500, PASCAL VOC2012, and COCO, demon-strate DynaGuide’s robust performance. The framework consistently outperforms prior approaches, achieving higher mIoU and improved segmentation quality. Beyond these results, the model’s lightweight architecture and efficient computational footprint make it a practical solution for real-world applications. DynaGuide’s versatility extends its potential applications beyond traditional image segmentation. Its capability to adapt to different sources of pseudo-label guidance without relying on labeled data makes it particularly suitable for resource-constrained scenarios. In domains like medical imaging, DynaGuide could enhance diagnosis by segmenting anatomical structures from medical scans. In autonomous driving, the model’s efficient inference would support real-time object detection and scene understanding. Furthermore, remote sensing and environmental monitoring could benefit from DynaGuide’s ability to analyze large-scale satellite imagery. Future research directions include extending DynaGuide to video segmentation tasks, exploring domain-specific adaptations, and further optimizing the loss function for improved robustness. By advancing the field of unsupervised segmentation, DynaGuide offers a scalable and efficient solution for complex visual understanding tasks across a broad range of applications. 
+
+# References 
+
+[1] James MacQueen. Some methods for classification and analysis of multivariate observations. In Proceedings of the Fifth Berkeley Symposium on Mathematical Statistics and Probability, Volume 1: Statistics , volume 5, pages 281–298. University of California press, 1967. [2] Dorin Comaniciu and Peter Meer. Mean shift: A robust approach toward feature space analysis. IEEE Transactions on pattern analysis and machine intelligence , 24(5):603–619, 2002. [3] Pedro F Felzenszwalb and Daniel P Huttenlocher. Efficient graph-based image segmentation. International journal of computer vision , 59:167–181, 2004. [4] Xu Ji, Joao F Henriques, and Andrea Vedaldi. Invariant information clustering for unsupervised image classification and segmentation. Proceedings of the IEEE/CVF international conference on computer vision , pages 9865–9874, 2019. [5] Mathilde Caron, Piotr Bojanowski, Armand Joulin, and Matthijs Douze. Deep clustering for unsupervised learning of visual features. In Proceedings of the European conference on computer vision (ECCV) , pages 132–149, 2018. [6] Jang Hyun Cho, Utkarsh Mall, Kavita Bala, and Bharath Hariharan. Picie: Unsupervised semantic segmentation using invariance and equivariance in clustering. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 16794–16804, 2021. [7] Wouter Van Gansbeke, Simon Vandenhende, Stamatios Georgoulis, and Luc Van Gool. Unsupervised semantic segmentation by contrasting object mask proposals. In Proceedings of the IEEE/CVF international conference on computer vision , pages 10052–10062, 2021. [8] Andrii Zadaianchuk, Matthaeus Kleindessner, Yi Zhu, Francesco Locatello, and Thomas Brox. Unsupervised semantic segmentation with self-supervised object-centric representations. arXiv preprint arXiv:2207.05027 ,2022. [9] Mark Hamilton, Zhoutong Zhang, Bharath Hariharan, Noah Snavely, and William T Freeman. Unsupervised semantic segmentation by distilling feature correspondences. In International Conference on Learning Represen-tations , 2022. 17 DynaGuide: A Generalizable Dynamic Guidance Framework [10] Luke Melas-Kyriazi, Christian Rupprecht, Iro Laina, and Andrea Vedaldi. Deep spectral methods: A surprisingly strong baseline for unsupervised semantic segmentation and localization. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 8364–8375, 2022. [11] Lei Zhou and Weiyufeng Wei. Dic: deep image clustering for unsupervised image segmentation. Ieee Access ,8:34481–34491, 2020. [12] Wonjik Kim, Asako Kanezaki, and Masayuki Tanaka. Unsupervised learning of image segmentation based on differentiable feature clustering. IEEE Transactions on Image Processing , 29:8055–8068, 2020. [13] Wenwei Zhang, Jiangmiao Pang, Kai Chen, and Chen Change Loy. Dense siamese network for dense unsupervised learning. In European Conference on Computer Vision , pages 464–480. Springer, 2022. [14] Kehan Li, Zhennan Wang, Zesen Cheng, Runyi Yu, Yian Zhao, Guoli Song, Chang Liu, Li Yuan, and Jie Chen. Acseg: Adaptive conceptualization for unsupervised semantic segmentation. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 7162–7172, 2023. [15] Hyun Seok Seong, WonJun Moon, SuBeen Lee, and Jae-Pil Heo. Leveraging hidden positives for unsupervised semantic segmentation. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pages 19540–19549, 2023. [16] Adrian Ziegler and Yuki M Asano. Self-supervised learning of object parts for semantic segmentation. In 
+
+Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 14502–14511, 2022. [17] Zhanhong Qiu, Weiyan Gan, Zhi Yang, Ran Zhou, and Haitao Gan. Dual uncertainty-guided multi-model pseudo-label learning for semi-supervised medical image segmentation. Mathematical Biosciences and Engineering ,21(2):2212–2232, 2024. [18] Zhuojun Ding, Wei Wei, Xiaoye Qu, and Dangyang Chen. Improving pseudo labels with global-local denoising framework for cross-lingual named entity recognition. arXiv preprint arXiv:2406.01213 , 2024. [19] Srinivasa Rao Nandam, Sara Atito, Zhenhua Feng, Josef Kittler, and Muhammad Awais. Pseudo labelling for enhanced masked autoencoders. arXiv preprint arXiv:2406.17450 , 2024. [20] Junjiao Tian, Lavisha Aggarwal, Andrea Colaco, Zsolt Kira, and Mar Gonzalez-Franco. Diffuse attend and segment: Unsupervised zero-shot segmentation using stable diffusion. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 3554–3563, 2024. [21] Enze Xie, Wenhai Wang, Zhiding Yu, Anima Anandkumar, Jose M Alvarez, and Ping Luo. Segformer: Simple and efficient design for semantic segmentation with transformers. Advances in neural information processing systems , 34:12077–12090, 2021. [22] Jieneng Chen, Yongyi Lu, Qihang Yu, Xiangde Luo, Ehsan Adeli, Yan Wang, Le Lu, Alan L Yuille, and Yuyin Zhou. Transunet: Transformers make strong encoders for medical image segmentation. arXiv preprint arXiv:2102.04306 , 2021. [23] Hu Cao, Yueyue Wang, Joy Chen, Dongsheng Jiang, Xiaopeng Zhang, Qi Tian, and Manning Wang. Swin-unet: Unet-like pure transformer for medical image segmentation. In European conference on computer vision , pages 205–218. Springer, 2022. [24] Alexander Kirillov, Eric Mintun, Nikhila Ravi, Hanzi Mao, Chloe Rolland, Laura Gustafson, Tete Xiao, Sam Whitehead, Alexander Clegg, Mohamed Abdalla, et al. Segment anything. arXiv preprint arXiv:2304.02643 ,2023. [25] Boujemaa Guermazi, Riadh Ksantini, and Naimul Khan. Dynaseg: A deep dynamic fusion method for unsuper-vised image segmentation incorporating feature similarity and spatial continuity. Image and Vision Computing ,150:105206, 2024. [26] David Martin, Charless Fowlkes, Doron Tal, and Jitendra Malik. A database of human segmented natural images and its application to evaluating segmentation algorithms and measuring ecological statistics. In Proceedings eighth IEEE international conference on computer vision. ICCV 2001 , volume 2, pages 416–423. IEEE, 2001. [27] Mark Everingham, Luc Van Gool, Christopher KI Williams, John Winn, and Andrew Zisserman. The pascal visual object classes challenge 2012 (voc2012) results. Technical report, PASCAL Network, 2011. Available at: 
+
+http://www.pascal-network.org/challenges/VOC/voc2012/workshop/index.html .[28] Tsung-Yi Lin, Michael Maire, Serge Belongie, James Hays, Pietro Perona, Deva Ramanan, Piotr Dollár, and C Lawrence Zitnick. Microsoft coco: Common objects in context. In Computer vision–ECCV 2014: 13th European conference, zurich, Switzerland, September 6-12, 2014, proceedings, part v 13 , pages 740–755. Springer, 2014. 18 DynaGuide: A Generalizable Dynamic Guidance Framework [29] Asako Kanezaki. Unsupervised image segmentation by backpropagation. In 2018 IEEE international conference on acoustics, speech and signal processing (ICASSP) , pages 1543–1547. IEEE, 2018. [30] Tiyu Fang, Zhen Liang, Xiuli Shao, Zihao Dong, and Jinping Li. Self-supervised multi-view clustering for unsupervised image segmentation. In Artificial Neural Networks and Machine Learning–ICANN 2021: 30th International Conference on Artificial Neural Networks, Bratislava, Slovakia, September 14–17, 2021, Proceedings, Part V 30 , pages 113–125. Springer, 2021. [31] Xin Li, Xiaoying Chen, Yuanbo Qiu, Chunfeng Tao, and Pan Zheng. Differentiable double clustering with edge-aware superpixel fitting for unsupervised image segmentation. Displays , 83:102721, 2024. [32] Junho Kim, Byung-Kwan Lee, and Yong Man Ro. Causal unsupervised semantic segmentation. arXiv preprint arXiv:2310.07379 , 2023. [33] Tsung-Wei Ke, Jyh-Jing Hwang, Yunhui Guo, Xudong Wang, and Stella X Yu. Unsupervised hierarchical semantic segmentation with multiview cosegmentation and clustering transformers. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 2571–2581, 2022. [34] Gyungin Shin, Weidi Xie, and Samuel Albanie. Reco: Retrieve and co-segment for zero-shot transfer. Advances in Neural Information Processing Systems , 35:33754–33767, 2022. 19

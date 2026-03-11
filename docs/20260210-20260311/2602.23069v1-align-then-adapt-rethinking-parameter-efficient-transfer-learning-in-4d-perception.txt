@@ -1,0 +1,564 @@
+Title: Align then Adapt: Rethinking Parameter-Efficient Transfer Learning in 4D Perception
+
+URL Source: https://arxiv.org/pdf/2602.23069v1
+
+Published Time: Fri, 27 Feb 2026 02:26:33 GMT
+
+Number of Pages: 11
+
+Markdown Content:
+> JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 1
+
+# Align then Adapt: Rethinking Parameter-Efficient Transfer Learning in 4D Perception 
+
+Yiding Sun, Jihua Zhu, Haozhe Cheng, Chaoyi Lu, Zhichuan Yang, Lin Chen, and Yaonan Wang 
+
+Abstract —Point cloud video understanding is critical for robotics as it accurately encodes motion and scene interaction. We recognize that 4D datasets are far scarcer than 3D ones, which hampers the scalability of self-supervised 4D models. A promising alternative is to transfer 3D pre-trained models to 4D perception tasks. However, rigorous empirical analysis reveals two critical limitations that impede transfer capability: overfitting and the modality gap. To overcome these challenges, we develop a novel “Align then Adapt” (PointATA) paradigm that decomposes parameter-efficient transfer learning into two sequential stages. Optimal-transport theory is employed to quan-tify the distributional discrepancy between 3D and 4D datasets, enabling our proposed point align embedder to be trained in Stage 1 to alleviate the underlying modality gap. To mitigate overfitting, an efficient point-video adapter and a spatial-context encoder are integrated into the frozen 3D backbone to enhance temporal modeling capacity in Stage 2. Notably, with the above engineering-oriented designs, PointATA enables a pre-trained 3D model without temporal knowledge to reason about dynamic video content at a smaller parameter cost compared to previous work. Extensive experiments show that PointATA can match or even outperform strong full fine-tuning models, whilst enjoying the advantage of parameter efficiency, e.g. 97.21% accuracy on 3D action recognition, +8.7% on 4D action segmentation, and 84.06% on 4D semantic segmentation. 
+
+Index Terms —Representation Learning, Deep Learning for Visual Perception, Transfer Learning 
+
+I. I NTRODUCTION 
+
+# POINT cloud videos, merging 3D space with 1D time, are indispensable for achieving spatial intelligence. It is crucial to clearly understand 4D videos for sensing envi-ronmental changes and interacting with the real world. This stands in sharp contrast to the limited descriptive power of 2D images and static 3D point clouds [1]. Consequently, 4D representation learning has attracted broad research interest in recent years, with applications spanning robotics, augmented and virtual reality (AR&VR) and beyond. Current 4D point cloud video representation learning meth-ods fall into two main categories: end-to-end supervised learn-ing [2], [3] and self-supervised pre-training followed by fine-
+
+This work was supported in part by NSFC (No. 62125305) , the Natural Sci-ence Basis Research Plan in Shaanxi Province of China (No. 2025JC-JCQN-091) and Technology Innovation Leading Program of Shaanxi (Program No. 2024QY-SZX-23). Yiding Sun, Jihua Zhu, Haozhe Cheng, Chaoyi Lu, Zhichuan Yang and Lin Chen are with the School of Software Engineering, Xi’an Jiaotong University, Xi’an 710048, China; Yiding Sun and Jihua Zhu are also with the State Key Laboratory of Human-Machine Hybrid Augmented Intelligence, Xi’an Jiaotong University, Xi’an 710048, China (e-mail: zhujh@xjtu.edu.cn) 
+
+(Corresponding author: Jihua Zhu) .Yaonan Wang is with the School of Electrical and Information Engineering, Hunan University, Changsha, 410082, China, and also with the National Engi-neering Research Center for Robot Visual Perception and Control Technology, Changsha 410082, China (e-mail: yaonan@hnu.edu.cn). Adapt: Overfitting  
+
+> ！
+> Static 3D Model
+> 4D Adapter
+> Static 3D Model
+> Specific Embedder
+> Train: 100% Acc@1 Loss: << 0.01
+> Test: 92% Acc@1 Dynamic 4D
+> Features
+> Static 3D Features
+> Align Adapt
+> Align: Modality Gap
+> ！
+
+Fig. 1. Current 4D PETL methods face two limits. Upper panel : Adapters are feasible (Smiley), yet current methods expose models to severe overfitting (Crying). Lower panel : Cross-modal transfer needs prior alignment. This practice is mature in 2D Vision and NLP. But to our knowledge, no 4D PETL study measures this gap (Crying). Without considering the gap, it will hurt downstream performance undoubtedly (Crying). 
+
+tuning [4]–[6]. However, almost all existing methods focus on the scenario of one network with task-specific weights, where a single model is trained from scratch or fully fine-tuned for each dataset. As the number of tasks increases, maintaining a distinct set of weights for every dataset becomes impractical. Moreover, 4D point cloud videos are two orders of magnitude smaller than their static 3D counterparts [7]– [9] and are more difficult to collect and manage. Under these constraints, reusing well-established 3D pre-trained models to guide cross-modal 4D perception could invigorate community research and advance the goal of universal representation. In this paper, we investigate a novel, critical problem: How can we surmount transfer barrier to efficiently adapt 3D foundation models to data-scarce 4D tasks? Considering that training 4D models are drastically more expensive in both computing resource and time than 3D models, tackling this problem is both timely and valuable in practice. As a pioneer, [10] introduced the “additive 4D Adapter” paradigm. It designs an adaptation strategy that incorporates temporal awareness and achieves strong performance on several 4D tasks. However, is this paradigm truly optimal? Our in-depth analysis in Fig. 1 reveals two critical limitations in current parameter-efficient transfer learning (PETL) approaches for 4D perception that greatly hinder further progress. First, directly attaching a 4D adapter to a frozen 3D model for fine-tuning is intuitive yet naive. During training, we observe that the network overfits heavily from the beginning of fine-tuning. We attribute this to the fact that pre-trained 3D models cannot infer temporal structure, which forces the adapters to fit spurious details and noise             
+
+> arXiv:2602.23069v1 [cs.CV] 26 Feb 2026 JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 2Transformer Layers
+> <Trainable>
+> <Trainable>
+> <Trainable>
+> <Trainable>
+> × n
+> static 3D perception
+> static point cloud
+> 3D Embedder
+> <Frozen>
+> <Frozen>
+> <Frozen>
+> <Frozen>
+> × n
+> <Adapter>
+> 4D Embedder
+> <Frozen>
+> <Frozen>
+> <Frozen>
+> <Frozen>
+> × n
+> <PVA>
+> Point Align Embedder
+> n + 1 n + 1
+> dynamic point cloud static & dynamic point cloud
+> PETL
+> mitigate overfitting
+> retain original knowledge
+> <Trainable>
+> <Trainable>
+> <Trainable>
+> <Trainable>
+> × n
+> dynamic 4D perception
+> dynamic point cloud
+> 4D Embedder
+> 4D Full FT No Action Needed
+> Acc: 77.35%
+> Updated Param: 100%+
+> Acc: 93.73% Updated Param: 3.4% Acc: 94.42%
+> Updated Param: 2.8%
+> Acc: N/A
+> Updated Param: 100%
+> Fig. 2. Comparison of 3D full fine-tuning, 4D full fine-tuning, 4D adapter tuning, and our PointATA. Considering that the embedder required for 4D encoding is often heavier than that for 3D, when facing a 4D dynamic perception task, the number of parameters that need to be updated is even greater (over 100%) than the full update for 3D. PointATA saves large amount of resource and time than full fine-tuning and significantly boosts reuse of 3D pre-trained models. It also exploits 3D priors better than 4D adapter tuning and further cuts parameters to curb overfitting.
+
+in 4D data. Second, [11] in 2D Vision observe that fine-tuning Swin Transformer [12] on some target modalities helps the encoder extract more discriminative features while others hurts. This empirical finding indicates that distinct modality-specific semantic knowledge exists and affects cross-modal transfer to varying degrees. It is widely accepted that static and dynamic point cloud, like image and video, form amodality pair and exhibit a modality gap [13], [14]. But to our knowledge, no prior work has explicitly measured this gap. When such knowledge conflicts, the representations learned by 3D pre-trained models remain under-utilized, and 4D PETL performance hurts inevitably. We delve deeper into these two limitations and propose “Align then Adapt” (PointATA), a paradigm that leverages 3D priors for 4D perception, as shown in Fig. 2. Unlike con-ventional PETL, PointATA is a two-stage fine-tuning scheme that mitigates overfitting and fully releases the capacity of the pre-trained 3D model. We introduce two key components: (i) Enlightened by Optimal Transport (OT) [15], we design a point align embedder. After resolving the dimensionality mismatch, we keep the 4D embedder learnable and use a frozen mini-PointNet [16] as the 3D embedder during Stage 1. The objective is to minimize the distance between the joint distributions of 4D and 3D embeddings, ensuring that the pre-trained model performs effectively. (ii) In Stage 2, since the 3D model is already powerful, we introduce an engineering-oriented point video adapter (PVA) with spatial context encoder (SCE). SCE replicates the original multilayer perceptron (MLP), and the PVA uses a bottleneck structure with depth-wise separable convolution to limit parameters. We evaluate PointATA on multiple tasks, achieving +1.79% recognition accuracy on MSR-Action3D [17], +8.7% segmen-tation accuracy on HOI4D [18] and +0.9% mIoU on Synthia 4D [19]. We also perform comprehensive ablation studies to demonstrate that PointATA could leverage knowledge from a large 3D model and achieves superior 4D perception with far fewer parameters. We summarize our contributions as follows:  
+
+> •
+
+We reveal the limitation of PETL in 4D perception and introduce the PointATA paradigm, which preserves static-dynamic alignment and improves generalization.  
+
+> •
+
+PointATA transfers priors from static 3D models to 4D domains via embedding alignment. We further propose engineering-oriented PVA with SCE to exploit large pre-trained 3D models more efficiently.  
+
+> •
+
+Extensive experiments on various benchmarks demon-strate the superior efficiency and effectiveness of PointATA, outperforming existing methods in both ac-curacy and resource utilization. II. RELATED WORK 
+
+A. Pre-trained Point Cloud Model 
+
+To advance spatial perception, the community has developed a series of self-supervised 3D pre-trained models that boost downstream performance. Thanks to these ongoing efforts, 3D pre-trained models that were once scarce are now steadily scal-ing to new peaks [20]–[23]. We now have numerous powerful 3D pre-trained models, reflecting the continuous refinement of 3D pretext tasks [24], [25]. Current pretext tasks fall into two groups: discriminative and generative. Discriminative tasks build positive and negative pairs to minimize the distance to the most similar neighbor in feature space. PointContrast [26] and CrossPoint [27] have advanced both in-modality and cross-modal learning respectively. Generative tasks learn la-tent features through autoregressive or autoencoding models. PointMAE [28] learns powerful 3D representations by recon-structing heavily masked tokens. PointGPT [29] predicts the next token autoregressively, yielding scalable and data-efficient 3D representations. However, we believe that the utility of these pre-trained models extends far beyond 3D perception. Our work enhances their reusability and confirms a promising path from 3D pre-training to 4D perception. 
+
+B. Point Cloud Video Perception 
+
+Point cloud videos are unordered in space yet ordered in time. This duality requires 4D models to fuse temporal and JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 3Point Cloud Video 
+
+Point Align Embedder 
+
+> P4D Embedding
+> ShapeNet
+> mini-PointNet
+> distribution alignment
+> Stage1: Align
+
+Frozen 3D Encoder + PVA   
+
+> ....
+> BLOCK
+> Attn
+> FFN
+> <PVA>
+> LayerNorm
+> MLP
+> Up
+> Activation
+> Down
+> <PE>
+> PE
+> w/ residual connections
+> Stage2: Adapt
+> Head
+> Label
+> ：Salute
+> DWConv PVA
+> Fig. 3. PointATA employs a two-stage workflow to quickly adapt large 3D pre-trained models to diverse 4D downstream tasks. In Stage 1, it obtains 4D features via the P4D embedder and learns by minimizing the distribution distance to 3D source features. The weight of P4D embedder is randomly initialized. In Stage 2, it jointly fine-tunes the P4D embedder and the PVA to minimize task loss. The 3D backbone remains frozen throughout.
+
+spatial cues to capture both geometry and dynamics. Early methods rely on voxel grids. MinkowskiNet [19] voxelizes the points and applies 4D convolutions, but this incurs heavy information loss and high latency. Therefore, the community has shifted to point-based approaches. MeteorNet [30] first adds time dimension and tracks motion at the point level. P4Transformer [31], PPTr [32], and LeaF [2] craft various transformers to enlarge receptive fields. Following the 3D success path, some recent efforts explore self-supervised 4D pre-training. C2P [33] proposes complete-to-part distillation over short clips. MaST-Pre [34] embeds point cloud videos into point tubes for MAE-style reconstruction. Beyond the simplicity, we bring about more significant advantages in performance along with a new paradigm on parameter-efficient static-to-dynamic point cloud transfer learning. 
+
+C. Parameter-Efficient Transfer Learning 
+
+Motivated by the wide use of large pre-trained language models, efficient tuning has gained attention in Natural Lan-guage Processing (NLP). Recent studies extend this idea to vision. Existing methods are grouped under two umbrellas. The first group reuses and transfers knowledge from pre-trained source models. ORCA [35] proposes a general work-flow that aligns source and target embeddings and then fine-tunes the source model. MoNA [11] formalizes the knowledge gap between modalities later. The second group learns a general model with additive modules or tokens. CoOp [36] applies prefix tuning to adapt CLIP [37] to image recognition tasks. AIM [14] adapts an image model for video tasks. IDPT [38] focuses on parameter-efficient transfer learning on 3D perception. DAPT [39] jointly refine prompts, cutting tunable parameters while boosting accuracy. Moving a step further, in this work, we address the more challenging task of adapting a pre-trained static 3D model without temporal knowledge to 4D perception. III. METHOD 
+
+A. PointATA Workflow 
+
+To clarify the notation, we first define several variables. A domain D is defined by a feature space X , a label space Y, and a joint probability distribution P(X, Y). In the adaptation from static to dynamic point clouds, the static 3D domain Ds and the dynamic 4D domain Dd differ in both feature and label distri-butions. Thus, Xd̸ = Xs, Yd̸ = Ys, and Pd  Xd , Yd ̸ = Ps (Xs, Ys).Given dynamic point cloud samples xdi , ydi 
+
+> nd
+> i=1
+
+drawn from 
+
+Pd , our goal is to learn a model md that maps each input xd to its correct label yd . We achieve this by leveraging a pretrained transformer and adapters. Specifically, we assume access to a source model ms trained on static point cloud data {xsi , ysi }ns
+
+> i=1
+
+from domain Ds. Given a loss function l, we then build md
+
+on top of ms to minimize E(xd ,yd )∼Pd
+
+l  md  xd  , yd  . Model 
+
+md is composed of a frozen 3D model ms and learnable PVA with SCE. Consequently, our workflow in Fig. 3 consists of two stages: (1) pre-training an embedder to align the feature distributions of static and dynamic point clouds as possible, and (2) 4D PETL to minimize the target loss. 
+
+B. Stage1: Embedder Alignment 
+
+Transferring knowledge across static and dynamic modali-ties is non-trivial because of two main challenges: dimension-ality mismatch and metric unreliable. We argue that the em-bedder is the key to addressing both of them. Specifically, we can replace and reshape the embedder of dynamic point clouds to match the dimensionality of the pre-trained 3D model. Meanwhile, inspired by optimal transport dataset distances (OTDD) [15], we compare feature–label pairs across domains, modelling labels as distributions over feature vectors. In this way, even when the label sets of two datasets are unrelated or disjoint ( i.e. ShapeNet [7] and MSR-Action3D [17]), we can still compare the datasets across modalities and encourage JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 4
+
+Algorithm 1 Class-Weighted Stochastic OTDD  
+
+> 1:
+
+Input: 4D dynamic point cloud dataset {xd , yd }, number of 4D classes Kd , 3D static point cloud dataset S =
+
+{xs, ys}, subsample size b, subsample round R 
+
+> 2:
+
+for each class i ∈ [Kd ] in the 4D dataset do  
+
+> 3:
+
+Compute class weight wi = number of 4D data in class i 
+
+> total number of 4D data
+> 4:
+
+Generate data loader Di consisting of data in class i 
+
+> 5:
+
+end for  
+
+> 6:
+
+for i ∈ [Kd ] do  
+
+> 7:
+
+for r ∈ [R] do  
+
+> 8:
+
+Subsample b 4D data samples Dir uniformly at ran-dom from Di 
+
+> 9:
+
+Compute class-wise distance dir = OT DD (Dir , S) 
+
+> 10:
+
+end for  
+
+> 11:
+
+Approximate class-wise OTDD by di = 1 
+
+> R
+
+∑Ri=1 dir  
+
+> 12:
+
+end for  
+
+> 13:
+
+Approximate OTDD by d = ∑Kd 
+
+> i=1
+
+wi · di
+
+the embedded 4D features to resemble the static 3D features, leading to more effective transfer learning. Formally, let the 3D embedder be f s : Xs → ˙X, whose archi-tecture follows mini-PointNet [16], while the 4D embedder be 
+
+f d : Xd → ˙X follows the P4DConv [31]. In Stage 1, we train 
+
+f d to minimize the distance between the joint distributions of 4D embeddings   f d  xd  , yd  and 3D embeddings ( f s (xs) , ys).Considering that the labels are discrete, we represent each class label as a distribution over the corresponding features: 
+
+y 7 → P( ˙X | Y = y). This maps both 3D and 4D label sets to the shared space of distributions on ˙X. Then, we define the label distance dY
+
+ yd , ys via the p-Wasserstein distance induced by the l2 metric ˙xd − ˙xs 22 in ˙X, enabling us to measure the distributional gap in ˙X × Y:
+
+d ˙X×Y
+
+
+
+( ˙xd , yd ), ( ˙xs, ys)
+
+
+
+=
+
+
+
+d ˙X( ˙xd , ˙xs)p + dY(yd , ys)p1/p
+
+.
+
+(1) Mathematically, this is formulated as minimizing the Wasserstein distance of order p = 2 between the 4D and 3D joint distributions in the embedding space: min   
+
+> fd
+
+W2
+
+
+
+Pd  ˙Xd , Yd 
+
+, Ps   ˙Xs, Ys
+
+. (2) For orthogonal semantics, Pd  ydi
+
+ and Ps
+
+
+
+ysj
+
+
+
+have no overlap, so the optimization does not force Pd   ˙Xd | ydi
+
+ to map to any specific Ps
+
+ ˙Xs | ysj
+
+
+
+. Instead, it encourages Pd   ˙Xd | ydi
+
+
+
+to inherit the structural properties of Ps   ˙Xs while preserving its own semantic uniqueness. Moreover, to reduce computa-tional cost, we adopt the Sinkhorn [40] and [35], lowering the complexity of OT from O  D3 log D to O  D2. As shown in Algorithm 1, this allows our 4D embedder invests a reasonable time budget but achieves significantly improved performance. We also illustrate the role of the Point Align Embedder in Section IV-H. 
+
+C. Stage2: Efficient Adaptation 
+
+To leverage large pre-trained 3D models for more challeng-ing 4D video understanding, such as action recognition, we must bridge the intrinsic gap between static and dynamic point clouds. We regard the adapter architecture as a promising route toward it. Adapter [41], which were originally designed for parameter-efficient transfer learning in NLP. Indeed, an adapter module comprises a down-projection linear layer, a non-linear activation, and an up-projection linear layer. Adapters have achieved remarkable success in NLP because of three main advantages: (1) High parameter efficiency, as only a small set of parameters is task-specific; (2) Reaching on-par performance compared to full fine-tuning; (3) Mitigation of catastrophic forgetting. Our goal is to reproduce this success in 4D Vision. To this end, we introduce a new adapter tailored for spatio-temporal understanding, providing a capability that existing NLP-oriented adapters lack. Typically, static point cloud models focus solely on spatial modeling [28], [29], [42]. The goal of our Point Video Adapter is to enable a pre-trained 3D model to grasp spatio-temporal cues in dynamic point clouds while adhering to a parameter-efficient principle. Compared with existing methods [10], we focus on two practically crucial criteria: (1) Smaller param-eter footprint : The parameter cost for every downstream task must remain small; Otherwise, the original purpose of adapters sink into oblivion and downstream tasks face a higher risk of overfitting. (2) Easier implementation : In practice, the model should be realizable with standard, highly-optimized deep-learning toolkits instead of introducing cumbersome or opaque modules. This requirement is essential for the advancement of robotic vision and embodied intelligence. Guided by these considerations, we design the Point Video Adapter only using standard primitive operators. We add a spatio-temporal operator realized by a depth-wise separable convolution within the bottleneck. As the operator acts on the compressed low-dimensional features, e.g. 128D, the PVA remains both parameter and compute efficient, for-mulated as: 
+
+PVA (X) = X + f (DWConv (XW down )) Wup , (3) where DWConv (·) denotes the depth-wise separable convo-lution used for spatio-temporal modeling, X refers to input feature matrix, Wdown ∈ Rd×r refers to the down projection layer, Wup ∈ Rr×d denotes the up-projection layer, and f (·)
+
+refers to the activation function. Notably, the design first learns local point features independently via grouped convo-lutions and then fuses cross-channel information with point-wise convolutions. Consequently, the model acquires layer-wise temporal understanding. This simultaneously enhances temporal modeling and reduces the computational cost of processing 4D data. 
+
+D. Overall Interaction 
+
+Till now, we have fused spatio-temporal cues with the 3D prior and completed the entire “Align then Adapt” workflow. To provide our model with global spatial context, we introduce 
+
+Spatial Context Encoder (SCE) implemented as an origin MLP. Spatial Context Encoder across layers share the JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 5
+
+TABLE I ACTION RECOGNITION ACCURACY (%) ON THE MSR-A CTION 3D. Methods Reference 8 Frames 12 Frames 16 Frames 24 Frames 32 Frames 36 Frames 
+
+Supervised Learning 
+
+MeteorNet [43] ICCV2019 81.14 86.53 88.21 88.50 N/A N/A PSTNet [44] ICLR2021 83.50 87.88 89.90 91.20 N/A N/A P4Transformer [31] CVPR2021 83.17 87.54 89.56 90.94 87.93 82.81 Kinet [45] CVPR2022 83.84 88.53 91.92 93.27 N/A N/A PPTr [32] ECCV2022 84.02 89.89 90.31 92.33 N/A N/A LeaF [2] ICCV2023 84.50 N/A 91.50 93.84 N/A N/A PST-Transformer [46] TPAMI2023 83.97 88.15 91.98 93.73 N/A N/A X4D-SceneFormer [47] AAAI2024 86.47 N/A 92.56 93.90 N/A N/A MAMBA4D [3] CVPR2025 N/A N/A N/A 92.68 93.10 93.23 
+
+Self-Supervised Learning (End-to-End Fine-Tuning) 
+
+CPR [48] AAAI2023 86.53 91.00 92.15 93.03 N/A N/A C2P [33] CVPR2023 87.16 N/A 91.89 94.76 N/A N/A PointCMP [4] CVPR2023 89.56 91.58 92.26 93.27 N/A N/A PointCPSC [49] ICCV2023 88.89 90.24 92.26 92.68 N/A N/A MaST-Pre [34] ICCV2023 N/A N/A N/A 94.08 N/A N/A 
+
+Adaptation for Pre-Trained Models 
+
+Point-CSA [10] CVPR2025 91.41 92.04 93.73 95.12 95.42 95.42 Point-BERT+ATA - 91.98 (+ 0.57 ) 92.68 (+ 0.64 ) 93 .37 (−0.36 ) 95 .28 (+ 0.16 ) 95 .47 (+ 0.05 ) 96 .16 (+ 0.74 )
+
+Point-MAE+ATA - 91 .28 (−0.13 ) 92 .33 (+ 0.29 ) 94.42 (+ 0.69 ) 95.62 (+ 0.50 ) 96.86 (+ 1.44 ) 97.21 (+ 1.79 )
+
+PointGPT-S+ATA - 91 .28 (−0.13 ) 92.68 (+ 0.64 ) 94 .07 (+ 0.34 ) 95 .28 (+ 0.16 ) 95 .12 (−0.30 ) 95 .12 (−0.30 )
+
+TABLE II 3D A CTION RECOGNITION ACCURACY (%) ON NTU RGB+D 60 AND 
+
+NTU RGB+D 120. D. MEANS DEPTH . P. MEANS POINT . V. MEANS VOXEL .Method Input NTU 60 NTU 120 Subject View Subject Setup NTU Baseline [50] D. N/A N/A 48.7 40.1 PointNet++ [51] P. 80.1 85.1 72.1 79.4 3DV [52] V. 84.5 95.4 76.9 92.5 3DV-PN++ [52] V+P 88.8 96.3 82.4 93.5 PSTNet [44] P. 90.5 96.5 87.0 93.8 P4Trans. [31] P. 90.2 96.4 86.4 93.5 PST-Trans. [46] P. 91.0 96.4 87.5 94.0 PointATA P. 91.4 (+ 1.2) 96.5 (+ 0.1) 88.0 (+ 1.6) 94.0 (+ 0.5)
+
+same architecture but use distinct parameters. We formalize the overall interaction as: 
+
+Fi+1 = FFN (Attention (Fi)) + PVA (Fi) + SCE (Fi) , (4) where Fi denotes 4D features in i-th layer, FFN denotes a feed-forward network whose weights, together with the attention parameters, are pre-trained on static point clouds and kept frozen during adaptation. IV. EXPERIMENT Experiment settings are standardized in Section IV-A. We evaluate the “Align then Adapt” (PointATA) paradigm on 3D action recognition, 4D action segmentation, 4D semantic seg-mentation, gesture recognition and 4D scene flow prediction from Section IV-B to IV-G. Section IV-H analyzes architecture design, tuning strategies, adapters locations, training logs and feature visualization in detail. Following [10], we adopt PointBERT [42], Point-MAE [28], and PointGPT-S [29] as baselines to ensure fair comparison. 
+
+A. Experiment Settings 
+
+We apply PointATA to three baselines: PointBERT [42], Point-MAE [28], and PointGPT-S [29]. Each has been pre-
+
+TABLE III ACTION SEGMENTATION ON THE HOI4D DATASET . A CC MEANS 
+
+ACCURACY (%). Method Reference Acc Edit F1@50 
+
+Supervised Learning 
+
+P4Transformer [31] CVPR2021 71.2 73.1 58.2 PPTr [32] ECCV2022 77.4 80.1 69.5 MAMBA4D [3] CVPR2025 85.5 91.3 85.5 
+
+Self-Supervised Learning (End-to-End Fine-Tuning) 
+
+P4Trans+C2P [33] CVPR2023 73.5 76.8 62.4 PPTr+C2P [33] CVPR2023 81.1 84.0 74.1 X4D [47] AAAI2024 84.1 91.1 84.8 CrossVideo [53] ICRA2024 83.7 86.0 76.0 
+
+Adaptation for Pre-Trained Models 
+
+P4Trans+ATA - 79.9 (+ 8.7) 74.7 (+ 1.6) 65.0 (+ 6.8)
+
+trained on ShapeNet [7] for 300 epochs. Unless stated oth-erwise, all baselines share the same setup. The pre-trained weights stay frozen. In Stage 1, only the Point Align Em-bedder is updated for 10 epochs, during which the OTDD is minimized with a Wasserstein metric p = 2, b = 32, Sinkhorn regularization ε = 0.1. In Stage 2, the Point Align Embedder, the PVA&SCE, and the task head are jointly tuned for 40 epochs. We use SGD with a learning rate that warms up to 0.01 in the first 10 epochs and decays by 0.1 at the 20th and 30th epochs. Dropout is set to 0.5. All the experiments are conducted on NVIDIA GeForce RTX 3090 GPUs. 
+
+B. 3D Action Recognition: MSR-Action3D 
+
+Dataset. We conduct experiments on MSR-Action3D [17], which has 567 depth videos across 20 action classes. Each video averages 40 frames. Following prior work [10], [31], we split the set into 270 training videos and 297 test videos. During fine-tuning, we use only point coordinates and each frame is randomly down-sampled to 2048 points. We divide the videos into clips of 8, 12, 16, 24, 32 or 36 frames and JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 6RGB Video 
+
+Fig. 4. Visualization of action segmentation. P4Transformer has a serious over-segmentation problem. TABLE IV 4D SEMANTIC SEGMENTATION RESULTS ON SYNTHIA 4D DATASET .Method Reference Input Frame mIoU (%) 3D MinkNet14 [19] CVPR2019 voxel 1 76.24 4D MinkNet14 [19] CVPR2019 voxel 3 77.46 MeteorNet-M [43] ICCV2019 point 2 81.47 MeteorNet-L [43] ICCV2019 point 3 81.80 PSTNet [44] ICLR2021 point 3 82.24 P4Transformer [31] CVPR2021 point 1 82.41 P4Transformer [31] CVPR2021 point 3 83.16 PST-Transformer [46] TPAMI2022 point 1 82.92 PST-Transformer [46] TPAMI2022 point 3 83.95 MAMBA4D [3] CVPR2025 point 3 83.35 PointATA - point 1 82.92 (+ 0.51 )
+
+PointATA - point 3 84.06 (+ 0.90 )
+
+average the clip-level probabilities to obtain the final video-level accuracy. 
+
+Comparison Results. We select an anchor frame every two frames and sample 64 anchor points from it. We set the temporal tube length to 3, the spatial radius to 0.3, and randomly sample 32 neighboring points. Table I shows that our adaptation method surpasses both supervised and self-supervised baselines, highlighting the promise of transferring knowledge from static 3D pre-trained models to 4D percep-tion. Our PointATA paradigm shows that naive fine-tuning may harm transfer, but aligning the feature distribution using Point Align Embedder can resolve this issue and benefit fundamentally. Recent studies in 2D Vision [14], [35] reveal that heavy adapters distort pre-trained weights and yield sub-optimal results. By exploiting the lightweight but engineering-oriented PVA, we reduce this distortion and avoid falling into the same trap. 
+
+C. 3D Action Recognition: NTU RGB+D 
+
+Dataset. We conduct 3D action segmentation experiments on NTU RGB+D 60 and NTU RGB+D 120 [50]. The former comprises 56 k Kinect-v2 videos covering 60 action classes and 4 M frames recorded from 40 subjects with three cameras; evaluation follows cross-subject (20 vs 20 subjects) and cross-view (camera 1 for test, cameras 2–3 for training) protocols. The latter extends the collection to 114 k videos, 120 classes, 8 M frames, 106 subjects and 32 environmental setups, and adds a cross-setup split (16 setups for training, 16 for testing) alongside the conventional cross-subject partition. Consistent with prior research [31], we set the spatial radius of point 4D 
+
+TABLE V GESTURE RECOGNITION ACCURACY (%) ON THE SHREC’17. Methods Reference Acc.(%) 
+
+Supervised Learning 
+
+PLSTM-base [54] CVPR2020 87.6 PLSTM-early [54] CVPR2020 93.5 PLSTM-PSS [54] CVPR2020 93.1 PLSTM-middle [54] CVPR2020 94.7 PLSTM-late [54] CVPR2020 93.5 Kinet [45] CVPR2022 95.2 
+
+Self-Supervised Learning (End-to-End Fine-Tuning) 
+
+PointCMP [4] CVPR2023 93.3 MaST-Pre [34] ICCV2023 92.4 
+
+Adaptation for Pre-Trained Models 
+
+Point-BERT+CSA [10] CVPR2025 96.2 Point-MAE+CSA [10] CVPR2025 95.2 PointGPT-S+CSA [10] CVPR2025 96.5 Point-BERT+ATA - 96.4 (+ 0.2)
+
+Point-MAE+ATA - 95.5 (+ 0.3)
+
+PointGPT-S+ATA - 96.5 (+ 0.0)
+
+TABLE VI COMPARISON RESULTS ON KITTI. M ETRICS ARE EPE, OUTLIER RATIO (
+
+> 0.3 m OR 5% ), A CC 3DS AND ACC 3DR. Methods Reference EPE3D Acc3DS Acc3DR Outliers FlowNet3D [55] CVPR2019 0.169 0.254 0.579 0.789 FLOT [56] ECCV2020 0.110 0.419 0.721 0.486 OGSFNet [57] CVPR2021 0.075 0.706 0.869 0.327 FESTA [58] CVPR2021 0.097 0.449 0.833 N/A 3DFlow [59] ECCV2022 0.073 0.819 0.890 0.261 BPF [60] ECCV2022 0.065 0.769 0.906 0.264 SCOOP [61] CVPR2023 0.063 0.797 0.910 0.244 MSBRN [62] ICCV2023 0.044 0.044 0.950 0.208 DiffFlow3D [63] ArXiv2023 0.031 0.955 0.966 0.108 PointATA - 0.021 0.978 0.998 0.088      
+
+> ∆-−0.148 +0.724 +0.419 −0.701
+
+convolution to 0.1, sample clips of 24 frames, and train with a batch size of 32. 
+
+Comparison Results. Table II reports results on the NTU-RGBD dataset and shows that our method handles real-world point-cloud videos well, attaining 96.5% accuracy. Despite its simplicity and light weight, it competes with elaborate extractors such as PSTNet [44], P4Transformer [31] and PST-Transformer [46] by relying only on basic motion extraction and plain feature encoding, confirming that the proposed approach acquires useful cues for challenging video under-standing. 
+
+D. 4D Action Segmentation: HOI4D 
+
+Dataset. We evaluate action segmentation on HOI4D [18]. The goal is to label every frame in point cloud videos. The official split has 2971 training and 892 test scenes. Each sequence contains 150 frames with 2048 points. We adopt the P4Transformer [31] as the backbone. We report frame-level accuracy, segmental edit distance, and segmental F1 at IoU thresholds of 50%. 
+
+Comparison Results. Table III makes great progress over the baseline [31]. For P4Transformer, we replace its pre-training strategy with PointMAE [28] and compare against several strong 4D pre-training methods. PointATA surpasses the original model and even some 4D-specific tuning JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 7Inputs Ground Truth PointCSA PointATA  (ours)       
+
+> Inputs Ground Truth PointCSA PointATA (ours)
+> Fig. 5. 4D semantic segmentation visualization on the Synthia 4D dataset. Key points are demarcated by red dashed circular bounding boxes.
+
+schemes [33], demonstrating accurate frame-level action clas-sification. Our PointATA leverages the engineering-oriented PVA&SCE to harvest temporal cues, guiding the model to attend to motion at the frame level. Moreover, once the complex and time-consuming data augmentations and pre-training costs of 4D and 3D backbones are taken into account, PointATA offers a favorable trade-off between accuracy and efficiency. 
+
+Visualization Samples. We visualize the ground-truth [18], P4Transformer [31] and our segmentations in Fig. 4. Con-sistent with [47], P4Transformer suffers from severe over-segmentation, which we attribute to overfitting local appear-ance changes while neglecting motion continuity. In contrast, PointATA aggregates richer context, locates action boundaries more accurately and markedly reduces over-segmentation. 
+
+E. 4D Semantic Segmentation: Synthia 4D 
+
+Dataset. To verify that PointATA handles point-level tasks, we apply it to 4D semantic segmentation on Synthia 4D [19]. The dataset contains six driving sequences in which both objects and cameras move; each frame provides four stereo RGB-D images captured from a car roof. Following [43], we reconstruct point cloud videos and adopt the standard split: 19888 training, 815 validation and 1886 test frames. Consistent with [19], [43], we sample clips of three consec-utive frames. Note that, although single-frame segmentation is possible, exploiting temporal correlations improves scene understanding, segmentation accuracy and noise robustness. Performance is reported as mean Intersection over Union (mIoU). 
+
+Comparison Results. Table IV compares PointATA with CNN-based and Transformer-based methods. Without task-specific modules, PointATA consistently surpasses prior CNNs and Transformers on overall mIoU, yielding a 0.51 mIoU gain over our baseline [31]. When the clip length is increased to three frames, the gap widens to 0.9 mIoU. 
+
+Visualization Samples. We present two segmentation re-sults from the Synthia 4D dataset in Fig. 5. Our method can accurately segment more objects than the conventional PETL method. 
+
+F. Gesture Recognition: SHREC’17 
+
+Dataset. We utilize SHREC’17 [64] for gesture recognition. It contains 2800 videos covering 28 gestures. Following [34], we split the dataset into 1960 training videos and 840 test videos. We keep the same model architecture as in MSR-Action3D [17]. 
+
+Comparison Results. As shown in Table V, our method surpasses both supervised and self-supervised baselines. With the “Align then Adapt” strategy, PointGPT-S [29]+ATA reaches 96.5% accuracy, Point-BERT [42]+ATA achieves 96.4%, and Point-MAE [28]+ATA attains 95.5%. SHREC’17 is essentially a noisy, fine-grained task of counting fingers and locating joints. Success depends on structural hand cues, which is the exact strength of 3D pre-trained models. By adding the PVA, our method captures temporal dynamics and joint identities, complementing the frozen 3D backbone. 
+
+G. 4D Scene Flow Prediction: KITTI 
+
+Dataset. To validate PointATA for 4D scene flow prediction, we evaluate it on KITTI [65]. The dataset has 200 training and 200 test samples, each with 4 frames of point cloud. We use the standard split and follow the evaluation protocol of FlowNet3D [55]. We report end-point error (EPE3D), strict 3D accuracy (Acc3DS), relaxed 3D accuracy (Acc3DR), and Outlier Ratio (Ourliers). An outlier is a point whose EPE exceeds 0.3m or 5% of the ground-truth flow magnitude. 
+
+Comparison Results. Experimental results in Table VI demonstrate that PointATA attains statistically significant im-provements across all evaluation metrics, surpassing 97% accuracy on both Acc3DS and Acc3DR. The proposed point video adapter constitutes a critical component for scene flow prediction. By interleaving depth-wise convolutions with ded-icated temporal-modeling blocks, it captures complex motion JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 8(a) Recognition performance of different hyperparamater. (b) Recognition performance of differnent depth and kernel size. 
+
+> (c) Performance profiles of PoinATA with different alignment metrics. (d) Comparison on training time and test time.
+
+35.3% faster 16.3% faster 
+
+Fig. 6. Ablation studies of PointATA under various experimental settings. 
+
+TABLE VII TRAINING AND INFERENCE ADVANTAGES OF POINT ATA OVER BASELINE .ALL VALUES ARE RECORDED IN SECONDS . R ESULTS ARE AVERAGED OVER 10 RUNS . T. MEANS TIME .Model Clip T. Training T. Test T. GPU Hours PointCSA 189.3 43 34 6.8 PointATA 238.4 36 22 5.6 
+
+-Stage 1 89.2 N/A N/A N/A 
+
+-Stage 2 149.2 N/A N/A N/A 
+
+∆ +25 .9% −16 .3% −35 .3% −17 .6% 
+
+patterns with high fidelity. This architectural design system-atically enhances the model’s robustness to rapid motion and severe occlusion. 
+
+H. Ablation Studies 
+
+In this subsection, we conduct extensive ablation studies to validate the effectiveness of the components and strategies proposed in PointATA. Unless otherwise specified, all ablation studies use PointMAE [28] as the 3D backbone and are evaluated on the MSR-Action3D [17] dataset. 
+
+Hyperparameter Sensitivity. In Stage 1, we use the Class-Weighted Stochastic OTDD distance as the metric distance and treat the Wasserstein order p and Sinkhorn regularization 
+
+ε as hyperparameters. Fig. 6(a) shows how the joint variation of these two parameters affects downstream task performance. Unlike regularization, continuously increasing the Wasserstein order does not necessarily improve downstream performance consistently. We argue that an overly complex Wasserstein distance may have negative effects and produce unstable gradients when label distribution differences are small. 
+
+Metric Distance. To demonstrate the superiority of our pro-posed Algorithm 1, we compare its performance profile [68] against Maximum Mean Discrepancy (MMD) [69], Centered Kernel Alignment (CKA) [70], and Euclidean distances on downstream tasks, following the protocol of ORCA [35]. Fig. 6(c) demonstrates that our transfer metric distance exhibits superior generalization, achieving better performance across more downstream tasks. Euclidean distance performs worst in transfer learning because it is a degenerate case of Wasserstein distance. When the empirical distribution is not uniform, 
+
+TABLE VIII ABLATION STUDIES ON ARCHITECTURE DESIGNS . PAE DENOTES POINT 
+
+ALIGN EMBEDDER , AND SCE DENOTES ADDITIONAL SPATIAL CONTEXT 
+
+ENCODERS .Model PAE SCE PVA Accuracy (%) A0 × × × 77 .35 (baseline )
+
+A1 ✓ × × 84 .51 (+ 7.16 )
+
+A2 ✓ ✓ × 88 .55 (+ 11 .2)
+
+A3 ✓ × ✓ 95 .12 (+ 17 .77 )
+
+A4 (ours) ✓ ✓ ✓ 95.62 (+ 18 .27 )
+
+TABLE IX EFFECTS OF EPOCH NUMBER AND SUB -SAMPLING STRATEGY FOR 
+
+CLASS -W EIGHTED STOCHASTIC OTDD ON TRANSFER LEARNING 
+
+PERFORMANCE .Model OTDD Epoch Number Sub-Sampling Accuracy (%) B0 × N/A N/A 92 .68 (baseline )
+
+B1 ✓ 2 16 93 .37 (+ 0.69 )
+
+B2 ✓ 4 16 94 .42 (+ 1.74 )
+
+B3 ✓ 6 32 94 .77 (+ 2.09 )
+
+B4 ✓ 8 32 95 .12 (+ 2.44 )
+
+B5 ✓ 10 32 95 .62 (+ 2.94 )
+
+B6 ✓ 12 64 95 .62 (tradeo f f )
+
+the sampled points have unequal weights. Euclidean distance cannot prioritize samples under this condition, whereas our method can. 
+
+Computational Advantages. Fig. 6(d) and Table VII show that PointATA outperforms the baseline in both training and inference. Under the same setting, PointATA improves infer-ence speed by 35.3% and reduces GPU burden by 17.6% on average. Indeed, PointATA is a two-stage transfer method and most computation is spent on cross-modal alignment in Stage 1. Considering this, our SCE and PVA modules run faster and use less memory than the standard adapters. 
+
+Depth & Kernel Size. Fig. 6(b) quantifies the sensitivity of transfer learning performance to kernel size and PVA depth. When the kernel size is too small, the receptive field becomes insufficient to encode point level motion, and downstream accuracy degrades by 1.3–2%. Monotonically increasing the adapter depth initially yields consistent gains. However, beyond four blocks the trend reverses, indicating an optimal capacity threshold. We hypothesise that a deeper JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 9                              
+
+> TABLE X SCALING BEHAVIOR OF 3D BACKBONES WITH POINT ATA. F. MEANS FRAMES PER CLIP .Model Reference Points Clips Accuracy (%) PTM [66] TCSVT2024 2048 32 F. 95.12 4096 32 F. 95.47 2048 36 F. 96.51 4096 36 F. 96.86 PointM2AE [67] NeurIPS2022 2048 32 F. 94.42 4096 32 F. 94.77 2048 36 F. 95.47 4096 36 F. 96.16 "Align then Adapt" overfitting@12ep
+> (a) CSA （b）ATA (ours)
+> Fig. 7. Training log visualization. We consider 50 epochs for tuning is excessive. For a fair comparison with naive tuning, we shorten the schedule to 10 epochs for the embedding layer followed by 40 epochs of parameter-efficient fine-tuning.
+
+PVA asymptotically approaches the representational power of the full baseline, thereby re-introducing the overfitting bias that PointATA is explicitly designed to suppress. These observations corroborate our core motivation: a parsimonious yet expressive adapter outperforms naive parameter scaling. 
+
+Architecture Design. We propose PointATA to equip a static point-cloud pre-training model with spatio-temporal cues from three components: Point Align Embedder, Spa-tial Context Encoder, and Point Video Adapter. We conduct ablation studies on these three components in Table VIII. Without any of these components, the model has only a very limited capacity to perceive dynamic point clouds (77.35%). After adding PA and PVA, the model’s performance improves markedly (+17.77%). Introducing SCE unlocks the model’s full potential, enabling it to surpass not only comparable competitors on MSR-Action3D but also several pre-training models designed specifically for 4D perception. 
+
+Proportion of Stage 1. To rigorously verify that the cross modal alignment strategy in Stage 1 guarantees a lower target-task error, we conduct a controlled ablation. As reported in Table IX, adopting OTDD as the distance metric reproducibly elevates downstream performance. However, the marginal gain saturates after approximately 10 epochs. On the other hand, the default b = 32 achieves a balanced trade-off. It maintains alignment stability comparable to b = 32 /64 while avoiding the excessive computational cost of larger b. Since PETL explicitly trades off accuracy against efficiency, limiting Stage 1 to 20% of the total transfer learning budget is not only justified but optimal. 
+
+Scaling and Generalization Properties. We evaluate PointATA on additional 3D backbones to assess its scaling and generalization. Following community feedback, we select PTM [66] and PointM2AE [67] as the foundation models. Attn    
+
+> FFN
+> PVA
+> SCE
+> a) Prepend Accuracy: 92.68% Attn
+> FFN PVA
+> SCE
+> b) Bypass (default) Accuracy: 95.62%
+> Attn
+> FFN
+> PVA
+> SCE
+> c) Post Accuracy: 95.12%
+> Attn
+> FFN
+> PVA SCE
+> d) Middle Accuracy: 93.03%
+> Fig. 8. Different location of Point Video Adapter and Spatial Context Encoder.
+> Fig. 9. (a) Comparison of different tuning strategies. (b) Discrepancy between training and test accuracy under 16 frames on MSR-Action3D.
+
+Table X shows that longer clips and denser points improve recognition when ATA is enabled. These results confirm that PointATA scales beyond small backbones and short clips, meeting the requirements of a general transfer learning paradigm. 
+
+Training Log Visualization. To confirm our motivation, we plot the training logs in Fig. 7. Under naive adapter tuning, the model reaches 100% training accuracy at Epoch 12, yet test accuracy improves slowly afterwards. The bar in Fig. 9(b) represents the gaps between training and test accuracy. [10] tuning reaches 100% training accuracy but only 87.8% test accuracy (12.2% train-test gap). For a model training over 50 epochs, such early overfitting is unacceptable. Fortunately, with our “Align then Adapt” paradigm, the overall training process is more stable and test accuracy rises smoothly. PointATA achieves 87.9% training accuracy and 87.7% test accuracy (merely 0.2% gap) at the same epoch. Even after only 40 epochs, our method outperforms naive tuning counterparts. 
+
+Adapters Location. We aim to identify the optimal inser-tion location for PVA and SCE so that the model can better integrate spatio-temporal features. Specifically, we conduct experiments at four locations: (a) Bypass, (b) Prepend, (c) Post, and (d) Middle, as shown in Fig. 8. PointATA performs worse when placed at prepend or post, suggesting that a serial adapter hampers the pre-trained model’s ability to process static information. Results at the bypass location indicate that a parallel design is preferable. This choice aligns with intuition: Static and dynamic cues are best handled by separate branches whose features are later fused, allowing the model to benefit from both sources. 
+
+Tuning Strategies. To demonstrate the superiority of our JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 10 w/o Align w/ Align 
+
+Fig. 10. t-SNE visualization showing that aligning static and dynamic clouds with the Point Align Embedder is essential. Smaller indices indicate tighter clusters. After alignment, intra-class distances shrink and inter-class gaps widen. 
+
+“Align then Adapt” paradigm, we evaluate several tuning methods while keeping the pre-trained backbone frozen. As shown in Fig. 9(a), ATA significantly outperforms the vanilla adapter [41], VPT-Deep [71], GST [72], IDPT [38], DAPT [39] and CSA [10]. This indicates that ATA enables effective cross-modal transfer for point cloud perception. PVA and SCE successfully captures temporal information while reusing the frozen backbone and keeping the overall model lightweight and replicable. 
+
+t-SNE Visualization. To qualitatively assess how Point Align Embedder helps the model grasp dynamic point cloud sequences, we visualize the learned features with t-SNE. As shown in Fig. 10, after static-dynamic alignment, the features form tighter and more distinct clusters than naive adapter tuning. This confirms our second motivation: 4D PETL without any pre-alignment is inadequate. V. CONCLUSION In this paper, we identify and analyze two key limitations in transferring 3D knowledge to 4D perception, then proposing corresponding solutions. We present PointATA, the first “Align then Adapt” paradigm for static-to-dynamic point cloud adap-tation. The pipeline splits cross-modal transfer into two stages: In Stage 1, we employ OTDD to measure the distribution gap between 3D and 4D datasets and train the 4D embedder; In Stage 2, we integrate the Point Video Adapter and Spatial Context Encoder to capture both geometric and dynamics in 4D videos. Our method outperforms existing methods on 3D action recognition, 4D action recognition, gesture recognition and 4D scene flow prediction, demonstrating the effectiveness of the PointATA paradigm. Owing to our limited resources, we acknowledge that PointATA may exhibit insufficient modeling capacity in certain outdoor scenarios, and we will address this issue in our future work. By validating PointATA on multiple visual benchmarks, we hope our work could inspire the community to rethink fine-tuning mechanism in 4D Vision. REFERENCES [1] Y. Sun, H. Cheng, C. Lu, Z. Li, M. Wu, H. Lu, and J. Zhu, “Hyper-point: Multimodal 3d foundation model in hyperbolic space,” Pattern Recognit. , vol. 173, p. 112800, 2026. [2] Y. Liu, J. Chen, Z. Zhang, J. Huang, and L. Yi, “Leaf: Learning frames for 4d point cloud sequence understanding,” in Proc. IEEE/CVF Int. Conf. Comput. Vis. , 2023, pp. 604–613. [3] J. Liu, J. Han, L. Liu, A. I. Aviles-Rivero, C. Jiang, Z. Liu, and H. Wang, “Mamba4d: Efficient 4d point cloud video understanding with disentangled spatial-temporal state space models,” in Proc. IEEE Conf. Comput. Vis. Pattern Recognit. , 2025, pp. 17 626–17 636. [4] Z. Shen, X. Sheng, L. Wang, Y. Guo, Q. Liu, and X. Zhou, “Pointcmp: Contrastive mask prediction for self-supervised learning on point cloud videos,” in Proc. IEEE Conf. Comput. Vis. Pattern Recognit. , 2023, pp. 1212–1222. [5] Z. Deng, X. Li, X. Li, Y. Tong, S. Zhao, and M. Liu, “Vg4d: Vision-language model goes 4d video recognition,” in IEEE Int. Conf. Robot. Autom. IEEE, 2024, pp. 5014–5020. [6] Z. Shen, X. Sheng, H. Fan, L. Wang, Y. Guo, Q. Liu, H. Wen, and X. Zhou, “Masked spatio-temporal structure prediction for self-supervised learning on point cloud videos,” in Proc. IEEE/CVF Int. Conf. Comput. Vis. , October 2023, pp. 16 580–16 589. [7] A. X. Chang, T. Funkhouser, L. Guibas, P. Hanrahan, Q. Huang, Z. Li, S. Savarese, M. Savva, S. Song, H. Su et al. , “Shapenet: An information-rich 3d model repository,” arXiv preprint arXiv:1512.03012 , 2015. [8] M. A. Uy, Q.-H. Pham, B.-S. Hua, T. Nguyen, and S.-K. Yeung, “Revisiting point cloud classification: A new benchmark dataset and classification model on real-world data,” in Proc. IEEE/CVF Int. Conf. Comput. Vis. , 2019, pp. 1588–1597. [9] Z. Wu, S. Song, A. Khosla, F. Yu, L. Zhang, X. Tang, and J. Xiao, “3d shapenets: A deep representation for volumetric shapes,” in Proc. IEEE Conf. Comput. Vis. Pattern Recognit. , 2015, pp. 1912–1920. [10] B. Lv, Y. Zha, T. Dai, X. Yuerong, K. Chen, and S.-T. Xia, “Adapting pre-trained 3d models for point cloud video understanding via cross-frame spatio-temporal perception,” in Proc. IEEE Conf. Comput. Vis. Pattern Recognit. , 2025, pp. 12 413–12 422. [11] W. Ma, S. Li, L. Cai, and J. Kang, “Learning modality knowledge alignment for cross-modality transfer,” in Proc. Int. Conf. Mach. Learn. 
+
+PMLR, 2024, pp. 33 777–33 793. [12] Z. Liu, Y. Lin, Y. Cao, H. Hu, Y. Wei, Z. Zhang, S. Lin, and B. Guo, “Swin transformer: Hierarchical vision transformer using shifted windows,” in Proc. IEEE/CVF Int. Conf. Comput. Vis. , 2021. [13] J. Pan, Z. Lin, X. Zhu, J. Shao, and H. Li, “St-adapter: Parameter-efficient image-to-video transfer learning,” Proc. Adv. Neural Inf. Pro-cess. Syst. , vol. 35, pp. 26 462–26 477, 2022. [14] T. Yang, Y. Zhu, Y. Xie, A. Zhang, C. Chen, and M. Li, “Aim: Adapting image models for efficient video action recognition,” in Proc. Int. Conf. Learn. Representations , 2023. [15] D. Alvarez-Melis and N. Fusi, “Geometric dataset distances via optimal transport,” Proc. Adv. Neural Inf. Process. Syst. , vol. 33, pp. 21 428– 21 439, 2020. [16] C. R. Qi, H. Su, K. Mo, and L. J. Guibas, “Pointnet: Deep learning on point sets for 3d classification and segmentation,” in Proc. IEEE Conf. Comput. Vis. Pattern Recognit. , 2017, pp. 652–660. [17] W. Li, Z. Zhang, and Z. Liu, “Action recognition based on a bag of 3d points,” in Proc. IEEE Conf. Comput. Vis. Pattern Recognit. Workshop ,2010, pp. 9–14. [18] Y. Liu, Y. Liu, C. Jiang, K. Lyu, W. Wan, H. Shen, B. Liang, Z. Fu, H. Wang, and L. Yi, “Hoi4d: A 4d egocentric dataset for category-level human-object interaction,” in Proc. IEEE Conf. Comput. Vis. Pattern Recognit. , June 2022, pp. 21 013–21 022. [19] C. Choy, J. Gwak, and S. Savarese, “4d spatio-temporal convnets: Minkowski convolutional neural networks,” in Proc. IEEE Conf. Com-put. Vis. Pattern Recognit. , 2019, pp. 3075–3084. [20] T. Weng, J. Xiao, F. Yan, and H. Jiang, “Context-aware 3d point cloud semantic segmentation with plane guidance,” IEEE Trans. Multimedia ,vol. 25, pp. 6653–6664, 2023. [21] C. Sun, Z. Zheng, X. Wang, M. Xu, and Y. Yang, “Self-supervised point cloud representation learning via separating mixed shapes,” IEEE Trans. Multimedia , vol. 25, pp. 6207–6218, 2023. [22] X.-F. Han, Y.-F. Jin, H.-X. Cheng, and G.-Q. Xiao, “Dual transformer for point cloud analysis,” IEEE Trans. Multimedia , vol. 25, pp. 5638–5648, 2023. [23] Y. Wu, J. Liu, M. Gong, Z. Liu, Q. Miao, and W. Ma, “Mpct: Multiscale point cloud transformer with a residual network,” IEEE Trans. Multimedia , vol. 26, pp. 3505–3516, 2024. [24] N. Hu, H. Cheng, Y. Xie, P. Shi, and J. Zhu, “Hyperbolic image-and-pointcloud contrastive learning for 3d classification,” in Proc. IEEE/RSJ Int. Conf. Intell. Robots Syst. IEEE, 2024, pp. 4973–4979. [25] H. Cheng, J. Zhu, J. Lu, and X. Han, “EDGCNet: Joint dynamic hyperbolic graph convolution and dual squeeze-and-attention for 3D point cloud segmentation,” Expert Syst. Appl. , vol. 237, p. 121551, 2024. JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 11 
+
+[26] S. Xie, J. Gu, D. Guo, C. R. Qi, and L. G. O. Litany, “Pointcontrast: Unsupervised pre-training for 3d point cloud understanding,” in Eur. Conf. Comput. Vis. , 2020. [27] M. Afham, I. Dissanayake, D. Dissanayake, A. Dharmasiri, K. Thi-lakarathna, and R. Rodrigo, “Crosspoint: Self-supervised cross-modal contrastive learning for 3d point cloud understanding,” in Proc. IEEE Conf. Comput. Vis. Pattern Recognit. , 2022, pp. 9902–9912. [28] Y. Pang, W. Wang, F. E. Tay, W. Liu, Y. Tian, and L. Yuan, “Masked autoencoders for point cloud self-supervised learning,” in Eur. Conf. Comput. Vis. , 2022, pp. 604–621. [29] G. Chen, M. Wang, Y. Yang, K. Yu, L. Yuan, and Y. Yue, “Pointgpt: Auto-regressively generative pre-training from point clouds,” Proc. Adv. Neural Inf. Process. Syst. , vol. 36, 2024. [30] X. Liu, M. Yan, and J. Bohg, “Meteornet: Deep learning on dynamic 3d point cloud sequences,” in Proc. IEEE/CVF Int. Conf. Comput. Vis. ,2019, pp. 9245–9254. [31] H. Fan, Y. Yang, and M. Kankanhalli, “Point 4d transformer networks for spatio-temporal modeling in point cloud videos,” in Proc. IEEE Conf. Comput. Vis. Pattern Recognit. , 2021. [32] H. Wen, Y. Liu, J. Huang, B. Duan, and L. Yi, “Point primitive transformer for long-term 4d point cloud video understanding,” in Eur. Conf. Comput. Vis. Springer, 2022, pp. 19–35. [33] Z. Zhang, Y. Dong, Y. Liu, and L. Yi, “Complete-to-partial 4d distillation for self-supervised point cloud sequence representation learning,” in 
+
+Proc. IEEE Conf. Comput. Vis. Pattern Recognit. , 2023, pp. 17 661– 17 670. [34] Z. Shen, X. Sheng, H. Fan, L. Wang, Y. Guo, Q. Liu, H. Wen, and X. Zhou, “Masked spatio-temporal structure prediction for self-supervised learning on point cloud videos,” in Proc. IEEE/CVF Int. Conf. Comput. Vis. , 2023, pp. 16 580–16 589. [35] J. Shen, L. Li, L. M. Dery, C. Staten, M. Khodak, G. Neubig, and A. Talwalkar, “Cross-modal fine-tuning: Align then refine,” in Proc. Int. Conf. Mach. Learn. PMLR, 2023, pp. 31 030–31 056. [36] K. Zhou, J. Yang, C. C. Loy, and Z. Liu, “Learning to prompt for vision-language models,” Int. J. Comput. Vis. , vol. 130, no. 9, pp. 2337–2348, 2022. [37] A. Radford, J. W. Kim, C. Hallacy, A. Ramesh, G. Goh, S. Agarwal, G. Sastry, A. Askell, P. Mishkin, J. Clark et al. , “Learning transferable visual models from natural language supervision,” in Proc. Int. Conf. Mach. Learn. , 2021, pp. 8748–8763. [38] Y. Zha, J. Wang, T. Dai, B. Chen, Z. Wang, and S.-T. Xia, “Instance-aware dynamic prompt tuning for pre-trained point cloud models,” in 
+
+Proc. IEEE/CVF Int. Conf. Comput. Vis. , 2023, pp. 14 161–14 170. [39] X. Zhou, D. Liang, W. Xu, X. Zhu, Y. Xu, Z. Zou, and X. Bai, “Dynamic adapter meets prompt tuning: Parameter-efficient transfer learning for point cloud analysis,” in Proc. IEEE Conf. Comput. Vis. Pattern Recognit. , 2024, pp. 14 707–14 717. [40] M. Cuturi, “Sinkhorn distances: lightspeed computation of optimal transport,” in Proc. Adv. Neural Inf. Process. Syst. , 2013. [41] N. Houlsby, A. Giurgiu, S. Jastrzebski, B. Morrone, Q. De Laroussilhe, A. Gesmundo, M. Attariyan, and S. Gelly, “Parameter-efficient transfer learning for NLP,” in Int. Conf. Mach. Learn. , vol. 97. PMLR, 09–15 Jun 2019, pp. 2790–2799. [42] X. Yu, L. Tang, Y. Rao, T. Huang, J. Zhou, and J. Lu, “Point-bert: Pre-training 3d point cloud transformers with masked point modeling,” in 
+
+Proc. IEEE Conf. Comput. Vis. Pattern Recognit. , 2022. [43] X. Liu, M. Yan, and J. Bohg, “Meteornet: Deep learning on dynamic 3d point cloud sequences,” in Proc. IEEE/CVF Int. Conf. Comput. Vis. ,2019. [44] H. Fan, X. Yu, Y. Ding, Y. Yang, and M. Kankanhalli, “Pstnet: point spatio-temporal convolution on point cloud sequences,” in Proc. Int. Conf. Learn. Representations , 2021. [45] J.-X. Zhong, K. Zhou, Q. Hu, B. Wang, N. Trigoni, and A. Markham, “No pain, big gain: classify dynamic point cloud sequences with static models by fitting feature-level space-time surfaces,” in Proc. IEEE Conf. Comput. Vis. Pattern Recognit. , 2022, pp. 8510–8520. [46] H. Fan, Y. Yang, and M. Kankanhalli, “Point spatio-temporal transformer networks for point cloud video modeling,” IEEE Trans. Pattern Anal. Mach. Intell. , vol. 45, no. 2, pp. 2181–2192, 2023. [47] L. Jing, Y. Xue, X. Yan, C. Zheng, D. Wang, R. Zhang, Z. Wang, H. Fang, B. Zhao, and Z. Li, “X4d-sceneformer: Enhanced scene understanding on 4d point cloud videos through cross-modal knowledge transfer,” in Proc. AAAI Conf. Artif. Intell. , vol. 38, no. 3, 2024, pp. 2670–2678. [48] X. Sheng, Z. Shen, and G. Xiao, “Contrastive predictive autoencoders for dynamic point cloud self-supervised learning,” in Proc. AAAI Conf. Artif. Intell. , vol. 37, no. 8, 2023, pp. 9802–9810. [49] X. Sheng, Z. Shen, G. Xiao, L. Wang, Y. Guo, and H. Fan, “Point contrastive prediction with semantic clustering for self-supervised learn-ing on point cloud videos,” in Proc. IEEE Conf. Comput. Vis. Pattern Recognit. , 2023, pp. 16 515–16 524. [50] A. Shahroudy, J. Liu, T.-T. Ng, and G. Wang, “Ntu rgb+ d: A large scale dataset for 3d human activity analysis,” in Proc. IEEE Conf. Comput. Vis. Pattern Recognit. , 2016, pp. 1010–1019. [51] C. R. Qi, L. Yi, H. Su, and L. J. Guibas, “Pointnet++: Deep hierarchical feature learning on point sets in a metric space,” in Proc. Adv. Neural Inf. Process. Syst. , 2017. [52] Y. Wang, Y. Xiao, F. Xiong, W. Jiang, Z. Cao, J. T. Zhou, and J. Yuan, “3dv: 3d dynamic voxel for action recognition in depth video,” in Proc. IEEE Conf. Comput. Vis. Pattern Recognit. , 2020, pp. 508–517. [53] Y. Liu, C. Chen, Z. Wang, and L. Yi, “Crossvideo: Self-supervised cross-modal contrastive learning for point cloud video understanding,” in IEEE Int. Conf. Robot. Autom. , 2024, pp. 12 436–12 442. [54] Y. Min, Y. Zhang, X. Chai, and X. Chen, “An efficient pointlstm for point clouds based gesture recognition,” in Proc. IEEE Conf. Comput. Vis. Pattern Recognit. , 2020, pp. 5760–5769. [55] X. Liu, C. R. Qi, and L. J. Guibas, “Flownet3d: Learning scene flow in 3d point clouds,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. , 2019, pp. 529–537. [56] G. Puy, A. Boulch, and R. Marlet, “Flot: Scene flow on point clouds guided by optimal transport,” in Eur. Conf. Comput. Vis. Springer, 2020, pp. 527–544. [57] B. Ouyang and D. Raviv, “Occlusion guided scene flow estimation on 3d point clouds,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. ,2021, pp. 2805–2814. [58] H. Wang, J. Pang, M. A. Lodhi, Y. Tian, and D. Tian, “Festa: Flow estimation via spatial-temporal attention for scene point clouds,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. , 2021, pp. 14 173– 14 182. [59] G. Wang, Y. Hu, Z. Liu, Y. Zhou, M. Tomizuka, W. Zhan, and H. Wang, “What matters for 3d scene flow network,” in Eur. Conf. Comput. Vis. 
+
+Springer, 2022, pp. 38–55. [60] W. Cheng and J. H. Ko, “Bi-pointflownet: Bidirectional learning for point cloud based scene flow estimation,” in Eur. Conf. Comput. Vis. 
+
+Springer, 2022, pp. 108–124. [61] I. Lang, D. Aiger, F. Cole, S. Avidan, and M. Rubinstein, “Scoop: Self-supervised correspondence and optimization-based scene flow,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. , 2023, pp. 5281–5290. [62] W. Cheng and J. H. Ko, “Multi-scale bidirectional recurrent network with hybrid correlation for point cloud based scene flow estimation,” in 
+
+Proc. IEEE/CVF Int. Conf. Comput. Vis. , 2023, pp. 10 007–10 016. [63] J. Liu, G. Wang, W. Ye, C. Jiang, J. Han, Z. Liu, G. Zhang, D. Du, and H. Wang, “Difflow3d: Toward robust uncertainty-aware scene flow estimation with diffusion model,” arXiv preprint arXiv:2311.17456 ,2023. [64] Q. de Smedt, H. Wannous, J.-P. Vandeborre, J. Guerry, B. Le Saux, and D. Filliat, “SHREC’17 Track: 3D Hand Gesture Recognition Using a Depth and Skeletal Dataset,” in Proc. 10th Eurographics Workshop on 3D Object Retrieval , Apr. 2017, pp. 1–6. [65] M. Menze and A. Geiger, “Object scene flow for autonomous vehicles,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. , 2015, pp. 3061–3070. [66] H. Cheng, J. Zhu, N. Hu, J. Chen, and W. Yan, “Ptm: Torus masking for 3d representation learning guided by robust and trusted teachers,” IEEE Trans. Circuits Syst. Video Technol. , vol. 34, no. 12, pp. 12 158–12 170, 2024. [67] R. Zhang, Z. Guo, P. Gao, R. Fang, B. Zhao, D. Wang, Y. Qiao, and H. Li, “Point-m2ae: multi-scale masked autoencoders for hierarchical point cloud pre-training,” in Proc. Adv. Neural Inf. Process. Syst. , 2022. [68] E. D. Dolan and J. J. Mor´ e, “Benchmarking optimization software with performance profiles,” Math. Program. , vol. 91, no. 2, pp. 201–213, 2002. [69] A. Gretton, K. Borgwardt, M. Rasch, B. Sch¨ olkopf, and A. Smola, “A kernel method for the two-sample-problem,” Adv. Neural Inf. Process. Syst. , vol. 19, 2006. [70] S. Kornblith, M. Norouzi, H. Lee, and G. Hinton, “Similarity of neural network representations revisited,” in Proc. Int. Conf. Mach. Learn. 
+
+PMLR, 2019, pp. 3519–3529. [71] M. Jia, L. Tang, B.-C. Chen, C. Cardie, S. Belongie, B. Hariharan, and S.-N. Lim, “Visual prompt tuning,” in Eur. Conf. Comput. Vis. Springer, 2022, pp. 709–727. [72] D. Liang, T. Feng, X. Zhou, Y. Zhang, Z. Zou, and X. Bai, “Parameter-efficient fine-tuning in spectral domain for point cloud learning,” IEEE Trans. Pattern Anal. Mach. Intell. , 2025.

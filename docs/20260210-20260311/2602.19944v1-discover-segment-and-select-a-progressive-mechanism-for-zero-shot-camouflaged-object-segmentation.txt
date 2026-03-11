@@ -1,0 +1,447 @@
+Title: Discover, Segment, and Select: A Progressive Mechanism for Zero-shot Camouflaged Object Segmentation
+
+URL Source: https://arxiv.org/pdf/2602.19944v1
+
+Published Time: Tue, 24 Feb 2026 03:14:30 GMT
+
+Number of Pages: 12
+
+Markdown Content:
+# Discover, Segment, and Select: A Progressive Mechanism for Zero-shot Camouflaged Object Segmentation 
+
+## Yilong Yang, Jianxin Tian, Shengchuan Zhang, Liujuan Cao *
+
+## Key Laboratory of Multimedia Trusted Perception and Efficient Computing, Ministry of Education of China, Xiamen University, 361005, P.R. China. 
+
+{Yilong.Yang, zsc 2016, caoliujuan }@xmu.edu.cn, thetian666@stu.xmu.edu.cn 
+
+## Abstract 
+
+Current zero-shot Camouflaged Object Segmentation meth-ods typically employ a two-stage pipeline (discover-then-segment): using MLLMs to obtain visual prompts, followed by SAM segmentation. However, relying solely on MLLMs for camouflaged object discovery often leads to inaccurate localization, false positives, and missed detections. To ad-dress these issues, we propose the Discover-Segment-Select (DSS ) mechanism, a progressive framework designed to re-fine segmentation step by step. The proposed method con-tains a Feature-coherent Object Discovery (FOD) module that leverages visual features to generate diverse object pro-posals, a segmentation module that refines these proposals through SAM segmentation, and a Semantic-driven Mask Selection (SMS) module that employs MLLMs to evaluate and select the optimal segmentation mask from multiple candidates. Without requiring any training or supervision, DSS achieves state-of-the-art performance on multiple COS benchmarks, especially in multiple-instance scenes. 
+
+## 1. Introduction 
+
+The human visual system exhibits a remarkable ability to identify objects that seamlessly blend into their surround-ings, a capability that has long inspired research in com-puter vision. Camouflage Object Segmentation (COS) aims to computationally replicate this ability, with critical ap-plications in medical diagnosis [9], agricultural monitor-ing [34, 41], autonomous driving [28] and military surveil-lance [11, 23]. Despite its significance, COS is hampered by a reliance on large-scale annotated datasets and special-ized models, which limit scalability and generalization to diverse real-world scenarios. Recent advances in multimodal large language models (MLLMs) [1–3, 22, 25] and vision foundation models like SAM [17, 33, 39] have shown that strong visual reasoning, 
+
+> *Corresponding author
+
+Figure 1. Comparison between the proposed DSS framework and prior zero-shot COS methods. 
+
+localization and segmentation can be achieved without any task-specific training. By combining language-guided se-mantic priors from MLLMs with promptable SAM, it be-comes feasible to perform COS in a training-free, zero-shot manner. In general, the pipeline mainly involves two steps. The first step is using an MLLM, or coupled with a Vi-sion Language Model (VLM) such as CLIP [32], to gen-erate location prompts ( e.g ., bounding boxes, points) that locate the potential camouflaged objects (discovery stage). The second step is feeding these prompts into SAM to pro-duce segmentation masks (segmentation stage). Following this paradigm, several recent works [14, 15, 39, 43, 44] have demonstrated promising zero-shot COS performance. However, existing MLLM–SAM pipelines still struggle in camouflage scenarios: (1) MLLMs often yield inaccurate or missed localizations due to a reliance on high-level seman-tics over fine-grained cues, which misleads SAM and causes segmentation errors. (2) Their performance degrades no-tably in multi-instance scenes, where spatially distinct cam-ouflage objects exist. These challenges highlight a critical 1
+
+> arXiv:2602.19944v1 [cs.CV] 23 Feb 2026
+
+limitation: relying solely on MLLMs is insufficient for gen-erating high quality visual prompts. To overcome these limitations, we propose a novel Dis-cover, Segment, and Select pipeline (DSS)—that not only fundamentally redefines the discovery process but also in-troduces a reasoning-based selection stage for zero-shot COS. As shown in Fig. 1, Previous approaches either re-quire MLLMs to perform localization beyond their intended capability or rely on CLIP-based prompt refinement, which is suboptimal for dense prediction. In contrast, our DSS framework introduces a Feature-coherent Object Discovery (FOD) module and a reasoning-based selection stage, en-hancing robustness and segmentation quality in zero-shot COS. In the Discover stage, we leverage both semantic cues from MLLMs and structural priors from visual feature clus-tering to generate diverse and high-quality region proposals. These proposals are then passed to SAM in the Segment stage, producing multiple fine-grained candidate masks. Fi-nally, in the Select stage, the MLLM serves as a reasoning-based selector, evaluating all candidates in the visual con-text to identify the most semantically and structurally con-sistent segmentation result. This tri-stage design enhances robustness against incomplete, inaccurate and incorrect pro-posals, therefore improves mask quality under a fully zero-shot, training free setting. Experiments demonstrate that the proposed DSS frame-work achieves outstanding performance in zero-shot COS. The key contributions are summarized as follows: • We propose a Discover, Segment, and Select pipeline to address the prevalent issues of inaccurate localization in zero-shot COS. This is achieved by augmenting the dis-covery process with visual clustering and introducing a final selection stage for optimal mask identification. • We introduce a Part Composition (PC) module that inte-grates discrete object parts, effectively enhancing the co-herence and completeness of the segmentation output for complex camouflaged objects. • We propose Similarity-based Box Generation (SBG), a robust bounding box generation method designed for multiple-instance scenarios. Its core strength lies in pre-venting the omission of instances, which ensures the preservation of all instances and directly leads to superior segmentation accuracy. • We design a Semantic-driven Mask Selection (SMS) module that employs MLLMs for selection among can-didate masks, ensuring optimal final segmentation. 
+
+## 2. Related Work 
+
+2.1. Camouflaged Object Detection 
+
+Camouflaged Object Segmentation [8, 10] aims to iden-tify and segment objects that seamlessly blend into their surroundings, presenting significant challenges due to their low foreground-background contrast. With the advent of deep learning, convolutional neural networks have become the dominant paradigm for COS. Notable methods include SINet [8], which introduced a search identification mech-anism to enhance feature representation, and more recent works like ZoomNet [30] and CGCOD [45], which lever-age multi-scale features and context-aware modules to im-prove segmentation accuracy. However, these methods are fully supervised and require large annotated datasets, limit-ing their scalability and generalization to diverse real-world scenarios. To overcome the limitations of annotation depen-dency, the field has progressively shifted towards more flex-ible paradigms. Initial efforts in unsupervised learning ex-plored techniques like cross-domain adaptation [47] to learn patterns without COS-specific labels. However, it still re-quire a training process on (often synthetic or related) data, and their performance is constrained by the domain gap and the quality of the auxiliary data. More recently, zero-shot approaches leverage pre-trained models and multimodal large language models (MLLMs) reasoning to perform COS without any task-specific training [5, 12, 14, 15, 19, 43]. While these zero-shot methods offer greater flexibility and generalization, they often struggle with the inherent ambi-guity of camouflaged scenes, leading to challenges in accu-rate localization and segmentation. 
+
+2.2. Prompt-based Zero-Shot Segmentation 
+
+The recent emergence of powerful foundation models, par-ticularly the Segment Anything Model (SAM) [17, 33], has catalyzed a paradigm shift in segmentation towards prompt-driven, zero-shot inference. A predominant strategy in-volves harnessing the rich prior knowledge within MLLMs to generate semantic-aware prompts such as points, bboxes or coarse masks for SAM. As an example, GenSAM [14] commences by utilizing BLIP2 [20] to generate the class label of camouflaged objects. Coupled with this, CLIP Surgery [21] is employed to derive class attention maps, which in turn guide the generation of point prompts. These points are then fed into SAM to obtain the fi-nal segmentation masks. Following this paradigm, Pro-MaC [15] improves GenSAM by exploiting hallucination priors to reduce the inaccuracy of MLLM-generated text prompts. MMCPF [39] enhances initial coarse bboxes with DINOv2 [29] features to refine points prompts for SAM. RDVP-MSD [43] introduces a stepwise decom-position strategy to resolve semantic ambiguity in cap-tions, coupled with a region-constrained approach that sam-ples point prompts from coarse MLLM localizations to help SAM focus on local textures and boost accuracy. IAPF [44] leveraging Grounding DINO [24] to produce instance-level bbox prompts, alongside a single-foreground multi-background prompting strategy to sample region-constrained point prompts within each box, thus enhancing 2Figure 2. The overall pipeline of the Discovery-Segment-Selection Framework. The framework operates in three stages: (a) Feature-guided Object Discovery (FOD): the Part Composition (PC) module refines low-resolution clustering masks, followed by a Similarity based Box Generation (SBG) module to produce prompt boxes; (b) The Segment Anything Model generates segmentation mask based on the input prompts. (c) Semantic-driven Mask Selection (SMS): an MLLM evaluates all candidate masks and selects the final segmentation. 
+
+SAM’s ability to handle multi-instance scenarios. Nonetheless, prompt-based pipelines inherit several fail-ure modes from their constituent models. When MLLMs produce inaccurate or incorrect localizations, the SAM is prone to under-segmentation, over-segmentation, or entirely missing objects. Moreover, in multi-instance scenes, per-formance often degrades because language or coarse visual priors may focus on dominant instances and neglect oth-ers. A common thread in existing zero-shot camouflage segmentation approaches is their reliance on visual ground-ing cues from MLLMs and VLMs. This focus, however, largely neglects the rich, intrinsic visual discriminatory fea-tures present in the image, which are crucial for compensat-ing for the lack of clear semantics and lead to suboptimal performance in visually deceptive scenarios. 
+
+## 3. Method 
+
+3.1. Framework Overview 
+
+The proposed framework consists of three core stages: Feature-coherent Object Discovery (FOD), promptable SAM segmentation, and Semantic-driven Mask Selection (SMS), as illustrated in Fig. 2. Given an input image, the FOD module extracts patch-level features via a self-supervised encoder and groups them through unsuper-vised clustering. The Part Composition (PC) module fur-ther enhances cluster consistency, producing a set of low-resolution binary masks. A Similarity-based Box Genera-tion (SBG) module then computes semantic affinity maps between foreground regions and all image patches, from which high-quality bbox prompts are extracted to guide the SAM in producing candidate masks. Finally, the SMS mod-ule evaluates all candidate masks using via MLLM and se-lecting the most appropriate one as the final segmentation. 
+
+3.2. Feature-coherent Object Discovery 
+
+The Discover stage begins with our Feature-coherent Ob-ject Discovery (FOD) module. To achieve more compre-hensive object discovery, FOD leverages the self-supervised visual representation extracted from a pretrained vision encoder. Specifically, we obtain patch-level embeddings 
+
+X = {xi ∈ Rd}N , where N = H′ × W ′ is the num-ber of patches and d is the feature dimension. These fea-tures capture rich semantic information, enabling effec-tive differentiation between foreground and background re-gions. Then a clustering function C(·) groups the patch-level feature map into C clusters, yielding coarse binary masks {Yc}C . To achieve semantically consistent and compact patch-level foreground-background separation, we iteratively refine these masks via feature coherence, en-forcing intra-cluster similarity and inter-cluster separabil-ity. Each refined low-resolution mask is then converted to bboxes and used as prompt for segmentation. We break this process down into two steps: (1) Part Composition (PC) and (2) Similarity-driven Box Generation (SBG). 
+
+Part Composition. While clustering provides an initial grouping of features, it may over-segment a single camou-flaged object into multiple parts. To address this, the PC module is introduced to refine the clustering results by en-forcing semantic consistency among patches. Specifically, PC starts from the clustering results and iteratively refines the soft foreground probability of each patch by minimis-ing a feature-coherence energy that encourages intra-class compactness and inter-class separability in feature space. Formally, we denote Yc ∈ 0, 1N as the initial foreground probability map of the c-th cluster. For notational sim-3Figure 3. Visual tracking of the iterative refinement process. Left to right: the original image, Leiden clustering map, and binary maps from initial clustering Y(0) to the final refined map Y(5) .Here we select one cluster from the clustering results for demon-stration. The number of iterations may vary for different clusters until convergence. 
+
+plicity, we drop the cluster index c hereafter. At iteration 
+
+t ∈ { 1, · · · , T }, Y(t) = {y(t) 
+
+> i
+
+∈ [0 , 1] }N is updated as the relative distance to two centers and converted into soft values: 
+
+y(t) 
+
+> i
+
+= σ(∥xi − μ(t−1)  
+
+> b
+
+∥2 − ∥ xi − μ(t−1)  
+
+> f
+
+∥2), (1) where σ(·) is the sigmoid function, μ(t) 
+
+> f
+
+and μ(t) 
+
+> b
+
+denote the foreground and background feature centroids at t-th itera-tion, respectively: 
+
+μ(t) 
+
+> f
+
+=
+
+P 
+
+> i
+
+y(t) 
+
+> i
+
+xi
+
+P 
+
+> i
+
+y(t)
+
+> i
+
+, μ(t) 
+
+> b
+
+=
+
+P
+
+> i
+
+(1 − y(t) 
+
+> i
+
+)xi
+
+P
+
+> i
+
+(1 − y(t) 
+
+> i
+
+) . (2) Eq. (1) updates each patch’s foreground probability based on its relative distance to the foreground and background centroids, effectively pulling similar patches closer while pushing dissimilar ones apart. At the end of each iteration, the feature-coherence energy is evaluated: 
+
+E(t) =
+
+ 1
+
+N (t)
+
+> f
+
+X
+
+> i∈I (t)
+> f
+
+∥xi − μ(t) 
+
+> f
+
+∥2 + 1
+
+N (t)
+
+> b
+
+X
+
+> i∈I (t)
+> b
+
+∥xi − μ(t) 
+
+> b
+
+∥2
+
+| {z }
+
+> intra-class compactness
+
+− ∥ μ(t) 
+
+> f
+
+− μ(t) 
+
+> b
+
+∥2
+
+| {z }
+
+> inter-class separation
+
+,
+
+(3) where I(t) 
+
+> f
+
+= {i : y(t) 
+
+> i
+
+> 0.5} and I(t) 
+
+> b
+
+= {i : y(t) 
+
+> i
+
+≤ 0.5}
+
+are the sets of foreground and background patches, with 
+
+N (t) 
+
+> f
+
+= |I (t) 
+
+> f
+
+| and N (t) 
+
+> b
+
+= |I (t) 
+
+> b
+
+| being their respective car-dinalities. The refinement stops automatically when the en-ergy change falls below a threshold: 
+
+|E(t) − E(t−1) | < ϵ, (4) indicating convergence to a stable and coherent labeling configuration. The refinement is proceeded for each cluster and therefore resulting in C masks {Y(t) 
+
+> c
+
+}C which can be 
+
+Figure 4. Visual comparison between bboxes generated from dif-ferent strategies. In each 2 ×2 grid, Top left : bboxes from the ground truth mask. Top right : bboxes from leiden clustered mask. 
+
+Bottom left : bboxes from PC refined mask. Bottom right : bboxes from self-similarity map. 
+
+used to generate bbox prompts for the SAM. The flowchart of PC is illustrated in Fig. 2. An visual tracking of the itera-tive refinement process is shown in Fig. 3. As observed, by progressively absorb similar neighboring patches into the same cluster while pushing dissimilar ones away, PC ef-fectively refines the initial over-segmented masks into more coherent object-level segmentations. 
+
+Similarity-driven Box Generation. To generate bbox prompts for SAM from candidate masks YcC , we face two main challenges: (1) Directly extracting boxes from con-nected components may yield incomplete proposals, caus-ing missed detection; and (2) Highly overlapping masks from the PC may produce redundant boxes for the same ob-ject. To overcome these issues, we first introduce a more robust prompt generation method based on self-similarity maps. For each mask Yc, we compute a self-similarity map that quantifies the semantic affinity in the feature space be-tween its foreground region and all image patches: 
+
+sim c = sim (X, Yc) = μf · X
+
+∥μf ∥∥ X∥ , μ f =
+
+P 
+
+> i
+
+yixi
+
+P 
+
+> i
+
+yi
+
+. (5) To assess and mitigate redundancy among the similar-ity maps {Y1, · · · , YC }, we compute the pairwise Pearson correlation coefficients betwen all map pairs, resulting in a correlation matrix R ∈ RC×C , with each element ri,j quan-tifies the degree of linear dependency between maps sim i
+
+and sim j . Then a correlation threshold τ is subsequently applied to identify highly correlated pairs (ri,j > τ ), which are merged via averaging. This process effectively reduces the number of bbox proposals fed into the SAM, thus im-proving computation efficiency. Next, we threshold the self-similarity map to create a binary affinity map and extract bounding bboxes as prompts for segmentation. Then the final set of masks generated by SAM is denoted as: 
+
+MFOD = {m1, m2, . . . , mC′ }, C′ ≤ C. (6) The procedure is shown in the bottom of Fig. 2. Fig. 4 presents a visual comparison of bboxes generated from dif-ferent strategies. As observed in Fig. 4, bboxes derived 4from similarity maps exhibit higher completeness than bi-nary masks, alleviating the risk of missing instances. 
+
+3.3. Semantic-driven Mask Selection 
+
+The final step of the DSS is to select the most plausible camouflaged object mask from the set of candidate masks 
+
+MFOD . Feeding all candidate masks into the MLLM simul-taneously may gives the model excessive flexibility, which often triggers hallucination and results in incorrect selec-tions. To alleviate this, we adopt a progressive pairwise comparison strategy guided by a heuristic scoring function. Specifically, we first assign each mask a confidence score si
+
+based on its spatial consistency with the similarity map and its boundary contactness. The scoring function is defined as: 
+
+si = corr (mi, sim i) + (1 − BC (mi)) , mi ∈ MFOD , (7) where corr (mi, sim i) denotes the Pearson correlation be-tween mask mi and the similarity map sim i. A higher cor-relation indicates that the mask aligns well with the seman-tic similarity distribution of the image, implying stronger consistency with the potential camouflaged region. BC (m i)
+
+represents the boundary contact rate, quantifying the pro-portion of mask edges touching the image boundary—since camouflaged objects rarely coincide with image borders, a higher BC (m i) suggests that the mask likely includes back-ground regions. The implementation of BC is detailed in the supplementary material Sec. 6. We then rank these masks by their scores and retain the top-K candidates. This step aims to prune implausi-ble candidates in order to reduce subsequent pairwise com-parisons, thus enhancing computational efficiency. The set {m1, . . . , mK } is then used for iterative pairwise selec-tion. Starting from the two lowest-scoring masks, we iter-atively feed the corresponding masked image regions (ob-tained via pixel-wise multiplication with the original image 
+
+I) together with I itself into the MLLM, accompanied by a query prompt PMMS such as “Identify which masked image best corresponds to the camouflaged object in the original image.” The model outputs a categorical decision indicat-ing the preferred mask: 
+
+ˆm = MLLM (I, I ⊙ ma, I ⊙ mb, P SMS ). (8) where ⊙ denotes element-wise multiplication, and ma, mb
+
+are the two masks under comparison. The winning mask 
+
+ˆm is then compared with the next higher-scoring mask in the sequence, repeating this for K-1 iterations until the fi-nal mask is determined. We empirically found that start-ing the pairwise comparison from low-score masks yields more stable outcomes. The effectiveness of the heuristic rules and the pairwise selection strategy, compared with the single-pass selection, is further validated in the supplemen-tary material Sec. 7.           
+
+> Table 1. Hyperparameter setting.
+> HP Value Remark
+> r0.5 Leiden clustering resolution.
+> ϵ1.0 The energy change threshold.
+> τ0.95 Correlation threshold for de-duplication.
+> K5Top-K masks for MLLM mask selection.
+
+## 4. Experiments 
+
+4.1. Experiment Settings 
+
+Datasets and Evaluations Metrics. We conduct ex-periments on four widely used COD datasets, including CHAMELEON (76 images) [36], CAMO-Test (250 im-ages) [18], COD10K-Test (2,026 images) [8], and NC4K (4,121 images) [26]. Following previous work, mean ab-solute error ( M) [31], structure measure ( Sα) [6], mean E-measure ( Eϕ) [7] and weighted F-measure ( F wβ ) [27] are adopted to evaluate our method. 
+
+MLLM-SAM Baseline. For comparison, we include a simplified Vision–Language guided Object Segmentation (VLOS) baseline following the two-stage pipeline com-monly used in prior works. Given an input image I, a MLLM first localizes potential camouflaged objects under a task-generic prompt PVLOS :
+
+Bvl = MLLM (I, P VLOS ), Bvl ∈ Rn×4. (9) Each bbox serves as a prompt for SAM to produce a corre-sponding mask, and all masks are subsequently merged to form a unified segmentation: 
+
+m = _
+
+> bi∈B vl
+
+VFM( I, b i), (10) where W denotes element-wise logical OR operation across predicted masks. This baseline reflects the standard MLLM-SAM pipeline without additional prompt refine-ment. Moreover, the mask generated by VLOS is included as one of the candidate masks in our final selection stage, demonstrating that our framework and VLOS are comple-mentary and jointly improve segmentation performance. We compute the mean score of top-K masks and define it as the score of mask from VLOS. 
+
+Implement Details. In our experiments, we choose QWen2.5-VL-Instruct [2] as the MLLM and SAM2 (ViT-L) [33] for segmentation. For the feature encoder, we de-ploy the DINOv2 [29]. A dimensionality reduction to 16 dimensions using PCA is performed preceding the cluster-ing step to improve computational efficiency. We adopts Leiden algorithm [40] over the widely used K-mean [13] for clustering DINOv2 features, as it adapts to varying camou-flage complexities by automatically determining the clus-ter number, avoiding the biases introduced by a fixed K
+
+5Figure 5. We present a visual comparison of our method against existing alternatives under challenging conditions. The red and black bounding boxes correspond to prompts generated by our approach and QWen, respectively. To aid interpretation, the third column visualizes the similarity maps from which our bounding boxes are derived. 
+
+in K-means. For DSS, all experiments are conducted us-ing the PyTorch framework, and we run inference on single NVIDIA GeForce RTX 3090 GPU with 24 GB of mem-ory. We randomly sample 1,000 images from the training sets of COD10K and CAMO as a validation subset for hy-perparameter tuning. All hyperparameters were empirically determined on this subset to balance performance and com-putation cost, and the same configuration was used across all experiments to ensure fairness and generalization. The hyperparameter settings are summarized in Tab. 1. Prompts are provided in the supplementary material Sec. 8. 
+
+4.2. Comparison with State-of-the-Art Methods 
+
+Qualitative Analysis . Fig. 5 qualitatively compares DSS with leading task-generic promptable segmentation meth-ods. Our approach consistently produces more complete and compact segmentation. Specifically, DSS shows its strength in handling complex scenarios where MLLM-only localization solutions fail: (1) Under/Over-segmentation 
+
+(row 1-2). (2). Missed detection in multiple instances case 
+
+(row 3-4). (3) False detection (row 5-6). In contrast, the proposed DSS is able to locate all concealed objects accu-rately, therefore producing high quality segmentations. 
+
+Quantitative Comparision. In Tab. 2, we compare our proposed method with state-of-the-art fully-supervised, un-supervised, and zero-shot COD methods over four COD datasets. In Zero-shot paradigm, our DSS consistently out-performs all existing zero-shot methods across all datasets and evaluation metrics. The proposed method surpass all unsupervised methods without any form of training, under-scoring its test-time adaptation capabilities. Furthermore, DSS narrows the performance gap with fully-supervised methods, highlighting its potential as a practical solution for COD tasks without the need for extensive annotated data. 
+
+Performance Across Instance Counts. We evaluate DSS’s robustness in multi-instance (single, double, and three-or-more) scenarios despite their limited presence in real data, as shown by the instance distribution in Fig. 6a. For each metric, we also list the relative change (%) w.r.t. the single-instance subset. As shown in Figs. 6b and 6c, existing methods exhibit significant performance drops as the num-ber of camouflaged objects increases, highlighting their lim-itations in complex scenarios. In contrast, the proposed DSS achieves the minimal performance degradation with the increasing number of camouflaged objects, while main-taining the best performance on the single objet segmen-tation. This demonstrates the effectiveness of our feature-coherent object discovery approach in accurately locating 6Table 2. Quantitative comparison with state-of-the-art methods on four COD datasets “ ↑ / ↓” : the higher/lower the better. “-”: not available. “F”, “U” and “ZS” denote “Fully-supervised”, “Un-supervised” and “Zero-shot” method, repsectively. The best three results in zero-shot setting are highlighted in red, blue, and green, respectively. The best results in “F”, “U” settings are in bold. 
+
+Methods Venue Sup CAMO(250) NC4K(4121) COD10K(2016) CHAMELEON(87) 
+
+F wβ ↑ M ↓ Sα ↑ Eϕ ↑ F wβ ↑ M ↓ Sα ↑ Eϕ ↑ F wβ ↑ M ↓ Sα ↑ Eϕ ↑ F wβ ↑ M ↓ Sα ↑ Eϕ ↑
+
+HitNet [16] AAAI23 F .809 .055 .849 .906 .834 .037 .875 .926 .806 .023 .871 .935 .897 .019 .921 .967 SENet [12] TIP24 F .847 .039 .888 .932 .843 .032 .889 .933 .780 .024 .865 .925 .878 .019 .918 .957 ZoomNeXt [30] TPAMI24 F .857 .041 .889 .945 .863 .028 .903 .951 .827 .018 .898 .956 .885 .018 .924 .975 
+
+CGCOD [45] MM25 F .864 .036 .896 .947 .869 .026 .904 .949 .824 .018 .890 .948 .902 .017 .931 .972 CAMF [19] TPAMI25 F .887 .041 .901 .933 .897 .033 .905 .933 .845 .025 .890 .923 .895 .028 .917 .944 CamoDiff-E [37] TPAMI25 F .851 .042 .878 .936 .861 .028 .895 .942 .817 .019 .883 .943 – – – –COMPrompter [46] SCIS25 F .858 .044 .882 .942 .876 .030 .907 .955 .821 .023 .889 .949 .857 .026 .906 .955 UCOS-DA [47] ICCVW23 U .606 .127 .701 .784 .656 .085 .755 .819 .513 .086 .689 .740 .591 .095 .715 .802 UCOD-DPL [42] CVPR25 U .740 .077 .793 .862 .818 .043 .850 .923 .763 .031 .834 .916 .825 .031 .864 .931 
+
+EASE [4] CVPR25 U .771 .078 .807 .865 .833 .039 .866 .915 .833 .039 .866 .915 .827 .037 .864 .916 SdalsNet [35] AAAI25 U .664 .117 .696 .801 .697 .084 .738 .826 .572 .084 .738 .826 .666 .080 .724 .837 SAM2 [33, 38] ArXiv24 ZS .648 .128 .744 .830 .658 .059 .796 .842 .156 .062 .759 .785 .680 .090 .764 .807 GenSAM [14] AAAI24 ZS .659 .113 .719 .775 .662 .057 .781 .851 .681 .067 .765 .838 .580 .090 .764 .807 MMCPF [39] MM24 ZS .683 .105 .737 .772 .676 .055 .797 .847 .669 .064 .756 .820 .631 .059 .737 .807 ProMaC [15] NIPS24 ZS .725 .090 .767 .846 .777 .059 .815 .884 .716 .042 .805 .876 .790 .044 .833 .899 CAMF [19] TPAMI25 ZS .729 .105 .788 .814 .818 .054 .861 .882 .717 .055 .808 .832 .720 .067 .805 817 UpGen [5] TIP25 ZS .718 .091 .779 .833 .788 .054 .838 .887 .708 .051 .838 .887 .747 .047 .817 .875 IAPF [44] ArXiv25 ZS .768 .081 .803 .864 .828 .043 .862 .916 .799 .033 .856 .917 – – – –RDVP-MSD [43] MM25 ZS .785 .081 .796 .848 .795 .049 .842 .891 .775 .038 .825 .877 .814 .040 .832 .904 QWen+SAM2 [2, 33] - ZS .741 .085 .790 .849 .846 .037 .875 .924 .827 .027 .873 .930 .785 .045 .838 .884 DSS - ZS .766 .078 .808 .870 .870 .031 .891 .940 .849 .022 .887 .942 .848 .034 .883 .926 
+
+(a) (b) (c) 
+
+Figure 6. (a) Each pie chart shows the proportion of images containing different numbers of camouflaged objects. “3+” denotes images contain (≥ 3) camouflaged objects. (b) and (c) Performance comparison of different camouflaged instance counts on NC4K and COD10K. The y-axis is score = Sα+Eϕ+F wβ 
+
+> 3
+
+− M , indicateing the overall performance. 
+
+multiple camouflaged objects within a single image. 
+
+Computational Efficiency. As shown in Tab. 3. The total processing time is dominated by the SMS module (30.59s, 72.9%). Notably, the FOD module required only 7.74s (14.3%) despite its iterative label refinement process. While the total inference time of DSS is 2.32 times of RDVP-MSD, it brings significant accuracy improvements as shown in Tab. 2. In terms of GPU consumption, DSS requires only 17.90 GB GPU memory, significantly less than ProMaC and RDVP-MSD, by employing a 7B QWen2.5 instead of the 13B LLaVA used in these counterparts. Overall, DSS demonstrates a strong trade-off between segmentation ac-curacy and computational demands, making it a practical choice for real-world COS applications. 
+
+4.3. Ablation Study 
+
+To accurately evaluate the effectivenessess of PC and SBG module in isolation from the influence of the SMS, we adopt an Ideal Segmentation (Ideal Seg.) for comparison. Ideal Seg. refers to selecting, from all candidate masks, the one 7Table 3. Comparison of computational efficiency, reported as av-erage inference time per image (s). For our DSS framework, the time is decomposed into its three stages: FOD, mask generation, and SMS. Results are reported on the CHAMELEON dataset.         
+
+> ProMaC RDVP-MSD DSS Time (s) 130.49 18.05 41.96 (7.74, 3.63, 30.59) GPU (GB) 32.85 31.51 17.90
+
+Table 4. Ablation comparison of different inference settings. “Lei-den” and “PC” denotes that the initial Leiden clustering map or the refined clustering map is used in the FOD module for ex-tracting bboxes; “VLOS” denotes that the mask produced by QWen+SAM2 is included for mask selection.                                                 
+
+> ID Leiden PC VLOS COD10K CHAMELEON CAMO 1✓××.778 .797 .689 2×✓×.758 .814 .761 3××✓.850 .791 .708 4✓✓×.820 .863 .790 5✓×✓.886 .872 .801 6×✓✓.881 .880 .810 7✓✓✓.892 .888 .823
+
+with the highest IoU score with the ground truth as the final mask. This allows us to evaluate the maximum achievable performance of our method when provided with perfect seg-mentation inputs. score = Sα+Eϕ+F wβ 
+
+> 3
+
+− M is used to in-dicate the overall performance. 
+
+Effectiveness of PC. Based on the ablation results in Tab. 4, we draw several key observations. First, both the initial Lei-den clustering (Row 1) and the refined clustering via the Part Composition module (Row 2) provide reasonable base-lines, while their combination (Row 4) yields significantly better performance, demonstrating complementary advan-tages. Second, the discovery-segment baseline (Row 3) demonstrates inferior performance on the CHAMELEON and CAMO dataset, compared to the clustering-based meth-ods (Row 4), highlighting the importance of visual feature guidance in COS. Finally, incorporating masks from VLOS and FOD (Row 7) achieves the best performance across all datasets, demonstrating that the proposed FOD module ef-fectively complements the MLLM-SAM pipeline. . 
+
+Effectiveness of SBG. To validate the effectiveness of our proposed SBG strategy, especitally on multiple-instance cases, we comparing performance based on bbox propos-als generated from the self-similarity maps against those directly extracted from clustered and refined masks (Lei-den+PC). As shown in Tab. 5, utilizing bboxes derived from similarity maps consistently outperforms the binary mask-based approach across both datasets. This improvement can be attributed to the enhanced completeness and accuracy of bboxes generated from similarity maps, as visually demon-strated in Fig. 4. The results confirm that our SBG strategy 
+
+Table 5. Ablation on SBG. The segmentation performance based on bboxes generated from: (1) Clustered and refined masks. (Lei-den+PC). (2). similarity maps (Sim. Map). “ 3+ ” denotes the sub-set of images containing three or more camouflaged objects.                                  
+
+> Methods NC4K 3+ COD10K 3+
+> Fwβ↑M ↓ Sα↑Eϕ↑Fwβ↑M ↓ Sα↑Eϕ↑
+> Leiden+PC .795 .058 .812 .897 .723 .034 .794 .881 Sim. Map .818 .054 .839 .917 .745 .026 .821 .911
+
+Table 6. Ablation on the SMS module.                 
+
+> Method CAMO NC4K COD10K CHAMELEON VLOS .708 .845 .850 .791 DSS .737 .869 .871 .852 Ideal Seg. .823 .895 .892 .888
+
+effectively captures the nuanced features of camouflaged objects, leading to superior segmentation performance. 
+
+Effectiveness of SMS. To assess the effectiveness of the SMS module and the potential upper bound of our DSS framework, we adopt Ideal Seg. As shown in Tab. 6, the performance of our mask selection strategy surpass the QWen+SAM2 baseline, indicating that our mask selection strategy is effective in identifying the most relevant masks. However, the comparison with Ideal Seg. demonstates that there is still considerable room for improvement in mask se-lection strategy. This suggests that future work could focus on enhancing the reliability of mask evaluation and selec-tion to further boost segmentation performance. 
+
+## 5. Conclusion 
+
+In this paper, we introduced the Discover-Segment-Select (DSS) mechanism for zero-shot camouflaged object seg-mentation. The proposed framework begins with a visual-augmented discovery stage that generates high-quality re-gion proposals through unsupervised feature clustering. These proposals are subsequently segmented into fine-grained masks and finally refined by a multimodal selec-tion module to identify the optimal output. Extensive ex-periments demonstrate that our approach not only sets a new state-of-the-art in zero-shot camouflaged object seg-mentation, but also exhibits strong generalization capabil-ity—especially in challenging multiple-instance scenarios where it accurately localizes and segments numerous cam-ouflaged objects within a single image. Moreover, the method maintains high computational efficiency, achieving superior accuracy with minimal GPU memory overhead. Ablation studies confirm the importance of each stage in the proposed pipeline. In the future, we plan to enhance the re-liability of mask evaluation and incorporate multi-scale fea-ture aggregation to better detect tiny camouflaged objects. 8References 
+
+[1] Josh Achiam, Steven Adler, Sandhini Agarwal, Lama Ah-mad, Ilge Akkaya, Florencia Leoni Aleman, Diogo Almeida, Janko Altenschmidt, Sam Altman, Shyamal Anadkat, et al. Gpt-4 technical report. arXiv preprint arXiv:2303.08774 ,2023. 1 [2] Shuai Bai, Keqin Chen, Xuejing Liu, Jialin Wang, Wenbin Ge, Sibo Song, Kai Dang, Peng Wang, Shijie Wang, Jun Tang, et al. Qwen2. 5-vl technical report. arXiv preprint arXiv:2502.13923 , 2025. 5, 7 [3] Keqin Chen, Zhao Zhang, Weili Zeng, Richong Zhang, Feng Zhu, and Rui Zhao. Shikra: Unleashing multi-modal llm’s referential dialogue magic. arXiv preprint arXiv:2306.15195 , 2023. 1 [4] Ji Du, Fangwei Hao, Mingyang Yu, Desheng Kong, Jiesh-eng Wu, Bin Wang, Jing Xu, and Ping Li. Shift the lens: Environment-aware unsupervised camouflaged object detec-tion. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 19271–19282, 2025. 7 [5] Ji Du, Jiesheng Wu, Desheng Kong, Weiyun Liang, Fangwei Hao, Jing Xu, Bin Wang, Guiling Wang, and Ping Li. Upgen: Unleashing potential of foundation models for training-free camouflage detection via generative models. IEEE Transac-tions on Image Processing , 2025. 2, 7 [6] Deng-Ping Fan, Ming-Ming Cheng, Yun Liu, Tao Li, and Ali Borji. Structure-measure: A new way to evaluate foreground maps. In Proceedings of the IEEE international conference on computer vision , pages 4548–4557, 2017. 5 [7] Deng-Ping Fan, Cheng Gong, Yang Cao, Bo Ren, Ming-Ming Cheng, and Ali Borji. Enhanced-alignment mea-sure for binary foreground map evaluation. arXiv preprint arXiv:1805.10421 , 2018. 5 [8] Deng-Ping Fan, Ge-Peng Ji, Guolei Sun, Ming-Ming Cheng, Jianbing Shen, and Ling Shao. Camouflaged object de-tection. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 2777–2787, 2020. 2, 5 [9] Deng-Ping Fan, Ge-Peng Ji, Tao Zhou, Geng Chen, Huazhu Fu, Jianbing Shen, and Ling Shao. Pranet: Parallel reverse attention network for polyp segmentation. In International conference on medical image computing and computer-assisted intervention , pages 263–273. Springer, 2020. 1 [10] Deng-Ping Fan, Ge-Peng Ji, Ming-Ming Cheng, and Ling Shao. Concealed object detection. IEEE transactions on pat-tern analysis and machine intelligence , 44(10):6024–6042, 2021. 2 [11] Ali Haider, Ghulam Muhammad, Talha Ahmed Khan, Kush-sairy Kadir, Mohd Nizam Husen, and Haidawati Mohamad Nasir. Identification of camouflage military individuals with deep learning approaches dfan and sinetv2. Scientific Re-ports , 15(1):33271, 2025. 1 [12] Chao Hao, Zitong Yu, Xin Liu, Jun Xu, Huanjing Yue, and Jingyu Yang. A simple yet effective network based on vi-sion transformer for camouflaged object and salient object detection. IEEE Transactions on Image Processing , 2025. 2, 7[13] John A Hartigan and Manchek A Wong. Algorithm as 136: A k-means clustering algorithm. Journal of the royal sta-tistical society. series c (applied statistics) , 28(1):100–108, 1979. 5 [14] Jian Hu, Jiayi Lin, Shaogang Gong, and Weitong Cai. Relax image-specific prompt requirement in sam: A single generic prompt for segmenting camouflaged objects. In Proceed-ings of the AAAI Conference on Artificial Intelligence , pages 12511–12518, 2024. 1, 2, 7 [15] Jian Hu, Jiayi Lin, Junchi Yan, and Shaogang Gong. Lever-aging hallucinations to reduce manual prompt dependency in promptable segmentation. Advances in Neural Information Processing Systems , 37:107171–107197, 2024. 1, 2, 7 [16] Xiaobin Hu, Shuo Wang, Xuebin Qin, Hang Dai, Wenqi Ren, Donghao Luo, Ying Tai, and Ling Shao. High-resolution it-erative feedback network for camouflaged object detection. In Proceedings of the AAAI Conference on Artificial Intelli-gence , pages 881–889, 2023. 7 [17] Alexander Kirillov, Eric Mintun, Nikhila Ravi, Hanzi Mao, Chloe Rolland, Laura Gustafson, Tete Xiao, Spencer White-head, Alexander C Berg, Wan-Yen Lo, et al. Segment any-thing. In Proceedings of the IEEE/CVF international confer-ence on computer vision , pages 4015–4026, 2023. 1, 2 [18] Trung-Nghia Le, Tam V Nguyen, Zhongliang Nie, Minh-Triet Tran, and Akihiro Sugimoto. Anabranch network for camouflaged object segmentation. Computer vision and im-age understanding , 184:45–56, 2019. 5 [19] Cheng Lei, Jie Fan, Xinran Li, Tian-zhu Xiang, Ao Li, Ce Zhu, and Le Zhang. Towards real zero-shot camouflaged object segmentation without camouflaged annotations. IEEE Transactions on Pattern Analysis and Machine Intelligence ,2025. 2, 7 [20] Junnan Li, Dongxu Li, Silvio Savarese, and Steven Hoi. Blip-2: Bootstrapping language-image pre-training with frozen image encoders and large language models. In In-ternational conference on machine learning , pages 19730– 19742. PMLR, 2023. 2 [21] Yi Li, Hualiang Wang, Yiqun Duan, and Xiaomeng Li. Clip surgery for better explainability with enhancement in open-vocabulary tasks. arXiv e-prints , pages arXiv–2304, 2023. 2[22] Haotian Liu, Chunyuan Li, Qingyang Wu, and Yong Jae Lee. Visual instruction tuning. Advances in neural information processing systems , 36:34892–34916, 2023. 1 [23] Keshun Liu, Aihua Li, Sen Yang, Changlong Wang, and Yuhua Zhang. Multi-scale attention and boundary-aware network for military camouflaged object detection using un-manned aerial vehicles. Signal, Image and Video Processing ,19(2):184, 2025. 1 [24] Shilong Liu, Zhaoyang Zeng, Tianhe Ren, Feng Li, Hao Zhang, Jie Yang, Qing Jiang, Chunyuan Li, Jianwei Yang, Hang Su, et al. Grounding dino: Marrying dino with grounded pre-training for open-set object detection. In Euro-pean conference on computer vision , pages 38–55. Springer, 2024. 2 [25] Haoyu Lu, Wen Liu, Bo Zhang, Bingxuan Wang, Kai Dong, Bo Liu, Jingxiang Sun, Tongzheng Ren, Zhuoshu Li, 
+
+9Hao Yang, et al. Deepseek-vl: towards real-world vision-language understanding. arXiv preprint arXiv:2403.05525 ,2024. 1 [26] Yunqiu Lv, Jing Zhang, Yuchao Dai, Aixuan Li, Bowen Liu, Nick Barnes, and Deng-Ping Fan. Simultaneously localize, segment and rank the camouflaged objects. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 11591–11601, 2021. 5 [27] Ran Margolin, Lihi Zelnik-Manor, and Ayellet Tal. How to evaluate foreground maps? In Proceedings of the IEEE con-ference on computer vision and pattern recognition , pages 248–255, 2014. 5 [28] Yago Romano Martinez, Carter Brady, Abhijeet Solanki, Wesam Al Amiri, Syed Rafay Hasan, and Terry N Guo. Mit-igation of camouflaged adversarial attacks in autonomous vehicles–a case study using carla simulator. In 2025 IEEE International Symposium on Circuits and Systems (ISCAS) ,pages 1–5. IEEE, 2025. 1 [29] Maxime Oquab, Timoth´ ee Darcet, Theo Moutakanni, Huy Vo, Marc Szafraniec, Vasil Khalidov, Pierre Fernandez, Daniel Haziza, Francisco Massa, Alaaeldin El-Nouby, et al. Dinov2: Learning robust visual features without supervision. 
+
+arXiv preprint arXiv:2304.07193 , 2023. 2, 5 [30] Youwei Pang, Xiaoqi Zhao, Tian-Zhu Xiang, Lihe Zhang, and Huchuan Lu. Zoomnext: A unified collaborative pyra-mid network for camouflaged object detection. IEEE trans-actions on pattern analysis and machine intelligence , 46(12): 9205–9220, 2024. 2, 7 [31] Federico Perazzi, Philipp Kr¨ ahenb¨ uhl, Yael Pritch, and Alexander Hornung. Saliency filters: Contrast based filter-ing for salient region detection. In 2012 IEEE conference on computer vision and pattern recognition , pages 733–740. IEEE, 2012. 5 [32] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learning transferable visual models from natural language supervi-sion. In International conference on machine learning , pages 8748–8763. PmLR, 2021. 1 [33] Nikhila Ravi, Valentin Gabeur, Yuan-Ting Hu, Ronghang Hu, Chaitanya Ryali, Tengyu Ma, Haitham Khedr, Roman R¨ adle, Chloe Rolland, Laura Gustafson, et al. Sam 2: Segment anything in images and videos. arXiv preprint arXiv:2408.00714 , 2024. 1, 2, 5, 7 [34] Dan Jeric Arcega Rustia, Chien Erh Lin, Jui-Yung Chung, Yi-Ji Zhuang, Ju-Chun Hsu, and Ta-Te Lin. Application of an image and environmental sensor network for automated greenhouse insect pest monitoring. Journal of Asia-Pacific Entomology , 23(1):17–28, 2020. 1 [35] Peiyao Shou, Yixiu Liu, Wei Wang, Yaoqi Sun, Zhigao Zheng, Shangdong Zhu, and Chenggang Yan. Sdalsnet: Self-distilled attention localization and shift network for unsu-pervised camouflaged object detection. In Proceedings of the AAAI Conference on Artificial Intelligence , pages 6914– 6921, 2025. 7 [36] Przemysław Skurowski, Hassan Abdulameer, Jakub Błaszczyk, Tomasz Depta, Adam Kornacki, and Przemysław Kozieł. Animal camouflage analysis: Chameleon database. 
+
+Unpublished manuscript , 2(6):7, 2018. 5 [37] Ke Sun, Zhongxi Chen, Xianming Lin, Xiaoshuai Sun, Hong Liu, and Rongrong Ji. Conditional diffusion models for cam-ouflaged and salient object detection. IEEE Transactions on Pattern Analysis and Machine Intelligence , 2025. 7 [38] Lv Tang and Bo Li. Evaluating sam2’s role in camou-flaged object detection: From sam to sam2. arXiv preprint arXiv:2407.21596 , 2024. 7 [39] Lv Tang, Peng-Tao Jiang, Zhi-Hao Shen, Hao Zhang, Jin-Wei Chen, and Bo Li. Chain of visual perception: Harness-ing multimodal large language models for zero-shot camou-flaged object detection. In Proceedings of the 32nd ACM international conference on multimedia , pages 8805–8814, 2024. 1, 2, 7 [40] Vincent A Traag, Ludo Waltman, and Nees Jan Van Eck. From louvain to leiden: guaranteeing well-connected com-munities. Scientific reports , 9(1):1–12, 2019. 5 [41] Liqiong Wang, Jinyu Yang, Yanfu Zhang, Fangyi Wang, and Feng Zheng. Depth-aware concealed crop detection in dense agricultural scenes. In Proceedings of the IEEE/CVF con-ference on computer vision and pattern recognition , pages 17201–17211, 2024. 1 [42] Weiqi Yan, Lvhai Chen, Huaijia Kou, Shengchuan Zhang, Yan Zhang, and Liujuan Cao. Ucod-dpl: Unsupervised cam-ouflaged object detection via dynamic pseudo-label learning. In Proceedings of the Computer Vision and Pattern Recogni-tion Conference , pages 30365–30375, 2025. 7 [43] Chao Yin, Hao Li, Kequan Yang, Jide Li, Pinpin Zhu, and Xiaoqiang Li. Stepwise decomposition and dual-stream fo-cus: A novel approach for training-free camouflaged object segmentation. arXiv preprint arXiv:2506.06818 , 2025. 1, 2, 7[44] Chao Yin, Jide Li, and Xiaoqiang Li. A simple yet powerful instance-aware prompting framework for training-free camouflaged object segmentation. arXiv preprint arXiv:2508.06904 , 2025. 1, 2, 7 [45] Chenxi Zhang, Qing Zhang, Jiayun Wu, and Youwei Pang. Cgcod: Class-guided camouflaged object detection. arXiv preprint arXiv:2412.18977 , 2024. 2, 7 [46] Xiaoqin Zhang, Zhenni Yu, Li Zhao, Deng-Ping Fan, and Guobao Xiao. Comprompter: reconceptualized segment anything model with multiprompt network for camouflaged object detection. Science China Information Sciences , 68(1): 112104, 2025. 7 [47] Yi Zhang and Chengyi Wu. Unsupervised camouflaged ob-ject segmentation as domain adaptation. In Proceedings of the IEEE/CVF international conference on computer vision ,pages 4334–4344, 2023. 2, 7 
+
+10 Discover, Segment, and Select: A Progressive Mechanism for Zero-shot Camouflaged Object Segmentation 
+
+# Supplementary Material 
+
+## 6. Boundary Contact Ratio 
+
+To quantitatively measure the extent to which a predicted mask touches the image boundary, we compute the bound-ary contact ratio rb ∈ [0 , 1] . Given a binary segmentation mask m of size H × W , we define an outer margin of width 
+
+n pixels along the four sides of the image. For each side, we count the number of foreground pixels that fall within this boundary strip, excluding overlapping corner regions to avoid double counting. Let Ct, C b, C l, C r , denote the number of non-zero pixels in these four edge regions, and 
+
+Ne be the total number of pixels within all edge strips. The boundary contact ratio is then defined as: 
+
+rb = Ct + Cb + Cl + Cr
+
+Ne
+
+(11) In our experiments, we set the margin width n to 10 pixels. A higher rb indicates that the predicted object is more likely to be touching or extending beyond the image boundary, which is a common characteristic of background. 
+
+## 7. Extended Ablation on SMS Module 
+
+We conduct a quantitative study on MLLM selection accu-racy, measuring how often different strategies choose the IoU-best mask. Also discuss efficiency and inference cost compared to simpler heuristics. Tab. 7 compares several strategies for the final Semantic-driven Mask Selection (SMS) stage. For clarity, the meth-ods are: (1) Heuristic Rules. Purely rule-based selection using scoring function defined in Eq. (7); (2) Single-pass Selection. Feed all candidate masks to the MLLM in a single prompt and let it select the best mask; (3) Top-K
+
+Single-pass. Pre-filter candidates by heuristic scores and present only the top-K masks to the MLLM in a single prompt; (4–6) Top-K pairwise variants—iterative pairwise comparisons among the top-K masks, differing in the order of comparisons (random, ascending/descending by heuris-tic score). Columns CAMO and CHAMELEON summarize the task performance under each selection strategy (higher is better). The Time column indicates the average inference time (s) per image for each strategy (lower is better). From Tab. 7, we observe distinct trends in both ef-fectiveness and efficiency. The Heuristic Rules baseline achieves reasonable accuracy with minimal cost (1.14 s/im-age), demonstrating that spatial and consistency cues with boundary contactness offer a fast but approximate proxy for semantic quality. However, its rule-based nature lim-its adaptability in ambiguous cases where visual cues alone                           
+
+> Table 7. Comparison of different Mask Selection strategies. CAMO and CHAMELEON columnes measure selection accuracy (%), while Time indicates average inference cost (seconds per im-age). “OOM” denotes out-of-memory errors.
+> Method CAMO CHAMELEON Time (s) Heuristic Rules 68.80 71.05 1.14
+> Single-pass Selection OOM OOM OOM Top-KSingle-pass 40.24 36.84 14.25 Top-Kpairwise (random) 54.00 59.21 31.14 Top-Kpairwise (descending) 50.80 43.42 30.81 Top-Kpairwise (ascending) 74.40 73.68 30.59
+
+are insufficient. The Single-pass Selection strategy fails due to out-of-memory (OOM) errors, as feeding all masks at once results in extremely long multimodal prompts that exceed the context length of current MLLMs, highlighting a practical limitation. Although Top-K Single-pass miti-gates this, it performs poorly because presenting multiple masks in one query often causes semantic confusion for the MLLM. In contrast, pairwise strategies substantially out-perform single-pass variants, confirming that decompos-ing the reasoning process into binary comparisons helps the MLLM make more consistent and discriminative judg-ments. Among them, the Top-K pairwise (ascending) vari-ant achieves the best accuracy across both datasets, as pro-gressively eliminating low-quality masks guides the MLLM toward the most coherent result. However, this comes at the cost of increased inference time ( 30 s/image) due to multiple MLLM calls. Overall, reasoning-based progres-sive selection, particularly with ascending order, provides the most robust balance between accuracy and efficiency, and is therefore adopted as our default SMS configuration. 
+
+## 8. Prompt Design for MLLM 
+
+For reproducibility, we provide the exact prompt templates used in our experiments for both camouflaged object local-ization and mask selection tasks. 
+
+Prompt for camouflaged Object localization. Following [39], physical and dynamic description of objects are in-cluded in the prompt to help MLLM better perceive the camouflaged objects. The prompt used to guide the MLLM in locating camouflaged objects and generating bounding boxes is shown in Figure 7. 
+
+Prompt for camouflaged Object localization. The prompt used to instruct the MLLM to select the best mask from can-didate masks is shown in Fig. 8. 1Prompt Template for Camouflaged Object Localisation 
+
+{"role": "user", "content": [{"type": "image", "image": img_path}, {"type": "text", "text": """The image may contain a few animal/insect or human whose shape, color, texture, pattern and movement closely resemble its surroundings. Please identify them and provide their locations in the format of coordinates, as precisely as possible. The output should be in JSON format, e.g.: {"bbox_2d": [[x1, y1, x2, y2],[x1, y1, x2, y2]], "label": "dog" }DO NOT ADD ANY EXTRA INFO, JUST JSON!"""} ]}
+
+Figure 7. Prompt template for camouflaged object localization using MLLM. 
+
+Prompt Template for Camouflaged Object Localisation 
+
+{"role": "user", "content": [{"type": "text", "text": "The image is this."}, {"type": "image", "image": f"data:image/png;base64,{img64}"}, {"type": "text", "text": "Overlap from the original image through mask A is this."}, {"type": "image", "image": f"data:image/png;base64,{best_maskb64}"}, {"type": "text", "text": "Overlap from the original image through mask B is this."}, {"type": "image", "image": f"data:image/png;base64,{maskb64}"}, {"type": "text", "text": f""" CAMOUFLAGE MASK COMPARISON TASK IMAGE: The image may contain a few animal/insect or human whose shape, color, texture, pattern and movement closely resemble its surroundings. Overlap A: Current overlap mask Overlap B: New candidate overlap mask STEP-BY-STEP PROCESS: 1. OBJECT IDENTIFICATION: - Carefully examine the image - Identify all hidden/concealed objects and their exact locations. 2. SELECTION CRITERIA: - PRIMARY: Choose the mask that covers ALL identified objects completely - SECONDARY: Among masks that meet primary criterion, choose the one with least background - If no mask covers all objects, choose the one that covers the most objects OUTPUT JSON (DO NOT ADD ANY EXTRA INFO, JUST JSON!): {"better_mask": "Mask A" / "Mask B", }"""}, ], }
+
+Figure 8. Prompt template for mask selection using MLLM. 
+
+2

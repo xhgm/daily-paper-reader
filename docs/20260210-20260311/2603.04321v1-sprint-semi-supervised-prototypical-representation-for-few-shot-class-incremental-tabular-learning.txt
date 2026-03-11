@@ -1,0 +1,1214 @@
+Title: SPRINT: Semi-supervised Prototypical Representation for Few-Shot Class-Incremental Tabular Learning
+
+URL Source: https://arxiv.org/pdf/2603.04321v1
+
+Published Time: Thu, 05 Mar 2026 02:24:48 GMT
+
+Number of Pages: 20
+
+Markdown Content:
+# SPRINT: Semi-supervised Prototypical Representation for Few-Shot Class-Incremental Tabular Learning 
+
+Umid Suleymanov 1 Murat Kantarcioglu 1 2 Kevin S Chan 3 Michael De Lucia 3 Kevin Hamlen 2
+
+Latifur Khan 2 Sharad Mehrotra 4 Ananthram Swami 3 Bhavani Thuraisingham 2
+
+## Abstract 
+
+Real-world systems must continuously adapt to novel concepts from limited data without forget-ting previously acquired knowledge. While Few-Shot Class-Incremental Learning (FSCIL) is es-tablished in computer vision, its application to 
+
+tabular domains remains largely unexplored. Un-like images, tabular streams (e.g., logs, sensors) offer abundant unlabeled data, a scarcity of expert annotations and negligible storage costs – features ignored by existing vision-based methods that rely on restrictive buffers. We introduce SPRINT , the first FSCIL framework tailored for tabular distri-butions. SPRINT introduces a mixed episodic training strategy that leverages confidence-based pseudo-labeling to enrich novel class represen-tations and exploits low storage costs to retain base class history. Extensive evaluation across six diverse benchmarks – spanning cybersecurity, healthcare, and ecological domains – demon-strates SPRINT’s cross-domain robustness. It achieves a state-of-the-art average accuracy of 77.37% (5-shot), outperforming the strongest in-cremental baseline by 4.45%. 
+
+## 1. Introduction 
+
+Few-Shot Class-Incremental Learning (FSCIL) addresses the dual challenge of adapting to novel classes from limited labeled examples while preventing the catastrophic forget-ting of previously acquired knowledge. While this paradigm has been extensively studied in computer vision (Tao et al., 2020; Zhang et al., 2021; Zhou et al., 2022), the literature has largely overlooked tabular domains, despite their ubiq-
+
+> 1
+
+Department of Computer Science, Virginia Tech, Blacksburg, VA, USA 2Department of Computer Science, University of Texas at Dallas, Dallas, TX, USA 3DEVCOM Army Research Labo-ratory, Adelphi, MD, USA 4Department of Computer Science, University of California, Irvine, CA, USA. Correspondence to: Umid Suleymanov <umids@vt.edu >.
+
+Preprint. March 5, 2026. 
+
+uity in many critical applications. Existing vision-centric FSCIL methods rely on assumptions that are poorly suited to tabular data streams. In particular, they impose strict memory buffer constraints driven by the high storage costs of image data, thereby overlooking the large volumes of unlabeled data commonly available in real-world tabular domains such as intrusion detection, where most network traffic data remains unlabeled. In addition, tabular data possess unique operational charac-teristics. Unlike high-dimensional images, tabular records (e.g., network logs, sensor readings, medical records) typi-cally consist of compact feature vectors with low dimension-ality. This negligible storage footprint renders the strict fixed memory buffer assumption of vision benchmarks unneces-sary. Furthermore, tabular data streams in the wild are rarely fully labeled; they are characterized by a scarcity of expert annotations but an abundance of continuously collected un-labeled samples. A prime example is Network Intrusion Detection Systems (NIDS), where security analysts face a constant stream of unlabeled traffic. New attack variants (novel classes) emerge continuously and must be learned from only a handful of identified signatures ( k-shot), yet the system must maintain robust detection of historical threats without the downtime associated with full batch retrain-ing. Analogous challenges exist in healthcare epidemiology: hospitals continuously aggregate tabular Electronic Health Records. When a novel pathogen emerges, such as a spe-cific COVID-19 variant, confirmed cases are initially scarce (k-shot). Yet, the diagnostic model must rapidly adapt to identify the new strain within the massive stream of patient data. Crucially, the adaptation must occur without losing the ability to diagnose established pathologies like pneumonia. To address these challenges, we introduce SPRINT ( Semi-supervised Prototypical Representation for IN cremental 
+
+Tabular learning), a semi-supervised prototypical network designed for tabular FSCIL. Our key contributions are: • First FSCIL framework tailored for tabular data :We formalize Few-Shot Class-Incremental Learning (FSCIL) for tabular data under a setting that allows retention of base data as memory and access to unla-1
+
+> arXiv:2603.04321v1 [cs.CV] 4 Mar 2026 Semi-Supervised Prototypical Networks for Few-Shot Class Incremental Learning
+
+beled data pools, a computationally feasible and opera-tionally realistic scenario for tabular data applications. • Semi-Supervised Prototype Expansion : We propose an adaptive strategy that utilizes high-confidence un-labeled samples, enriching novel class representations beyond k-shot examples. • Mixed Episodic Training : We introduce a mixed episodic training strategy that simultaneously opti-mizes base class rehearsal (sampled from the retained history) and semi-supervised novel adaptation. This implicit joint optimization prevents catastrophic forget-ting without requiring complex regularization penalties like distillation. • State-of-the-Art Stability : Extensive evaluation across six diverse benchmarks (including cybersecu-rity, healthcare, and ecological domains) demonstrates SPRINT’s superior robustness. On the ACI-IoT-2023, SPRINT achieves 93.63% final accuracy with a neg-ligible forgetting rate of 2.54%, significantly outper-forming standard Prototypical Networks (12.03% for-getting) and incremental baselines. 
+
+## 2. Related Work 
+
+Few-shot learning aims to recognize novel classes from limited labeled examples by learning transferable represen-tations. Prototypical Networks (Snell et al., 2017) learn em-beddings where classes cluster around prototypes computed as mean embeddings, enabling nearest-neighbor classifi-cation in metric space. Matching Networks (Vinyals et al., 2016) employ attention mechanisms over support sets, while Relation Networks (Hu et al., 2018) learn non-linear dis-tance metrics. Meta-learning approaches like MAML (Finn et al., 2017) learn good initializations for rapid gradient-based adaptation to novel tasks. Few-shot learning has expanded beyond vision to graphs (e.g., (Guo et al., 2021; Xiong et al., 2018)) and tabular data. While STUNT (Nam et al., 2023) introduces tabular self-training and SSPNet (Su-leymanov et al., 2025) integrates semi-supervised pseudo-labeling, they are limited to static, single-session settings. Our work differs by tackling the incremental learning sce-nario where classes arrive sequentially and catastrophic forgetting must be prevented. 
+
+Class-incremental learning (CIL) addresses catastrophic forgetting when learning new classes sequentially. Tradi-tional approaches include: (1) regularization-based meth-ods that constrain parameter updates through knowledge distillation (Li & Hoiem, 2017) or elastic weight consolida-tion (Kirkpatrick et al., 2017), (2) replay-based methods 
+
+that store exemplars from previous classes for rehearsal (Re-buffi et al., 2017; Castro et al., 2018), and (3) architecture-based methods that allocate separate parameters for each task (Rusu et al., 2016; Yoon et al., 2017). iCaRL (Rebuffi et al., 2017) pioneered exemplar-based CIL by combining nearest-mean-of-exemplars classification with knowledge distillation. LUCIR (Hou et al., 2019) addresses classifier bias through cosine normalization and margin-based sepa-ration. However, these methods assume abundant data per novel class, making them unsuitable for few-shot scenarios. 
+
+Few-shot class-incremental learning (FSCIL) combines the challenges of few-shot learning and class-incremental learning. TOPIC (Tao et al., 2020) first formalized this prob-lem for vision, proposing to freeze the feature extractor after base training and learn neural gas networks for each session. FACT (Zhou et al., 2022) employs forward-compatible train-ing with self-supervised learning to prepare embeddings for future classes. However, all existing FSCIL methods: (1) operate exclusively on image data with spatial inductive biases, (2) assume only k-shot labeled examples per novel class, ignoring unlabeled data, (3) are unable to retain base data memory due to strict memory constraints. 
+
+Semi-supervised learning leverages unlabeled data to im-prove model performance. Pseudo-labeling (Lee, 2013) iteratively assigns labels to high-confidence predictions. Consistency regularization methods like Π-Model (Laine & Aila, 2016), Mean Teacher (Tarvainen & Valpola, 2017), and UDA (Xie et al., 2020) enforce prediction invariance under perturbations. FixMatch (Sohn et al., 2020) unifies these approaches by combining weak-to-strong augmen-tation consistency with confidence-based pseudo-labeling. To our knowledge, no prior work has investigated semi-supervised learning for FSCIL, despite unlabeled data being abundant in many real-world tabular data applications. 
+
+Positioning of Our Work. Our work is the first to com-bine semi-supervised learning with FSCIL in tabular data applications. Unlike vision-based FSCIL methods that must operate under memory-constrained settings, we leverage the operational reality where: (1) base class data memory can be retained because of compliance (e.g., logging network traffic for compliance reasons), operational needs, and neg-ligible memory requirements, and (2) unlabeled data are continuously collected (e.g., most of the network traffic data are not labeled). We show that even with the base data ac-cess, standard FSCIL methods suffer significant forgetting (17.32%), and that semi-supervised pseudo-labeling reduces this to 5.24% by enriching novel class representations. 
+
+## 3. Problem Formulation 
+
+We formalize Few-Shot Class-Incremental Learning (FS-CIL) for tabular domains where operational constraints necessitate robust retention of historical knowledge. Learn-ing proceeds over T + 1 sessions. In the base session 2Semi-Supervised Prototypical Networks for Few-Shot Class Incremental Learning Base Labeled               
+
+> Data ( 𝓢 (𝟎 ))
+> Sample
+> Base
+> Episode
+> Compute
+> Base
+> Prototypes
+> Calculate
+> Base Loss
+> Episodic Training
+> (Prototypical
+> Networks )
+> Initial
+> Encoder
+> (𝒇 𝛉 )
+> Novel Labeled
+> Data
+> (𝓢 (𝒕 ),k-shot)
+> Unlabeled
+> Data Pool ( 𝓤 )
+> Novel Labeled
+> (𝓢 (𝒕 ))
+> Pseudo -Labeled
+> (𝓤 ∗(𝒕 ))
+> Base Memory
+> (𝓢 (𝟎 ))
+> Compute
+> Distances to
+> prototypes
+> Select High -
+> Confidence
+> Samples
+> Assign
+> Pseudo -
+> Labels
+> Pseudo -Labeled Data ( 𝓤 ∗(𝒕 ))
+> Current
+> Encoder (𝒇 θ)
+> Updated
+> Base &
+> Novel
+> Prototype s
+> Joint
+> Optimizatio n
+> 𝓛 (𝒕 )=𝜷 ∙𝓛 𝒑𝒓𝒐𝒕𝒐
+> +(𝟏 −𝜷 )∙𝓛 𝒔𝒆𝒎𝒊
+> Combined
+> Pool
+> Sample
+> Base &
+> Novel
+> Classes
+> Compute
+> Mixed
+> Prototypes
+> Calculate
+> Semi -
+> Supervised
+> Loss (𝓛 semi )
+> Sample
+> Base
+> Classes
+> Compute
+> Base
+> Prototypes
+> Calculate
+> Base Loss
+> (𝓛 proto )
+> Mixed Episodic Training Loop
+> Sub -episode 1: Base Rehearsal
+> Base
+> Prototype s
+> Calcu lat e
+> Prototypes
+> Current
+> Encoder
+> (𝒇 𝛉 )
+> Nearest
+> Prototype
+> Classification
+> Inference
+> Test Sample
+> (𝔁 𝒕𝒆𝒔𝒕 )
+> Prediction ( 𝔂 𝒕𝒆𝒔𝒕 )
+> Base Session (t=0)
+> Base Session (t=0)
+> Incremental Session (t>0)
+> Incremental Session (t>0)
+> Sub -episode 2: Semi -Supervised Novel Learning
+
+Figure 1. Schematic overview of the SPRINT framework. 
+
+(t = 0 ), the model learns classes C(0) from a large la-beled dataset S(0) = {(xi, y i)}Ni=1 . In incremental ses-sions t ∈ { 1, . . . , T }, disjoint novel classes C(t) are intro-duced via k-shot support sets S(t) = {(x(t)
+
+i , y (t)
+
+i )}, where 
+
+|{ j : y(t)
+
+j = c}| = k for all c ∈ C (t). Additionally, a pool of unlabeled data (e.g., unlabeled network traffic data) 
+
+U(t) = {x(t)
+
+j }Ut
+
+j=1 is continuously available. 
+
+Problem Definition. Given base data stored in a memory buffer M(0) ⊆ S (0) , few-shot novel class samples S(t) (k
+
+per class), and unlabeled data U(t), learn an embedding function fθ : RD → RM (where D is the input feature dimension) that: (1) maintains high accuracy on base classes 
+
+C(0) across all sessions without catastrophic forgetting, and (2) learns novel classes C(t) from k labeled examples. 
+
+Memory and Storage Assumption. Diverging from the fixed-buffer constraints of vision benchmarks, we retain the base dataset as memory M(0) ⊆ S (0) . While retain-ing large high-velocity streams is infeasible, maintaining a robust, representative archive of historical signatures (e.g., the base training corpus) is operationally viable due to the negligible storage footprint of tabular records relative to high-dimensional images (e.g., a 40-feature tabular record requires ≈ 160 bytes, whereas a single 224 ×224 image requires ≈ 150 KB, a ≈ 1000 × difference). Furthermore, in domains like Network Intrusion Detection, data retention is often required for audit compliance for certain time pe-riods, and maintaining high detection rates on previously seen attack signatures is critical to avoid exploitable vulner-abilities. We empirically validate that this strategy scales effectively across diverse fields, ranging from healthcare to environmental monitoring. 
+
+Memory and Storage Assumption. Diverging from the fixed-buffer constraints of vision benchmarks, we retain the base dataset as memory M(0) = S(0) . While retaining large high-velocity streams is infeasible, maintaining a ro-bust, representative archive of historical signatures (e.g., the base training corpus) is operationally viable due to the neg-ligible storage footprint of tabular records relative to high-dimensional images. Furthermore, in domains like Network Intrusion Detection, data retention is often required for audit compliance for certain time period and maintaining high de-tection rates on previously seen attack signatures is critical to avoid exploitable vulnerabilities. We empirically vali-date that this strategy scales effectively across diverse fields, ranging from healthcare to environmental monitoring. 
+
+Unlabeled Data Composition. To emulate realistic open-world streams, we model the operational lag between data ingestion and expert annotation . In high-velocity domains like NIDS, unlabeled traffic arrives continuously; when a novel class emerges (e.g., a zero-day attack), instances accumulate in the system’s log buffer long before an analyst identifies and labels the first few signatures. Consequently, while the labeled support set S(t) is sparse ( k-shot), the unlabeled pool U naturally contains latent samples of this current novel class ( y ∈ C (t)), mixed with historical base data ( y ∈ C (0) ) and unlabeled instances of future classes (y ∈ C (>t )). This creates a challenging pseudo-labeling scenario requiring the model to distinguish relevant signals 3Semi-Supervised Prototypical Networks for Few-Shot Class Incremental Learning 
+
+from diverse noise. 
+
+## 4. Base Session Training 
+
+We employ episodic training with Prototypical Networks (Snell et al., 2017) for base session training. Each training episode samples Nway classes from C(0) and constructs a support set Sep (with ktrain samples per class) and a query set 
+
+Qep . For each class c in the episode, the prototype is com-puted as p(0)  
+
+> c
+
+= 1
+
+> |S c, ep |
+
+P 
+
+> (xi,y i)∈S c, ep
+
+fθ (xi). Classification is performed via a negative distance softmax, pθ (y = c |
+
+xq ) = exp( −∥ fθ (xq )−p(0)       
+
+> c∥22)
+> P
+> c′∈C ep exp( −∥ fθ(xq)−p(0)
+> c′∥22)
+
+, and the base training loss is Lbase = − 1
+
+> |Q ep |
+
+P   
+
+> (xq,y q)∈Q ep
+
+log pθ (y = yq | xq ).
+
+## 5. Incremental Session Training 
+
+5.1. Encoder Update with Forgetting Mitigation Encoder Parameter Update. Unlike methods that freeze the encoder after base training, we continue updating θ dur-ing incremental sessions. This allows the embedding space to adapt to novel classes while maintaining discriminability for base classes. At each incremental session, training loss is composed of two complementary losses: 1. Base class loss L(t) 
+
+> proto
+
+generated on data sampled from 
+
+M(0) (as defined in Eq. 2). 2. Novel class semi-supervised loss L(t) 
+
+> semi
+
+combining la-beled S(t) and pseudo-labeled U∗(t) (Eq. 4). This mixed episodic training ensures θ simultaneously op-timizes for both base class retention and novel class learn-ing. Critically, we do not employ explicit regularization penalties (e.g., knowledge distillation). Instead, forgetting prevention emerges from joint optimization: gradients from 
+
+L(t) 
+
+> proto
+
+continuously replay base class discrimination tasks, maintaining the embedding space’s ability to separate base classes. 
+
+5.2. Confidence-Based Pseudo-Labeling 
+
+At the onset of an incremental session t, we first initialize a prototype for each new class c ∈ C (t) using its limited k-shot labeled examples: p(t, 0)  
+
+> c
+
+= 1
+
+> k
+
+P 
+
+> (xi,y i)∈S (t),y i=c
+
+fθ (xi).We then project the entire unlabeled pool U into the em-bedding space and compute the Euclidean distance dj,c 
+
+between each unlabeled sample xj and all currently active prototypes: dj,c = ∥fθ (xj ) − pc∥22, ∀c ∈ C (≤t).Each sample is assigned a pseudo-label ˆyj = arg min c dj,c 
+
+corresponding to its nearest prototype. To mitigate the risk of noisy predictions, we filter these assignments by selecting only the most confident samples. Specifically, for each novel class c ∈ C (t), we retain the top-m samples with the smallest distances to the class prototype, forming the high-confidence set: 
+
+U∗(t) 
+
+> c
+
+= {xj ∈ U : ˆ yj = c and dj,c ranks in top-m} (1) These filtered subsets are aggregated into a final pseudo-labeled pool U∗(t) = S 
+
+> c∈C (t)
+
+U∗(t) 
+
+> c
+
+, which is subsequently used to augment the training distribution in the semi-supervised phase. 
+
+5.3. Episodic Training with Mixed Supervision 
+
+Our training strategy interleaves base class rehearsal with semi-supervised novel class learning within each episode. Unlike methods that alternate between different episode types across training iterations, we compute both losses in every episode and optimize their weighted combination. 
+
+Sub-episode 1: Base Class Rehearsal. We first reinforce base knowledge by randomly sampling Nway classes from 
+
+C(0) . For each selected class c, we draw k support and q
+
+query samples from the memory buffer M(0) to construct the base support set Sbase (size Nway · k) and query set Qbase 
+
+(size Nway · q). We compute base class prototypes pbase  
+
+> c
+
+by averaging the embeddings of support samples. Subsequently, we compute the base class prototypical loss 
+
+L(t) 
+
+> proto
+
+by minimizing the negative log-probability of the true class for the query samples: 
+
+L(t) 
+
+> proto
+
+= − 1
+
+|Q base |
+
+X  
+
+> (xq,y q)∈Q base
+
+log pθ (y = yq | xq ) (2) where the probability is given by the softmax over negative Euclidean distances: 
+
+pθ (y = c | xq ) = exp( −∥ fθ (xq ) − pbase  
+
+> c
+
+∥22)
+
+P 
+
+> c′∈C ep
+
+exp( −∥ fθ (xq ) − pbase  
+
+> c′
+
+∥22) (3) 
+
+Sub-episode 2: Semi-Supervised Novel Class Learning. 
+
+To enrich the representation of novel classes, we construct a combined data pool Dcombined = S 
+
+> c∈C (t)
+
+(S(t) 
+
+> c
+
+∪ U ∗(t) 
+
+> c
+
+)
+
+for each class c ∈ C (t), aggregating the k labeled exam-ples with the high-confidence pseudo-labeled samples se-lected in Phase 1. From this pool, we form the novel support set Ssemi and query set Qsemi by sampling k and 
+
+q instances per class, respectively; if the pseudo-labeled count is insufficient, we oversample labeled data with re-placement. Crucially, to enforce decision boundaries be-tween established and emerging classes, we augment these sets with samples from Nway base classes drawn from 
+
+M(0) . This yields the full semi-supervised support set 
+
+Sfull semi = Sbase ∪ S semi and query set Qfull semi = Qbase ∪ Q semi ,containing a total of (Nway + |C (t)|) · k support samples. Prototypes psemi  
+
+> c
+
+are computed over this mixed support 4Semi-Supervised Prototypical Networks for Few-Shot Class Incremental Learning 
+
+set: psemi  
+
+> c
+
+= 1
+
+> |S full
+> c, semi |
+
+P 
+
+> (xi,ˆyi)∈S full semi ,ˆyi=c
+
+fθ (xi) and the semi-supervised loss is derived from the mixed query set: 
+
+L(t) 
+
+> semi
+
+= − 1
+
+|Q full semi |
+
+X  
+
+> (xq,ˆyq)∈Q full semi
+
+log pθ (y = ˆ yq | xq ) (4) 
+
+Joint Optimization. Ideally, the model should retain base knowledge while adapting to novel clusters. We achieve this by optimizing a weighted combination of the base re-hearsal loss and the semi-supervised loss at each episode e,controlled by a balancing coefficient β ∈ [0 , 1] :
+
+L(t)(e) = β · L (t) 
+
+> proto
+
++ (1 − β) · L (t) 
+
+> semi
+
+(5) Parameters are updated via standard gradient descent θ ←
+
+θ − η∇θ L(t)(e).
+
+Implicit Forgetting Prevention. Distinct from methods that rely on explicit regularization penalties (e.g., Elastic Weight Consolidation or distillation), our approach enforces retention implicitly through the loss structure. The L(t)
+
+> proto
+
+term continuously replays base discrimination tasks, ensur-ing the embedding space maintains separability for C(0) .Simultaneously, L(t) 
+
+> semi
+
+aligns novel class embeddings rel-ative to these stable base anchors, utilizing the abundant pseudo-labeled data to form tighter, more robust clusters than would be possible with only k labeled examples. 
+
+## 6. Computational Complexity Analysis 
+
+Inference Complexity. At inference time, SPRINT main-tains identical computational complexity to standard Prototypical Networks (Snell et al., 2017), as pseudo-labeling only occurs during incremental training. The semi-supervised component introduces zero inference overhead ,making SPRINT suitable for production deployment with real-time latency requirements. 
+
+Training Efficiency and Scalability . A critical advantage of SPRINT is its operational efficiency . Unlike replay-based distillation methods (e.g., iCaRL (Rebuffi et al., 2017)) where computational cost scales linearly with the size of the memory buffer ( O(|M (0) |)), SPRINT employs sparse episodic sampling (i.e., constructing episodes by sam-pling small support and query sets from the memory buffer). This mechanism decouples training latency from memory capacity, allowing the system to leverage the memory buffer for stability without incurring the computational penalty of dense rehearsal. Consequently, SPRINT achieves an order-of-magnitude reduction in incremental adaptation time com-pared to dense replay baselines (empirically ≈ 18 × faster under identical memory constraints), while avoiding the prohibitive second-order costs of optimization-based meta-learning. Detailed Big-O derivations and empirical runtime comparisons are provided in Appendix A. 
+
+## 7. Experiments 
+
+Datasets and Experimental Protocols. To evaluate cross-domain robustness, we utilize a diverse suite of benchmarks spanning cybersecurity (ACI-IoT-2023 (Bastian et al., 2023), CIC-IDS2017 (Sharafaldin et al., 2018), CIC-IoT2023 (Neto et al., 2023)), healthcare (Obesity (Palechor & la Hoz Manotas, 2019)), ecological classification (CovType (Blackard, 1998)), and pattern recognition (MNIST (Le-Cun et al., 2010)). These datasets characterize a wide spectrum of feature space properties, ranging from high-dimensional inputs (up to 784 features) to compact fea-ture sets (as low as 31 features). Our evaluation follows a rigorous incremental schedule where each session intro-duces one novel class under data scarcity ( k-shot labeled instances, where k ∈ { 5, 10 }). Regarding base class re-tention, although the source datasets offer massive labeled pools (spanning 10 4 to 10 6 instances), we strictly limit our base memory M(0) to 2,000 samples per class for all large-scale tables (except Obesity, which is naturally smaller). This constraint ensures our evaluation remains rigorous and comparable to replay-based CIL standards (Rebuffi et al., 2017), preventing the trivialization of the forgetting chal-lenge while reflecting the storage efficiency of tabular fea-tures. We also perform strict memory ablations (detailed in Section 7.1) to benchmark against even tighter constraints. A summary of dataset statistics and experimental splits is presented in Table 1, while detailed descriptions of the class partitions are provided in Appendix B. 
+
+Implementation Details. Our feature extractor fθ consists of a 3-layer Multi-Layer Perceptron (MLP) with a hidden dimension of 1024 and ReLU nonlinearities. We employ the Adam optimizer with a learning rate of η = 0 .001 and no weight decay. For a fair comparison, all competing models utilize this MLP backbone, with the exception of CNN-ProtoNet . The latter incorporates a CNN-based fea-ture extractor, previously validated in incremental few-shot regimes (Di Monda et al., 2024), which we have adapted here for the tabular domain. Pseudo-labels are derived from an unlabeled pool of u = 30 , 000 samples and calculated only at the beginning of each session, with the number of high-confidence samples per class set to m = 100 , and are held constant throughout the duration of that session’s train-ing. Comprehensive details regarding hyperparameters and training configurations are provided in Appendix C. 
+
+Baselines. We benchmark SPRINT against three categories of competing methods. First, we evaluate classic few-shot learning methods including Prototypical Networks (Snell et al., 2017) and MAML (Finn et al., 2017). Second, we compare against established state-of-the-art FSCIL frame-works, specifically FACT (Zhou et al., 2022) and iCaRL (Rebuffi et al., 2017). Finally, to isolate the impact of our contributions, we implement two custom adapted baselines: 5Semi-Supervised Prototypical Networks for Few-Shot Class Incremental Learning 
+
+Table 1. Detailed configuration of dataset splits, class partitions, and base class memory budgets ( M (0) samples per base class) used in the FSCIL experiments. The Incr. Classes column lists categories introduced sequentially in sessions 1 . . . S .
+
+Dataset Feat. Base Classes ( Cbase ) Incr. Classes ( Cnovel ) M (0) / Class ACI-IoT-2023 (Bastian et al., 2023) 79 Benign, Dictionary, OS Scan, Port Scan, Ping Sweep, Vuln. Scan ICMP Flood, Slowloris, SYN Flood, DNS Flood 2,000 
+
+CIC-IDS2017 (Sharafaldin et al., 2018) 77 BENIGN, PortScan, DDoS, FTP-Patator, SSH-Patator DoS Hulk, DoS GoldenEye, DoS Slowhttptest, DoS slowloris 2,000 
+
+CIC-IoT2023 (Neto et al., 2023) 39 BENIGN, DNS Spoofing, DoS: HTTP, SYN, TCP, UDP, Mirai: Greeth, Greip, UDPPlain, MITM, Recon: Host, OS, Port, Vuln. Scan DDoS: Ack, HTTP, ICMP, ICMP-FRAG, PSHACK, RSTFIN, Synony-mousIP, SYN, TCP, UDP, UDP-Frag 2,000 
+
+Obesity (Palechor & la Hoz Manotas, 2019) 31 Insufficient Wgt, Normal Wgt, Over-weight Lvl I, Overweight Lvl II Obesity Type I, Obesity Type II, Obesity Type III 100 
+
+CovType (Blackard, 1998) 54 Spruce/Fir, Lodgepole Pine, Ponderosa Pine, Cottonwood/Willow Aspen, Douglas-fir, Krummholz 2,000 
+
+MNIST (LeCun et al., 2010) 784 Digits: 0, 1, 2, 3, 4, 5 Digits: 6, 7, 8, 9 2,000 
+
+Table 2. Summary of results on 6 datasets (5-shot setting). PD: Performance Dropping rate ( A0 − Alast ), Acc: Last session accuracy (Alast ). Avg-PD and Avg-Acc represent the average values across all datasets. Best results are in bold , second best in italics .METHOD ACI-I OT-2023 OBESITY CICIDS2017 CIC-I OT-2023 COV TYPE MNIST AVERAGE                                                                                                                                             
+
+> PD ↓ACC ↑PD ↓ACC ↑PD ↓ACC ↑PD ↓ACC ↑PD ↓ACC ↑PD ↓ACC ↑AVG -PD ↓AVG -A CC ↑
+> CNN P ROTO NET 9.49 76.22 5.04 55.53 23.51 69.91 0.99 53.56 9.72 45.87 8.89 81.10 9.61 63.70 FACT 8.06 69.93 10.71 14.29 15.17 18.42 -2.46 53.68 13.47 16.84 25.00 40.65 11.66 35.63 MAML 33.92 47.27 23.95 37.28 43.96 42.67 18.22 35.39 32.62 38.28 45.59 48.42 33.04 41.55 NEURON EXPANSION 12.33 85.79 22.60 59.45 20.92 74.01 30.71 60.39 30.33 50.08 27.13 70.90 24.00 66.77 PROTO NET 12.03 84.16 10.71 71.67 27.05 69.21 2.02 59.85 11.44 54.91 23.87 70.97 14.52 68.46
+> SEMI -S UPER -P ROTO NET 11.04 85.13 12.25 70.11 28.79 67.47 1.02 60.84 10.47 55.63 23.87 70.94 14.57 68.35
+> ICARL 9.81 89.18 9.70 74.80 17.78 80.23 6.27 68.86 33.43 53.47 26.95 71.00 17.32 72.92
+> SPRINT 2.54 93.63 3.61 78.76 13.45 82.80 -3.94 65.81 10.62 58.36 5.18 84.85 5.24 77.37
+
+Semi-Super-ProtoNet , a semi-supervised variant of ProtoNet that utilizes K-Means clustering for pseudo-label generation, and a tabular adaptation of Neuron Expansion (Di Monda et al., 2024). The latter is a transfer-learning approach that dynamically expands the classifier’s output layer for each incoming class while fine-tuning the backbone using a bal-anced replay buffer. Detailed implementation mechanics for Neuron Expansion are provided in Appendix D. We also compared against the self-supervised method STUNT (Nam et al., 2023); however, due to poor base session adaptation on these datasets, we detail those results in Appendix E. 
+
+Evaluation Metrics. Following the protocol from (Zhou et al., 2022), we evaluate the model using (1) Session-wise Accuracy (Ai), which denotes the Top-1 accuracy after session i on all currently observed classes; and (2) Perfor-mance Dropping Rate (PD) , which measures the extent of forgetting. PD is calculated as the difference between the base session accuracy ( A0) and the accuracy after the final session ( AS ), i.e., PD = A0 − AS .
+
+7.1. Main Results State-of-the-Art Performance. As detailed in Table 2, SPRINT outperforms all baselines in the 5-shot setting, achieving the lowest average PD ( 5.24% ) and highest fi-nal accuracy ( 77.37% ). On the challenging ACI-IoT-2023 dataset, SPRINT demonstrates exceptional stability with a PD of just 2.54% , outperforming the strongest baseline, iCaRL (PD = 9.81%). This advantage is visually confirmed in Figure 3, where SPRINT exhibits a tightly clustered ac-curacy distribution around 93.6%, contrasting sharply with the high-variance, lower-mean distribution of iCaRL. This improvement is statistically significant ( p < 0.001 , Cohen’s 
+
+d = 2 .98 ), verifying that our dual-loss objective effectively anchors the embedding space against catastrophic forgetting. Statistical analysis across all datasets further validates that SPRINT’s gains over the strongest baseline are significant (family-wise error rate α = 0 .05 ); for comprehensive hy-pothesis testing and effect size details, refer to the Statistical Significance Analysis in Appendix E. SPRINT proves robust across varying feature properties and architectures. On the high-dimensional MNIST dataset (784 features), using a CNN backbone, SPRINT achieves 
+
+84.85% accuracy, surpassing the specialized CNN-ProtoNet (81.10%). Figure 2 illustrates that SPRINT maintains a ”flat” performance curve on CIC-IDS2017 and MNIST, avoiding the drops seen in FACT and MAML. Furthermore, Table 3 confirms that this dominance holds regardless of data scarcity; SPRINT consistently outperforms the runner-up (iCaRL) by 3–4% in both 5-shot and 10-shot settings, demonstrating that our prototype refinement does not rely on large support sets. Crucially, while baselines like Neu-ron Expansion show strong initial performance (Session 0), 6Semi-Supervised Prototypical Networks for Few-Shot Class Incremental Learning 0 1 2 3 4    
+
+> Incremental Session
+> 20
+> 30
+> 40
+> 50
+> 60
+> 70
+> 80
+> 90
+> 100
+> Accuracy (%)
+> 2.57%
+> 5-Shot Setting
+> 01234
+> Incremental Session
+> 20
+> 30
+> 40
+> 50
+> 60
+> 70
+> 80
+> 90
+> 100
+> 3.05%
+> 10-Shot Setting
+> Model
+> CNN ProtoNet
+> FACT
+> MAML
+> Neuron Expansion
+> ProtoNet
+> Semi-Super-ProtoNet
+> iCaRL
+> SPRINT (Ours)
+
+(a) CIC-IDS2017 0 1 2 3 4     
+
+> Incremental Session
+> 40
+> 50
+> 60
+> 70
+> 80
+> 90
+> 100
+> Accuracy (%)
+> 3.74%
+> 5-Shot Setting
+> 01234
+> Incremental Session
+> 40
+> 50
+> 60
+> 70
+> 80
+> 90
+> 100
+> 3.23%
+> 10-Shot Setting
+> Model
+> CNN ProtoNet
+> FACT
+> MAML
+> Neuron Expansion
+> ProtoNet
+> Semi-Super-ProtoNet
+> iCaRL
+> SPRINT (Ours)
+
+(b) MNIST 
+
+Figure 2. Session-wise accuracy comparison on the a) CICIDS2017 and b) MNIST datasets. The annotation highlights the performance margin of SPRINT over the second-best method in the final incremental session. 
+
+Table 3. Comparison of different models on ACI-IoT-2023 dataset (5-shot and 10-shot). Values indicate mean accuracy (%). Best results per session are in bold , second-best in italics . The ‘Imp.’ column shows the accuracy improvement of SPRINT over each method. METHOD 5-SHOT 10-SHOT 
+
+0 1 2 3 4 IMP . 0 1 2 3 4 IMP .CNN P ROTO NET 85.70 82.47 80.96 81.94 76.22 +17.42 88.25 85.33 84.49 85.14 79.91 +15.35 
+
+FACT 77.99 76.23 74.73 75.85 69.93 +23.71 84.45 84.60 83.47 84.76 78.39 +16.88 
+
+MAML 81.18 66.98 60.06 54.87 47.27 +46.37 83.43 68.98 61.29 55.50 47.93 +47.34 
+
+NEURON EXPANSION 98.11 88.58 88.38 88.05 85.79 +7.85 98.16 92.28 90.71 91.06 89.98 +5.29 
+
+PROTO NET 96.19 89.15 86.33 87.06 84.16 +9.47 97.23 90.86 87.57 88.08 85.25 +10.02 
+
+SEMI -S UPER -P ROTO NET 96.17 91.01 89.18 88.84 85.13 +8.50 97.24 92.72 90.00 89.61 85.88 +9.38 
+
+> I
+
+CARL 98.99 97.06 95.49 94.68 89.18 +4.45 98.96 97.43 96.59 96.28 92.04 +3.23 
+
+SPRINT 96.17 96.17 96.29 95.91 93.63 – 97.24 96.63 97.02 96.96 95.27 –84 86 88 90 92 94 96 
+
+> Accuracy
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> Density
+> SPRINT vs iCaRL | mean_diff=4.455 | Cohen's d=2.983
+> SPRINT (n=30)
+> iCaRL (n=30)
+
+Figure 3. Distribution of Top-1 Accuracy (Final Session). Kernel Density Estimate (KDE) and histogram comparison of SPRINT vs. iCaRL over 30 independent runs on the ACI-IoT-2023 dataset. SPRINT exhibits a sharp, high-confidence peak around 93.6%, demonstrating superior stability and minimal variance compared to the broader distribution of iCaRL. 
+
+they fail to match SPRINT’s adaptability in later sessions, confirming that structural expansion alone is insufficient without robust prototype maintenance. 
+
+Ablation Study. Table 4 isolates the contribution of each component on ACI-IoT-2023. Naively applying prototyp-ical loss ( Lproto ) to the Baseline degrades performance (82.64%) due to overfitting. Adding semi-supervised clus-
+
+Table 4. Ablation study accuracy (%) on ACI-IoT-2023 (5-shot). METHOD 1 2 3 4BASELINE 89.15 86.33 87.06 84.16 + Lproto 88.84 85.77 86.09 82.64 + Lsemi −clust. 91.01 89.18 88.84 85.13 SPRINT 96.17 96.29 95.91 93.63 
+
+tering loss ( Lsemi −clust. ) reverses this trend (85.13%), con-firming the value of unlabeled data. The most significant gain is achieved by the full SPRINT framework, marking an 8.5% improvement . This demonstrates that SPRINT’s superior performance stems from the synergistic interplay 
+
+between continuous base class rehearsal (which anchors the embedding space) and semi-supervised expansion (which refines novel class boundaries) 
+
+Architectural Validation and Stability. We analyze the impact of the distance metric within the prototypical frame-work. As shown in Figure 4a, Euclidean distance consis-tently outperforms Cosine similarity, achieving an accu-racy of 95.27% on the ACI-IoT-2023 dataset compared to 87.96%. This aligns with findings by Snell et al. (2017), who note that Euclidean distance is a Bregman divergence, for which the cluster mean is the optimal representative. In 7Semi-Supervised Prototypical Networks for Few-Shot Class Incremental Learning CIC-IDS2017 ACI-IoT-2023 
+
+> 60
+> 70
+> 80
+> 90
+> 100
+> Accuracy (%)
+> 64.72
+> 82.05 81.37
+> 88.15
+> 70.55
+> 85.25
+> 87.96
+> 95.27
+> ProtoNet (Cosine)
+> SPRINT (Cosine)
+> ProtoNet (Euclidean)
+> SPRINT (Euclidean)
+
+(a) Distance Metric Analysis. Base New Harmonic M.  
+
+> 40
+> 50
+> 60
+> 70
+> 80
+> 90
+> 100
+> Accuracy (%)
+> CNN_NE
+> MAML
+> Neur. Exp.
+> ProtoNet
+> Semi-Sup-Proto
+> SPRINT
+
+(b) Non-incremental Setting. 1 2 3 4                   
+
+> Incremental Session
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> Betta (  )
+> 95.50 95.40 95.43 93.47
+> 96.15 95.73 95.78 93.65
+> 95.87 95.86 95.87 94.05
+> 96.20 95.91 95.79 93.72
+> 95.72 95.84 95.83 93.62
+> 88.84 85.77 86.09 82.64 84
+> 86
+> 88
+> 90
+> 92
+> 94
+> 96
+
+(c) β Sensitivity. 1 2 3 4                 
+
+> Incremental Session
+> 100 200 300 400 500
+> Top m
+> 96.17 96.29 95.91 93.63
+> 95.70 95.37 95.69 93.62
+> 95.79 95.90 95.86 94.28
+> 95.64 95.64 95.50 94.06
+> 95.60 95.32 95.57 94.01 94.0
+> 94.5
+> 95.0
+> 95.5
+> 96.0
+
+(d) Pseudo-label Pool Size 
+
+Figure 4. Design Analysis and Ablation Studies. (a) Impact of distance metrics on classification accuracy. (b) Evaluation in non-incremental setting. (c) Sensitivity of the loss balancing term β.(d) Influence of the number of pseudo-samples on Top-1 accuracy. 
+
+contrast, simple averaging is not the distance-minimizing operation for Cosine similarity, leading to suboptimal clus-ter representations. Additionally, we evaluated the model in a non-incremental setting (Figure 4b), where all novel classes are introduced simultaneously. SPRINT achieves the highest Harmonic Mean among competing models. 
+
+Hyperparameter Sensitivity. We analyze the impact of the loss coefficient β and pseudo-label pool size m. As shown in Figure 4c, performance remains stable for β ∈ [0 .4, 0.6] 
+
+but drops sharply to 82.64% when β = 1 .0. This decline confirms that the semi-supervised objective ( Lsemi ), which is nullified at β = 1 .0, is essential for learning novel classes. Conversely, the model exhibits high robustness to m (Figure 4d), with accuracy fluctuating marginally (93.62%–94.28%) across settings, indicating that filtering for high confidence is more critical than the exact quantity of pseudo-labels. 
+
+Robustness to Memory Constraints. To investigate whether SPRINT’s performance is contingent on large mem-ory buffers, we conducted a rigorous sensitivity analysis on the base class memory budget ( M (0) ). We varied the retained samples per base class from M (0) = 4000 down to severe constraint regimes ( M (0) ∈ { 1000 , 500 , 100 , 50 }). 50 100 500 1000 2000 4000                  
+
+> M(0) per each Base Class
+> 75
+> 80
+> 85
+> 90
+> 95
+> 100
+> Accuracy (%)
+> 82.48 82.97 82.75 83.42 84.16 83.11
+> 88.14 89.47 89.47 88.87 90.03 89.52 89.46
+> 91.65 93.36 93.51 93.63 93.60
+> ProtoNet iCaRL SPRINT (Ours)
+
+(a) Effect of Base Class Memory Budget ( M (0) ). Sensitivity analysis of Top-1 accuracy on the final session of ACI-IoT-2023. 0 1 2 3 4
+
+Incremental Session 
+
+80 
+
+85 
+
+90 
+
+95 
+
+100 
+
+> Accuracy (%)
+> 1-Shot
+> 5-Shot
+> 10-Shot
+> 15-Shot
+> 20-Shot
+
+(b) Shot Availability ( k). 0 20 40 60 80 100 
+
+Pseudo-label Accuracy (%)  
+
+> 6
+> 7
+> 8
+> 9
+> Class
+> 94.3%
+> 98.7%
+> 68.3%
+> 90.9%
+> 96.6%
+> 97.5%
+> 86.0%
+> 96.1%
+> Setting
+> 5-shot
+> 10-shot
+
+(c) Pseudo-label Reliability. 
+
+Figure 5. Sensitivity and Component Analysis. (a) Influence of the memory budget M (0) on final retention. (b) model accuracy vs shot number. (c) Breakdown of pseudo-label accuracy, demon-strating the effectiveness of the semi-supervised component. 
+
+As illustrated in Figure 5a, SPRINT maintains a consistent performance advantage over iCaRL and ProtoNets across the entire spectrum, indicating that our dual-loss optimiza-tion anchors the latent space efficiently without requiring excessive storage. In terms of data availability, the shot abla-tion results in Figure 5b reveals that while the 1-shot setting suffers degradation ( ≈81% by Session 4), performance sta-bilizes rapidly at K ≥ 5, with near-identical trajectories for 10, 15, and 20-shot settings. This efficiency is under-pinned by the high quality of unlabelled data integration; as shown in Figure 5c, the system generates highly reli-able pseudo-labels even in low-data regimes (e.g., Class 7 achieves 98.7% accuracy), ensuring that the semi-supervised component reinforces correct decision boundaries. 
+
+## 8. Conclusion 
+
+We presented SPRINT, the first semi-supervised few-shot class-incremental learning method for tabular domains. By leveraging unlabeled data streams, SPRINT significantly advances the trade-off between stability and plasticity in-herent to continuous learning in high-stakes applications. Empirical validation across cybersecurity, healthcare, and ecological benchmarks confirms that SPRINT reduces catas-trophic forgetting by over 3× compared to standard base-8Semi-Supervised Prototypical Networks for Few-Shot Class Incremental Learning 
+
+lines. Ultimately, this work opens new research directions for continual learning in tabular domain .
+
+Limitations and Future Work. While our retention strat-egy is efficient for standard tabular datasets, it may face challenges in strictly regulated environments where data storage is restricted by privacy laws (e.g., HIPAA). Future work will explore privacy-preserving replay mechanisms. 
+
+## Acknowledgment 
+
+The research reported herein was supported by Army Re-search Office (ARO) award W911NF-24-2-0114. The views and opinions presented herein are those of the authors and do not necessarily represent the views of ARO or its compo-nents. 
+
+## Impact Statement 
+
+Societal Benefits. This paper presents a foundational frame-work for adaptable learning in tabular streams, with im-plications in various domains. In cybersecurity, SPRINT enhances the resilience of critical infrastructure by enabling intrusion detection systems to adapt to zero-day attacks rapidly. Beyond defense, this framework holds significant potential for public health, where it could accelerate the identification of emerging pathogens (e.g., novel virus vari-ants) within electronic health records without disrupting diagnostic capabilities for established diseases. Similarly, in environmental monitoring, it enables real-time tracking of shifting ecological patterns from sensor arrays without the computational cost of constant retraining. 
+
+## References 
+
+Bastian, N., Bierbrauer, D., McKenzie, M., and Nack, E. ACI IoT Network Traffic Dataset 2023, 2023. URL https://dx.doi.org/10.21227/ qacj-3x32 .Blackard, J. Covertype. UCI Machine Learning Repository, 1998. DOI: https://doi.org/10.24432/C50K5N. Castro, F. M., Mar ´ın-Jim ´enez, M. J., Guil, N., Schmid, C., and Alahari, K. End-to-end incremental learning. In 
+
+Proceedings of the European conference on computer vision (ECCV) , pp. 233–248, 2018. Cohen, J. Statistical power analysis for the behavioral sciences . routledge, 2013. Di Monda, D., Montieri, A., Persico, V., Voria, P., De Ieso, M., and Pescap `e, A. Few-Shot Class-Incremental Learn-ing for Network Intrusion Detection Systems. IEEE Open Journal of the Communications Society , 5:6736–6757, 2024. doi: 10.1109/OJCOMS.2024.3481895. Dunn, O. J. Multiple comparisons among means. Journal of the American statistical association , 56(293):52–64, 1961. Finn, C., Abbeel, P., and Levine, S. Model-Agnostic Meta-Learning for Fast Adaptation of Deep Networks. In In-ternational Conference on Machine Learning , pp. 1126– 1135. PMLR, 2017. Guo, Z., Zhang, C., Yu, W., Herr, J., Wiest, O., Jiang, M., and Chawla, N. V. Few-Shot Graph Learning for Molecular Property Prediction. In Proceedings of the Web Conference 2021 , WWW ’21, pp. 2559–2567, New York, NY, USA, 2021. Association for Comput-ing Machinery. ISBN 9781450383127. doi: 10.1145/ 3442381.3450112. URL https://doi.org/10. 1145/3442381.3450112 .Hou, S., Pan, X., Loy, C. C., Wang, Z., and Lin, D. Learn-ing a unified classifier incrementally via rebalancing. In 
+
+Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pp. 831–839, 2019. Hu, H., Gu, J., Zhang, Z., Dai, J., and Wei, Y. Relation Net-works for Object Detection. In Proceedings of the IEEE conference on computer vision and pattern recognition ,pp. 3588–3597, 2018. Kirkpatrick, J., Pascanu, R., Rabinowitz, N., Veness, J., Des-jardins, G., Rusu, A. A., Milan, K., Quan, J., Ramalho, T., Grabska-Barwinska, A., et al. Overcoming catastrophic forgetting in neural networks. Proceedings of the national academy of sciences , 114(13):3521–3526, 2017. Laine, S. and Aila, T. Temporal ensembling for semi-supervised learning. arXiv preprint arXiv:1610.02242 ,2016. Langley, P. Crafting papers on machine learning. In Langley, P. (ed.), Proceedings of the 17th International Conference on Machine Learning (ICML 2000) , pp. 1207–1216, Stan-ford, CA, 2000. Morgan Kaufmann. LeCun, Y., Cortes, C., and Burges, C. Mnist hand-written digit database. ATT Labs [Online]. Available: http://yann.lecun.com/exdb/mnist , 2, 2010. Lee, D.-H. Pseudo-Label : The Simple and Efficient Semi-Supervised Learning Method for Deep Neural Networks. In ICML Workshop on Challenges in Representation Learning , 2013. Li, Z. and Hoiem, D. Learning without Forgetting. IEEE transactions on pattern analysis and machine intelligence ,40(12):2935–2947, 2017. Nam, J., Tack, J., Lee, K., Lee, H., and Shin, J. STUNT: Few-shot Tabular Learning with Self-generated Tasks 9Semi-Supervised Prototypical Networks for Few-Shot Class Incremental Learning 
+
+from Unlabeled Tables. arXiv preprint arXiv:2303.00918 ,2023. Neto, E. C. P., Dadkhah, S., Ferreira, R., Zohourian, A., Lu, R., and Ghorbani, A. A. CICIoT2023: A Real-Time Dataset and Benchmark for Large-Scale Attacks in IoT Environment. Sensors , 23(13):5941, 2023. Palechor, F. M. and la Hoz Manotas, A. D. Dataset for estimation of obesity levels based on eating habits and physical condition in individuals from colombia, peru and mexico. Data in Brief , 25, 2019. URL https://api.semanticscholar. org/CorpusID:201195793 .Rebuffi, S.-A., Kolesnikov, A., Sperl, G., and Lampert, C. H. icarl: Incremental classifier and representation learning. In Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR) , July 2017. Rusu, A. A., Rabinowitz, N. C., Desjardins, G., Soyer, H., Kirkpatrick, J., Kavukcuoglu, K., Pascanu, R., and Had-sell, R. Progressive neural networks. arXiv preprint arXiv:1606.04671 , 2016. Sharafaldin, I., Lashkari, A. H., and Ghorbani, A. A. To-ward Generating a New Intrusion Detection Dataset and Intrusion Traffic Characterization. In International Con-ference on Information Systems Security and Privacy ,2018. Snell, J., Swersky, K., and Zemel, R. Prototypical networks for few-shot learning. Advances in Neural Information Processing Systems , 30, 2017. Sohn, K., Berthelot, D., Carlini, N., Zhang, Z., Zhang, H., Raffel, C. A., Cubuk, E. D., Kurakin, A., and Li, C.-L. FixMatch: Simplifying Semi-Supervised Learning with Consistency and Confidence. Advances in Neural Information Processing Systems , 33:596–608, 2020. Suleymanov, U., Kantarcioglu, M., Chan, K. S., De Lucia, M., Hamlen, K., Khan, L., Mehrotra, S., Swami, A., and Thuraisingham, B. SSPNet: Semi-Supervised Prototypi-cal Networks for Few-Shot Network Intrusion Detection. In MILCOM 2025 - 2025 IEEE Military Communica-tions Conference (MILCOM) , pp. 800–806, 2025. doi: 10.1109/MILCOM64451.2025.11310333. Tao, X., Hong, X., Chang, X., Dong, S., Wei, X., and Gong, Y. Few-shot class-incremental learning. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pp. 12183–12192, 2020. Tarvainen, A. and Valpola, H. Mean teachers are better role models: Weight-averaged consistency targets improve semi-supervised deep learning results. Advances in neural information processing systems , 30, 2017. Vinyals, O., Blundell, C., Lillicrap, T., Kavukcuoglu, K., and Wierstra, D. Matching Networks for One Shot Learn-ing. In Advances in Neural Information Processing Sys-tems , volume 29, 2016. Xie, Q., Dai, Z., Hovy, E., Luong, T., and Le, Q. Un-supervised data augmentation for consistency training. 
+
+Advances in neural information processing systems , 33: 6256–6268, 2020. Xiong, W., Yu, M., Chang, S., Guo, X., and Wang, W. Y. One-shot relational learning for knowledge graphs. arXiv preprint arXiv:1808.09040 , 2018. Yoon, J., Yang, E., Lee, J., and Hwang, S. J. Lifelong learning with dynamically expandable networks. arXiv preprint arXiv:1708.01547 , 2017. Zhang, C., Song, N., Lin, G., Zheng, Y., Pan, P., and Xu, Y. Few-shot incremental learning with continually evolved classifiers. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pp. 12455– 12464, 2021. Zhou, D.-W., Wang, F.-Y., Ye, H.-J., Ma, L., Pu, S., and Zhan, D.-C. Forward Compatible Few-Shot Class-Incremental Learning. In 2022 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) ,pp. 9036–9046, 2022. doi: 10.1109/CVPR52688.2022. 00884. 10 Semi-Supervised Prototypical Networks for Few-Shot Class Incremental Learning 
+
+## A. Detailed Computational Complexity Analysis 
+
+In this section, we provide a granular breakdown of the computational operations required for SPRINT. We assume a standard MLP encoder architecture fθ : RD → RM with hidden dimensions [h1, h 2, M ]. Throughout this analysis, D
+
+denotes the input feature dimensionality, M denotes the embedding dimensionality, and |C (≤t)| denotes the total number of classes seen up to session t.
+
+A.1. Inference Complexity 
+
+At inference time, SPRINT maintains identical computational complexity to standard Prototypical Networks . For a test sample xtest ∈ RD , prediction requires computing the embedding fθ (xtest ) ∈ RM with cost O(D · M ), followed by distance computation ∥fθ (xtest ) − pc∥22 to all |C (≤t)| prototypes with cost O(|C (≤t)| · M ), and finally classification via argmin with cost O(|C (≤t)|). The total inference complexity is therefore O(D · M + |C (≤t)| · M ).This matches standard ProtoNet exactly, as pseudo-labeling only occurs during training. The semi-supervised compo-nent introduces zero inference overhead , making SPRINT suitable for production deployment with real-time latency requirements. 
+
+A.2. Training Complexity Base Session (Session 0): Both ProtoNet and SPRINT perform identical episodic training with complexity O(Ebase · Nway ·
+
+(k + q) · D · M ) for Ebase episodes. 
+
+Incremental Session Phase 1: Pseudo-labeling (once per session). For each unlabeled sample xj ∈ U batch , we compute embeddings and distances to all |C (≤t)| = |C (0) | + t prototypes, requiring O(D · M + |C (≤t)| · M ) operations per sample. We then sort distances to select the top-m samples per novel class with complexity O(|U batch | · log |U batch |). The total pseudo-labeling cost is: O(|U batch | · [( D + |C (≤t)|) · M + log |U batch |]) . Crucially, empirical stability does not rely on |U batch |
+
+being exhaustively large; in our experiments, a moderate batch size of |U batch | = 30 , 000 proved sufficient to capture the manifold structure of novel classes while keeping this step computationally negligible. 
+
+Incremental Session Phase 2: Mixed Episodic Training (for Einc episodes). Each episode computes two losses through distinct forward passes. First, we sample Nway base classes with k support and q query samples per class from M(0) ,computing L(t) 
+
+> proto
+
+with cost O(Nway · (k + q) · D · M ). Second, we sample (Nway + |C (t)|) classes (base + novel) from the combined labeled and pseudo-labeled pool, computing L(t) 
+
+> semi
+
+with cost O(( Nway + |C (t)|) · (k + q) · D · M ). Since both sub-episodes execute in every training iteration, the total forward pass cost per episode is O((2 Nway +|C (t)|)·(k +q)·D ·M ).The combined loss L(t) = β · L (t) 
+
+> proto
+
++ (1 − β) · L (t) 
+
+> semi
+
+requires one backward pass with complexity matching the forward pass. For Einc episodes, Phase 2 complexity is O(Einc · (2 Nway + |C (t)|) · (k + q) · D · M ).
+
+Total Incremental Session Complexity: 
+
+O(|U batch | · |C (≤t)| · M + Einc · (2 Nway + |C (t)|) · (k + q) · D · M )
+
+A.3. Forward and Backward Pass Operations Encoder Forward Pass Cost ( Cf wd ). For a single input sample x ∈ RD , the forward pass through a 3-layer MLP involves matrix-vector multiplications and additions: Layer 1: D · h1 mults + h1 adds Layer 2: h1 · h2 mults + h2 adds Layer 3: h2 · M mults + M adds Assuming h1 ≈ h2 ≈ M for simplicity, the dominant complexity is: 
+
+Cf wd ≈ O(D · M + M 2) ≈ O(D · M ) (since D ≥ M ) (6) 
+
+Encoder Backward Pass Cost ( Cbwd ). Using standard automatic differentiation (backpropagation), the computational cost is proportional to the forward pass: 
+
+Cbwd ≈ 2 · Cf wd = O(D · M ) (7) 11 Semi-Supervised Prototypical Networks for Few-Shot Class Incremental Learning 
+
+Prototype Computation ( Cproto ). Computing a prototype for class c by averaging k support embeddings requires k · M
+
+additions and M divisions: 
+
+Cproto (k) = O(k · M ) (8) 
+
+Distance & Loss Computation ( Cdist ). For a query set of size NQ and a support set of NC classes: • Pairwise Euclidean distances: O(NQ · NC · M )
+
+• Softmax & Log-likelihood: O(NQ · NC )
+
+A.4. Phase 1: Pseudo-labeling Detailed Breakdown 
+
+This phase occurs once at the beginning of each incremental session t.
+
+Step 1: Batch Forward Pass. We process the entire unlabeled batch Ubatch to generate embeddings. 
+
+Tstep 1 = |U batch | · Cf wd = O(|U batch | · D · M ) (9) 
+
+Step 2: Distance Matrix Calculation. We compute distances between every unlabeled sample and all existing prototypes 
+
+C(≤t).
+
+Tstep 2 = |U batch | · |C (≤t)| · M (10) 
+
+Step 3: Top-m Selection. For each novel class c ∈ C (t), we select the top-m high-confidence samples. This involves a partial sort (e.g., via a heap or introselect) of the distance vector of size |U batch |.
+
+Tstep 3 = |C (t)| · O(|U batch | · log m) (11) 
+
+Total Phase 1 Complexity: 
+
+Tphase 1 ≈ O
+
+
+
+|U batch | ·  D · M + |C (≤t)| · M + |C (t)| log m
+
+(12) Given that |C (t)| ≪ D and log m is negligible, this is dominated by the embedding generation: O(|U batch | · D · M ).
+
+A.5. Phase 2: Mixed Episodic Training Detailed Breakdown 
+
+For each of the Einc training episodes, we perform two sub-episodes involving forward and backward passes. 
+
+Sub-episode 1: Base Rehearsal ( L(t)
+
+> proto
+
+). This phase utilizes data from Nway classes, each comprising k support and q query samples, for a total of S1 = Nway (k + q) samples. The forward pass embeds these S1 samples with a computational cost of 
+
+S1 · Cf wd . Subsequently, prototype construction involves averaging Nway clusters at a cost of Nway · k · M . Finally, distance calculation is performed between the Nway · q query samples and the Nway prototypes, incurring a cost of N 2 
+
+> way
+
+· q · M .
+
+Sub-episode 2: Semi-Supervised Learning ( L(t)
+
+> semi
+
+). This phase expands the scope to (Nway + |C (t)|) classes, yielding a total sample size of S2 = ( Nway + |C (t)|)( k + q). The forward pass embeds these S2 samples with a cost of S2 · Cf wd .Prototype construction then averages the (Nway + |C (t)|) clusters at a cost of (Nway + |C (t)|) · k · M . The process concludes with distance calculations between queries and prototypes, with a complexity of (Nway + |C (t)|)2 · q · M .
+
+A.6. Phase 2: Mixed Episodic Training Detailed Breakdown 
+
+For each of the Einc training episodes, we perform two sub-episodes involving forward and backward passes. 
+
+Backward Pass (Joint Optimization). We perform backpropagation on the weighted loss L = βLproto + (1 − β)Lsemi .This requires gradients for all samples processed in both sub-episodes. 
+
+Tbackward = ( S1 + S2) · Cbwd = O
+
+
+
+(2 Nway + |C (t)|)( k + q) · D · M
+
+
+
+(13) 
+
+Total Phase 2 Complexity (Per Episode): Summing forward, backward, and metric computations, the per-episode cost is dominated by the embedding of samples: 
+
+Tepisode ≈ O
+
+
+
+(2 Nway + |C (t)|) · (k + q) · D · M
+
+
+
+(14) 12 Semi-Supervised Prototypical Networks for Few-Shot Class Incremental Learning 
+
+A.7. Empirical Runtime Analysis 
+
+To validate our complexity analysis, we profiled the wall-clock training time of the incremental learning phase on the ACI-IoT-2023 dataset. We compared SPRINT against iCaRL (Rebuffi et al., 2017) under identical experimental conditions: a fixed memory budget of |M (0) | = 2 , 000 samples per class and the same hardware configuration (NVIDIA L40S). 
+
+Infrastructure Setup. All experiments were conducted on a high-performance computing node equipped with 8 × NVIDIA L40S GPUs (48 GB GDDR6 VRAM per accelerator) running on Driver Version 580.95.05 (CUDA 13.0). To ensure a fair comparison and isolate algorithmic efficiency from multi-GPU parallelism, the runtime profiling utilized a single GPU instance . The software environment was configured with Python 3.12.6, PyTorch 2.4.1 (CUDA 12.1 runtime), Numpy 2.1.1, and Scikit-learn 1.5.2. 100 200 300 
+
+> Training Epochs
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100
+> 120
+> 140
+> 160
+> Training Time (s)
+> 18.3x
+> 18.7x
+> 19.2x
+> Incremental Session Training Time Comparison
+> SPRINT
+> iCaRL
+
+Figure 6. Incremental Training Latency Comparison. Training runtime (in seconds) averaged across all incremental sessions and 10 independent runs. Numbers above bars indicate the speedup factor ( TiCaRL /T SPRINT ). SPRINT consistently achieves an ≈ 18 × reduction in training latency due to its sparse episodic sampling strategy, which decouples computational cost from the total memory buffer size. 
+
+Table 5. Training time profiling (seconds). Results averaged over 10 independent runs ( ± std dev). 
+
+METHOD 100 E POCHS 200 E POCHS 300 E POCHS SPEEDUP 
+
+> I
+
+CARL 57 .09 ± 1.87 111 .78 ± 0.98 170 .21 ± 0.48 1.0×
+
+SPRINT 3.12 ± 0.15 5.97 ± 0.14 8.87 ± 0.17 18 .3×
+
+As illustrated in Figure 6, SPRINT exhibits an order-of-magnitude efficiency gain. For a standard training duration of 100 epochs, iCaRL requires 57.1s, whereas SPRINT completes the optimization in just 3.1s ( 18 .3× speedup). This discrepancy arises because iCaRL’s dense replay mechanism forces a full pass over the expanded memory buffer ( |M (0) | · Nway ) in every epoch. In contrast, SPRINT’s episodic strategy samples small batches ( Nway · (k + q)) from memory, keeping per-iteration costs constant and low regardless of the total buffer size. Table 5 provides the detailed measurements. 
+
+A.8. Memory Complexity Storage ( M(0) ). Unlike image domains where retaining raw pixels is prohibitive, storing tabular base data is highly efficient. For M (0) samples per class and |C (0) | base classes: Storage = |C (0) | · M (0) · D · sizeof(float) (15) For ACI-IoT-2023 ( D = 79 , |C (0) | = 6 , M (0) = 2000 ), this requires ≈ 3.8 MB, which is negligible for modern hardware. 
+
+## B. Detailed Class Partitions and Split Configurations 
+
+In this section, we provide the specific experimental configurations, class partitions, and data splits used to benchmark SPRINT against state-of-the-art methods. To ensure a rigorous Few-Shot Class-Incremental Learning (FSCIL) evaluation, 13 Semi-Supervised Prototypical Networks for Few-Shot Class Incremental Learning 
+
+we categorize the classes of each dataset into two disjoint sets: • Base Classes ( Cbase ): Classes available during the initial offline training phase (Session 0). • Novel Classes ( Cnovel ): Classes introduced sequentially in subsequent incremental sessions (1 class per session). The partitions are stratified to ensure semantic separation between base knowledge and novel concepts. We utilize a fixed number of samples per class ( Nsource ) for the base training to simulate varying degrees of data availability. 
+
+A.1 Cybersecurity Datasets 
+
+• ACI-IoT-2023 (Bastian et al., 2023): We utilize the 2023 IoT dataset to evaluate performance on modern attack vectors. The base session is constructed using 6 classes, comprising Benign traffic and surveillance-related attacks (e.g., OS Scan , Port Scan ). The incremental phase introduces 4 distinct flooding attacks ( ICMP Flood , Slowloris , etc.) to test the model’s adaptability to high-volume traffic anomalies. • CIC-IDS2017 (Sharafaldin et al., 2018): A standard network intrusion detection benchmark. We select 5 classes for the base session, covering normal traffic and brute-force activities ( FTP/SSH Patator ). The incremental sessions introduce 4 variants of Denial of Service (DoS) attacks, requiring the model to distinguish between subtle variations of volumetric attacks. • CIC-IoT2023 (Neto et al., 2023): To test scalability, we implement a large-scale split on this dataset. The base session includes 14 diverse classes, ranging from Mirai botnet activities to reconnaissance tactics. The incremental phase is extensive, introducing 11 novel classes focused primarily on various DDoS implementations. 
+
+A.2 Tabular & Medical Datasets 
+
+• Obesity (Palechor & la Hoz Manotas, 2019): This dataset categorizes health risk based on physical attributes and habits. We create an ordinal split where ”lower risk” categories ( Insufficient Weight , Normal , Overweight ) form the base knowledge ( |Cbase | = 4 ). The higher-risk categories ( Obesity Type I, II, III ) are introduced as novel classes (|Cnovel | = 3 ), testing the model’s ability to learn severity progression. • CovType (Blackard, 1998): We utilize the standard forest cover type classification problem. The first 4 cover types (Spruce/Fir, Lodgepole Pine, Ponderosa Pine, Cottonwood/Willow ) are used for base training. The remaining 3 types (Aspen, Douglas-fir, Krummholz ) are introduced incrementally. • MNIST (LeCun et al., 2010): To benchmark our architecture on high-dimensional pattern recognition tasks, we utilize the MNIST dataset in a flattened tabular format. Each 28 × 28 pixel grayscale image is treated as a 1D feature vector, resulting in a high-dimensionality input space of 784 features ( R784 ). This setup specifically tests the model’s ability to extract meaningful prototypes from sparse, high-dimensional tabular data. We utilize the first 6 digits (0–5) for base training and introduce the remaining digits (6–9) incrementally. 
+
+## C. Appendix: Implementation Details 
+
+To ensure reproducibility and statistical rigor, we detail the hyperparameters and evaluation protocols used in our experiments in Table 6. 
+
+Experimental Protocol. Evaluation results are reported as the mean accuracy over 30 independent runs . Within each run, we sample 500 randomly generated test episodes to minimize variance and ensure that reported confidence intervals reflect true model stability. Following standard few-shot protocols (Snell et al., 2017), the size of the support set is fixed to match the shot number K (e.g., in a 5-shot experiment, the support set contains 5 examples per class). 
+
+Hyperparameter Configuration. Our dual-loss objective is balanced using a coefficient β = 0 .5, giving equal weight to the prototypical and semi-supervised components. The model is trained for 300 episodes per session with a learning rate of 0.001 . For the semi-supervised component, we utilize an unlabeled dataset size of u = 30 , 000 to ensure sufficient diversity in the transductive inference stage. The number of query points is set to 15 per class. Regarding the pseudo-labeling mechanism, we set the maximum number of high-confidence samples added to the support set, m, to 100 . This threshold 14 Semi-Supervised Prototypical Networks for Few-Shot Class Incremental Learning 0.800     
+
+> 0.825
+> 0.850
+> 0.875
+> 0.900
+> Accuracy (%)
+> Accuracy vs. Number of Training Epochs
+> 20 40 60 80 100
+> Number of Epochs
+> 70.0
+> 72.5
+> 75.0
+> 77.5
+> F1 Score (%)
+> F1 Score vs. Number of Training Epochs
+
+Figure 7. Impact of Training Duration on Neuron Expansion. Performance sensitivity (Top-1 Accuracy and F1 Score) of the Neuron Expansion model across varying epoch counts on the ACI-IoT-2023 dataset. The model achieves peak stability around 30 epochs, after which performance plateaus or slightly degrades, indicating limited benefit from prolonged training. 
+
+was empirically selected to strike a balance between computational efficiency and the reliability of the augmented support set; increasing m beyond this point yields diminishing returns while increasing the risk of introducing noisy labels into the prototypical cluster computation. 
+
+Table 6. Summary of implementation hyperparameters and evaluation protocols. 
+
+Parameter Value Description 
+
+Evaluation Protocol 
+
+Independent Runs 30 Number of distinct random seeds used for reporting means Test Episodes 500 Number of episodes evaluated per run Support Set Size K Matches the K-shot setting (Snell et al., 2017) Query Points ( NQ) 15 Number of query samples per class per episode 
+
+Training & Optimization 
+
+Training Episodes 300 Episodes per incremental session Learning Rate 0.001 Initial learning rate for the optimizer 
+
+β (Balancing Term) 0.5 Weight for Lsemi vs Lproto 
+
+Semi-Supervised Component 
+
+Unlabeled Set Size ( u) 30,000 Size of the available unlabeled pool Pseudo-label Limit ( m) 100 Max high-confidence samples added per class 
+
+## D. Implementation Details of Neuron Expansion 
+
+Following the transfer-learning paradigm described in (Di Monda et al., 2024), we implement Neuron Expansion as a dynamic architectural baseline. Unlike static classifiers, this method physically modifies the network structure during the incremental adaptation phase ( T1) to accommodate novel concepts. 
+
+Architecture. Consistent with our proposed method, the backbone fθ (·) is a 3-layer MLP with 1,024 hidden units and ReLU activations. The final classification layer ϕ(·) is dynamic, growing with the number of observed classes. 
+
+Training Protocol. The learning process is divided into two phases: • Pre-training ( T0): The model is initially trained on the disjoint base set Cbase using standard Cross-Entropy loss. Let 15 Semi-Supervised Prototypical Networks for Few-Shot Class Incremental Learning 
+
+Table 7. Summary of results on 6 datasets (10-shot setting). PD: Performance Dropping rate ( A0 − Alast ), Acc: Last session accuracy (Alast ). Avg-PD and Avg-Acc represent the average values across all datasets. Best results are in bold , second best in italics .                                                                                                                                    
+
+> Method ACI-IoT-2023 Obesity CICIDS2017 CIC-IoT-2023 CovType MNIST Average
+> PD Acc PD Acc PD Acc PD Acc PD Acc PD Acc Avg-PD Avg-Acc
+> CNN ProtoNet 8.33 79.91 5.53 60.32 21.02 73.34 0.68 56.17 9.39 49.21 7.11 86.09 8.68 67.51 FACT 6.06 78.39 11.15 15.19 13.29 18.71 -3.04 53.83 12.70 16.40 22.63 40.59 10.47 37.19 MAML 35.50 47.93 26.13 38.62 43.53 43.31 19.44 34.44 32.86 39.19 44.17 49.89 33.61 42.23 Neuron Expansion 8.18 89.98 14.40 67.74 17.54 77.22 28.77 62.15 28.60 51.94 19.40 78.68 19.48 71.29 ProtoNet 11.98 85.25 10.35 72.71 26.17 70.55 2.45 61.40 10.94 57.24 22.27 73.23 14.03 70.06 Semi-Super-ProtoNet 11.36 85.88 13.14 69.95 27.15 69.59 0.35 63.49 10.53 57.79 22.79 72.70 14.22 69.90 iCaLR 6.92 92.04 5.88 79.27 13.15 84.91 5.34 69.51 29.48 57.68 21.15 76.93 13.66 76.72
+> SPRINT 1.97 95.27 -0.84 83.92 8.77 87.96 -3.97 67.82 10.26 61.37 3.91 89.32 3.35 80.94
+
+Wold and bold denote the weights and biases of the classifier ϕold after this phase. • Incremental Adaptation ( T1): Upon the arrival of a novel class cnew , we apply the following expansion strategy: 1. Structural Expansion: We expand the output layer dimension from |Cold | to |Cold |+1 . A new neuron is appended to the classifier ϕ, initialized with random weights, while the existing weights corresponding to previously learned classes are explicitly copied from the previous session to preserve historical knowledge: 
+
+Wnew [1 : |Cold |] ← Wold , bnew [1 : |Cold |] ← bold (16) 2. Balanced Fine-Tuning: To mitigate class imbalance between the abundant base classes and the scarce novel class (few-shot), we construct a balanced mini-batch. We sample K support examples from the new class and replay K
+
+examples randomly sampled from the stored source data. 3. Optimization: The full network ⟨θ, ϕ ⟩ is fine-tuned using the Adam optimizer ( η = 0 .001 ) to integrate the new decision boundary without catastrophically disrupting the feature embedding space. To determine the optimal training duration for the parameter isolation baseline, we analyzed the sensitivity of the Neuron Expansion model to the number of training epochs. As illustrated in Figure 7, we tracked both Top-1 Accuracy and F1 Score on the ACI-IoT-2023 dataset (Session 4) across a range of 10 to 100 epochs. The results indicate that performance saturates relatively quickly; the model reaches near-peak F1 scores ( ≈75%) by 30 epochs. Extending training beyond this point (e.g., to 80 or 100 epochs) yields negligible gains and, in some cases, minor degradation due to overfitting on the limited support set. Consequently, we selected an early stopping point for Neuron Expansion to balance computational efficiency with generalization performance 
+
+## E. Additional Analysis 
+
+E.1. Statistical Significance Analysis 
+
+To rigorously validate the performance improvements of SPRINT, we conducted statistical significance tests based on 30 independent evaluation runs . For each dataset, we compared the final session accuracy of SPRINT against competing models using a one-sided Welch’s t-test (unequal variances), testing the hypothesis that SPRINT’s mean accuracy is strictly greater than that of the baseline ( H1 : μSP RIN T > μ baseline ). To control the family-wise error rate (FWER) due to multiple comparisons, we applied the Bonferroni correction (Dunn, 1961). We also report Cohen’s d (Cohen, 2013) to quantify the effect size, classifying the magnitude of improvement. 
+
+Analysis on ACI-IoT-2023. Table 8 details the pairwise comparisons for the ACI-IoT-2023 dataset. SPRINT demonstrates statistically significant superiority over all competitors at the 95% confidence level ( α = 0 .05 ). The improvement is most pronounced against meta-learning approaches like MAML ( ∆ ≈ 46% , d = 23 .14 ) and standard ProtoNets ( ∆ ≈ 9.5% ,
+
+d = 8 .94 ). Crucially, SPRINT also significantly outperforms the strongest incremental baseline, iCaRL, with a mean improvement of 4.46% and a large effect size ( d = 2 .98 , p < 0.001 ). 
+
+Visualizing Cross-Domain Stability. While the main text illustrates the stability of SPRINT on network traffic data (Figure 3), we provide further evidence of cross-domain robustness in Figure 8 using the CovType dataset. Here, the performance gap is even more distinct: SPRINT achieves a mean improvement of 4.897% over iCaRL with an exceptionally large 16 Semi-Supervised Prototypical Networks for Few-Shot Class Incremental Learning 52 54 56 58 60 
+
+> Accuracy
+> 0.0
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> Density
+> SPRINT vs iCaRL | mean_diff=4.897 | Cohen's d=4.596
+> SPRINT (n=30)
+> iCaRL (n=30)
+
+Figure 8. Distribution of Top-1 Accuracy (Final Session, t = 4 ). Kernel Density Estimate (KDE) and histogram comparison of SPRINT vs. iCaRL over 30 independent runs on the CovType dataset. SPRINT shows a substantial performance shift ( ∆ ≈ 4.9% ) with a large effect size ( d = 4 .60 ), exhibiting a distribution that is completely separated from the baseline. 
+
+effect size ( d = 4 .60 ). The KDE plots reveal two entirely disjoint distributions, indicating that SPRINT outperforms the baseline in every single random trial ( n = 30 ), thereby confirming that our dual-loss optimization provides consistent gains regardless of seed initialization or data shuffling. 
+
+Table 8. Bonferroni-corrected one-sided p-values and effect sizes (Cohen’s d) for SPRINT vs. competing models on ACI-IoT-2023 (5-shot, Final Session). Results are based on 30 independent runs. Bold indicates statistical significance ( p < 0.05 ). 
+
+MODEL COMPARED TO MEAN ∆ (%) COHEN ’S d p (B ONF .) SIG .
+
+SPRINT MAML 46.366 23.14 <0.001 YES 
+
+SPRINT FACT 23.707 1.88 <0.001 YES 
+
+SPRINT CNN P ROTO NET 17.417 12.40 <0.001 YES 
+
+SPRINT PROTO NET 9.471 8.94 <0.001 YES 
+
+SPRINT SEMI -S UPER -P ROTO 8.502 5.18 <0.001 YES 
+
+SPRINT NEUR . E XP . 7.846 3.32 <0.001 YES 
+
+SPRINT ICARL 4.455 2.98 <0.001 YES 
+
+Cross-Dataset Consistency. To verify generalization, we extended this analysis to all six benchmark datasets, specifically comparing SPRINT against the most competitive baseline, iCaRL. As summarized in Table 9, SPRINT achieves statistically significant gains in 5 out of 6 datasets. The effect sizes range from 1.11 (CIC-IDS2017) to 6.96 (MNIST), indicating a robust improvement. The sole exception is CIC-IoT-2023, where SPRINT performs comparably to iCaRL (no significant gain detected), likely due to the specific feature distribution of that dataset favoring the replay mechanism of iCaRL. However, across the majority of diverse network traffic and tabular benchmarks, SPRINT consistently provides a statistically significant advantage. 
+
+E.2. Detailed Stability and Variance Analysis 
+
+To evaluate the reliability of SPRINT against stochastic variations in episode generation and weight initialization, we analyze the performance distributions over 30 independent runs, as illustrated in Figure 9. 
+
+Variance. A critical requirement for deployment in security-critical domains is predictability. As shown in the boxplots, SPRINT exhibits markedly lower variance compared to competing methods. In the 5-shot setting, the Interquartile Range (IQR) for SPRINT remains tightly constrained even in the final session (Session 4), whereas baselines like iCaRL and CNN-ProtoNet show expanded whiskers and broader IQRs. This indicates that SPRINT’s dual-loss optimization landscape is robust to random seed variations, consistently converging to high-quality solutions regardless of the specific support set 17 Semi-Supervised Prototypical Networks for Few-Shot Class Incremental Learning 
+
+Table 9. Summary of statistical significance tests comparing SPRINT vs. iCaRL (the strongest baseline) across all datasets. Positive ∆
+
+indicates SPRINT outperforms iCaRL. 
+
+DATASET MEAN ∆ (%) COHEN ’S d p (B ONF .) SIG .ACI-I OT-2023 4.455 2.98 <0.001 YES 
+
+CIC-IDS2017 2.571 1.11 <0.001 YES 
+
+CIC-I OT-2023 -5.421 -4.02 1.00 NO
+
+COV TYPE 4.897 4.60 <0.001 YES 
+
+OBESITY 3.959 1.97 <0.001 YES 
+
+MNIST 13.852 6.96 <0.001 YES 
+
+Table 10. Bonferroni-corrected one-sided p-values and effect sizes (Cohen’s d) vs SPRINT on 5-shot last-session accuracies (CICIDS2017). All tests conducted at a 95% confidence level. MODEL COMPARED TO MEAN ∆ (%) COHEN ’S D P (B ONF .) SIGNIF . (B ONF .) SPRINT MAML 40.129 16.57 <0.001 YES 
+
+SPRINT FACT 64.381 17.88 <0.001 YES 
+
+SPRINT SEMI -S UPER -P ROTO NET 15.332 6.70 <0.001 YES 
+
+SPRINT PROTO NET 13.593 5.59 <0.001 YES 
+
+SPRINT CNN P ROTO NET 12.892 5.72 <0.001 YES 
+
+SPRINT NEURON EXPANSION 8.790 1.87 <0.001 YES 
+
+SPRINT ICARL 2.571 1.11 <0.001 YES 
+
+sampled. 
+
+Mitigation of Catastrophic Forgetting. The session-wise trajectory reveals distinct failure modes in baseline architectures. Gradient-based meta-learners like MAML suffer from severe degradation, with median accuracy dropping precipitously after the first incremental session. Similarly, while FACT maintains reasonable stability initially, it fails to scale to later sessions. In contrast, SPRINT maintains a near-flat performance curve. The median accuracy in the 5-shot setting remains above 93% throughout all sessions, with the lower quartile of the final session still outperforming the upper quartile of the strongest baseline (iCaRL). 
+
+Sensitivity to Support Set Size. Comparing the 5-shot (left) and 10-shot (right) panels demonstrates SPRINT’s data efficiency. While increasing the shot count to K = 10 naturally tightens the distributions for all models, SPRINT’s relative advantage persists. Even with abundant data, replay-based methods like iCaRL struggle to balance the plasticity-stability trade-off as effectively as SPRINT, which leverages high-confidence pseudo-labels to virtually expand the support set, effectively simulating a higher-shot regime even when data is scarce. 
+
+E.3. Additional Baseline Comparisons: Self-Supervised Learning (STUNT) 
+
+Table 11. Comparison of self-supervised baseline STUNT versus SPRINT on 5-shot incremental settings. While STUNT exhibits low PD in some cases due to poor initial base learning, SPRINT consistently achieves superior final accuracy ( Alast ) while maintaining low performance degradation. 
+
+Dataset STUNT SPRINT PD (%) ↓ Acc (%) ↑ PD (%) ↓ Acc (%) ↑
+
+ACI-IoT-2023 -0.23 72.26 2.54 93.63 
+
+CIC-IoT-2023 -3.42 54.95 -3.94 65.81 
+
+CICIDS2017 10.99 57.58 13.45 82.80 
+
+CovType 12.91 45.65 10.62 58.36 
+
+MNIST 12.11 57.56 5.18 84.85 
+
+Average 6.47 57.60 5.24 77.37 
+
+To ensure a comprehensive evaluation, we extended our study to include STUNT (Few-shot Tabular Learning with Self-18 Semi-Supervised Prototypical Networks for Few-Shot Class Incremental Learning Session 0 Session 1 Session 2 Session 3 Session 4     
+
+> Session
+> 40
+> 50
+> 60
+> 70
+> 80
+> 90
+> 100
+> Accuracy
+> Accuracy Distribution by Session (5-shot)
+> ProtoNet
+> CNN ProtoNet
+> Neuron Expansion
+> MAML
+> Semi-Super-ProtoNet
+> FACT
+> iCaRL
+> SPRINT
+> Session 0 Session 1 Session 2 Session 3 Session 4
+> Session
+> 40
+> 50
+> 60
+> 70
+> 80
+> 90
+> 100
+> Accuracy
+> Accuracy Distribution by Session (10-shot)
+> ProtoNet
+> CNN ProtoNet
+> Neuron Expansion
+> MAML
+> Semi-Super-ProtoNet
+> FACT
+> iCaRL
+> SPRINT
+
+Figure 9. Session-wise Performance Distribution and Stability. Comparison of Top-1 accuracy distributions across 30 independent runs on the CICIDS2017 dataset for (left) 5-shot and (right) 10-shot settings. The boxplots visualize the variance and median performance at each incremental session. SPRINT (purple) demonstrates superior stability with minimal variance and negligible performance decay compared to baselines like iCaRL and MAML, which exhibit significant inter-run volatility and catastrophic forgetting. 
+
+generated Tasks) (Nam et al., 2023), a leading self-supervised method for tabular few-shot learning. The comparative results against SPRINT are detailed in Table 11. 
+
+Analysis of the Stability-Plasticity Trade-off. While STUNT achieves low, and occasionally negative , Performance Dropping (PD) rates (e.g., -3.42% on CIC-IoT-2023), this metric presents a deceptive picture of stability. Although negative PD typically implies backward transfer (performance gain), here it is an artifact of representation rigidity and a performance floor effect. As evidenced by the absolute accuracy ( Alast ), STUNT significantly underperforms supervised and semi-supervised baselines. For instance, on CICIDS2017, STUNT achieves a final accuracy of only 57.58% compared to SPRINT’s 82.80%. This phenomenon indicates that STUNT suffers from a failure to adapt : the model initializes with low discriminative power (preventing significant degradation) and remains trapped in that sub-optimal regime throughout incremental sessions. Unlike SPRINT, which demonstrates high plasticity (learning new classes effectively) while maintaining stability via dual-loss optimization, STUNT prioritizes representation rigidity at the expense of acquiring novel concepts. Figure 10 corroborates this, showing that STUNT’s accuracy distributions are consistently suppressed in lower quartiles compared to the high-confidence distributions of SPRINT. Consequently, we excluded these results from the main text to focus the discussion on baselines that achieve operationally viable accuracy. 19 Semi-Supervised Prototypical Networks for Few-Shot Class Incremental Learning S0 S1 S2 S3 S4 
+
+> Session
+> 30
+> 40
+> 50
+> 60
+> 70
+> 80
+> 90
+> 100
+> Accuracy (%)
+
+ACI_IoT_2023     
+
+> S0 S1 S2 S3 S4
+> Session
+> 30
+> 40
+> 50
+> 60
+> 70
+> 80
+> 90
+> 100
+
+CICIDS2017    
+
+> S0 S1 S2 S3
+> Session
+> 30
+> 40
+> 50
+> 60
+> 70
+> 80
+> 90
+> 100
+
+CovType     
+
+> S0 S1 S2 S3 S4
+> Session
+> 30
+> 40
+> 50
+> 60
+> 70
+> 80
+> 90
+> 100
+
+MNIST    
+
+> S0 S1 S2 S3
+> Session
+> 30
+> 40
+> 50
+> 60
+> 70
+> 80
+> 90
+> 100
+
+obesity  
+
+> STUNT SPRINT
+
+Figure 10. Distribution of Incremental Performance (5-Shot). Comparative violin plots of session-wise accuracy for STUNT (Nam et al., 2023) and SPRINT across five datasets. The distributions reveal a distinct performance gap: SPRINT consistently operates in a high-accuracy regime (top quartiles), whereas STUNT remains stagnated at lower accuracy levels. 
+
+20

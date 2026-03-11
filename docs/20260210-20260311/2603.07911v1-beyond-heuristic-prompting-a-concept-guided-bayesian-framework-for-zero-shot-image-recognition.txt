@@ -1,0 +1,972 @@
+Title: Beyond Heuristic Prompting: A Concept-Guided Bayesian Framework for Zero-Shot Image Recognition
+
+URL Source: https://arxiv.org/pdf/2603.07911v1
+
+Published Time: Tue, 10 Mar 2026 01:46:53 GMT
+
+Number of Pages: 19
+
+Markdown Content:
+# Beyond Heuristic Prompting: A Concept-Guided Bayesian Framework for Zero-Shot Image Recognition 
+
+## Hui Liu 1, Kecheng Chen 1, Jialiang Wang 1,2 , Xianming Liu 2, Wenya Wang 3, Haoliang Li 11City University of Hong Kong 2Harbin Institute of Technology 3Nanyang Technological University 
+
+## Abstract 
+
+Vision-Language Models (VLMs), such as CLIP, have sig-nificantly advanced zero-shot image recognition. However, their performance remains limited by suboptimal prompt engineering and poor adaptability to target classes. While recent methods attempt to improve prompts through diverse class descriptions, they often rely on heuristic designs, lack versatility, and are vulnerable to outlier prompts. This pa-per enhances prompt by incorporating class-specific con-cepts. By treating concepts as latent variables, we rethink zero-shot image classification from a Bayesian perspec-tive, casting prediction as marginalization over the con-cept space, where each concept is weighted by a prior and a test-image conditioned likelihood. This formulation un-derscores the importance of both a well-structured concept proposal distribution and the refinement of concept priors. To construct an expressive and efficient proposal distribu-tion, we introduce a multi-stage concept synthesis pipeline driven by LLMs to generate discriminative and composi-tional concepts, followed by a Determinantal Point Pro-cess to enforce diversity. To mitigate the influence of out-lier concepts, we propose a training-free, adaptive soft-trim likelihood, which attenuates their impact in a single for-ward pass. We further provide robustness guarantees and derive multi-class excess risk bounds for our framework. Extensive experiments demonstrate that our method consis-tently outperforms state-of-the-art approaches, validating its effectiveness in zero-shot image classification. Our code is available at https://github.com/less-and-less-bugs/CGBC .
+
+## 1. Introduction 
+
+Zero-shot image recognition refers to classifying images into classes unseen during training. Vision-language mod-els 1 (VLMs) [10, 30, 32, 42, 54–56] have revolutionized  
+
+> 1Since CLIP is trained on hundreds of millions of text-image pairs sourced from the internet, Radford et al. [42] evaluate its zero-shot ca-pability at the dataset level.
+
+this area through large-scale natural language supervision, enabling the understanding of a broad range of visual con-cepts far beyond traditional model capabilities. A notable example is CLIP [42], which achieves zero-shot classifica-tion without task-specific fine-tuning by aligning image and text representations in a shared embedding space. Specifi-cally, the test images are projected using the visual encoder, while class names are incorporated into a predefined prompt template (e.g., “A photo of {class }”) and encoded via the text encoder. Classification is determined by maximal sim-ilarity between these image and text embeddings. However, the performance of such paradigm often re-mains suboptimal in real-world scenarios, likely due to inef-fective prompt engineering [63, 64] and limited adaptation to target classes [15, 21, 58, 61]. To address this, exist-ing approaches [14, 28, 34, 46, 59] apply image augmenta-tions to create multiple views and aggregate predictions via specific optimization objectives such as entropy minimiza-tion. Another line of work [16, 38, 40] enhances the single prompt with multiple LLM-generated class descriptions or subclass labels (e.g., “bulldog” for “dog”), to better exploit the model’s knowledge beyond class names. Notably, the latter group only requires offline prompt generation and en-coding, thus eliminating the computational latency of test-time view processing and optimization. Despite their promise, prompt-enhanced methods exhibit limited versatility, particularly in fine-grained classifica-tion tasks (e.g., “2000 AM General Hummer SUV” in the Cars dataset [26]), where defining meaningful sub-classes is inherently difficult. Moreover, these approaches rely on heuristic designs without theoretical grounding and system-atic evaluation. For example, CuPL [39] queries LLMs with multiple class-related questions (e.g., What does {class }
+
+look like?), uses the responses as prompts, and averages their similarity to the test image for classification, without further analysis of which types of prompts are most effec-tive. Additionally, as shown in Fig. 1, similarity scores be-tween these enhanced prompts and test images often follow a skewed or long-tail distribution, indicating the presence of outlier prompts that may degrade classification accuracy.       
+
+> arXiv:2603.07911v1 [cs.CV] 9 Mar 2026 Figure 1. Q–Q plots of similarity distributions between all Great White Shark images in ImageNet dataset and CuPL [40] prompts for this class and Porcupine. Departures from the normal refer-ence line indicate non-normality. Pronounced skewness is taken as |skewness |>0.5, and heavy tails as excess kurtosis >3.
+
+To address these challenges, we enhance prompts with class-specific concepts to leverage the rich visual knowl-edge encoded in VLMs, making the approach adaptable to varying levels of classification granularity. By treating con-cepts as latent variables, we rethink zero-shot image clas-sification from a Bayesian perspective and formulate it as marginalization over the concept space, where each con-cept is weighted by a prior and a likelihood conditioned on the input image. This formulation yields two key in-sights: 1) the need for a well-structured concept proposal distribution (sampling algorithm) to approximate the vast concept space, and 2) the importance of likelihood-based refinement of the prior, highlighting the limitations of sim-ple heuristic averaging across prompts [40]. To instanti-ate this Concept-Guided Bayesian Classification (CGBC) framework, building on classical concept discovery prin-ciples [17], we suggest the concept proposal distribu-tion should satisfy discriminability (inter-class distinction), compositionality (combination of atomic concepts), and di-versity (minimal semantic redundancy), which collectively optimize concept effectiveness under constrained budgets. As such, we propose a LLM-driven multi-stage concept synthesis pipeline. The LLM is iteratively prompted to gen-erate class-specific atomic concepts that emphasize inter-class distinctions. We then sample combinations of these atomic concepts and select a subset using Determinantal Point Process (DPP) [27] to reduce semantic overlap in the selected concept set. To mitigate the impact of outlier con-cepts, we introduce an adaptive soft-trim based likelihood function that provides robust mean estimation through out-lier down-weighting in a single forward pass. We also es-tablish theoretical robust guarantees and multi-class excess risk bounds for our framework. Extensive evaluation across eleven image recognition tasks demonstrates CGBC’s con-sistent superiority over existing state-of-the-art methods. The contribution of our work is summarized as follows: • We rethink VLM-based zero-shot image recognition from a Bayesian perspective and underscore the importance of a well-structured concept proposal distribution and input-conditioned refinement through a likelihood function. • We propose a multi-stage concept synthesis pipeline to construct a more expressive and sampling-effective con-cept proposal distribution and introduce a training-free adaptive soft-trim likelihood function to mitigate the neg-ative influence of outlier concepts. We further provide theoretical guarantees for our framework. • We empirically validate the effectiveness of our frame-work across a broad range of zero-shot image recognition tasks, demonstrating the practical benefits of our concept synthesis strategy and likelihood design. 
+
+## 2. Related Works 
+
+2.1. Zero-shot Image Recognition in VLMs 
+
+The generalization capabilities of vision-language models have attracted significant attention in recent years due to the challenges of fine-tuning all model parameters while preserving robust performance across domains [29, 64]. While most existing research concentrates on few-shot set-tings [3, 22, 36, 45, 47, 50, 52, 60–63, 65], our work fo-cuses on the more challenging zero-shot recognition sce-nario, where no labeled examples are available for any class during testing. Current zero-shot approaches can be broadly categorized into two groups. The first lever-ages test-time data augmentation, generating diverse views of input images to promote prediction consistency, either through prompt tuning [14, 34, 46] or view-specific opti-mization [59]. However, these methods incur significant computational overhead due to the need for test-time view encoding and optimization. The second category enhances prompts through using LLMs to generate detailed descrip-tions [40, 66] or constructing hierarchical structures (e.g., subclasses of the target class) [16, 38]. While such methods reduce test-time latency through offline prompt generation and encoding, they often exhibit limited adaptability to fine-grained recognition, where defining meaningful subclasses is a non-trivial task. Moreover, they typically rely on heuris-tic prompt design and lack a principled framework for both prompt construction and subsequent inference. As such, we introduce class-specific concepts as latent variables and pro-vide a theoretically grounded view by rethinking zero-shot recognition from a Bayesian perspective. 
+
+2.2. Concept Discovery 
+
+Concept discovery, the inference of general patterns from specific examples, is fundamental across cognitive science and inductive logic programming [2, 9, 33]. A common approach involves defining a hypothesis space of poten-tial concepts and applying Bayesian inference to determine which hypothesis most likely generates the observed data probabilistically [9, 44, 49]. This paradigm raises a criti-cal issue of balancing the expressiveness of the hypothesis space with computational tractability. Prior work [17, 41] addresses this by promoting sparse concept representations while leveraging compositional structures to enhance ex-pressive power. Task-specific objectives further refine dis-covery by aligning it with downstream utility [8, 31]. Build-ing on these insights, we argue that an effective concept pro-posal distribution should satisfy three criteria, including dis-criminability (to distinguish between classes), composition-ality (to support meaningful combinations of atomic con-cepts), and diversity (to minimize semantic redundancy). 
+
+## 3. Concept-Guided Bayesian Classification 
+
+In a standard zero-shot image recognition setting, consider a set of candidate classes Y = {Y1, . . . , Y K }, where Yi de-notes the i-th class and K the total number of classes. Given a test image X, CLIP-like VLMs represent each class Yi
+
+using the prompt “A photo of a Yi”. The model then pro-cesses both the input image X and the textual description through respective encoders, yielding l2-normalized visual and textual embeddings. The posterior probability p(Yi|X)
+
+is computed via the cosine similarity between these embed-dings, normalized to the interval [0 , 1] . The classification decision can be formulated as: 
+
+ˆY = arg max  
+
+> Yi∈Y
+
+p(Yi|X). (1) While this zero-shot paradigm demonstrates empirical efficacy, it solely leverages the encoded knowledge within VLMs’ parameters, neglecting critical prior information such as conceptual attributes and inter-class relationships beyond class labels. Therefore, we propose to integrate class-specific concepts into the original prompt template to generate more discriminative descriptions of the form “A photo of a {class } with {concept }”. Through hypothesiz-ing a test image X can be generated through a set of latent concepts C = {C1, . . . , C K }, where each Ci represents an infinite concept space corresponding to class Yi, we rethink this task from a Bayesian perspective. The posterior proba-bility p(Yi|X) can be expressed via marginalization: 
+
+p(Yi|X) = X
+
+> Ci
+
+p(Yi|X, C i)p(Ci|X), (2) where p(Ci|X) denotes the posterior distribution over latent concept space Ci conditioned on image X and p(Yi|X, C i)
+
+can be computed analogously to the standard zero-shot set-ting. However, the direct computation of p(Ci|X) is in-tractable due to the infinite-dimensional nature of the con-cept space. As such, we apply Bayes’ theorem: 
+
+p(Ci|X) = p(X|Ci)p(Ci)
+
+p(X) ∝ p(X|Ci)p(Ci), (3) where p(Ci) represents the prior distribution over Ci, en-coding rich world knowledge for image recognition [24]. The likelihood term p(X|Ci) quantifies the compatibility between image X and concept Ci, refining the coarse prior into a more precise posterior. The normalization term p(X)
+
+is constant and thus omitted from relative probability calcu-lations. The final classification decision is obtained through marginalization over Ci:
+
+p(Yi|X) ≈ X
+
+> Ci
+
+p(Yi|X, C i)p(X|Ci)p(Ci). (4) To address the computational challenges posed by infinite concept space, we introduce a proposal distribution q(Ci)
+
+inspired by sampling theory [25], which enables the approx-imation of the summation in Eq. (4) through a finite sum over sampled concepts Ci = {Ci, 1, . . . , C i,M i } for each class where each concept will be transformed into a prompt: 
+
+p(Yi|X) ≈
+
+> Mi
+
+X 
+
+> Ci,j ∈C i
+
+p(Yi|X, C i,j )p(X|Ci,j ). (5) In summary, this section presents the concept-guided Bayesian classification framework (CGBC) and, more im-portantly, underscores the importance of constructing ap-propriate concept proposal distributions and test image-conditioned likelihood for prior refinement in VLM-based zero-shot image recognition. 
+
+## 4. Framework Implementation 
+
+In this section, we present the implementation of our pro-posed Concept-Guided Bayesian Classification (CGBC) framework. As illustrated in Fig. 2, we introduce a LLM-driven, multi-stage concept synthesis pipeline designed to construct a concept proposal distribution characterized by discriminability, compositionality, and diversity. Addition-ally, we incorporate an Adaptive Soft-Trim based Likeli-hood function to mitigate the negative impact of outlier con-cepts, refining the concept prior based on input images. The details of these two components and theoretical analysis are elaborated in Sec.4.1, Sec. 4.2 and Sec. 4.3, respectively. 
+
+4.1. LLM-driven Concept Synthesis Pipeline 
+
+Defining an expressive yet computationally tractable con-cept proposal distribution q(Ci) is inherently challeng-ing due to the effectively infinite nature of the concept space. Inspired by prior work in classical concept discov-ery [9, 17, 41], we argue that an effective q(Ci) should sat-isfy the below three properties: 
+
+Definition 1 (Discriminability) . The concept from q(Ci)
+
+should accurately characterize the target class Yi while en-hancing inter-class separability. Ideally, q(Ci) should be conditioned on both Yi and its complement Y/i (i.e., all other classes). For example, when distinguishing Hammer-head Shark from other shark species, the concept “T-shaped Hammerhead Shark 𝑌 ! White Shark Tiger Shark 𝑌 "
+
+# …Dataset   
+
+> Text
+> Encoder
+> …
+> Embeddings
+> …
+> Compute Similarity
+> 𝑌 !
+> 𝑌 "
+> 𝑌 "
+> 𝑌 !𝑌 $𝑌 $
+
+# … …
+
+> Hard -negative Neighborhoods
+
+𝐿 "𝐿 !           
+
+> Top -Hfor
+> Each Class
+> Large
+> Language
+> Model
+> Example Prompt
+> =Tiger shark, White shark
+> Plesae Propose Concepts to:
+> Distinguish 𝑌 !=Hammerhead Shark
+> from its corresponding neighborhood
+> 𝐿 !
+> "wide, T -shaped flattened head"
+> "small mouth beneath head "
+> “scalloped edge of head”
+> "smooth gray dorsal fin and body"
+> At omic Concept Set
+> Sampling
+
+𝐴 !     
+
+> Compositional Concept Set
+> “small mouth beneath head or
+> smooth gray dorsal fin and body",
+> "wide, T -shaped flattened head or
+> gray smooth body texture ”
+> !𝐶 !
+
+𝒞 #
+
+> Subset Selection
+> Determinantal
+> Point Process
+
+(b)Adaptive Soft -Trim based likelihood  
+
+> Image
+> Encoder
+> Text
+> Encoder
+
+𝑋 
+
+> similarity
+
+𝑆 %= [ 𝑆 %,!, 𝑆 %," , … , 𝑆 %,'%(!, 𝑆 %,'% ]
+
+> compute median
+
+𝑚 % = 𝑚𝑒𝑑𝑖𝑎𝑛 (𝑆 %)
+
+> median absolute derivation
+
+MAD % = (median |𝑆 %,) − 𝑚 %|).
+
+=𝜌 % = 1
+
+𝑀 %
+
+A
+
+> )*!
+> '%
+
+𝕀 𝑆 %,) − 𝑚 % > 𝜆 ⋅ MAD % ,                      
+
+> contamination rate
+> 𝑤 &,(=𝜎 −log 1−*𝜌 &
+> *𝜌 &
+> ⋅𝑆 &,(−𝑚 &
+> MAD &
+> ,
+> likelihood concept 𝑝 (𝐶 &,(|𝑋 )
+> 𝑃 %𝑌 &𝑋 =̂𝜇 =+
+> (
+> )!
+> 𝑤 &,(𝑃 %𝑌 &𝑋 𝐶 &,(
+> marginalization over 𝐶 &
+
+𝐿 +
+
+# …
+
+# …
+
+# …
+
+# …
+
+> Text
+> Encoder
+
+𝑌 +
+
+> …
+> Label Set
+
+(a) LLM -driven Concept Synthesis Pipeline (Offline )
+
+> Step 1 Step 2 Step 3 & 4
+> …
+> …
+> copy
+> 𝑌 #
+
+# …Figure 2. Instantiation of our proposed Concept-Guided Bayesian Classification (CGBC) framework. (a) LLM-driven Concept Synthesis Pipeline: Constructs class-aware hard-negative neighborhoods in Step 1, generates discriminative atomic concepts via LLM prompting in Step 2, composes higher-order concepts through random sampling in Step 3, and selects diverse concepts using Determinantal Point Processes (DPPs) in Step 4. (b) Adaptive Soft-Trim Likelihood Estimation: Estimates contamination rates in similarity distributions and downweights outlier concepts that deviate significantly from the median, improving robustness in concept-based image classification. 
+
+flattened head” is highly discriminative, whereas a generic concept like “smooth gray body” is not. 
+
+Definition 2 (Compositionality) . Distinct atomic concepts should be combined to form higher-order composite con-cepts (e.g., “T-shaped flattened head or smooth gray body”). This compositional structure enables richer seman-tics and robustness, especially when individual atomic con-cepts may be insufficient or ineffective. 
+
+Definition 3 (Diversity) . The concepts from q(Ci) should exhibit low semantic redundancy to maximize coverage of the true concept prior p(Ci) under a fixed sampling bud-get. Since near-duplicate concepts offer diminishing returns and incur extra computational cost, promoting diversity im-proves both expressiveness and computational efficiency. 
+
+To simultaneously achieve these three aspects, we pro-pose a four-stage concept synthesis pipeline, which inte-grates the extensive world knowledge of LLMs with the representational strength of VLMs as follows: 
+
+Step 1 . Construction of Class-aware Hard-negative Neigh-borhoods: Given a set of classes Y = {Y1, . . . , Y K }, we first encode each class label using CLIP’s text encoder to obtain normalized embeddings and compute pairwise co-sine similarities between these embeddings. For each class 
+
+Yi, we identify the H most semantically similar classes, forming its hard-negative neighborhood Li, which provides effective approximation to Y/i and establishes the founda-tion for ensuring discriminability in subsequent procedures. 
+
+Step 2. Atomic Concept Generation via Contrastive Prompting: Leveraging the class-specific hard-negative neighborhood Li, we design contrastive prompts that in-struct LLMs to generate candidate concepts that distinguish 
+
+Yi from Li. This procedure can produce a set of atomic concepts Ai = {Ai, 1, . . . , A i,M A } after a few API calls for 
+
+Yi, where MA denotes the number of atomic concepts. Un-like conventional prompting methods that treat class labels in isolation [38], our approach encourages the generation of more discriminative concepts by explicitly modeling inter-class contrast. To reduce redundancy, we compute cosine similarity between newly generated and existing concepts, pruning any candidate with a similarity exceeding 0.9. 
+
+Step 3 . Compositional Concept Construction: For each class Yi, we sample Nc combinations of atomic concepts (with a fixed number of concepts per prompt) from the pool 
+
+Ai without replacement. These combinations are composed using logical operators (e.g., “or”) to generate a candidate set of composite concepts, denoted by ˆCi. This composi-tional strategy enhances the expressiveness and robustness of the concept space compared to using atomic concepts alone, while adhering to the same prompt budget. 
+
+Step 4 . Subset Selection via Determinantal Point Processes: To obtain a diverse and representative subset of concepts for class Yi, each candidate composite concept in ˆCi is encoded using CLIP’s text encoder to produce normalized embed-dings. These embeddings are used to construct a similarity kernel K( ˆCi,j , ˆCi,u ) = ϕ( ˆCi,j )⊤ϕ( ˆCi,u ), where ϕ(·) de-notes the CLIP embedding function. The DPP [27] is then applied to select a subset Ci ⊆ ˆCi of size Mi that efficiently minimizes semantic redundancy among concepts under a constrained budget. Through our multi-stage, LLM-driven concept syn-thesis pipeline, we construct class-specific concept sets 
+
+{C 1, . . . , CK }, each defining a proposal distribution q(Ci)
+
+for class Yi ∈ Y . By integrating discriminability via con-trastive prompting, compositionality through atomic con-cept combination, and diversity using DPP-based subset se-lection, the resulting q(Ci) provides an effective approxi-mation of the actual concept prior p(Ci).
+
+4.2. Adaptive Soft-Trim based Likelihood 
+
+Let Si = {Si, 1, . . . , S i,M i } denote the set of predicted sim-ilarities between a test image X and prompts augmented with the concept set Ci, corresponding to class Yi ∈ Y ,where each Si,j approximates the conditional probability 
+
+p(Yi|X, C i,j ). Empirically, Si often follows a long-tailed distribution, indicating the presence of outlier concepts. To enhance robustness in estimating p(Yi|X), we introduce an Adaptive Soft-Trim Likelihood, which down-weights con-cepts whose similarity scores deviate significantly from the median of Si, thereby mitigating outlier effects. Since p(Yi|X) is a scalar, we focus on one-dimensional robust statistics. To formally characterize the presence of outliers, we adopt the univariate Huber Contamination Model [23] and the goodness condition adapted from [6, 7]. 
+
+Definition 4 (Contamination Model) . For each class Yi, let 
+
+ρi ∈ [0 , 0.5) denote the unknown concept noise rate. Let 
+
+Si,j with mean μi and variance terms εi,j be i.i.d. sub-Gaussian random variables with variance proxy σ2 
+
+> i
+
+and 
+
+E[εi,j ] = 0 . Let ζi,j represent arbitrary adversarial con-tamination. Then: 
+
+si,j =
+
+(
+
+μi + εi,j , with probability 1 − ρi
+
+ζi,j , with probability ρi. (6) 
+
+In more accessible terms, ρi represents the fraction of out-lier concepts in Ci, while 1−ρi corresponds to clean (uncon-taminated) concepts. The parameter μi serves as the ideal estimator of p(Yi|X) in the presence of contamination. 
+
+Definition 5 ((σi, α )-Goodness) . Let similarity scores Si =
+
+{Si, 1, . . . , S i,M i } have clean mean μi and variance proxy 
+
+σ2 
+
+> i
+
+. We say Si is (σi, α )-good w.r.t. μi if: (1) (Median) There exists an absolute constant C1 > 0
+
+such that Pr Si,j ∼S i
+
+ Si,j − μi ≥ C1 σi ρi
+
+ < 12 .(2) (Mean / Variance under any weight vector) For any weight vector Wi = {wi, 1, . . . , w i,M i } with 
+
+wi,j ∈ [0 , 1] satisfying the average mass constraint 
+
+> 1
+> Mi
+
+PMi 
+
+> j=1
+
+wi,j ≥ 1 − α, define: the weighted mean ˆμi :=    
+
+> PMij=1 wi,j Si,j
+> PMij=1 wi,j
+
+and variance ˆσ2 
+
+> i
+
+:=     
+
+> PMij=1 wi,j (Si,j −ˆμi)2
+> PMij=1 wi,j
+
+. Then there exist universal con-stants C2, C 3 > 0 such that 
+
+|ˆμi − μi| ≤ C2 σi α
+
+r
+
+log 1
+
+α , (2.a) 
+
+|ˆσ2 
+
+> i
+
+− σ2 
+
+> i
+
+| ≤ C3 σ2 
+
+> i
+
+α log 1
+
+α . (2.b) 
+
+These conditions ensure that the sample median is a robust estimator of the true mean, and that weighted estimates of mean and variance remain accurate even when a fraction α
+
+of the data is down-weighted or removed. Building on the above, we first compute the median mi
+
+of Si as an initial robust estimate of μi (p(Yi|X)). To quan-tify the variability of similarity scores around mi, we com-pute the Median Absolute Deviation (MAD): 
+
+MAD i = median  |Si,j − mi|. (7) 
+
+We estimate the contamination rate ˆρi as the fraction of samples that deviate significantly from the median: 
+
+ˆρi = 1
+
+MiMiX
+
+> j=1
+
+I [ |Si,j − mi| > λ · MAD i ] , (8) 
+
+where I denotes the indicator function that returns 1 if the condition inside is true and 0 otherwise. The parameter λ
+
+is a threshold controlling outlier detection sensitivity, i.e., larger values make the criterion stricter, resulting in more samples being considered outliers. Through interpreting ˆρi
+
+as the prior that a concept Ci,j is an outlier and the normal-ized deviation |Si,j −mi| 
+
+> MAD i
+
+as observed evidence (i.e., how far a sample deviates from the center), the posterior that Ci,j is clean (non-outlier) is modeled using a logistic form. Specif-ically, the weight wi,j assigned to concept Ci,j is given by: 
+
+wi,j = σ
+
+
+
+− log 
+
+ 1 − ˆρi
+
+ˆρi
+
+
+
+· |Si,j − mi| · k
+
+MAD i·
+
+
+
+, (9) 
+
+where σ(·) denotes the sigmoid function and k represents its slope. The resulting weight wi,j represents a soft es-timation of concept reliability, thus serving as likelihood 
+
+p(Ci,j |X) to mitigate the negative effect of outlier concept. We then compute a robust estimate of p(Yi|X) via adaptive marginalization over Ci:
+
+P (Yi|X) = ˆ μ =
+
+> Mi
+
+X
+
+> j
+
+wi,j 
+
+PMi
+
+> k=1
+
+P (Yi|X, C i,j ). (10) 
+
+Finally, following Eq. (1) in the standard zero-shot im-age classification, we predict the label ˆY by selecting the class with the highest estimated likelihood. 4.3. Theoretical Analysis 
+
+Theorem 1 (Robust Guarantee) . If the size of concept set 
+
+Ci for each class Yi satisfies Mi ≥ C0 log(1 /δ )
+
+> ρ2
+> i
+
+for a uni-versal constant C0, then with probability at least 1 − δ, the estimation error of ˆμi is bounded by:         
+
+> |ˆμi−μi| ≤ C1σiρi+C2σi
+> rlog(1 /δ )
+> Mi
+> +C3σi
+> k(11)
+
+where C1, C2, and C3 are universal constants and k is sig-moid slope parameter in Eq. (9) .
+
+Corollary 1 (Multi-class excess risk) . Under the condition in Theorem 1, the classifier for image X in Eq. (1) satisfies:          
+
+> R − R ∗≤Pr
+> h
+> margin μ(X)≤2·max
+> i|ˆμi(X)−μi(X)|
+> i
+> (12)
+
+where R is the risk of our classifier, R∗ is the optimal Bayes risk, and margin μ(X) is the margin of the true mean μi(X).Consequently, the excess risk is bounded by:         
+
+> R − R ∗≤Pr
+> h
+> margin μ(X)≤2 C1σmax ρmax +(13)
+> C2σmax
+> qlog( K/δ )
+> Mmin +C3σmax
+> k
+> i
+
+where K is the number of classes, σmax = max i σi,
+
+ρmax = max i ρi, and Mmin = min i Mi.
+
+The complete proof is provided in the Appendix. 
+
+## 5. Experiments 
+
+5.1. Datasets 
+
+We primarily assess our framework on eleven classifi-cation datasets, including automobiles (Cars [26]), tex-tures (DTD [4]), human actions (UCF101 [48]), aircraft types (Aircraft [35]), satellite imagery (EuroSAT [18]), pet breeds (Pets [39]), flowers (Flower102 [37]), food items (Food101 [1]), scenes (SUN397 [53]), and general objects (Caltech101 [12] and ImageNet [5]). The statistics of all datasets are shown in the Appendix. 
+
+5.2. Baselines 
+
+We compare our concept-guided Bayesian classification (CGBC) framework against six zero-shot image recognition baselines, involving CLIP [42], CLIP + E [42], TPT [46], MTA [59], COLA [66], C-TPT [57], DiffTPT [13], ZERO [11] and Cupl [40]. These baselines differ in their choice of prompt templates and test-time augmentation techniques. Additionally, we also compare with CGBC Prior by excluding the likelihood of our framework and averaging the prediction of all concept-enhanced prompts. The details of all baselines are shown in the Appendix. 
+
+5.3. Implementation details 
+
+For concept synthesis, we use GPT-4.1 Turbo to generate 10 concepts per API call. For each class Yi, we generate 50 atomic concepts ( MA = 50 ) and randomly sample 500 composite combinations ( | ˆCi| = 500 ) from the atomic set with 3 atomic concepts per combination. The final com-positional concept set Ci is selected using DPP algorithm with a size of either 16 or 50 ( Mi = 16 or 50 ) in our main experiments. In the Adaptive Soft-Trim Likelihood, we set the outlier threshold as λ = 2 .5 and sigmoid slope as the logit scale of CLIP k = e4.6. All baselines are evaluated using their default hyperparameters as reported in their re-spective papers. Unless otherwise specified, we use CLIP with a ViT-B/16 backbone as the primary VLM. To miti-gate the effect of randomness, we report the average top-1 accuracy over three random seeds for all main experiments. 
+
+5.4. Zero-shot Performance Analysis 
+
+We compare the zero-shot performance of our CGBC framework with various baselines in Table 1, yielding the following key observations: First, prompt-based methods leveraging visual concepts (e.g., CuPL, CGBC Prior) con-sistently outperform image-augmented baselines (e.g., TPT, MTA) by over 3% on average across eleven datasets. In contrast, simple prompt ensembling (i.e., CLIP+E) yields marginal improvements, suggesting that LLM-generated class-specific descriptions more effectively activate the in-ternal knowledge of VLMs than class labels alone. Sec-ond, our concept synthesis pipeline (CGBC Prior) outper-forms CuPL by producing more diverse and recognition-aligned prompts, particularly when using 16 prompts. Em-pirical analysis shows that CuPL often over-conjoins con-cepts (typically more than four) using conjunctions (e.g., “and”), which reduces robustness compared to our use of disjunction (“or”). Third, incorporating the adaptive soft-trim likelihood, CGBC further enhances performance by reducing the impact of outlier concepts, underscoring the benefit of refining the prior based on the test image. We further evaluate the versatility and generalizability of CGBC Prior and CGBC across multiple CLIP variants in Table 2, covering a range of visual encoders and model scales. Both CGBC and its concept prior consistently out-perform all three baselines, demonstrating the effectiveness of the concept synthesis pipeline and the adaptive soft-trim likelihood. Specifically, CGBC achieves an average top-1 accuracy gain of 5% with ViT-based encoders and 3% with RNN-based architectures. Importantly, these improve-ments persist across increasing VLM capacities, suggest-ing that larger models more effectively leverage the rich vi-sual concepts synthesized by LLMs. These results highlight CGBC’s potential as a robust, concept-driven framework for a zero-shot recognition paradigm. Table 1. Performance of zero-shot methods on eleven image classification datasets. We highlight the best and second best results by 
+
+bolding and underlining them, respectively. In the Auxiliary column, the first number indicates the number of views, and the second denotes the number of prompts used by the corresponding method.                                                                                                                                                                                                           
+
+> Method SUN397 Aircraft EuroSAT Cars Food101 Pets Flower102 Caltech101 DTD UCF101 ImageNet Avg. Auxiliary
+> CLIP [42] 62.3 23.9 42.2 65.5 82.2 87.2 67.4 92.2 44.4 64.3 66.7 63.5 (1, 1) CLIP + E. [42] 65.1 23.7 47.7 66.3 82.3 87.1 66.1 93.1 44.0 65.0 68.4 64.4 (1, 80) TPT [46] 65.4 23.1 42.9 66.4 84.6 87.2 68.9 94.1 47.0 68.0 68.9 65.1 (64, 1) MTA [59] 65.0 25.3 38.7 68.1 85.0 88.2 68.3 94.1 45.6 68.1 68.1 64.9 (64, 1) COLA [66] 61.9 20.9 53.8 54.2 84.5 87.9 66.1 88.1 41.0 67.1 62.8 62.6 (5, 50) C-TPT [57] 64.8 24.0 43.2 65.8 83.7 88.2 69.8 93.6 46.0 65.7 68.5 64.9 (64, 4) DiffTPT [13] 65.7 25.6 43.1 67.0 87.2 88.2 70.1 92.5 47.0 68.2 70.3 65.9 (64, 1) ZERO [11] 65.0 25.2 34.3 68.0 86.5 87.8 67.7 93.7 46.1 67.8 69.3 64.7 (64, 1) Cupl [40] 67.1 27.8 53.7 64.9 82.5 89.0 74.2 93.5 51.6 70.8 66.8 67.4 (1, 16) 67.8 27.9 55.3 65.4 83.1 88.9 74.5 93.7 52.3 71.2 66.5 67.9 (1, 50) CGBC Prior 68.2 ± 0.1 26.0 ± 0.2 59.0 ± 0.8 66.0 ± 0.2 83.5 ± 0.1 88.8 ± 0.1 71.7 ± 0.2 94.2 ± 0.1 54.6 ± 0.4 71.6 ± 0.3 68.2 ± 0.0 68.4 ± 0.2 (1, 16)
+> CGBC 68.5 ± 0.0 25.9 ± 0.1 60.1 ± 0.5 66.2 ± 0.1 83.5 ± 0.0 90.2 ± 0.5 73.4 ± 0.1 94.3 ± 0.0 55.4 ± 0.3 71.8 ± 0.3 69.2 ± 0.1 69.0 ± 0.2 (1, 16) CGBC Prior 68.5 ± 0.1 26.1 ± 0.2 59.3 ± 0.2 66.6 ± 0.2 83.8 ± 0.0 88.5 ± 0.1 72.4 ± 0.1 94.0 ± 0.1 55.1 ± 0.2 71.8 ± 0.3 68.3 ± 0.1 68.6 ± 0.2 (1, 50)
+> CGBC 68.8 ± 0.7 26.0 ± 0.1 60.3 ± 0.4 66.6 ± 0.2 83.9 ± 0.9 90.7 ± 0.1 73.7 ± 0.2 94.4 ± 0.8 55.7 ± 0.4 72.3 ± 0.3 69.4 ± 0.0 69.3 ± 0.2 (1, 50)
+
+Table 2. Averaged top-1 accuracy (%) on 11 datasets across differ-ent VLM architectures. Hyper-parameters are kept constant across all experiments. The best results are bold for each VLM variant. 
+
+VLM Variant CLIP CLIP + E MTA [59] CGBC Prior CGBC 
+
+RN50 55.11 56.12 57.24 60.39 ± 0.19 60.77 ± 0.19 RN101 57.38 58.43 59.34 59.78 ± 0.19 61.46 ± 0.19 RN50x4 61.21 61.78 63.28 63.60 ± 0.19 64.64 ± 0.19 RN50x16 63.69 66.00 65.38 66.46 ± 0.19 66.95 ± 0.19 ViT-B/16 63.49 64.43 64.95 68.56 ± 0.18 69.25 ± 0.19 ViT-B/32 59.28 60.39 61.66 63.90 ± 0.18 64.39 ± 0.19 ViT-L/14 70.58 71.36 71.71 74.39 ± 0.16 75.07 ± 0.16 
+
+5.5. Concept Proposal Distribution Analysis 
+
+Figure 3. Top-1 Accuracy difference between discriminative (CGBC Prior) and descriptive concepts on ten datasets. 
+
+Figure 4. Averaged top-1 accuracy (%) on eleven datasets using different numbers of concepts per prompt. 
+
+We empirically validate the importance of modeling the concept proposal distribution using discriminability, com-
+
+Figure 5. Averaged top-1 accuracy (%) on eleven datasets with and without DPP under different prompt budgets. 
+
+positionality, and diversity. To assess discriminability, we compare our LLM-driven concept synthesis pipeline with a descriptive-only variant that removes the neighborhood construction stage and replaces contrastive prompts with generic class descriptions (e.g., “Please generate concepts to describe the target class”), keeping all other components unchanged. As shown in Fig.3, concepts sampled from the discriminative proposal distribution consistently outper-form the descriptive baseline, particularly as the number of prompts increases from 16 to 50, highlighting the align-ment between discriminative prompting and classification objectives. For compositionality, we vary the number of concepts per prompt during the compositional concept con-struction stage under two prompt budget settings in Fig. 4. Performance across eleven datasets initially increases with more concepts per prompt but declines beyond a cer-tain point, peaking at three concepts for CGBC and two for CGBC Prior, indicating that moderate compositionality en-hances expressiveness, whereas excessive composition in-troduces noise. To evaluate diversity, we compare CGBC and CGBC Prior with and without DPP-based sampling in Fig. 5. DPP yields greater gains when the number of prompts is small, as diversity helps form a more expressive concept prior under limited budgets. Moreover, all CGBC variants exhibit consistent performance improvements as the number of prompts increases, though gains plateau be-yond 24 prompts. This indicates that only a limited number of diverse prompts are sufficient to achieve strong perfor-mance in practice, even though Theorem1 suggests a larger theoretical minimum. In addition to these quantitative find-ings, qualitative examples in the appendix further illustrate the necessity of these three aspects in constructing effective concept proposal distributions. 
+
+5.6. Ablation Study 
+
+Table 3. Impact of different LLMs (GPT-4.1 Series) and the size of hard-negative neighborhood set |Li| in concept synthesis pipeline on the performance of CGBC. Avg is the averaged top-1 accuracy across all five datasets. Avg † is the average excluding EuroSAT.                                                         
+
+> LLMs |Li|EuroSAT DTD Aircraft Pets UCF101 Avg. Avg. †
+> Turbo 10 60.30 55.69 25.99 90.68 72.28 60.99 61.16
+> Mini 10 57.29 55.28 26.28 90.65 71.36 60.17 60.89 Nano 10 58.30 54.53 24.95 90.80 70.81 59.88 60.27 Mini 556.30 55.56 26.11 89.70 71.55 59.84 60.73 Mini 20 57.29 55.89 26.33 90.71 71.40 60.32 61.08 Mini 30 57.29 55.16 26.21 90.47 71.06 60.04 60.73
+
+Table 4. Averaged top-1 accuracy (%) on eleven datasets across different likelihood functions. The best results are bold for each prompt number.                      
+
+> Prompt CGBC Prior CGBC Median Hard-Trim Huber Loss Cauchy Confidence 16 68.35 68.95 68.77 68.40 68.53 68.39 68.45 50 68.56 69.25 68.88 69.07 68.94 68.87 68.61
+
+We conduct a comprehensive ablation study to evaluate the impact of different LLM backbones, the size of the hard-negative neighborhood set, likelihood functions, and key hyperparameter (λ, k ) on our proposed CGBC framework. As shown in Table 2, we instantiate the concept synthesis pipeline with three versions of GPT-4.1, including Turbo, Mini, and Nano, representing decreasing model capacities, while keeping other settings consistent. Results across five datasets show stronger LLMs yield more effective concept priors, leading to better classification accuracy. This under-scores the potential of the concept-based paradigm, benefit-ing from ongoing advances in LLM capabilities. Notably, even with the smallest model, CGBR consistently outper-forms image augmentation-based methods such as MTA in Table 1, demonstrating the advantage of incorporating ex-ternal prior beyond the test image and its views. As shown in Table 2, we examine the impact of the hard-negative neighborhood size |Li| when using GPT-4.1 Mini for concept synthesis. The results show that perfor-mance initially improves with increasing |Li|, peaking at 
+
+|Li| = 20 , and then declines. This trend provides further evidence that discriminative concepts enhance VLM-based image classification. However, overly large neighborhoods introduces noise, ultimately degrading performance. As shown in Table 4, we instantiate the likelihood func-tion in our Bayesian classification framework using var-
+
+Table 5. Averaged top-1 accuracy and contamination rate ( ¯ρ)across eleven datasets under different hyper-parameter combina-tions of λ and k. All other settings are fixed.                          
+
+> Metric Hyper-parameter group ( λ,k)(2.5, e4.6)(1.5, e4.6)(3.0, e4.6)(2.0, e4.6)(2.5, 0.25) (2.5, 4)
+> Avg. 69.25 69.07 69.19 69.14 69.11 69.16
+> ¯ρ0.107 0.191 0.058 0.191 0.107 0.107
+
+ious robust mean estimation methods [23], as well as a confidence-based baseline that selects predictions with maximum similarity. Huber, Cauchy, and our sigmoid method represent soft-trim strategies that down-weight out-lier concepts, whereas other methods adopt hard-trim ap-proaches that discard them entirely. All robust estimators consistently outperform naive averaging, confirming the im-portance of outlier mitigation. In contrast, the confidence-based method performs poorly in the presence of outliers, as it may overemphasize noisy or spurious matches. Notably, our sigmoid-based logistic function achieves the best per-formance, likely due to its smooth and bounded mapping, which is well-suited to the skewed and long-tailed distribu-tion of similarity scores between prompts and test images. We further investigate the impact of the hyperparame-ters λ and k, controlling the sensitivity of outlier detection and the slope of the sigmoid-based likelihood in Table 5. Results show that increasing λ, performance first improves and then declines, peaking at λ = 2 .5, while the average contamination rate consistently decreases across all tasks. Moreover, CGBC achieves the best performance when k is set to the default logit scale of CLIP. These findings indicate that CGBC is robust to hyperparameter variations, requiring minimal tuning for effective deployment. 
+
+## 6. Conclusion 
+
+Vision-language models-based zero-shot image recogni-tion has garnered increasing attention. While prompt-augmentation methods outperform view-based alternatives, they often rely on heuristic designs and lack systematic evaluation. To address these limitations, we enhance prompts with class-specific concepts and rethink zero-shot recognition from a Bayesian perspective. Our formula-tion underscores the importance of constructing a well-structured concept proposal distribution and a test image-dependent likelihood function that refines the concept prior. To this end, we propose a multi-stage concept synthesis pipeline that leverages LLMs to generate concepts empha-sizing discriminability, compositionality, and diversity. In addition, we introduce a training-free Adaptive Soft-Trim likelihood function to reduce the influence of outlier con-cepts in a single forward pass. Empirical results across var-ious image recognition benchmarks show that our frame-work consistently outperforms state-of-the-art baselines. Acknowledgment 
+
+We thank the UGC FITE (6460001), RMGS (9229106), the MOE AcRF Tier 1 Seed Grant (RS37/24, #025041-00001), Singapore, and NSFC (62525107), China for supporting this work. 
+
+## References 
+
+[1] Lukas Bossard, Matthieu Guillaumin, and Luc Van Gool. Food-101–mining discriminative components with random forests. In Computer vision–ECCV 2014: 13th European conference, zurich, Switzerland, September 6-12, 2014, pro-ceedings, part VI 13 , pages 446–461. Springer, 2014. 6, 2 [2] Nick Chater and Mike Oaksford. The probabilistic mind: Prospects for Bayesian cognitive science . Oxford University Press, USA, 2008. 2 [3] Guangyi Chen, Weiran Yao, Xiangchen Song, Xinyue Li, Yongming Rao, and Kun Zhang. Plot: Prompt learning with optimal transport for vision-language models. arXiv preprint arXiv:2210.01253 , 2022. 2 [4] Mircea Cimpoi, Subhransu Maji, Iasonas Kokkinos, Sammy Mohamed, and Andrea Vedaldi. Describing textures in the wild. In Proceedings of the IEEE conference on computer vision and pattern recognition , pages 3606–3613, 2014. 6, 2 [5] Jia Deng, Wei Dong, Richard Socher, Li-Jia Li, Kai Li, and Li Fei-Fei. Imagenet: A large-scale hierarchical image database. In 2009 IEEE conference on computer vision and pattern recognition , pages 248–255. Ieee, 2009. 6, 2 [6] Ilias Diakonikolas, Gautam Kamath, Daniel M Kane, Jerry Li, Ankur Moitra, and Alistair Stewart. Robustly learning a gaussian: Getting optimal error, efficiently. In Proceed-ings of the Twenty-Ninth Annual ACM-SIAM Symposium on Discrete Algorithms , pages 2683–2702. SIAM, 2018. 5, 7 [7] Ilias Diakonikolas, Daniel Kane, Ankit Pensia, and Thana-sis Pittas. Near-optimal algorithms for gaussians with hu-ber contamination: Mean estimation and linear regression. 
+
+Advances in Neural Information Processing Systems , 36: 43384–43422, 2023. 5 [8] Kevin Ellis. Human-like few-shot learning via bayesian rea-soning over natural language. Advances in Neural Informa-tion Processing Systems , 36, 2024. 3 [9] Kevin Ellis, Catherine Wong, Maxwell Nye, Mathias Sabl´ e-Meyer, Lucas Morales, Luke Hewitt, Luc Cary, Armando Solar-Lezama, and Joshua B Tenenbaum. Dreamcoder: Bootstrapping inductive program synthesis with wake-sleep library learning. In Proceedings of the 42nd acm sigplan international conference on programming language design and implementation , pages 835–850, 2021. 2, 3 [10] Yuxin Fang, Wen Wang, Binhui Xie, Quan Sun, Ledell Wu, Xinggang Wang, Tiejun Huang, Xinlong Wang, and Yue Cao. Eva: Exploring the limits of masked visual representa-tion learning at scale. In Proceedings of the IEEE/CVF Con-ference on Computer Vision and Pattern Recognition , pages 19358–19369, 2023. 1 [11] Matteo Farina, Gianni Franchi, Giovanni Iacca, Massimil-iano Mancini, and Elisa Ricci. Frustratingly easy test-time adaptation of vision-language models. Advances in Neural Information Processing Systems , 37:129062–129093, 2024. 6, 7, 2 [12] Li Fei-Fei, Rob Fergus, and Pietro Perona. Learning gener-ative visual models from few training examples: An incre-mental bayesian approach tested on 101 object categories. In 
+
+2004 conference on computer vision and pattern recognition workshop , pages 178–178. IEEE, 2004. 6, 2 [13] Chun-Mei Feng, Kai Yu, Yong Liu, Salman Khan, and Wangmeng Zuo. Diverse data augmentation with diffusions for effective test-time prompt tuning. In Proceedings of the IEEE/CVF International Conference on Computer Vision ,pages 2704–2714, 2023. 6, 7, 2 [14] Chun-Mei Feng, Kai Yu, Yong Liu, Salman Khan, and Wangmeng Zuo. Diverse data augmentation with diffusions for effective test-time prompt tuning. In Proceedings of the IEEE/CVF International Conference on Computer Vision ,pages 2704–2714, 2023. 1, 2 [15] Peng Gao, Shijie Geng, Renrui Zhang, Teli Ma, Rongyao Fang, Yongfeng Zhang, Hongsheng Li, and Yu Qiao. Clip-adapter: Better vision-language models with feature adapters. International Journal of Computer Vision , 132(2): 581–595, 2024. 1 [16] Yunhao Ge, Jie Ren, Andrew Gallagher, Yuxiao Wang, Ming-Hsuan Yang, Hartwig Adam, Laurent Itti, Balaji Lak-shminarayanan, and Jiaping Zhao. Improving zero-shot gen-eralization and robustness of multi-modal models. In Pro-ceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 11093–11101, 2023. 1, 2 [17] Claire Glanois, Zhaohui Jiang, Xuening Feng, Paul Weng, Matthieu Zimmer, Dong Li, Wulong Liu, and Jianye Hao. Neuro-symbolic hierarchical rule induction. In International Conference on Machine Learning , pages 7583–7615. PMLR, 2022. 2, 3 [18] Patrick Helber, Benjamin Bischke, Andreas Dengel, and Damian Borth. Eurosat: A novel dataset and deep learning benchmark for land use and land cover classification. IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing , 12(7):2217–2226, 2019. 6, 2 [19] Dan Hendrycks, Steven Basart, Norman Mu, Saurav Kada-vath, Frank Wang, Evan Dorundo, Rahul Desai, Tyler Zhu, Samyak Parajuli, Mike Guo, et al. The many faces of robust-ness: A critical analysis of out-of-distribution generalization. In Proceedings of the IEEE/CVF international conference on computer vision , pages 8340–8349, 2021. 2 [20] Dan Hendrycks, Kevin Zhao, Steven Basart, Jacob Stein-hardt, and Dawn Song. Natural adversarial examples. In 
+
+Proceedings of the IEEE/CVF conference on computer vi-sion and pattern recognition , pages 15262–15271, 2021. 2 [21] Fanding Huang, Jingyan Jiang, Qinting Jiang, Hebei Li, Faisal Nadeem Khan, and Zhi Wang. Cosmic: Clique-oriented semantic multi-space integration for robust clip test-time adaptation. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 9772–9781, 2025. 1 [22] Tony Huang, Jack Chu, and Fangyun Wei. Unsupervised prompt learning for vision-language models. arXiv preprint arXiv:2204.03649 , 2022. 2 [23] Peter J Huber. Robust estimation of a location parameter. In Breakthroughs in statistics: Methodology and distribution ,pages 492–518. Springer, 1992. 5, 8, 7 [24] Daniel Kahneman. Thinking, fast and slow. Farrar, Straus and Giroux , 2011. 3 [25] Teun Kloek and Herman K Van Dijk. Bayesian estimates of equation system parameters: an application of integration by monte carlo. Econometrica: Journal of the Econometric Society , pages 1–19, 1978. 3 [26] Jonathan Krause, Michael Stark, Jia Deng, and Li Fei-Fei. 3d object representations for fine-grained categorization. In 
+
+Proceedings of the IEEE international conference on com-puter vision workshops , pages 554–561, 2013. 1, 6, 2 [27] Alex Kulesza, Ben Taskar, et al. Determinantal point pro-cesses for machine learning. Foundations and Trends® in Machine Learning , 5(2–3):123–286, 2012. 2, 5 [28] Marc Lafon, Gustavo Adolfo Vargas Hakim, Cl´ ement Ram-bour, Christian Desrosier, and Nicolas Thome. Cliptta: Ro-bust contrastive vision-language test-time adaptation. arXiv preprint arXiv:2507.14312 , 2025. 1 [29] Brian Lester, Rami Al-Rfou, and Noah Constant. The power of scale for parameter-efficient prompt tuning. arXiv preprint arXiv:2104.08691 , 2021. 2 [30] Junnan Li, Dongxu Li, Silvio Savarese, and Steven Hoi. Blip-2: Bootstrapping language-image pre-training with frozen image encoders and large language models. In In-ternational conference on machine learning , pages 19730– 19742. PMLR, 2023. 1 [31] Hui Liu, Wenya Wang, and Haoliang Li. Interpretable multi-modal misinformation detection with logic reasoning. arXiv preprint arXiv:2305.05964 , 2023. 3 [32] Haotian Liu, Chunyuan Li, Qingyang Wu, and Yong Jae Lee. Visual instruction tuning. Advances in neural information processing systems , 36, 2024. 1 [33] Nan Liu, Yilun Du, Shuang Li, Joshua B Tenenbaum, and Antonio Torralba. Unsupervised compositional concepts dis-covery with text-to-image generative models. In Proceedings of the IEEE/CVF International Conference on Computer Vi-sion , pages 2085–2095, 2023. 2 [34] Xiaosong Ma, Jie Zhang, Song Guo, and Wenchao Xu. Swapprompt: Test-time prompt adaptation for vision-language models. Advances in Neural Information Process-ing Systems , 36, 2024. 1, 2 [35] Subhransu Maji, Esa Rahtu, Juho Kannala, Matthew Blaschko, and Andrea Vedaldi. Fine-grained visual classi-fication of aircraft. arXiv preprint arXiv:1306.5151 , 2013. 6, 2 [36] S´ egol` ene Martin, Yunshi Huang, Fereshteh Shakeri, Jean-Christophe Pesquet, and Ismail Ben Ayed. Transductive zero-shot and few-shot clip. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pages 28816–28826, 2024. 2 [37] Maria-Elena Nilsback and Andrew Zisserman. Automated flower classification over a large number of classes. In 2008 Sixth Indian conference on computer vision, graphics & im-age processing , pages 722–729. IEEE, 2008. 6, 2 [38] Zachary Novack, Julian McAuley, Zachary Chase Lipton, and Saurabh Garg. Chils: Zero-shot image classification with hierarchical label sets. In International Conference on Machine Learning , pages 26342–26362. PMLR, 2023. 1, 2, 4[39] Omkar M Parkhi, Andrea Vedaldi, Andrew Zisserman, and CV Jawahar. Cats and dogs. In 2012 IEEE conference on computer vision and pattern recognition , pages 3498–3505. IEEE, 2012. 1, 6, 2 [40] Sarah Pratt, Ian Covert, Rosanne Liu, and Ali Farhadi. What does a platypus look like? generating customized prompts for zero-shot image classification. In Proceedings of the IEEE/CVF International Conference on Computer Vision ,pages 15691–15701, 2023. 1, 2, 6, 7 [41] Meng Qu, Junkun Chen, Louis-Pascal Xhonneux, Yoshua Bengio, and Jian Tang. Rnnlogic: Learning logic rules for reasoning on knowledge graphs. arXiv preprint arXiv:2010.04029 , 2020. 2, 3 [42] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, and Ilya Sutskever. Learning transferable visual models from natural language supervision. 139:8748–8763, 2021. 1, 6, 7, 2 [43] Benjamin Recht, Rebecca Roelofs, Ludwig Schmidt, and Vaishaal Shankar. Do imagenet classifiers generalize to im-agenet? In International conference on machine learning ,pages 5389–5400. PMLR, 2019. 2 [44] Feras A Saad, Marco F Cusumano-Towner, Ulrich Schaech-tle, Martin C Rinard, and Vikash K Mansinghka. Bayesian synthesis of probabilistic programs for automatic data mod-eling. Proceedings of the ACM on Programming Languages ,3(POPL):1–32, 2019. 2 [45] Chenming Shang, Shiji Zhou, Hengyuan Zhang, Xinzhe Ni, Yujiu Yang, and Yuwang Wang. Incremental residual con-cept bottleneck models. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pages 11030–11040, 2024. 2 [46] Manli Shu, Weili Nie, De-An Huang, Zhiding Yu, Tom Goldstein, Anima Anandkumar, and Chaowei Xiao. Test-time prompt tuning for zero-shot generalization in vision-language models. Advances in Neural Information Process-ing Systems , 35:14274–14289, 2022. 1, 2, 6, 7, 3 [47] Julio Silva-Rodriguez, Sina Hajimiri, Ismail Ben Ayed, and Jose Dolz. A closer look at the few-shot adaptation of large vision-language models. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pages 23681–23690, 2024. 2 [48] K Soomro. Ucf101: A dataset of 101 human actions classes from videos in the wild. arXiv preprint arXiv:1212.0402 ,2012. 6, 2 [49] Lucas Tian, Kevin Ellis, Marta Kryven, and Josh Tenen-baum. Learning abstract structure for drawing by efficient motor program induction. Advances in Neural Information Processing Systems , 33:2686–2697, 2020. 2 [50] Vishaal Udandarao, Ankush Gupta, and Samuel Albanie. Sus-x: Training-free name-only transfer of vision-language models. In Proceedings of the IEEE/CVF International Con-ference on Computer Vision , pages 2725–2736, 2023. 2 [51] Haohan Wang, Songwei Ge, Zachary Lipton, and Eric P Xing. Learning robust global representations by penalizing local predictive power. Advances in Neural Information Pro-cessing Systems , 32, 2019. 2 [52] Zhengbo Wang, Jian Liang, Ran He, Nan Xu, Zilei Wang, and Tieniu Tan. Improving zero-shot generalization for clip with synthesized prompts. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 3032– 3042, 2023. 2 [53] Jianxiong Xiao, James Hays, Krista A Ehinger, Aude Oliva, and Antonio Torralba. Sun database: Large-scale scene recognition from abbey to zoo. In 2010 IEEE computer so-ciety conference on computer vision and pattern recognition ,pages 3485–3492. IEEE, 2010. 6, 2 [54] Luwei Xiao, Rui Mao, Xulang Zhang, Liang He, and Erik Cambria. Vanessa: Visual connotation and aesthetic at-tributes understanding network for multimodal aspect-based sentiment analysis. In Findings of the Association for Com-putational Linguistics: EMNLP 2024 , pages 11486–11500, 2024. 1 [55] Luwei Xiao, Rui Mao, Shuai Zhao, Qika Lin, Yanhao Jia, Liang He, and Erik Cambria. Exploring cognitive and aes-thetic causality for multimodal aspect-based sentiment anal-ysis. IEEE Transactions on Affective Computing , 2025. [56] Zhengnan Yin, Luwei Xiao, Xuan Feng, Yiwei Chen, Xi-anxun Zhu, Cai Luo, Faten S Alamri, Rui Mao, and Erik Cambria. Aosnet-sec: Aperture–orientation–spectrum fu-sion with statistical markov repair for trustworthy super-resolution. Pattern Recognition , page 113346, 2026. 1 [57] Hee Suk Yoon, Eunseop Yoon, Joshua Tian Jin Tee, Mark Hasegawa-Johnson, Yingzhen Li, and Chang DYoo. C-tpt: Calibrated test-time prompt tuning for vision-language models via text feature dispersion. arXiv preprint arXiv:2403.14119 , 2024. 6, 7, 2 [58] Tao Yu, Zhihe Lu, Xin Jin, Zhibo Chen, and Xinchao Wang. Task residual for tuning vision-language models. In Proceed-ings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 10899–10909, 2023. 1 [59] Maxime Zanella and Ismail Ben Ayed. On the test-time zero-shot generalization of vision-language models: Do we really need prompt learning? In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pages 23783–23793, 2024. 1, 2, 6, 7 [60] Maxime Zanella, Benoˆ ıt G´ erin, and Ismail Ben Ayed. Boosting vision-language models with transduction. arXiv preprint arXiv:2406.01837 , 2024. 2 [61] Renrui Zhang, Wei Zhang, Rongyao Fang, Peng Gao, Kun-chang Li, Jifeng Dai, Yu Qiao, and Hongsheng Li. Tip-adapter: Training-free adaption of clip for few-shot classi-fication. In European conference on computer vision , pages 493–510. Springer, 2022. 1 [62] Renrui Zhang, Xiangfei Hu, Bohao Li, Siyuan Huang, Han-qiu Deng, Yu Qiao, Peng Gao, and Hongsheng Li. Prompt, generate, then cache: Cascade of foundation models makes strong few-shot learners. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pages 15211–15222, 2023. [63] Kaiyang Zhou, Jingkang Yang, Chen Change Loy, and Ziwei Liu. Conditional prompt learning for vision-language mod-els. In Proceedings of the IEEE/CVF conference on com-puter vision and pattern recognition , pages 16816–16825, 2022. 1, 2 [64] Kaiyang Zhou, Jingkang Yang, Chen Change Loy, and Ziwei Liu. Learning to prompt for vision-language models. In-ternational Journal of Computer Vision , 130(9):2337–2348, 2022. 1, 2 [65] Beier Zhu, Yulei Niu, Yucheng Han, Yue Wu, and Han-wang Zhang. Prompt-aligned gradient for prompt tuning. In 
+
+Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 15659–15669, 2023. 2 [66] Xingyu Zhu, Beier Zhu, Shuo Wang, Kesen Zhao, and Han-wang Zhang. Enhancing clip robustness via cross-modality alignment. arXiv preprint arXiv:2510.24038 , 2025. 2, 6, 7 Beyond Heuristic Prompting: A Concept-Guided Bayesian Framework for Zero-Shot Image Recognition 
+
+# Supplementary Material 
+
+## 7. Experimental Settings 
+
+Table 6. Statistics of fifteen datasets used in our work.                                 
+
+> Dataset Number of Classes Test Set Size
+> SUN397 [53] 397 19,850 Aircraft [35] 100 3,333 EuroSAT [18] 10 8,100 StanfordCars [26] 196 8,041 Food101 [1] 101 30,300 OxfordPets [39] 37 3,669 Flower102 [37] 102 2,463 Caltech101 [12] 100 2,465 DTD [4] 47 1,692 UCF101 [48] 101 3,783 ImageNet [5] 1,000 50,000 ImageNet-A [20] 200 7,500 ImageNet-V2 [43] 1,000 10,000 ImageNet-R [19] 200 30,000 ImageNet-Sketch [51] 1,000 50,889
+
+7.1. Datasets 
+
+We primarily assess our framework on eleven classifi-cation datasets, including automobiles (Cars [26]), tex-tures (DTD [4]), human actions (UCF101 [48]), aircraft types (Aircraft [35]), satellite imagery (EuroSAT [18]), pet breeds (Pets [39]), flowers (Flower102 [37]), food items (Food101 [1]), scenes (SUN397 [53]), and general objects (Caltech101 [12] and ImageNet [5]). We additionally eval-uate the robustness of our framework to natural distribu-tion shifts on four ImageNet variants, involving ImageNet-A [20], ImageNet-V2 [43], ImageNet-R [19], ImageNet-Sketch [51] as out-of-distribution (OOD) data for Ima-geNet [5]. The dataset statistics are shown in Table 6. 
+
+7.2. Details of baselines 
+
+CLIP and CLIP + E are two versions adopted by Radford et al. [42] while the former uses a default prompt “A photo of a {class }.” and the latter uses the ensemble of 80 hand-crafted prompts. TPT and MTA generate multiple aug-mented views of test images to enhance prediction robust-ness. TPT minimizes the entropy of the prediction distri-butions among all views via prompt tuning. MTA, on the other hand, optimizes an importance score for each view to find the mode of the density of all views and enforces similar importance scores for views with similar predic-tion distributions. COLA enhances robustness by project-ing adversarial image features into a text-induced subspace and refining alignment through optimal transport. CuPL uses five fixed questions (e.g., “What does a {class } look like?”) to prompt an LLM and treats the responses as tex-tual prompts. C-TPT [57] jointly optimizes prompts during test time to improve calibration by maximizing the Average Text Feature Dispersion, motivated by the observation that prompts inducing higher text-feature dispersion yield lower calibration error. DiffTPT [13] leverages a pre-trained dif-fusion model to synthesize diverse augmented views for each test image and applies a cosine-similarity filtration to remove spurious generations, thereby balancing augmenta-tion diversity and prediction fidelity for test-time prompt tuning. ZERO [11] is a training-free test-time adaptation baseline that augments the test image, keeps the most con-fident views, then sets the Softmax temperature to zero so that marginalization effectively becomes voting over con-fident predictions, requiring only a single batched forward pass through the vision encoder and no backpropagation. 
+
+7.3. Implementation details 
+
+For concept synthesis, we use GPT-4.1 Turbo to generate 10 concepts per API call. For each class Yi, we generate 50 atomic concepts ( MA = 50 ) and randomly sample 500 composite combinations ( | ˆCi| = 500 ) from the atomic set with 3 atomic concepts per combination. The final compo-sitional concept set Ci is selected using DPP algorithm with a size of either 16 or 50 ( Mi = 16 or 50 ) in our main exper-iments. The prompt used by the LLM for the discriminative concept generation utilized in CGBC is provided in Table 7, while the prompt for the descriptive baseline, as discussed in Sec. 5.5, is detailed in Table 8. In the Adaptive Soft-Trim Likelihood, we set the outlier threshold as λ = 2 .5 and sigmoid slope as the logit scale of CLIP k = e4.6. All baselines are evaluated using their default hyperparameters as reported in their respective pa-pers. Unless otherwise specified, we use CLIP with a ViT-B/16 backbone as the primary VLM. To mitigate the effect of randomness, we report the average top-1 accuracy over three random seeds for all main experiments. 
+
+7.4. Concept Generation Cost Analysis 
+
+In our experiments, we utilize three variants of the GPT-4.1 model, involving GPT-4.1-Turbo, GPT-4.1-Mini, and GPT-4.1-Nano. The token pricing for each model is as follows: • GPT-4.1-Turbo : $2.00 per 1M input tokens, $8.00 per 1M output tokens. • GPT-4.1-Mini : $0.40 per 1M input tokens, $1.60 per 1M output tokens. • GPT-4.1-Nano : $0.10 per 1M input tokens, $0.40 per 1M Figure 6. Illustrative examples of Discriminability in constructing the Concept Proposal Distribution. We multiply the raw similarity values by CLIP’s scaling factor. 
+
+output tokens. 
+
+> Figure 7. Visualization of similarity between prompts enhanced by discriminative and common concepts for the beagle and basset hound classes. We multiply the raw similarity values by CLIP’s scaling factor.
+
+For each API call, we generate 10 candidate concepts. To obtain 50 unique concepts per class, considering possible duplication, we typically require approximately 6 API calls per class. Assuming a total of 1,000 classes, the approxi-mate cost for each model variant is as follows: • GPT-4.1-Turbo : $10.00 • GPT-4.1-Mini : $2.00 • GPT-4.1-Nano : $0.50 
+
+## 8. Supplementary Experiments 
+
+8.1. Robustness Analysis 
+
+To evaluate the robustness of our proposed framework un-der natural distribution shifts, we compare its performance against other zero-shot methods, as presented in Table 9. The results indicate that CGBC consistently outperforms CGBC Prior, highlighting the necessity of likelihood-based refinement for the concept prior distribution. Although both CGBC and CGBC Prior maintain a clear performance mar-gin over CLIP, they fall behind view-based methods under significant domain shifts. This observation suggests that multi-view information is essential in scenarios with sub-stantial distributional changes or noise. To address this, we propose an enhanced variant, CGBC + View. Given an in-put image X and its Naug augmented views, we apply the CGBC framework to each view to obtain robust similarity scores. We then compute the entropy of the predicted dis-tributions for each view, select the top 10% of views with the lowest entropy (i.e., most confident predictions), follow-ing [46] and average their results. Empirical results show that CGBC + View outperforms view-augmentation-based baselines by an average of 2 percents across four OOD datasets when the number of prompts is set to 50. Notably, it achieves particularly strong performance on ImageNet-A. These phenomenon further validates the effectiveness of concept-based prompt augmentation in enhancing general-ization under distribution shifts. 
+
+8.2. Running Time Analysis 
+
+All experiments were conducted using four NVIDIA 3090Ti GPUs. To ensure a fair comparison of computa-tional efficiency, we report the inference-time adaptation cost for TPT, MTA, CGBC, and CGBC + View on the Ima-geNet dataset under identical hardware conditions. Specif-ically, we exclude model loading time and assume that text prompt embeddings are precomputed. The total adap-tation times are approximately 11 hours 26 minutes for TPT, 3 hours 42 minutes for MTA, 2 minutes 43 seconds for CGBC, and 2 hours 33 minutes for CGBC + View. These results demonstrate that our proposed CGBC frame-Table 7. Prompt for discriminative concept generation. The red text represents variables that are dynamically replaced based on the specific datasets and image classes being tested. “Core class” and “Other Classes” correspond to Yi and Li,j , respectively. 
+
+SYSTEM PROMPT: 
+
+You are a visual concept proposer tasked with enhancing text descriptions for zero-shot image classification on the test dataset using CLIP. Given: - A core class from the test dataset - The set of other classes in the dataset Task: Propose concise, visually discriminative concepts to append to the text description (i.e., “A photo of {core class } with 
+
+{your concept }”) that help CLIP better distinguish the core class from the other classes. Guidelines: - Analyze the unique visual characteristics of the core class compared to other classes - Propose concepts that capture these discriminative visual features. - Ensure concepts are concrete, easily understandable by CLIP, and specific to the test dataset. - Each concept should enable CLIP to more accurately classify images of the core class while minimizing confusion with other classes. 
+
+IMPORTANT: Your response must follow this exact format: 
+
+<concepts begin> 
+
+concept1 concept2 concept3 
+
+</concepts end> 
+
+Rules: 
+
+- Start with <concepts begin> and end with </concepts end> 
+
+- Each concept should be on a new line - Each concept MUST start with "The final concept is: "
+
+- Ensure concepts are clear, specific, and relevant to the core class - Avoid generic or ambiguous concepts - Each concept should be unique and distinct from others - Keep each concept brief (ideally ≤6 words), specific, and easy for CLIP to parse. 
+
+USER PROMPT: 
+
+Core class: [Core class]. Other classes: [Other Classes]. Please generate 10 unique and visually discriminative concepts. Follow the required format and rules. work requires significantly less adaptation time compared to view-augmentation-based zero-shot approaches, while still achieving superior performance. Furthermore, even when incorporating multi-view inputs, CGBC + View re-mains more efficient than standard view-augmented zero-shot methods, owing to its optimization-free nature. 
+
+8.3. Qualitative Analysis 
+
+In this subsection, we use illustrative examples to demon-strate the roles of discriminability and compositionality in constructing the concept proposal distribution. Discrim-inability Compared to descriptive prompts, our proposed LLM-driven Concept Synthesis Pipeline is more likely to generate discriminative concepts through the use of dis-criminative prompts. This suggests that while descriptive prompts can also produce effective discriminative prompts, the number and quality are generally lower than ours. The effectiveness of our approach is particularly evident when comparing discriminative concepts with shared concepts that are likely to be generated by descriptive prompts and are common to both classes. As shown in Fig. 6, for the class beagle, when using CLIP with the original prompt format ”a photo of class” instantiated with beagle and bas-set hound, the model misclassifies the image. Even when using a shared concept, a concept frequently generated by descriptive prompts and common to both classes, the reduc-tion in the decision margin between the two classes is in-sufficient to correct the misclassification. In contrast, when using a discriminative concept, we can effectively adjust the margin and correct the classification. Fig. 7 further illus-trates how prompts enhanced with different types of con-cepts (common vs. discriminative) affect the similarity be-tween the test image and both class prompts. Composition-ality : Among the atomic concepts generated by the LLM, Table 8. Prompt for descriptive concept generation. The red text represents variables that will be replaced based on the specific datasets and image classes being tested. “Core class” will be instantiated by Yi.
+
+SYSTEM PROMPT: 
+
+You are a visual concept proposer tasked with enhancing text descriptions for zero-shot image classification on the test dataset using CLIP. Given: - A class from the test dataset Task: Propose descriptive concepts to append to the text description (i.e., “A photo of {core class } with {your concept }”) that help CLIP better understand and recognize the core class. Guidelines: - Focus on the visual characteristics and attributes of the core class itself. - Generate descriptive concepts that capture various aspects, appearances, or contexts of the core class. - Ensure concepts are concrete, easily understandable by CLIP, and specific to the test dataset. - Think about different visual perspectives, settings, or attributes that describe the core class. 
+
+IMPORTANT: Your response must follow this exact format: 
+
+<concepts begin> 
+
+concept1 concept2 concept3 
+
+</concepts end> 
+
+Rules: 
+
+- Start with <concepts begin> and end with </concepts end> 
+
+- Each concept should be on a new line - Each concept MUST start with "The final concept is: "
+
+- Ensure concepts are clear, specific, and relevant to the given class - Avoid generic or ambiguous concepts - Each concept should be unique and distinct from others - Keep each concept brief (ideally ≤6 words), specific, and easy for CLIP to parse. 
+
+USER PROMPT: 
+
+Core class: [Core class]. Please generate 10 unique and descriptive concepts that capture different visual aspects of this class. there often exist noisy or outlier concepts as analyzed in the main body. In addition to the likelihood function that helps mitigate the impact of such outliers, as illustrated in Fig. 8, compositional concepts can also alleviate the effect of poor atomic concepts by combining them with more in-formative ones. However, when noisy concepts constitute a significant portion of the atomic concept set, compositional-ity alone becomes insufficient. In such cases, a likelihood-based refinement of the concept prior remains essential to effectively suppress the influence of outlier concepts. Di-versity : For a more comprehensive assessment of diversity, we refer readers to the quantitative analyses reported in the main text and to the final concept set released in our open-source repository. 
+
+8.4. Supplementary Ablation studies 
+
+Table 10. The rows marked ’(avg)’ indicate results using concept prompt averaging to replace “or”. We use 50 prompts).                                                             
+
+> Method SUN. Air. Eur. Car. Food. Pets Flow. Cal. DTD UCF Ima. Avg
+> CGBC Prior 68.5 26.1 59.3 66.6 83.8 88.5 72.4 94.0 55.1 71.8 68.3 68.6 Prior (avg) 68.5 26.1 55.6 66.9 84.2 87.9 71.7 94.2 52.6 70.2 68.9 67.9 CGBC 68.8 26.0 60.3 66.6 83.9 90.7 73.7 94.4 55.7 72.3 69.4 69.3
+> CGBC (avg) 68.7 26.1 56.6 67.0 84.3 88.5 72.3 94.2 52.9 70.6 69.1 68.2
+
+Reasonability of using “or” for concept composition. We compose atomic concepts using natural-language coordi-nation with “or” (e.g., “ A or B ”). Although CLIP does not implement symbolic logic, it is trained on large-scale image–text data and can leverage the distributional seman-tics of common coordination patterns; thus “or” serves as a cue for alternatives , encouraging a text representation compatible with multiple visual realizations. We addition-ally evaluate a non-compositional baseline that averages the Table 9. Performance of zero-shot methods on different variants of ImageNet datasets. We report the average performance (Avg.) and average out-of-distribution performance (OOD Avg.). Best and second-best results are bolded and underlined, respectively. The Auxiliary 
+
+column shows the number of views and prompts. 
+
+Method A R K V I Avg. OOD Avg. Auxiliary 
+
+CLIP 47.80 73.99 46.15 60.84 66.73 59.10 57.20 (1, 1) CLIP + E. 49.95 77.71 48.26 61.91 68.38 61.24 59.46 (1, 80) TPT 54.63 77.04 47.97 63.41 68.94 62.40 60.76 (64, 1) MTA 57.41 76.92 48.58 63.61 69.29 63.16 61.63 (64, 1) Cupl 47.52 74.14 46.43 59.6 66.75 58.89 56.92 (1, 16) Cupl 48.12 74.66 46.96 60.43 66.47 59.33 57.54 (1, 50) CGBC Prior 49.44 75.30 48.06 61.56 68.21 60.51 58.59 (1, 16) CGBC 49.54 75.35 48.16 62.11 69.22 60.88 58.79 (1, 16) CGBC + View 61.68 77.65 49.24 64.04 70.5 64.62 63.15 (64, 16) CGBC Prior 49.91 75.4 48.14 61.61 68.32 60.68 58.77 (1, 50) CGBC 49.79 75.49 48.36 62.15 69.43 61.04 58.95 (1, 50) CGBC + View 62.19 77.41 49.45 64.37 70.64 64.81 63.36 (64, 50) 
+
+Figure 8. Illustrative examples of Compositionality in constructing the Concept Proposal Distribution. We multiply the raw similarity values by CLIP’s scaling factor. 
+
+CLIP text embeddings of the atomic prompts within a con-cept (Table 10, Prior (avg) ). Empirically, “or” outperforms prompt averaging in our setting. We attribute this to the fact that textual composition preserves syntactic structure and a learned coordination pattern, whereas embedding averaging is a purely mixture that can dilute distinctive semantics. 
+
+Versatility across concept generators. Beyond the GPT-
+
+Table 11. Performance on various model group.                                         
+
+> Avg |Li|EuroSAT DTD Aircraft Pets UCF101 Average Avg/EuroSAT
+> GPT-4.1 turbo 10 60.3 55.7 26.0 90.7 72.3 61.0 61.2 Gemini 2.5 Flash 10 59.5 54.3 26.0 90.6 71.3 60.4 60.6 Gemini 2.5 Flash Lite 10 58.9 53.2 26.4 89.8 71.4 59.9 60.1 Gemini 2.0 Flash 10 58.8 53.0 26.1 90.6 71.5 60.0 60.2
+
+family concept generators validated in the main text, we fur-ther evaluate CGBC using the Gemini series as the concept generator. Table 11 shows that CGBC maintains consistent performance across model groups: replacing GPT-4.1 turbo with Gemini 2.5 Flash, Gemini 2.5 Flash Lite, or Gemini 2.0 Flash results in only marginal changes in accuracy on all datasets, with the overall average remaining within a nar-row band (61.0 vs. 59.9–60.4). These results indicate that CGBC is not tied to a specific LLM family and is robust to the choice of concept generator, supporting its practicality for deployment under different cost/latency constraints. 
+
+## 9. Theoretical Analysis of Adaptive Soft-Trim based likelihood 
+
+9.1. Proof of Robust Guarantee 
+
+We restate Theorem 1 below for convenience. 
+
+Theorem (Robust Guarantee) . If the size of concept set Ci
+
+for each class Yi satisfies Mi ≥ C0 log(1 /δ )
+
+> ρ2
+> i
+
+for a universal constant C0, then with probability at least 1 − δ, the esti-mation error of ˆμi is bounded by: 
+
+|ˆμi − μi| ≤ C1σiρi + C2σi
+
+r log(1 /δ )
+
+Mi
+
++ C3σi
+
+k (14) where C1, C2, and C3 are universal constants and k is sig-moid slope parameter in Eq. (9) .Proof. The proof proceeds by decomposing the total esti-mation error into three components: (1) a bias term aris-ing from the adversarial contamination, (2) a statistical er-ror term due to finite sampling, and (3) an approximation error term from the soft-trimming mechanism. Let the set of samples be Si = {Si, 1, . . . , S i,M i }. By the Huber contamination model, we can conceptually partition 
+
+Si into a set of inliers Gi drawn from the 1-sub-Gaussian distribution N (μi, σ 2 
+
+> i
+
+) and a set of outliers Oi from an ar-bitrary adversarial distribution. We have |G i| ≥ (1 − ρi)Mi
+
+and |O i| ≤ ρiMi.The Adaptive Soft-Trim estimator is defined as ˆμi =   
+
+> PMij=1 wi,j Si,j
+> PMij=1 wi,j
+
+, where the weights wi,j are a decreasing func-tion of the normalized deviation from the sample median, i.e., wi,j = f (−| Si,j − mi|/MAD i) for some decreasing function f (e.g., a sigmoid we utlize in our implementa-tion). 
+
+Robustness of Median and MAD A foundational re-sult in robust statistics is that the median and Median Ab-solute Deviation (MAD) are robust estimators of location and scale. Under the given sample complexity condition 
+
+Mi ≥ C0 log(1 /δ )
+
+> ρ2
+> i
+
+, it can be shown that with probability at least 1 − δ [6]: 
+
+|mi − μi| ≤ O(σiρi) (15) 
+
+|MAD i − cσ i| ≤ O(σiρi) (16) where mi = median (Si) and c is the constant factor relat-ing MAD to the standard deviation for the underlying clean distribution (e.g., c ≈ 0.6745 for a Gaussian). This ensures that the center and scale used for trimming are themselves close to the true parameters, up to a factor of the contami-nation rate. 
+
+Error Decomposition We analyze the error |ˆμi − μi| by triangle inequality. Let W = PMi 
+
+> j=1
+
+wi,j .                
+
+> |ˆμi−μi|=1
+> W
+> MiX
+> j=1
+> wi,j (Si,j −μi)
+> ≤1
+> W
+> X
+> j∈G i
+> wi,j (Si,j −μi)+1
+> W
+> X
+> j∈O i
+> wi,j (Si,j −μi)
+> (17)
+
+Bias from Contamination : The second term,  
+
+> 1
+> W
+
+| P 
+
+> j∈O i
+
+wi,j (Si,j − μi)|, captures the influence of outliers. Our proposed adaptive soft-trim based likelihood is designed to down-weight points with large deviations 
+
+|Si,j − mi|. While outliers can be arbitrary, their influence is controlled. The theory of robust mean estimation [6, 23] establishes that for any estimator in this class, the bias induced by a ρi-fraction of contamination is at least 
+
+Ω( σiρi). Our proposed likelihood, being a variant of a trimmed mean, achieves a near-optimal rate. The bias from both the residual influence of down-weighted outliers and the error in the trimming center ( |mi − μi|) is bounded by 
+
+C1σiρi.
+
+Statistical Error : The first term, 1 
+
+> W
+
+| P 
+
+> j∈G i
+
+wi,j (Si,j −
+
+μi)|, represents the statistical error from estimating a mean from a finite number of the weighted inlier concepts. It shrinks as the sample size M increases. For j ∈ Gi,
+
+Si,j − μi are i.i.d. 1-sub-Gaussian random variables with mean 0. The sum is a weighted sum of such variables. By a weighted version of Hoeffding’s inequality, for any fixed weights, this sum is bounded by O(σi
+
+qP w2 
+
+> i,j
+
+log(1 /δ )) .Since wi,j ∈ [0 , 1] and W ≈ (1 − ρi)Mi, we have P w2 
+
+> i,j
+
+≤ W . The normalized sum is thus bounded by 
+
+O(σi
+
+plog(1 /δ )/W ) ≈ O(σi
+
+plog(1 /δ )/M i). This gives the term C2σi
+
+q log(1 /δ ) 
+
+> Mi
+
+.
+
+Approximation Error The use of a ”soft” sigmoid function with slope k instead of a ”hard” threshold introduces a third error term. The weight function wi,j transitions from 1 to 0 over a region whose width is proportional to 1/k in the normalized deviation space. Inliers that fall into this transi-tion region are unduly down-weighted, and outliers that fall into it are not fully removed. This imperfect trimming in-troduces a bias. The magnitude of this error is proportional to the width of the transition region, leading to an error term of the form C3σi/k . As k → ∞ , the soft-trim approaches a hard-trim, and this term vanishes. Combining the three error bounds via the triangle in-equality, we obtain the final result. With probability at least 
+
+1 − δ, the total error is bounded by the sum of the bias, statistical, and approximation errors: 
+
+|ˆμi − μi| ≤ C1σiρi + C2σi
+
+s
+
+log(1 /δ )
+
+Mi
+
++ C3σi
+
+k (18) This completes the proof. 
+
+9.2. Proof of Multi-class excess risk 
+
+We restate Corollary 1 below for convenience. 
+
+Corollary (Multi-class excess risk) . Under the condition in Theorem 1, the classifier for image X in Eq. (1) satisfies:          
+
+> R − R ∗≤Pr
+> h
+> margin μ(X)≤2·max
+> i|ˆμi(X)−μi(X)|
+> i
+> (19)
+
+where R is the risk of our classifier, R∗ is the optimal Bayes risk, and margin μ(X) is the margin of the true mean μi(X).Consequently, With probability at least 1−δ, the excess risk is bounded by: 
+
+R − R ∗ ≤ Pr 
+
+h
+
+margin μ(X) ≤ 2 C1σmax ρmax + (20) 
+
+C2σmax 
+
+q log( K/δ ) 
+
+> Mmin
+
++ C3σmax 
+
+> k
+
+i
+
+where K is the number of classes, σmax = max i σi,
+
+ρmax = max i ρi, and Mmin = min i Mi.Proof. The proof is in two parts. First, we relate the ex-cess classification risk to the estimation error of the means 
+
+μi(X). Second, we apply the bound from Theorem 1 to this relation. 
+
+Relating Excess Risk to Estimation Error Let h∗(X) = arg max 
+
+> i
+
+μi(X) be the Bayes optimal classifier for the true (uncontaminated) means. The excess risk of our classifier 
+
+ˆh(X) = arg max 
+
+> i
+
+ˆμi(X) is upper-bounded by the probabil-ity of misclassification relative to the optimal one: 
+
+R(ˆh)−R ∗ ≤ EX
+
+h
+
+I(ˆh(X)̸ = h∗(X)) 
+
+i
+
+= Pr( ˆh(X)̸ = h∗(X)) 
+
+(21) A misclassification occurs if ˆh(X)̸ = h∗(X). Let i∗ =
+
+h∗(X) be the true optimal class. A misclassification im-plies that there exists some class j̸ = i∗ such that ˆμj (X) >
+
+ˆμi∗ (X). We can establish a sufficient condition for this event. Consider the inequality: 
+
+ˆμj (X) > ˆμi∗ (X)
+
+μj (X) + (ˆ μj (X) − μj (X)) > μ i∗ (X) + (ˆ μi∗ (X) − μi∗ (X)) 
+
+μi∗ (X) − μj (X) < (ˆ μj (X) − μj (X)) 
+
+− (ˆ μi∗ (X) − μi∗ (X)) 
+
+By the triangle inequality, the right-hand side is bounded: 
+
+μi∗ (X) − μj (X) ≤ | ˆμj (X) − μj (X)| + |ˆμi∗ (X) − μi∗ (X)|≤ 2 · max  
+
+> k
+
+|ˆμk(X) − μk(X)|
+
+The margin of the true means is defined as margin μ(X) = 
+
+μi∗ (X) − max j̸ =i∗ μj (X). Since a misclassification im-plies the existence of a j̸ = i∗ satisfying the above, it must be that the margin itself is bounded by this quantity. There-fore, the event {ˆh(X)̸ = h∗(X)} is a subset of the event 
+
+{margin μ(X) ≤ 2 · max k |ˆμk(X) − μk(X)|} . This gives the first inequality of the corollary: 
+
+R(ˆh) − R ∗ ≤ Pr 
+
+h
+
+margin μ(X) ≤ 2 · max  
+
+> i
+
+|ˆμi(X) − μi(X)|
+
+i
+
+Applying the High-Probability Bound Theorem 1 pro-vides a bound on |ˆμi(X) − μi(X)| for a single class i that holds with probability 1 − δ. We require a bound that holds simultaneously for all K classes. Let δ′ = δ/K . Apply-ing Theorem 1 for each class i ∈ { 1, . . . , K } with failure probability δ′, we have that with probability at least 1 − δ′,
+
+|ˆμi − μi| ≤ C1σiρi + C2σi
+
+s
+
+log(1 /δ ′)
+
+Mi
+
++ C3σi
+
+k (22) By the union bound, the probability that at least one of these 
+
+K bounds fails is at most PKi=1 δ′ = K(δ/K ) = δ. There-fore, with probability at least 1 − δ, the bound holds for all 
+
+i = 1 , . . . , K simultaneously. On this high-probability event, we can bound the maxi-mum estimation error:              
+
+> max
+> i|ˆμi(X)−μi(X)| ≤ max
+> i(C1σiρi+C2σi
+> s
+> log( K/δ )
+> Mi
+> +C3σi
+> k)
+> ≤C1σmax ρmax +C2σmax
+> s
+> log( K/δ )
+> Mmin
+> +C3σmax
+> k
+
+where σmax = max i σi, ρmax = max i ρi, and Mmin =min i Mi. Substituting this high-probability bound into the result from Relating Excess Risk to Estimation Error , we arrive at the final expression for the excess risk: 
+
+R(ˆh) − R ∗ ≤ Pr 
+
+h
+
+margin μ(X) ≤ 2 C1σmax ρmax + (23) 
+
+C2σmax 
+
+q log( K/δ ) 
+
+> Mmin
+
++ C3σmax 
+
+> k
+
+i
+
+This bound connects the classifier’s performance to the in-trinsic difficulty of the problem, captured by the distribu-tion of margin μ(X), and the quality of our robust estimation procedure. 
+
+## 10. Limitations 
+
+CGBC yields the largest gains on datasets where CLIP can reliably interpret LLM-generated concepts (e.g., Eu-roSAT, DTD), whereas on harder domains (e.g., Aircraft) improvements are smaller and some prior prompts can match or slightly outperform CGBC. We attribute this vari-ation to two factors: (i) occasional outlier concepts pro-duced by LLMs and (ii) dataset-dependent limitations of CLIP in mapping text concepts to visual evidence. When CLIP’s concept understanding is adequate, filtering and reweighting reduce the impact of outliers and CGBC im-proves over CGBC Prior (e.g., EuroSAT: 59.3 →60.3; Im-ageNet: 68.3 →69.4). When CLIP’s zero-shot baseline is weak, CLIP’s representational limitations can dominate and CGBC provides limited benefit (e.g., Aircraft: 26.1 →26.0), where more descriptive prompts (e.g., CUPL) may be easier for CLIP to align with images. From a theoretical standpoint, our method is motivated by a Bayesian view of zero-shot classification but relies on practical approximations. A fully Bayesian treatment would require marginalizing over the space of all concepts 
+
+C to compute  p(Y | X), which is computationally infeasi-ble; we instead approximate this integral using a small set of high-quality concepts synthesized by an LLM pipeline. Moreover, the likelihood term  p(X | C) is generative in na-ture, while CLIP is a discriminative model; consequently, we use CLIP image–text similarity as an empirical proxy for  p(X | C). Developing a more principled probabilis-tic grounding of this likelihood approximation remains an open direction.

@@ -1,0 +1,565 @@
+Title: Enabling Training-Free Text-Based Remote Sensing Segmentation
+
+URL Source: https://arxiv.org/pdf/2602.17799v1
+
+Published Time: Mon, 23 Feb 2026 01:08:33 GMT
+
+Number of Pages: 19
+
+Markdown Content:
+# Enabling Training-Free Text-Based Remote Sensing Segmentation 
+
+# Jose Sosa, Danila Rukhovich, Anis Kacem, Djamila Aouada SnT, University of Luxembourg 
+
+{jose.sosa,danila.rukhovich,anis.kacem,djamila.aouada }@uni.lu Contrastive     
+
+> VLM
+> Contrastive
+> VLM SAM
+> Generative
+> VLM
+> SAM
+> (a) Contrastive VLM for text-based RS segmentation
+> Existing approaches
+> Ours, Training-free
+> (b) Generative VLM for text-based RS segmentation
+> Existing approaches
+> Ours, Training-free or LoRA-tuned
+> building, tree,
+> pavement, bareland
+> In the scenario of a fire risk,
+> which visible structures in the
+> image require precautionary
+> actions to stop dangerous
+> substance combustions?
+> Generative
+> VLM Adapter Mask
+> Decoder
+> Mask
+> Decoder LoRA
+> or Full FT
+> LoRA
+> or frozen
+
+Figure 1. Existing methods [33, 35, 55] rely on additional trainable mask decoders and adapters. We propose a training-free methodology that combines VLMs and SAM without introducing new trainable components. Additionally, with LoRA fine-tuning, our method achieves state-of-the-art performance on reasoning segmentation. Blue is for frozen components. 
+
+# Abstract 
+
+Recent advances in Vision Language Models (VLMs) and Vision Foundation Models (VFMs) have opened new op-portunities for zero-shot text-guided segmentation of remote sensing imagery. However, most existing approaches still rely on additional trainable components, limiting their gen-eralisation and practical applicability. In this work, we investigate to what extent text-based remote sensing seg-mentation can be achieved without additional training, by relying solely on existing foundation models. We propose a simple yet effective approach that integrates contrastive and generative VLMs with the Segment Anything Model (SAM), enabling a fully training-free or lightweight LoRA-tuned pipeline. Our contrastive approach employs CLIP as mask selector for SAM’s grid-based proposals, achiev-ing state-of-the-art open-vocabulary semantic segmenta-tion (OVSS) in a completely zero-shot setting. In parallel, our generative approach enables reasoning and referring segmentation by generating click prompts for SAM using GPT-5 in a zero-shot setting and a LoRA-tuned Qwen-VL model, with the latter yielding the best results. Extensive experiments across 19 remote sensing benchmarks, includ-ing open-vocabulary, referring, and reasoning-based tasks, demonstrate the strong capabilities of our approach. Code will be released here. 
+
+# 1. Introduction 
+
+Remote sensing imagery has become a cornerstone of earth observation, supporting critical applications such as land-cover mapping, environmental monitoring, and disaster re-sponse [23, 59, 60, 62]. Recent advances in deep learning, in particular for pixel-level segmentation have highly im-proved the accuracy and scalability of such analyses [17, 91]. However, most methods still follow supervised se-tups, depending on large-scale, domain-specific annotated datasets for training. The costly and inconsistent process of collecting dense pixel-level annotations continues to limit progress, particularly for fine-grained or rapidly evolving geospatial categories. Recently, Vision Language Models (VLMs) [1, 3, 50] and Vision Foundation Models (VFMs) [53] have shown impressive zero-shot capabilities on natural images, achiev-ing text-based segmentation without additional supervi-sion. These models offer an appealing direction for re-mote sensing, where various successful approaches have emerged [4, 28, 33, 35, 54, 55, 78, 82, 87, 88]. Neverthe-less, most methods in this domain still rely on additional trainable adapters [35, 37, 87], lightweight heads [33, 82], or token-level bridges [4, 28, 54] to link visual and textual modalities. Our work is based on the premise that relying exclu-sively on pretrained foundation models enables a training-1
+
+> arXiv:2602.17799v1 [cs.CV] 19 Feb 2026
+
+free approach for text-based remote sensing segmentation. This raises a central question: To what extent can such segmentation be achieved solely through pretrained foun-dation models, without introducing any additional train-able components? To explore this, our approach builds on two key elements: VLMs and VFMs. VLMs provide the multi-modal link between textual queries and visual con-tent, while VFMs (such as SAM [53]), offer a generic mech-anism for mask generation. We investigate strategies to integrate these components without introducing additional trainable parameters. Specifically, we propose two complementary pipelines, the first uses contrastive VLMs , like CLIP [50], as seman-tic selectors over SAM’s category-agnostic mask proposals for OVSS. The second employs generative VLMs , such as GPT-5 [48] and Qwen-VL [3], as SAM prompters with spa-tial clicks for referring and reasoning-based segmentation scenarios. While the first approach operates in a fully zero-shot manner, the second can be applied either zero-shot or with lightweight LoRA fine-tuning [21]. Figure 1 provides a visual comparison of our proposed approach, and contrasts it with recent text-based remote sensing segmentation meth-ods. In summary, our contributions are as follows: • We investigate the extent to which text-based remote sensing segmentation can be accomplished by using only existing VLMs and SAM, without introducing additional trainable components. • We propose two complementary approaches for combin-ing VLMs with SAM: (i) using a contrastive VLM to se-lect masks from SAM’s grid-based proposals, and (ii) us-ing a generative VLM to generate click prompts for SAM-based segmentation. • We demonstrate that contrastive VLM-based pipeline en-ables fully training-free segmentation, achieving state-of-the-art performance in OVSS of remote sensing imagery. • We further show that minimal LoRA fine-tuning of the generative VLM-based approach, with SAM kept frozen, yields state-of-the-art results on reasoning and referring segmentation with remote sensing imagery. 
+
+# 2. Related work 
+
+2.1. VLMs for Text-Based Segmentation 
+
+Text-based image segmentation aims to segment regions within an image based on natural language descriptions. Recent advances [28, 54, 82] on multi-modal datasets and pretraining strategies for VLMs have revolutionised this field. Consequently, text-based segmentation is increas-ingly dominated by contrastive and generative VLM-based approaches. These models can localise complex language-guided targets without requiring extensive task-specific su-pervision. 
+
+Contrastive VLMs [43, 50] are trained to align image and text representations through contrastive learning on paired data. Starting from CLIP [50], they have shown remark-able zero-shot performance on image classification, which naturally extends to semantic segmentation [42]. These ap-proaches are usually categorised based on the amount of needed supervision. Training-free methods attempt to ex-ploit the inherent localisation capabilities of CLIP with min-imal modifications. For instance, MaskCLIP [87] proposes to extract the value embedding of the last self-attention block of CLIP’s vision encoder for dense prediction tasks. Following this work, other studies [29] generalise the query-key attention to a self-self attention mechanism. This includes, the value-value attention in CLIPSurgery [38], the query-query and key-key attention in SCLIP [64], and gen-eralised self-self attention combination in GEM [7]. An-other stream of work [5, 26, 56, 61, 69] adopts a two-stage method. The first stage generates category-agnostic mask proposals, while the second stage classifies them. Trainable 
+
+methods allow models to be trained on some base classes in a supervised or weakly supervised manner. Typically, some works [19, 43, 47, 51] train a localisation-aware CLIP for dense predictions. Others [13, 16, 32, 41, 76] instead fine-tune a subset of CLIP’s pre-trained parameters or add a few trainable ones to adapt it for dense prediction on base classes. Finally, with additional adapters [6, 25, 27, 30, 37, 65, 77] CLIP can be connected with other foundation models (SAM [53] or DINO [9]) to enhance the localisa-tion ability. 
+
+Generative VLMs [1, 3, 75] are trained to model the joint or conditional distribution of images and text via auto-regressive generation. These models allow for complex rea-soning between image and language modalities. However, none of them directly support image segmentation, so need to be extended with extra components. LISA [28] estab-lishes the paradigm by introducing a <SEG> token to con-nect LLMs with segmentation decoders. Finetuning VLMs with these novel tokens is further explored in PixelLM [54] and more recent works [4, 52, 66, 67, 79, 82, 83, 85]. SAM4MLLM [12] and SegAgent [89] propose the solu-tion without adding novel trainable tokens, namely to use SAM [53] as a tool, conditioned by clicks or boxes, pro-duced by VLM in form of text. Another possible tool for image generation for VLMs can be diffusion models, e.g .Qwen-Image [71] for Qwen3 [75] or GPT-Image-1 [49] for GPT-5 [48]. This technically gives VLMs the ability to solve segmentation, since segmentation mask can be imag-ined as just an image. Overall, despite the proven capabilities of aforemen-tioned contrastive and generative VLM-based methods on natural images, none of them originally attempted text-based remote sensing segmentation. 2(a) Contrastive VLM for text-based RS segmentation 
+
+> (b) Generative VLM for text-based RS segmentation
+> building, tree
+> pavement
+> {"Positive": [(315, 59), (550, 64)],
+> "Negative": [(515, 52)]}
+> plane at
+> the bottom
+> VLM
+> SAM masks
+> VLM
+> upsample
+> and merge
+> CLIP features
+> SAM
+> SAM
+> predicted clicks
+> grid clicks Figure 2. Inference schemes of our segmentation approaches with (a) contrastive and (b) generative VLMs.
+
+2.2. Text-Based Remote Sensing Segmentation 
+
+Early studies on text-based remote sensing segmenta-tion primarily rely on masked language models such as BERT [15] to encode textual inputs. These models are typically followed by a task-specific conditional convolu-tional decoder [10, 31, 34, 36, 40, 80, 84, 91] or diffusion-based architectures such as DiffRIS [17]. Despite no-table progress, these approaches remain heavily supervised and rely on dedicated model designs for specific datasets or prompt types. Recently, SegEarth-OV [33] marks a shift towards reducing training dependency by introducing a nearly training-free framework. Their method incorpo-rates a frozen CLIP model for image–text alignment, while training only an unsupervised mask decoder. They fur-ther explore remote sensing adaptations of CLIP, such as GeoRSCLIP [86] and RemoteCLIP [39], which improve vi-sual grounding in geospatial imagery. A contemporary line of research transitions to genera-tive VLMs to handle more complex referring and reason-ing prompts. For example, GeoGround [88] reformulates segmentation as per-tile binary prediction using a VLM backbone without an explicit decoder. An extended ver-sion incorporates multiple auxiliary encoders and a dedi-cated mask decoder for finer spatial resolution. SegEarth-R1 [35] further advances this line of work by introducing a reasoning-focused remote sensing benchmark. It also pro-poses a simplified yet trainable mask encoder that is condi-tioned jointly on the vision and language embeddings. Typically, existing methods achieve language-conditioned segmentation by adding trainable components on top of VLMs. These components may include mask decoders, adapters, or token-level bridges. In contrast, our work shows that combining only a VLM with SAM is sufficient to achieve state-of-the-art results across open-vocabulary, referring, and reasoning segmentation tasks in remote sensing, without any additional trainable modules. 
+
+# 3. Methodology 
+
+In this work, we address the task of text-based remote sens-ing image segmentation . Given an image I and a textual query t, the goal is to produce a segmentation mask M that corresponds to the region in the image described by the text. Our objective is to design a solution that requires minimal training, and ideally operates in a fully zero-shot manner, 
+
+i.e ., without any task-specific training. To process textual instructions and input images, we adopt VLMs that are already pre-trained on large-scale im-age–text pairs in a self-supervised manner. These models have demonstrated strong zero-shot generalisation across a wide range of vision–language tasks. However, existing VLMs do not inherently generate segmentation masks, lim-iting their direct applicability to segmentation tasks. On the other hand, VFMs such as SAM [53] have shown remark-able performance across various segmentation tasks, includ-ing semantic, instance, and panoptic segmentation. As illus-trated on Figure 2, we propose to combine these powerful pre-trained components, a VLM for understanding text and images, and SAM for mask generation. This combination does not require any additional trainable modules, enabling a fully training-free paradigm for text-based remote sensing segmentation. VLMs can be broadly categorised into two types. The first type is contrastive models, such as CLIP [50], which are trained to align images and text in a shared embed-ding space. The second type is generative models, such as Qwen-VL [3], which are trained to autoregressively gener-ate text conditioned on visual inputs. In the following sec-tions, we describe how we use both types of VLMs in com-bination with SAM to solve the task of text-based remote sensing segmentation. 
+
+3.1. Contrastive VLMs as SAM Mask Selectors 
+
+Pipeline. Let F denote a contrastive VLM and S the SAM model. Given an input image I and a textual prompt t,the contrastive VLM processes I and t and computes a per-pixel foreground probability map p(x, y ) for t. In parallel, SAM produces a set of K category-agnostic mask proposals 
+
+{Mk}Kk=1 given I and a set of clicks C in form of a regular 2D grid. 3For each SAM mask Mk, we determine whether it cor-responds to the target object by counting the proportion of pixels with p(x, y ) > 0.5 with the following indicator func-tion, 
+
+δk =
+
+(1, if 1 
+
+> |Mk|
+
+P 
+
+> (x,y )∈Mk
+
+1[p(x, y ) > 0.5] > 0.5 ,
+
+0, otherwise .
+
+The final prediction is obtained by merging all relevant masks as follows, 
+
+M =
+
+> K
+
+[
+
+> k=1
+
+{Mk | δk = 1 } .
+
+Extension to multi-class segmentation. Given m text prompts {ti}mi=1 , the VLM predicts per-pixel probabilities 
+
+pi(x, y ) for each class. Each pixel is assigned to the class with the highest probability as follows, class (x, y ) = arg max  
+
+> i∈{ 1,...,m }
+
+pi(x, y ) .
+
+To mitigate CLIP’s global bias, we apply the debiasing technique from [33], which subtracts a scaled <CLS> token from all patch tokens. Each SAM mask Mk is then assigned to the class that dominates within its area, 
+
+ℓk = arg max  
+
+> i∈{ 1,...,m }
+
+|{ (x, y ) ∈ Mk | class (x, y ) = i}| .
+
+The final segmentation for class i is expressed as: 
+
+M i =
+
+> K
+
+[
+
+> k=1
+
+{Mk | ℓk = i} .
+
+Note that masks or pixels not assigned to any class remain background. 
+
+3.2. Generative VLMs as SAM prompters 
+
+Pipeline. To avoid introducing any trainable components between the VLM and SAM, the only way to condition SAM with language is by expressing its prompts in text. SAM supports two types of lightweight prompts ( clicks and 
+
+bounding boxes ) that can be easily described with text. For consistency with our contrastive-VLM approach, we focus only on click-based prompting. Let the generative VLM be denoted as F . Given an im-age I and a textual instruction t, the VLM outputs a set of clicks C = {ci}ni=1 that indicate the target region 
+
+C = F (I, t ) .
+
+These clicks serve as prompts for SAM ( S ), which gener-ates the final segmentation mask M :
+
+M = S (I, prompt = C) .
+
+Each click is labeled as either positive or negative , indicat-ing whether the corresponding location should be included or excluded from the segmentation mask. In textual form, the click set is represented as: 
+
+{“Positive” : [( x+,1, y +,1), (x+,2, y +,2), . . . ],
+
+“Negative” : [( x−,1, y −,1), (x−,2, y −,2), . . . ]} .
+
+If no negative clicks are present, SAM generates the mask using only the positive set. 
+
+Training. Preliminary experiments show that this pipeline already achieves reasonable segmentation quality. This is observed in a fully zero-shot manner when F is a large pro-prietary VLM. However, to further improve performance and generalisation, we propose to fine-tune a smaller open-source generative VLM for click generation, while keeping SAM completely frozen. To train the VLM, we simply concatenate the image I,textual instruction t, and the click sequence C in text form into a single token sequence. The model is then optimised using standard next-token prediction (cross-entropy loss). However, the missing component is the supervision signal, since existing segmentation datasets provide masks M but not click annotations. We address this by automatically con-verting masks into click sequences, as described below. 
+
+Training clicks generation. Existing text-based image seg-mentation datasets usually provide ground-truth annotations in the form of per-pixel masks. Our goal is to convert these masks M into a sequence of clicks C without human in-volvement. To do so, we adopt an iterative strategy inspired by interactive segmentation [2, 58]. Starting from an image and its corresponding ground-truth mask, SAM is prompted with an initial positive click inside the target object to produce a mask. This prediction is then compared with the ground-truth mask to identify under-segmented and over-segmented regions. Additional clicks are placed in these regions, positive clicks in missing areas and negative clicks in unwanted regions. Then, SAM is prompted again to update the mask. This process is re-peated until a stopping condition is met ( e.g ., achieving a target IoU or reaching a maximum number of clicks). The resulting synthetic click sequences C are then used to fine-tune the generative VLM for click generation. More details about this process are given in Appendix. 
+
+3.3. Application to Text-Based Remote Sensing Seg-mentation 
+
+In text-based remote sensing segmentation, text prompts vary significantly in complexity. Existing settings can be grouped into three categories: (i) OVSS: each class is de-scribed using a short phrase or a couple of keywords ( e.g ., 
+
+road , industrial area ). (ii) Referring segmentation: each prompt is a full sentence that describes a specific region 4or object within the image ( e.g ., The vehicle on the upper right ). (iii) Reasoning segmentation: the prompt requires multi-step reasoning or implicit understanding, without ex-plicitly naming the target region ( e.g ., Which part of the in-frastructure is best for rapid patient transport by emergency services? ). Our contrastive and generative VLM-based pipelines naturally align with these three levels of complexity. Con-trastive VLMs perform well with short, unambiguous prompts, making them suitable for OVSS. However, their capability degrades when prompts become longer, descrip-tive, or require contextual reasoning. Alternatively, gener-ative models are better at understanding complex linguis-tic instructions and grounding them spatially through click prompts. Therefore, we employ the generative VLM ap-proach for referring and reasoning-based segmentation. This design choice raises an important question: why not use the generative approach for all three tasks? The limita-tion lies in the nature of how generative VLMs interact with SAM. These models typically produce only a small set of clicks, resulting in a single (or very few) connected mask. This is adequate for referring and reasoning segmentation tasks, where usually only one instance is expected. How-ever, in OVSS, many semantic categories such as forest ,
+
+water , or urban area might consist of multiple spatially dis-connected regions. A single SAM prompt, even with vari-ous positive and negative clicks, often fails to capture all rel-evant areas when SAM is kept frozen. Consequently, OVSS requires combining multiple SAM-generated masks, which our contrastive VLM-based mask selection approach natu-rally enables. In summary, contrastive VLMs are preferable for OVSS tasks, while generative VLMs are more appropri-ated for referring and reasoning-based segmentation. 
+
+# 4. Experiments 
+
+4.1. Datasets and Implementation Details 
+
+OVSS. Following prior works [33], we evaluate our approach on 17 widely used datasets for multi-class and single-class remote sensing semantic segmentation. For multi-class standard semantic segmentation, we use 5 datasets depicting satellite images including Open-EarthMap [73], LoveDA [68], iSAID [70], Potsdam, and Vaihingen [22]. We also consider 3 additional datasets containing UAV images, UAVid [44], UDD5 [11], and VDD [8]. In the context of single-class semantic segmen-tation, the datasets depict two classes: the foreground class, corresponding to building, road or water respectively, and the background class. We employ 4 datasets for building ex-traction, WHUAerial [24], WHUSat.II [24], Inria [45], and xBD [20]; 4 for road extraction, CHN6-CUG [90], Deep-Globe [14], Massachusetts [46], and SpaceNet [63]; and 1 for flood detection, WBS-SI [57]. More details about datasets could be found in Appendix. 
+
+Referring and reasoning segmentation. For refer-ring segmentation, we use the widely adopted RRSIS-D dataset [40]. RRSIS-D includes 17,402 image–description-mask triplets, divided into 12,181 for training, 1,740 for validation, and 3,481 for testing. For the reasoning segmen-tation task, we adopt the large-scale EarthReason bench-mark [35]. This dataset contains 5,434 images, each asso-ciated with an average of six questions and corresponding masks. The dataset is split into 2,371, 1,135, and 1,928 im-ages for the training, validation, and test sets, respectively. For both datasets, we report metrics on validation and test sets. Train split is used only for click generation and VLM fine-tuning. 
+
+Implementation details. For our contrastive VLM-based approach, we user CLIP-base [50] for image and text en-coding, and SAM-L [53] as the mask generator. We sam-ple an uniform grid of 29 × 29 positive click points for the main experiments. Following [33], all images are resized to 
+
+448 × 448 pixels for CLIP while SAM operates on images at their original resolution. Performance is measured with mIoU for multi-class and foreground IoU for single-class datasets. For the generative VLM-based approach, in the zero-shot setting, we utilise the GPT-Image-1 API [49] and GPT-5 [48] for image and clicks generation, respectively. For the fine-tuning setting, we adopt Qwen3-VL-2B [71] as the backbone model. Training is conducted on four A100 GPUs for 3 epochs, using batch size of 64, LoRA (rank 32), the AdamW optimiser with a learning rate of 2e-4 and a cosine learning rate scheduler. We employ a total of 6 clicks during training. For inference, the same SAM as in the contrastive setup is used. Performance is reported using mIoU for both referring and reasoning tasks; for the reason-ing task, the final mask is obtained via average voting over six predictions per image. 
+
+4.2. Comparison with Prior Work 
+
+Enabling training-free OVSS. We evaluate our contrastive VLM-based approach on multi-class semantic segmenta-tion benchmarks. We compare it with zero-shot natural image baselines and SegEarth-OV [33], which is the clos-est prior work toward training-free OVSS for remote sens-ing. As shown in Table 1, our method achieves state-of-the-art zero-shot performance across datasets, demonstrat-ing strong generalisation without task-specific training. Compared with analogous zero-shot baselines such as CLIP, our model shows a substantial performance gain, highlighting the effectiveness of combining CLIP with a frozen SAM. Against SegEarth-OV, our approach outper-forms on 7 of 8 datasets, with the largest gains on UAV imagery (UAVid, UDD5, VDD). Similar to [33], it strug-gles on iSAID due to fine-grained categories, and on Ope-5Method OEM LoveDA iSAID Potsdam Vaihingen UAVid UDD5 VDD Avg. 
+
+Trained on remote sensing data 
+
+SegEarth-OV [33] 40.3 36.9 21.7 48.5 40.0 42.5 50.6 45.3 39.2 Oracle 64.4 50.0 36.2 74.3 61.2 59.7 56.5 62.9 58.2 
+
+Zero-shot methods 
+
+CLIP [50] 12.0 12.4 7.5 15.6 10.8 10.9 9.5 14.2 11.4 MaskCLIP [87] 25.1 27.8 14.5 33.9 29.9 28.6 32.4 32.9 27.2 SCLIP [64] 29.3 30.4 16.1 39.6 35.9 31.4 38.7 37.9 31.1 GEM [7] 33.9 31.6 17.7 39.1 36.4 33.4 41.2 39.5 32.3 ClearCLIP [29] 31.0 32.4 18.2 42.0 36.2 36.2 41.8 39.3 33.4 
+
+Ours 34.2 38.2 21.9 50.2 40.6 44.3 53.8 46.8 41.3     
+
+> Table 1. Results of our contrastive VLM-based approach for text-based remote sensing segmentation on OVSS task. We evaluate 8 remote sensing multi-class datasets. Avg. is for average across all datasets. Oracle represents the upper bound, achieved by a fully supervised model [74].
+
+Method Building extraction Road Extraction Flood Detection Avg. WHU-A WHU-S Inria xBD-pre CHN6 DG MA SpaceNet WBS-SI 
+
+Trained on remote sensing data 
+
+SegEarth-OV [33] 49.2 28.4 44.6 37.0 35.4 17.8 11.5 23.8 60.2 34.2 
+
+Zero-shot methods 
+
+CLIP [50] 17.7 3.5 19.6 16.0 7.7 3.9 4.9 7.1 18.6 11.0 MaskCLIP [87] 29.8 14.0 33.4 29.2 28.1 13.2 10.6 20.8 39.8 24.3 SCLIP [64] 33.4 21.0 34.9 25.9 21.1 7.0 7.4 14.9 32.1 22.0 GEM [7] 24.4 13.6 28.5 20.8 13.4 4.7 5.1 11.9 39.5 18.0 ClearCLIP [29] 36.6 20.8 39.0 30.1 25.5 5.7 6.4 16.3 44.9 25.0 
+
+Ours 58.8 26.1 48.0 34.4 36.4 15.9 12.2 26.1 58.3 35.1   
+
+> Table 2. Results of our contrastive VLM-based approach for text-based remote sensing segmentation on OVSS task. We evaluate 9 remote sensing single-class datasets across building extraction, road extraction, and flood detection. Avg. is for average across all datasets.
+
+nEarthMap minor class confusions slightly reduce perfor-mance. Notably, unlike SegEarth-OV, which requires train-ing auxiliary components on remote sensing data (SimFea-tUp [18]), our approach is entirely training-free. On 9 single-class extraction datasets (Table 2), our ap-proach achieves state-of-the-art results among zero-shot baselines and even surpasses [33] on 5. Compared directly to [33], our method ranks first on half of the building extrac-tion datasets and second on the rest. For road extraction, it outperforms [33] on 3 datasets, though with smaller mar-gins, likely due to the challenge of zero-shot localisation of thin, complex structures. 
+
+Enabling training-free referring and reasoning segmen-tation. We evaluate our generative-VLM based approach for referring and reasoning segmentation tasks on the val-idation and test splits of RRSIS-D [40] and EarthRea-son [35]. The upper part of Table 3 shows the results of our training-free approach. In this setup, a proprietary gen-erative VLM is prompted to output click positions, which are fed into SAM (second row). This yields better segmen-tation results than directly prompting the same VLM to out-put segmentation masks (first row). However, these promis-ing results still fall short of the current state of the art. This limitation likely arises from the difficulty of current VLMs to perform challenging tasks, such as spatial reasoning and referring segmentation on remote sensing imagery. 
+
+Achieving SOTA referring and reasoning segmentation with LoRA-tuned generative VLM. We evaluate the fine-tuned generative VLM-based pipeline on the same datasets and tasks as in the zero-shot setup. As shown in Table 3, this fine-tuning proves highly effective, achieving state-of-the-art performance on both referring (RRSIS-D) and rea-soning (EarthReason) segmentation tasks. Unlike previous methods that require full training of LLMs, mask decoders, or additional components, our approach avoids heavy re-training. We fine-tune only a lightweight subset of LLM parameters using LoRA, while keeping the mask generator (SAM) frozen. This design resulted efficient, reducing the number of trainable components compared to prior methods without compromising performance. 6Method LLM Trained on RS data RRSIS-D EarthReason LLM Mask Decoder Extra Val Test Val Test 
+
+Zero-shot methods 
+
+GPT-Image-1 GPT-5 ✗ ✗ ✗ 20.1 17.2 38.4 41.0 
+
+Ours GPT-5 ✗ ✗ ✗ 25.8 24.9 46.0 47.4 
+
+Classical methods 
+
+RRSIS [80] BERT-base ✓ ✓ ✓ 60.2 59.4 – –LAVT [78] BERT-base ✓ ✓ ✓ 61.5 61.0 – –DiffRIS [17] CLIP ✓ ✓ ✓ 63.6 62.2 – –FIANet [31] BERT-base ✓ ✓ ✓ – 64.0 – –RMSIN [40] BERT-base ✓ ✓ ✓ 65.1 64.2 – –RSRefSeg [10] SigLIP-So ✓ ✓ ✓ – 64.7 – –SBANet [34] BERT-base ✓ ✓ ✓ 66.7 65.5 – –BTDNet [84] BERT-base ✓ ✓ ✓ 66.9 66.0 – –
+
+Based on generative VLMs 
+
+NExT-Chat [82] Vicuna-7B ✓ ✓ ✓ 27.0 25.0 – –LISA [28] Vicuna-7B LoRA ✓ ✓ 27.8 26.8 61.0 60.9 PixelLM [54] Vicuna-7B LoRA ✓ ✓ 33.9 31.7 57.9 60.0 PSALM [85] phi-1.5-1.3B ✓ ✓ ✓ – – 66.6 68.3 SegEarth-R1 [35] phi-1.5-1.3B ✓ ✓ ✓ 67.6 66.4 68.6 70.7 GeoPixel [55] InternLM2-7B LoRA ✓ ✓ 68.0 67.3 – –
+
+Ours Qwen3-VL-2B LoRA ✗ ✗ 68.1 67.6 70.6 72.7 
+
+> Table 3. Results of our generative VLM-based approach for text-based remote sensing segmentation on reasoning and referring tasks. We evaluate on test and validation sets from RRSIS-D [40] (referring) and EarthReason [35] (reasoning) datasets.
+
+Qualitative results. Figure 3 presents results from our contrastive pipeline for multi-class and single-class OVSS. Due to space limits, we show a subset of datasets: Ope-nEarthMap [73] and LoveDA [68] for multi-class, and In-ria [45] for single-class. Our approach correctly identifies most classes, with minor errors in challenging categories (e.g ., trees, dense vegetation) and occasional misclassifica-tions in crowded scenes ( e.g ., buildings vs. roads). For the generative VLM-based approach, Figure 4 shows ex-amples from EarthReason and RRSIS-D for reasoning and referring segmentation. Each row displays the input image with predicted clicks, predicted masks, and ground truths. As observed in the first-row example, our method localises the correct area even when the main object differs from the question target ( e.g ., the tennis court in the top-right). Ad-ditional examples highlight handling of small objects and complex shapes. However, the approach sometimes strug-gle with ambiguous descriptions, especially when target in-volves multiple regions. Moreover, SAM’s limitations can lead to inaccurate masks for non-well-delimited areas. Full visualisations and in-depth analysis are in the Appendix. 
+
+4.3. Ablation Studies 
+
+Effect of SAM scale and grid density on contrastive VLM-based pipeline. We conduct ablation studies on SAM size and grid clicks using OEM, LoveDA, UAVid (multi-class), and CHN6 (single-class). From the results reported in Table 4, we observe that the largest variant of SAM achieves the highest performance across datasets, which we use as the default. For experiments with different grid sizes, performance improves steadily up to a grid size of 20 × 20 , after which it plateaus. Consequently, we adopt a 29 × 29 grid for the final configuration, as it yields su-perior metrics across most benchmarks. However, in more computationally constrained setups, it would be possible to adopt smaller SAM without significant degradation on per-formance. SAM # clicks OEM LoveDA UAVid CHN6 SAM-Tiny 29 × 29 33.9 37.7 43.8 35.2 SAM-Base 29 × 29 34.2 38.1 44.2 36.2 SAM-Large 10 × 10 29.7 36.2 40.8 31.0 SAM-Large 20 × 20 33.1 38.1 44.1 35.6 SAM-Large 29 × 29 34.2 38.2 44.3 36.4 
+
+> Table 4. Ablation of SAM scale and grid density on contrastive VLM-based approach.
+
+Effect of generative VLM scale and click configuration. 
+
+We ablate VLM size and number of clicks as depicted in Ta-ble 5, on EarthReason and RRSIS-D for reasoning and re-7Input image Predicted mask GT mask          
+
+> Prompt: Background, Bareland, Rangeland, Developed Space, Road, Tree, Water, Agriculture Land, and Building.
+> Prompt: Background, Building, Road, Water, Barren, Forest, and Agriculture.
+> Prompt: Background and Building.
+
+Figure 3. Qualitative results of the training-free contrastive VLM pipeline on multi-class (first and second rows) and single-class (third row) OVSS tasks using remote sensing datasets. 
+
+Method # clicks EarthReason RRSIS-D Val Test Val Test Qwen2.5-VL-7B 6 67.8 69.3 61.4 60.9 Qwen3-VL-4B 6 70.4 71.7 67.3 67.2 Qwen3-VL-2B 2 63.8 64.9 61.1 61.0 Qwen3-VL-2B 4 67.9 69.8 66.4 66.4 Qwen3-VL-2B 6 70.6 72.7 68.1 67.6 
+
+Table 5. Ablation of generative VLM scale and click configura-tion. 
+
+ferring segmentation, respectively. According to the results, upgrading from QwenVL-2.5 to QwenVL-3 improves per-formance, making QwenVL-3 our baseline. Further ex-periments comparing the 4B ( ∼80M trainable parameters) and 2B ( ∼50M trainable parameters) variants of Qwen3-VL show a performance gain for the smaller 2B model, which we then use for the main experiments. In terms of click configuration, performance increases consistently up to six clicks, which improves results by +6 .8/ + 7 .8 (EarthRea-son val/test) and +7 .0/ + 6 .6 (RRSIS-D val/test) over two      
+
+> Predicted clicks Predicted mask GT mask
+> Prompt: Should you wish to improve your overhead serve and join a dou-bles match, what specific location in the sports complex would you select?
+> Prompt: Is there a specific natural asset in this locality that plays a dual role in assisting transportation and supporting irrigation for farming?
+> Prompt: The vehicle on the upper right.
+
+Figure 4. Qualitative results of the LoRA-tuned generative VLM pipeline on reasoning (first and second rows) and referring (third row) tasks using remote sensing datasets. 
+
+clicks variant. 
+
+# 5. Conclusion 
+
+We introduced a simple yet powerful approach for zero-shot text-based segmentation of remote sensing imagery. Our approach combines contrastive (CLIP) and genera-tive (GPT-5, Qwen-VL) VLMs with the Segment Anything Model (SAM). The resulting two pipelines achieve state-of-the-art results on 19 remote sensing benchmarks, including open-vocabulary, referring, and reasoning segmentation. The contrastive pipeline enables fully training-free OVSS, while the generative pipeline supports both zero-shot infer-ence (via GPT-5) and lightweight LoRA fine-tuning (via Qwen-VL) for more complex linguistic reasoning. Despite the used VLMs being primarily pre-trained on natural im-ages, our results demonstrate that the proposed approach remains effective for earth perception tasks. As foundation models continue to evolve, we anticipate even better zero-shot capabilities and improved alignment between visual and textual representations for more complex, real-world geospatial understanding. 8Acknowledgments. We thank Rim Sleimi and Nicla Notarangelo for great discussions. This work was supported by FNR HPC BRIDGES project, with reference HPC BRIDGES/2022/17978225/AI4CC. Experiments were per-formed on MeluXina, special thanks to LuxProvide team for the support. 
+
+# Appendix A. Implementation Details 
+
+Click generation procedure. To fine-tune our genera-tive VLM approach for referring and reasoning segmen-tation tasks, we use the training splits from the RRSIS-D and EarthReason datasets. Our objective is to train the VLM to output click positions in textual form, which are subsequently used to prompt SAM. For this purpose, we utilise the input images and their corresponding ground truth masks. Each mask M is automatically converted into a sequence of clicks C without human intervention. Inspired by interactive segmentation methods [2, 58], we adopt an iterative click generation strategy. Formally, at it-eration i, given the current click sequence Ci−1, we compute an intermediate predicted mask using SAM: 
+
+Mi−1 = S (I, prompt = Ci−1).
+
+The discrepancy between Mi−1 and the ground-truth mask 
+
+M reveals both under-segmented and over-segmented re-gions. We define two binary error maps: 
+
+E+ = M − Mi−1, E− = Mi−1 − M, 
+
+where E+ contains pixels that should be included (false negatives), and E− contains pixels that should be excluded (false positives). Next, we compute a distance transform over the union 
+
+E+ ∪ E−, which yields a probability distribution emphasiz-ing pixels far from already-correct regions. A new click ci
+
+is then sampled from this distribution: 
+
+ci ∼ DistanceTransform (E+ ∪ E−).
+
+If ci ∈ E+, it is labeled as a positive click; if ci ∈ E−, it is labeled as a negative click. The click set is updated as: 
+
+Ci = Ci−1 ∪ { ci}.
+
+This process is repeated until a stopping condition is met (e.g ., achieving a target IoU or reaching a maximum number of clicks) as depicted in algorithm 1. The resulting synthetic click sequences C are then used to finetune the generative VLM for click generation. Figure 5 illustrates this process. 
+
+Algorithm 1: Iterative Click Generation for Syn-thetic Training Sequences 
+
+Input: Image I, ground-truth mask M , SAM model 
+
+S , maximum iterations T = 6 , IoU threshold τ = 0 .98 
+
+Output: Click sequence C
+
+Initialise click sequence: C ← ∅ 
+
+for i ← 1 to T do 
+
+// Predict intermediate mask from current click set 
+
+Mi−1 ← S (I, prompt = C)
+
+// Stop if sufficiently close to ground truth 
+
+if IoU (Mi−1, M ) ≥ τ then break end 
+
+// Compute false-negative and false-positive regions 
+
+E+ ← M − Mi−1
+
+E− ← Mi−1 − M
+
+// Sample next click using a distance transform over errors 
+
+D ← DistanceTransform (E+ ∪ E−)
+
+Sample ci ∼ D
+
+// Assign click polarity 
+
+if ci ∈ E+ then 
+
+Label ci as positive 
+
+else 
+
+Label ci as negative 
+
+end 
+
+// Update click sequence 
+
+C ← C ∪ { ci}
+
+end return C
+
+Contrastive VLM inference. We use the same CLIP (ViT-B/16) model as in [35], initialised with the official weights provided by OpenAI. For the text encoder, we adopt the OpenAI ImageNet prompt template, e.g., “a photo of a 
+
+class name ,” as input. Following [33], we also rename some of the official classes listed on Table 8 for OVSS. For CLIP, input images are resized such that the long side is 448 pix-els on main paper experiments, and slide inference is per-formed using a 224 × 224 window with a stride of 112. The input to SAM retains the original image dimensions. To avoid memory issues with extremely large images, we cap the maximum image size at 1024 pixels. Images larger than this are split into 1024 ×1024 non-overlapping patches, processed individually by SAM, and the resulting mask pre-dictions are then merged. 9clicks: 1; IoU: 47.7 clicks: 2; IoU: 25.1 clicks: 3; IoU: 66.3 clicks: 4; IoU: 80.1 clicks: 5; IoU: 88.8 clicks: 6; IoU: 90.6 
+
+Figure 5. Visualisations from click generation procedure. Masks (red) are produced by SAM prompted by clicks (green). Reported IoU is compared to groung truth mask. 
+
+Method Building extraction Road Extraction Flood Detection Avg. WHU-A WHU-S Inria xBD-pre CHN6 DG MA SpaceNet WBS-SI 
+
+Trained on remote sensing data 
+
+SegEarth-OV [33] 49.9 – 48.9 43.1 32.8 20.1 17.2 29.1 57.9 37.4 
+
+Zero-shot methods 
+
+Ours 58.7 – 53.8 39.1 33.5 15.0 20.3 29.5 56.3 38.3 
+
+Table 6. Additional results of our contrastive VLM-based approach for text-based remote sensing segmentation on the OVSS task using images of size 896 × 896 . Avg. denotes the average across all datasets. Best results are highlighted in bold .                        
+
+> Method VLM Decoder Time ↓IoU ↑
+> Contrastive VLM; LoveDA test set
+> SegEarth-OV [33] 0.15B SimFeatUp ⋆4.1 36.9 Ours 0.15B SAM (10 ×10) 3.6 36.2 Ours 0.15B SAM (29 ×29) 14.0 38.2
+> Generative VLM; EarthReason test set
+> SegEarth-R1 [35] 1.3B Mask2Former ⋆0.44 70.7 Ours 2B SAM 0.58 72.7
+
+Table 7. Inference time comparison. ⋆ indicates that the compo-nent is trained on remote sensing data. 
+
+Generative VLM inference. Examples of prompts used for the generative VLMs (Qwen3-VL, GPT-5, and GPT-Image-1) are provided in Figure 7. The prompts remain fixed across all experiments, with only the input image and the question component varying. Note that Qwen3-VL and GPT-5 produce outputs in textual form, whereas GPT-Image-1 directly generates the corresponding segmentation mask. 
+
+Inference time. As shown in Table 7, our contrastive VLM pipeline is faster than SegEarth-OV [33] while achieving comparable accuracy with a small SAM grid (10 ×10). Note that larger grids improve IoU at the cost of speed. The generative VLM pipeline is slightly slower than SegEarth-R1 [35], mainly due to the larger 2B-parameter Qwen3-VL model compared to the 1.3B-parameter Phi model, but yields a +2% IoU improvement. Notably, both SegEarth-OV and SegEarth-R1 rely on mask decoders    
+
+> Input image SegEarth-OV [33] Ours Ground truth
+
+Figure 6. Qualitative comparison with baseline SegEarth-OV on OVSS datasets. 
+
+trained on remote sensing data, whereas our approach does not. 10 Image Qwen3-VL prompt GPT-5 GPT-Image-1                 
+
+> Given an image and a question, output two sets of coordinates that correspond to click points for segmenting that specific object in the image: 1. Positive coordinates: (x, y )points lo-cated inside the object category region. 2. Negative coordinates: (x, y )points located outside the object region. Rules: Each coordinate must be an integer pair in the format (x, y ). The total number of coordinates across both sets must not exceed 6. Each set may contain between 0 and 6 coordinates. Output strictly in this format: Positive: [(x1, y1), (x2, y2), ...], Negative: [(x3, y3), (x4, y4), ...]
+> Question: Which area depicted in the im-age would be best suited for a peaceful day of fishing, swimming, or paddle boating? Given the input image, find 4 positive clicks covering segmentation mask for the object that answers the question :Which area depicted in the image would be best suited for a peaceful day of fishing, swimming, or paddle boating? Input image shape is 1024 x 1024. Return only click coordinates as json [’x’: ..., ’y’: ..., ...] without any comments. Use reason-ing. Given the input image, create a machine-usable segmentation mask for the object that answers the question :Which area depicted in the image would be best suited for a peaceful day of fishing, swimming, or paddle boating? The mask must follow these rules: - Use a pure black background (RGB 0,0,0). -Fill the segmented object with pure white (RGB 255,255,255). - Do not include any shading, transparency, or partial blending. - Output only the mask image, not the orig-inal photo. Positive: [(331, 420), (498, 272)], Negative: [(12, 55)]
+> <think >... </think >
+> [{”x”: 120, ”y”: 760 },{”x”: 380, ”y”: 760 },{”x”: 120, ”y”: 960 },{”x”: 380, ”y”: 960 }]
+
+Figure 7. Top row: input image and corresponding prompts for the different generative VLM settings. Bottom row: outputs produced by each model. 
+
+# B. Quantitative Results 
+
+Table 6 provides additional OVSS results for the single-class extraction datasets using CLIP with an input resolu-tion of 896 × 896 . All other experimental settings follow the configuration described in the main experiments. No-tably, our model achieves higher average performance than the SegEarth-OV [33] baseline on this setting, despite not being trained on remote sensing data. 
+
+# C. Qualitative Results 
+
+Figure 6 presents additional visualisations of our contrastive VLM-based approach on OVSS. We showcase examples from a subset of multi-class datasets [44, 68, 73] and vi-sually compare our predictions with SegEarth-OV [33] and the corresponding ground-truth annotations. Overall, our method produces more precise and better-defined segmen-tation masks in several categories compared to [33]. This improvement is particularly noticeable for roads (rows 2, 4, and 5) and cars (row 3). In row 2, our approach handles crowded scenes effectively, correctly segmenting roads, buildings, and vegetation. However, small regions between densely packed buildings remain challenging and still cause occasional confusion. Figure 8 shows additional visualisations of our gener-ative VLM-based approach for reasoning-based segmenta-tion. We visually compare our predicted masks with those produced by the recent SegEarth-R1 [35] and GPT-Image-1 [49]. In addition, Figure 9 shows more qualitative results for reasoning-based segmentation on EarthReason, while Figure 10 depicts visualisations for referring segmentation using RRSIS-D dataset. 
+
+Failure cases. Figure 11 highlights difficult scenarios. In these cases, the generative VLM-based model produces clicks that lead to segmentation masks with low IoU in both referring and reasoning tasks. We observe three recurring failure modes in the reasoning examples. First, the model might produce regions that are plausible but not the cor-rect answer according to the question, as seen in rows one and three. Second, some questions require additional con-textual understanding, as in row two. Here, the model se-lects an area that is semantically reasonable for answering the question (venues for recreational activities). However, the ground-truth annotation indicates a different region. Fi-nally, we observe cases in which the model selects suitable click locations as in row 4. The target region, however, in-volves multiple, poorly delimited areas, preventing the seg-mentation model (SAM) from producing a consistent mask. In referring segmentation scenarios, some errors arise from ambiguous descriptions or annotations, such as the example shown in row 5. 
+
+# D. Datasets 
+
+OpenEarthMap [73] provides globally distributed satellite and aerial imagery with a spatial resolution ranging from 
+
+0.25 to 0.5m. It comprises 9 classes including background 11 Input image SegEarth-R1 [35] GPT-Image-1 [49] Ours Ground truth     
+
+> Prompt: Which area depicted in the image would be best suited for a peaceful day of fishing, swimming, or paddle boating?
+> Prompt: To achieve the best possible electricity delivery in a city, which infrastructure system would you consider the most effective?
+> Prompt: What would be an ideal venue offering ample open areas and adequate seating arrangements for a community gathering or event?
+> Prompt: If a person is eager to play racket sports, which specifically designed recreational facility would ensure the most enjoyable experience?
+
+Figure 8. Qualitative comparison with baseline methods on EarthReason dataset. 
+
+class. We follow [33] setup and evaluate on its validation set, excluding xBD data. 
+
+LoveDA [68] contains 0.3m resolution images sourced from Google Earth, covering both urban and rural scenes. It includes 6 foreground categories and 1 background class. We use the validation set for evaluation. 
+
+iSAID [70] contains 655 , 451 annotated object instances across 15 categories in 2, 806 high-resolution images. The dataset features large scale variation, dense object distribu-tions, and imbalanced category frequencies, reflecting real-world aerial conditions. All images are identical to those in DOTA-v1.0 [72], primarily collected from Google Earth, JL-1, and GF-2 satellites. We evaluate on its validation set, which consist on 11 , 644 image patches. 
+
+Potsdam and Vaihingen [22] datasets are designed for ur-ban semantic segmentation appearing in the 2D Semantic Labeling Contest. Their spatial resolutions are 5cm and 
+
+9cm , respectively, each containing 6 classes. We use their validation sets for evaluation. 
+
+UAVid [44] consists of 30 video sequences captured in 4K resolution from oblique urban views. We treat individual frames as independent images and follow merging process 12 Dataset Source / Sensor Resolution Classes (FG+BG) Split Used 
+
+Multi-class Open-Vocabulary Semantic Segmentation 
+
+OpenEarthMap [73] Satellite & aerial imagery (global) 0.25–0.5 m 8 + 1 Val LoveDA [68] Google Earth (urban/rural) 0.3 m 6 + 1 Val iSAID [70] Google Earth, JL-1, GF-2 - 15 + 1 Val Potsdam[22] Aerial (urban) 5 cm 5 + 1 Val Vaihingen[22] Aerial (urban) 9 cm 5 + 1 Val UAVid [44] UAV video (4K, slanted view) - 5 + 1 Test UDD5 [11] DJI Phantom 4 UAV 60–100 m altitude 4 + 1 Val VDD [8] DJI Mavic Air II UAV 50–120 m altitude 6 + 1 Test 
+
+Single-class Open-Vocabulary Semantic Segmentation 
+
+WHUAerial Aerial imagery (Christchurch, NZ) 0.075 m 1 + 1 Val WHUSat.II Satellite imagery (East Asia) 0.45 m 1 + 1 Test Inria Aerial imagery (global cities) 0.3 m 1 + 1 Val xBD Satellite imagery (multi-disaster) 0.8 m 1 + 1 Test CHN6-CUG Google Earth (Chinese cities) 0.5 m 1 + 1 Test DeepGlobe Satellite imagery (Asia) 5 m 1 + 1 Val Massachusetts Satellite imagery (urban/suburban/rural) 1 m 1 + 1 Test SpaceNet Satellite imagery (Las Vegas, Paris, Shanghai, Khartoum) 0.3 m 1 + 1 Test WBS-SI Satellite imagery (global) - 1 + 1 Custom [33] 
+
+Referring Segmentation 
+
+EarthReason - - - Val & Test 
+
+Reasoning Segmentation 
+
+RRSIS-D - - - Val & Test 
+
+Table 8. Summary of datasets used in our paper. Rows highlighted in brown correspond to building extraction datasets, green to road extraction, and blue to flood detection datasets. FG and BG are for foreground and background classes respectively. 
+
+Dataset Class names OpenEarthMap [73] Bareland, Rangeland, Developed Space, Road, Tree, Water, Agriculture Land, and Building LoveDA [68] Building, Road, Water, Barren, Forest, and Agriculture iSAID [70] Plane, Ship, Storage Tank, Baseball Diamond, Tennis Court, Basketball Court, Ground Track Field, Harbor, Bridge, Large Vehicle, Small Vehicle, Helicopter, Roundabout, Soccer Ball Field and Swimming Pool Potsdam [22] Impervious Surfaces, Buildings, Low Vegetation, Tree, and Car Vaihingen [22] Impervious Surfaces, Buildings, Low Vegetation, Tree, and Car UAVid [44] Background, Building, Road, Car, Tree, Vegetation, and Human UDD5 [11] Vegetation, Building, Road, Vehicle, and Background VDD [8] Background, Facade, Road, Vegetation, Vehicle, Roof, and Water WHUAerial [24] Background, and Building WHUSat.II [24] Background, and Building Inria [45] Background, and Building xBD [20] Background, and Building CHN6-CUG [90] Background, and Road DeepGlobe [14] Background, and Road Massachusetts [46] Background, and Road SpaceNet [63] Background, and Road WBS-SI [57] Background, and Water 
+
+Table 9. Class names of OVSS datasets. 
+
+of some categories as in [33]. The final dataset contains 5 foreground classes and 1 background class. We evaluate it using its test set. 
+
+UDD5 [11] is captured by a DJI Phantom 4 UAV flying at altitudes varying from 60 to 100 m. It contains 4 foreground categories and 1 background class. We use its validation set for evaluation. 
+
+VDD [8] is collected with a DJI Mavic Air II drone, com-prising 400 RGB images with a resolution of 4000 × 3000 
+
+pixels. The images are taken from altitudes between 50 m
+
+and 120 m. It includes 6 foreground classes and 1 back-ground class. We evaluate on its test set. 
+
+WHUAerial [24] comprises manually curated aerial and satellite imagery collections for building extraction. The 13 Input image Predicted clicks Predicted mask Ground truth      
+
+> Prompt: Should you wish to improve your overhead serve and join a doubles match, what specific location in the sports complex would you select?
+> Prompt: What type of location is commonly designated for the vertical launch and landing of helicopters used in medical emergencies?
+> Prompt: Where might someone find venues for engaging in water-based recreation and sports, which also have facilities for relaxation and soak-ing up the sun?
+> Prompt: Which facilities in this vicinity specifically cater to the needs of air medical evacuations during emergencies?
+> Prompt: In the scenario of a fire risk, which visible structures in the image require precautionary actions to stop dangerous substance com-bustions?
+
+Figure 9. Qualitative results for reasoning segmentation on Earth-Reason dataset. 
+
+aerial subset contains over 220 k individual building in-stances extracted from high-resolution imagery (0 .075 m)
+
+covering approximately 450 km 2 of Christchurch, New Zealand. We use its validation set for evaluation. 
+
+WHUSat.II [24] includes six adjacent satellite images cov-ering 860 km 2 across East Asia with 0.45 m ground reso-lution. It contains 34 , 085 manually annotated buildings, cropped into 17 , 388 non-overlapping tiles. This subset is specifically designed to assess model generalisation across similar building styles from different data sources within the same geographic region. We use its test set for evaluation. 
+
+Input image Predicted clicks Predicted mask Ground truth       
+
+> Prompt: The storage tank on the lower left.
+> Prompt: The vehicle on the upper right.
+> Prompt: A ship at the bottom.
+> Prompt: A airplane at the bottom.
+> Prompt: A storage tank at the bottom.
+> Prompt: The vehicle at the bottom.
+
+Figure 10. Qualitative results for referring segmentation on RRSIS-D dataset. 
+
+Inria [45] dataset contains diverse urban environments, from dense city centers ( e.g ., San Francisco) to alpine towns (e.g ., Lienz). Each subset contains distinct cities, enabling evaluation of cross-region generalisation under varying ge-ographic, illumination, and seasonal conditions. It covers 810 km 2 with a spatial resolution of 0.3m. We use the test set for evaluation. 
+
+xBD [20] is a large-scale, high-resolution satellite imagery benchmark designed for building damage assessment and change detection in disaster scenarios. It comprises 22 , 068 
+
+14 Input image Predicted clicks Predicted mask Ground truth       
+
+> Prompt: In a situation where a rescue mission is launched, what infras-tructure is fundamental for bolstering the capabilities of air units?
+> Prompt: In this city design, which facility serves as the primary venue for recreational activities and competitive training, promoting community health and sports growth?
+> Prompt: What nearby facility close to the primary recreational zone would be ideal for hosting a casual team sport match on outdoor courts?
+> Prompt: What locations are available for accessing the services that ad-dress water pollution in neighborhoods?
+> Prompt: A white airplane.
+> Prompt: The large overpass in the middle.
+
+Figure 11. Failure cases on the EarthReason and RRSIS-D datasets for reasoning and referring segmentation, respectively. 
+
+pre and post-disaster image pairs covering 19 natural hazard events, spanning a total area of 45 , 362 km 2 and including 
+
+850 , 736 annotated building footprints. Its spatial resolution is 0.8m. We use the pre-disaster satellite data of test set for evaluation. 
+
+CHN6-CUG [90] is a large-scale, manually annotated benchmark for pixel-level road extraction from satellite im-agery, collected from Google Earth. It includes imagery from six representative Chinese cities capturing diverse lev-els of urbanisation and road structures. It contains 4511 labeled images with a spatial resolution of 0.5m. We use its test set for evaluation. 
+
+DeepGlobe [14] provides high-resolution (0.5 m) satellite imagery sampled from the DigitalGlobe + Vivid collec-tion, covering regions in Thailand, Indonesia, and India. It contains 8,570 RGB images spanning 2, 220 km 2 in to-tal. Pixel-level annotations delineate road and background classes, capturing diverse surfaces and urban–rural varia-tions. We use the validation set for evaluation. 
+
+Massachusetts [46] is an aerial imagery dataset for road segmentation, designed to address challenges such as occlu-sions from trees, building shadows, and road texture varia-tions. It contains 1,171 aerial RGB images, covering a total area of 2, 600 km 2. Road labels are generated by rasteris-ing OpenStreetMap centerlines with a 7-pixel width at 1m spatial resolution. The dataset includes diverse urban, sub-urban, and rural scenes. We use its test set for evaluation. 
+
+SpaceNet [63] contains satellite imagery with a spatial res-olution of 0.3m, covering Las Vegas, Paris, Shanghai, and Khartoum. It was introduced for the SpaceNet Road Detec-tion and Routing Challenge, designed to support automated road extraction from very high-resolution imagery. We use the test set for evaluation. 
+
+WBS-SI [57] is a satellite imagery dataset designed for wa-ter body segmentation. Following the setup in [33], we per-form our evaluation using their proposed test split. 
+
+EarthReason [35] is the first large-scale benchmark dataset designed for geospatial pixel reasoning. It contains 5,434 high-resolution remote sensing images, each annotated with a manually created segmentation mask targeting specific re-gions of interest. Alongside these masks, the dataset in-cludes over 30,000 implicit question-answer pairs that re-quire spatial understanding and reasoning to identify the correct target regions. The dataset is divided into training, validation, and test splits of 2,371, 1,135, and 1,928 images, respectively. 
+
+RRSIS-D [40] is a dataset designed for Referring Remote Sensing Image Segmentation (RRSIS), specifically to han-dle significant variations in spatial resolution and object ori-entation. The dataset is constructed by converting bound-ing box annotations from the RSVGD dataset [81] into in-stance masks. It comprises 20 semantic categories, includ-ing aircraft, golf courses, highway service areas, baseball fields, and stadiums. It is further extended with 7 descrip-tive attributes to enhance the clarity and expressiveness of referring expressions. RRSIS-D exhibits scale variability, with some targets covering minimal pixel areas and others exceeding 400,000 pixels. Overall, the dataset comprises 17,402 image-description-mask triplets, divided into 12,181 for training, 1,740 for validation, and 3,481 for testing. 15 References 
+
+[1] Josh Achiam, Steven Adler, Sandhini Agarwal, Lama Ah-mad, Ilge Akkaya, Florencia Leoni Aleman, Diogo Almeida, Janko Altenschmidt, Sam Altman, Shyamal Anadkat, et al. Gpt-4 technical report. arXiv preprint arXiv:2303.08774 ,2023. 1, 2 [2] Anton Antonov, Andrey Moskalenko, Denis Shepelev, Alexander Krapukhin, Konstantin Soshin, Anton Konushin, and Vlad Shakhuro. Rclicks: Realistic click simulation for benchmarking interactive segmentation. In Advances in Neu-ral Information Processing Systems , pages 127673–127710. Curran Associates, Inc., 2024. 4, 9 [3] Shuai Bai, Keqin Chen, Xuejing Liu, Jialin Wang, Wenbin Ge, Sibo Song, Kai Dang, Peng Wang, Shijie Wang, Jun Tang, et al. Qwen2. 5-vl technical report. arXiv preprint arXiv:2502.13923 , 2025. 1, 2, 3 [4] Zechen Bai, Tong He, Haiyang Mei, Pichao Wang, Ziteng Gao, Joya Chen, Zheng Zhang, and Mike Zheng Shou. One token to seg them all: Language instructed reasoning seg-mentation in videos. Advances in Neural Information Pro-cessing Systems , 37:6833–6859, 2024. 1, 2 [5] Luca Barsellotti, Roberto Amoroso, Marcella Cornia, Lorenzo Baraldi, and Rita Cucchiara. Training-free open-vocabulary segmentation with offline diffusion-augmented prototype generation. In Proceedings of the IEEE/CVF Con-ference on Computer Vision and Pattern Recognition , pages 3689–3698, 2024. 2 [6] Luca Barsellotti, Lorenzo Bianchi, Nicola Messina, Fabio Carrara, Marcella Cornia, Lorenzo Baraldi, Fabrizio Falchi, and Rita Cucchiara. Talking to dino: Bridging self-supervised vision backbones with language for open-vocabulary segmentation. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 22025– 22035, 2025. 2 [7] Walid Bousselham, Felix Petersen, Vittorio Ferrari, and Hilde Kuehne. Grounding everything: Emerging localiza-tion properties in vision-language transformers. In Proceed-ings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 3828–3837, 2024. 2, 6 [8] Wenxiao Cai, Ke Jin, Jinyan Hou, Cong Guo, Letian Wu, and Wankou Yang. Vdd: Varied drone dataset for semantic segmentation. Journal of Visual Communication and Image Representation , 109:104429, 2025. 5, 13 [9] Mathilde Caron, Hugo Touvron, Ishan Misra, Herv´ e J´ egou, Julien Mairal, Piotr Bojanowski, and Armand Joulin. Emerg-ing properties in self-supervised vision transformers. In Pro-ceedings of the IEEE/CVF international conference on com-puter vision , pages 9650–9660, 2021. 2 [10] Keyan Chen, Jiafan Zhang, Chenyang Liu, Zhengxia Zou, and Zhenwei Shi. Rsrefseg: Referring remote sensing im-age segmentation with foundation models. arXiv preprint arXiv:2501.06809 , 2025. 3, 7 [11] Yu Chen, Yao Wang, Peng Lu, Yisong Chen, and Guoping Wang. Large-scale structure from motion with semantic con-straints of aerial images. In Chinese Conference on Pattern Recognition and Computer Vision (PRCV) , pages 347–359. Springer, 2018. 5, 13 [12] Yi-Chia Chen, Wei-Hua Li, Cheng Sun, Yu-Chiang Frank Wang, and Chu-Song Chen. Sam4mllm: Enhance multi-modal large language model for referring expression seg-mentation. In European Conference on Computer Vision ,pages 323–340. Springer, 2024. 2 [13] Seokju Cho, Heeseong Shin, Sunghwan Hong, Anurag Arnab, Paul Hongsuck Seo, and Seungryong Kim. Cat-seg: Cost aggregation for open-vocabulary semantic seg-mentation. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 4113– 4123, 2024. 2 [14] DeepGlobe Consortium. Deepglobe: A challenge to parse the earth through satellite images. http://deepglobe. org/ , 2018. Accessed: 2025-11-11. 5, 13, 15 [15] Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. Bert: Pre-training of deep bidirectional trans-formers for language understanding. In Proceedings of the 2019 conference of the North American chapter of the asso-ciation for computational linguistics: human language tech-nologies, volume 1 (long and short papers) , pages 4171– 4186, 2019. 3 [16] Jian Ding, Nan Xue, Gui-Song Xia, and Dengxin Dai. De-coupling zero-shot semantic segmentation. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 11583–11592, 2022. 2 [17] Zhe Dong, Yuzhe Sun, Tianzhu Liu, and Yanfeng Gu. Diffris: Enhancing referring remote sensing image segmen-tation with pre-trained text-to-image diffusion models. arXiv preprint arXiv:2506.18946 , 2025. 1, 3, 7 [18] Stephanie Fu, Mark Hamilton, Laura Brandt, Axel Feldman, Zhoutong Zhang, and William T Freeman. Featup: A model-agnostic framework for features at any resolution. arXiv preprint arXiv:2403.10516 , 2024. 6 [19] Golnaz Ghiasi, Xiuye Gu, Yin Cui, and Tsung-Yi Lin. Scal-ing open-vocabulary image segmentation with image-level labels. In European conference on computer vision , pages 540–557. Springer, 2022. 2 [20] Ritwik Gupta, Richard Hosfelt, Sandra Sajeev, Nirav Patel, Bryce Goodman, Jigar Doshi, Eric Heim, Howie Choset, and Matthew Gaston. xbd: A dataset for assessing building dam-age from satellite imagery. arXiv preprint arXiv:1911.09296 ,2019. 5, 13, 14 [21] Edward J Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, Weizhu Chen, et al. Lora: Low-rank adaptation of large language models. ICLR ,1(2):3, 2022. 2 [22] ISPRS Foundation. Isprs benchmark on semantic la-beling. https://www.isprs.org/resources/ datasets/benchmarks/UrbanSemLab/ , 2025. Ac-cessed: 2025-11-11. 5, 12, 13 [23] Johannes Jakubik, Sujit Roy, CE Phillips, Paolo Fraccaro, Denys Godwin, Bianca Zadrozny, Daniela Szwarcman, Car-los Gomes, Gabby Nyirjesy, Blair Edwards, et al. Foundation models for generalist geospatial artificial intelligence. arXiv preprint arXiv:2310.18660 , 2023. 1 [24] Shunping Ji, Shiqing Wei, and Meng Lu. Fully convolutional networks for multisource building extraction from an open 
+
+16 aerial and satellite imagery data set. IEEE Transactions on geoscience and remote sensing , 57(1):574–586, 2018. 5, 13, 14 [25] Siyu Jiao, Yunchao Wei, Yaowei Wang, Yao Zhao, and Humphrey Shi. Learning mask-aware clip representations for zero-shot segmentation. Advances in Neural Information Processing Systems , 36:35631–35653, 2023. 2 [26] Dahyun Kang and Minsu Cho. In defense of lazy visual grounding for open-vocabulary semantic segmentation. In 
+
+European Conference on Computer Vision , pages 143–164. Springer, 2024. 2 [27] Dahyun Kang and Minsu Cho. In defense of lazy vi-sual grounding for open-vocabulary semantic segmentation, 2024. 2 [28] Xin Lai, Zhuotao Tian, Yukang Chen, Yanwei Li, Yuhui Yuan, Shu Liu, and Jiaya Jia. Lisa: Reasoning segmentation via large language model. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pages 9579–9589, 2024. 1, 2, 7 [29] Mengcheng Lan, Chaofeng Chen, Yiping Ke, Xinjiang Wang, Litong Feng, and Wayne Zhang. Clearclip: Decom-posing clip representations for dense vision-language infer-ence. In European Conference on Computer Vision , pages 143–160. Springer, 2024. 2, 6 [30] Mengcheng Lan, Chaofeng Chen, Yiping Ke, Xinjiang Wang, Litong Feng, and Wayne Zhang. Proxyclip: Proxy attention improves clip for open-vocabulary segmentation. In European Conference on Computer Vision , pages 70–88. Springer, 2024. 2 [31] Sen Lei, Xinyu Xiao, Tianlin Zhang, Heng-Chao Li, Zhen-wei Shi, and Qing Zhu. Exploring fine-grained image-text alignment for referring remote sensing image segmenta-tion. IEEE Transactions on Geoscience and Remote Sensing ,2024. 3, 7 [32] Boyi Li, Kilian Q Weinberger, Serge Belongie, Vladlen Koltun, and Ren´ e Ranftl. Language-driven semantic seg-mentation. arXiv preprint arXiv:2201.03546 , 2022. 2 [33] Kaiyu Li, Ruixun Liu, Xiangyong Cao, Xueru Bai, Feng Zhou, Deyu Meng, and Zhi Wang. Segearth-ov: Towards training-free open-vocabulary segmentation for remote sens-ing images. In Proceedings of the Computer Vision and Pat-tern Recognition Conference , pages 10545–10556, 2025. 1, 3, 4, 5, 6, 9, 10, 11, 12, 13, 15 [34] Kun Li, George Vosselman, and Michael Ying Yang. Scale-wise bidirectional alignment network for referring remote sensing image segmentation. ISPRS Journal of Photogram-metry and Remote Sensing , 226:350–363, 2025. 3, 7 [35] Kaiyu Li, Zepeng Xin, Li Pang, Chao Pang, Yupeng Deng, Jing Yao, Guisong Xia, Deyu Meng, Zhi Wang, and Xiangy-ong Cao. Segearth-r1: Geospatial pixel reasoning via large language model. arXiv preprint arXiv:2504.09644 , 2025. 1, 3, 5, 6, 7, 9, 10, 11, 12, 15 [36] Rui Li and Xiaowei Zhao. Aeroreformer: Aerial refer-ring transformer for uav-based referring image segmentation. 
+
+arXiv preprint arXiv:2502.16680 , 2025. 3 [37] Yongkang Li, Tianheng Cheng, Bin Feng, Wenyu Liu, and Xinggang Wang. Mask-adapter: The devil is in the masks for open-vocabulary segmentation. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 14998–15008, 2025. 1, 2 [38] Yi Li, Hualiang Wang, Yiqun Duan, Jiheng Zhang, and Xi-aomeng Li. A closer look at the explainability of con-trastive language-image pre-training. Pattern Recognition ,162:111409, 2025. 2 [39] Fan Liu, Delong Chen, Zhangqingyun Guan, Xiaocong Zhou, Jiale Zhu, Qiaolin Ye, Liyong Fu, and Jun Zhou. Re-moteclip: A vision language foundation model for remote sensing. IEEE Transactions on Geoscience and Remote Sensing , 62:1–16, 2024. 3 [40] Sihan Liu, Yiwei Ma, Xiaoqing Zhang, Haowei Wang, Ji-ayi Ji, Xiaoshuai Sun, and Rongrong Ji. Rotated multi-scale interaction network for referring remote sensing image seg-mentation. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 26658– 26668, 2024. 3, 5, 6, 7, 15 [41] Yong Liu, Sule Bai, Guanbin Li, Yitong Wang, and Yansong Tang. Open-vocabulary segmentation with semantic-assisted calibration. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 3491– 3500, 2024. 2 [42] Timo L¨ uddecke and Alexander Ecker. Image segmenta-tion using text and image prompts. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 7086–7096, 2022. 2 [43] Huaishao Luo, Junwei Bao, Youzheng Wu, Xiaodong He, and Tianrui Li. Segclip: Patch aggregation with learnable centers for open-vocabulary semantic segmentation. In In-ternational Conference on Machine Learning , pages 23033– 23044. PMLR, 2023. 2 [44] Ye Lyu, George Vosselman, Gui-Song Xia, Alper Yilmaz, and Michael Ying Yang. Uavid: A semantic segmentation dataset for uav imagery. ISPRS journal of photogrammetry and remote sensing , 165:108–119, 2020. 5, 11, 12, 13 [45] Emmanuel Maggiori, Yuliya Tarabalka, Guillaume Charpiat, and Pierre Alliez. Can semantic labeling methods general-ize to any city? the inria aerial image labeling benchmark. In 2017 IEEE International geoscience and remote sensing symposium (IGARSS) , pages 3226–3229. IEEE, 2017. 5, 7, 13, 14 [46] Volodymyr Mnih. Machine learning for aerial image label-ing . University of Toronto (Canada), 2013. 5, 13, 15 [47] Jishnu Mukhoti, Tsung-Yu Lin, Omid Poursaeed, Rui Wang, Ashish Shah, Philip HS Torr, and Ser-Nam Lim. Open vocabulary semantic segmentation with patch aligned con-trastive learning. In Proceedings of the IEEE/CVF Con-ference on Computer Vision and Pattern Recognition , pages 19413–19423, 2023. 2 [48] OpenAI. Introducing gpt-5. https://openai.com/ index/introducing-gpt-5/ , 2025. Accessed: 2025-11-12. 2, 5 [49] OpenAI. Image generation guide: Gpt-image-1 model. 
+
+https://platform.openai.com/docs/guides/ image - generation ? image - generation -model=gpt-image-1 , 2025. Accessed: 2025-11-12. 2, 5, 11, 12 
+
+17 [50] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learning transferable visual models from natural language supervi-sion. In International conference on machine learning , pages 8748–8763. PmLR, 2021. 1, 2, 3, 5, 6 [51] Kanchana Ranasinghe, Brandon McKinzie, Sachin Ravi, Yinfei Yang, Alexander Toshev, and Jonathon Shlens. Per-ceptual grouping in contrastive vision-language models. In 
+
+Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 5571–5584, 2023. 2 [52] Hanoona Rasheed, Muhammad Maaz, Sahal Shaji, Abdel-rahman Shaker, Salman Khan, Hisham Cholakkal, Rao M Anwer, Eric Xing, Ming-Hsuan Yang, and Fahad S Khan. Glamm: Pixel grounding large multimodal model. In Pro-ceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 13009–13018, 2024. 2 [53] Nikhila Ravi, Valentin Gabeur, Yuan-Ting Hu, Ronghang Hu, Chaitanya Ryali, Tengyu Ma, Haitham Khedr, Roman R¨ adle, Chloe Rolland, Laura Gustafson, et al. Sam 2: Segment anything in images and videos. arXiv preprint arXiv:2408.00714 , 2024. 1, 2, 3, 5 [54] Zhongwei Ren, Zhicheng Huang, Yunchao Wei, Yao Zhao, Dongmei Fu, Jiashi Feng, and Xiaojie Jin. Pixellm: Pixel reasoning with large multimodal model. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 26374–26383, 2024. 1, 2, 7 [55] Akashah Shabbir, Mohammed Zumri, Mohammed Ben-namoun, Fahad S Khan, and Salman Khan. Geopixel: Pixel grounding large multimodal model in remote sensing. arXiv preprint arXiv:2501.13925 , 2025. 1, 7 [56] Tong Shao, Zhuotao Tian, Hang Zhao, and Jingyong Su. Ex-plore the potential of clip for training-free open vocabulary semantic segmentation. In European Conference on Com-puter Vision , pages 139–156. Springer, 2024. 2 [57] shirshmall. Water body segmentation in satellite im-ages. https : / / www . kaggle . com / datasets / shirshmall / water - body - segmentation - in -satellite-images . Accessed: 2025-11-11. 5, 13, 15 [58] Konstantin Sofiiuk, Ilya A Petrov, and Anton Konushin. Re-viving iterative training with mask guidance for interactive segmentation. In 2022 IEEE international conference on im-age processing (ICIP) , pages 3141–3145. IEEE, 2022. 4, 9 [59] Jose Sosa, Mohamed Aloulou, Danila Rukhovich, Rim Sleimi, Boonyarit Changaival, Anis Kacem, and Djamila Aouada. How effective is pre-training of large masked au-toencoders for downstream earth observation tasks? arXiv preprint arXiv:2409.18536 , 2024. 1 [60] Jose Sosa, Danila Rukhovich, Anis Kacem, and Djamila Aouada. Multimae meets earth observation: Pre-training multi-modal multi-task masked autoencoders for earth ob-servation tasks. arXiv preprint arXiv:2505.14951 , 2025. 1 [61] Shuyang Sun, Runjia Li, Philip Torr, Xiuye Gu, and Siyang Li. Clip as rnn: Segment countless visual concepts without training endeavor. In Proceedings of the IEEE/CVF Con-ference on Computer Vision and Pattern Recognition , pages 13171–13182, 2024. 2 [62] Daniela Szwarcman, Sujit Roy, Paolo Fraccaro, Thorsteinn Eli Gislason, Benedikt Blumenstiel, Rinki Ghosal, Pedro Henrique de Oliveira, Joao Lucas de Sousa Almeida, Rocco Sedona, Yanghui Kang, et al. Prithvi-eo-2.0: A versatile multi-temporal foundation model for earth observation applications. arXiv preprint arXiv:2412.02732 ,2024. 1 [63] Adam Van Etten, Dave Lindenbaum, and Todd M Bacastow. Spacenet: A remote sensing dataset and challenge series. 
+
+arXiv preprint arXiv:1807.01232 , 2018. 5, 13, 15 [64] Feng Wang, Jieru Mei, and Alan Yuille. Sclip: Rethink-ing self-attention for dense vision-language inference. In 
+
+European Conference on Computer Vision , pages 315–332. Springer, 2024. 2, 6 [65] Haoxiang Wang, Pavan Kumar Anasosalu Vasu, Fartash Faghri, Raviteja Vemulapalli, Mehrdad Farajtabar, Sachin Mehta, Mohammad Rastegari, Oncel Tuzel, and Hadi Pouransari. Sam-clip: Merging vision foundation models to-wards semantic and spatial understanding. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 3635–3647, 2024. 2 [66] Hao Wang, Limeng Qiao, Zequn Jie, Zhijian Huang, Chengjian Feng, Qingfang Zheng, Lin Ma, Xiangyuan Lan, and Xiaodan Liang. X-sam: From segment anything to any segmentation. arXiv preprint arXiv:2508.04655 , 2025. 2 [67] Junchi Wang and Lei Ke. Llm-seg: Bridging image segmen-tation and large language model reasoning. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 1765–1774, 2024. 2 [68] Junjue Wang, Zhuo Zheng, Ailong Ma, Xiaoyan Lu, and Yanfei Zhong. Loveda: A remote sensing land-cover dataset for domain adaptive semantic segmentation. arXiv preprint arXiv:2110.08733 , 2021. 5, 7, 11, 12, 13 [69] Jinglong Wang, Xiawei Li, Jing Zhang, Qingyuan Xu, Qin Zhou, Qian Yu, Lu Sheng, and Dong Xu. Diffusion model is secretly a training-free open vocabulary semantic segmenter. 
+
+IEEE Transactions on Image Processing , 2025. 2 [70] Syed Waqas Zamir, Aditya Arora, Akshita Gupta, Salman Khan, Guolei Sun, Fahad Shahbaz Khan, Fan Zhu, Ling Shao, Gui-Song Xia, and Xiang Bai. isaid: A large-scale dataset for instance segmentation in aerial images. In Pro-ceedings of the IEEE/CVF conference on computer vision and pattern recognition workshops , pages 28–37, 2019. 5, 12, 13 [71] Chenfei Wu, Jiahao Li, Jingren Zhou, Junyang Lin, Kaiyuan Gao, Kun Yan, Sheng-ming Yin, Shuai Bai, Xiao Xu, Yilei Chen, et al. Qwen-image technical report. arXiv preprint arXiv:2508.02324 , 2025. 2, 5 [72] Gui-Song Xia, Xiang Bai, Jian Ding, Zhen Zhu, Serge Be-longie, Jiebo Luo, Mihai Datcu, Marcello Pelillo, and Liang-pei Zhang. Dota: A large-scale dataset for object detection in aerial images. In The IEEE Conference on Computer Vision and Pattern Recognition (CVPR) , 2018. 12 [73] Junshi Xia, Naoto Yokoya, Bruno Adriano, and Clifford Broni-Bediako. Openearthmap: A benchmark dataset for global high-resolution land cover mapping. In Proceed-ings of the IEEE/CVF Winter Conference on Applications of Computer Vision , pages 6254–6264, 2023. 5, 7, 11, 13 
+
+18 [74] Enze Xie, Wenhai Wang, Zhiding Yu, Anima Anandkumar, Jose M Alvarez, and Ping Luo. Segformer: Simple and efficient design for semantic segmentation with transform-ers. Advances in neural information processing systems , 34: 12077–12090, 2021. 6 [75] Jin Xu, Zhifang Guo, Hangrui Hu, Yunfei Chu, Xiong Wang, Jinzheng He, Yuxuan Wang, Xian Shi, Ting He, Xinfa Zhu, et al. Qwen3-omni technical report. arXiv preprint arXiv:2509.17765 , 2025. 2 [76] Mengde Xu, Zheng Zhang, Fangyun Wei, Han Hu, and Xi-ang Bai. San: side adapter network for open-vocabulary se-mantic segmentation. IEEE Transactions on Pattern Analysis and Machine Intelligence , 45(12):15546–15561, 2023. 2 [77] Xiaobo Yang and Xiaojin Gong. Tuning-free universally-supervised semantic segmentation, 2024. 2 [78] Zhao Yang, Jiaqi Wang, Yansong Tang, Kai Chen, Heng-shuang Zhao, and Philip HS Torr. Lavt: Language-aware vision transformer for referring image segmentation. In Pro-ceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 18155–18165, 2022. 1, 7 [79] Haobo Yuan, Xiangtai Li, Tao Zhang, Zilong Huang, Shilin Xu, Shunping Ji, Yunhai Tong, Lu Qi, Jiashi Feng, and Ming-Hsuan Yang. Sa2va: Marrying sam2 with llava for dense grounded understanding of images and videos. arXiv preprint arXiv:2501.04001 , 2025. 2 [80] Zhenghang Yuan, Lichao Mou, Yuansheng Hua, and Xiao Xiang Zhu. Rrsis: Referring remote sensing image segmentation. arXiv preprint arXiv:2306.08625 , 2023. 3, 7[81] Yang Zhan, Zhitong Xiong, and Yuan Yuan. Rsvg: Exploring data and models for visual grounding on remote sensing data. 
+
+IEEE Transactions on Geoscience and Remote Sensing , 61: 1–13, 2023. 15 [82] Ao Zhang, Yuan Yao, Wei Ji, Zhiyuan Liu, and Tat-Seng Chua. Next-chat: An lmm for chat, detection and segmenta-tion. arXiv preprint arXiv:2311.04498 , 2023. 1, 2, 7 [83] Tao Zhang, Xiangtai Li, Hao Fei, Haobo Yuan, Shengqiong Wu, Shunping Ji, Chen Change Loy, and Shuicheng Yan. Omg-llava: Bridging image-level, object-level, pixel-level reasoning and understanding. Advances in neural informa-tion processing systems , 37:71737–71767, 2024. 2 [84] Tianxiang Zhang, Zhaokun Wen, Bo Kong, Kecheng Liu, Yisi Zhang, Peixian Zhuang, and Jiangyun Li. Re-ferring remote sensing image segmentation via bidirec-tional alignment guided joint prediction. arXiv preprint arXiv:2502.08486 , 2025. 3, 7 [85] Zheng Zhang, Yeyao Ma, Enming Zhang, and Xiang Bai. Psalm: Pixelwise segmentation with large multi-modal model. In European Conference on Computer Vision , pages 74–91. Springer, 2024. 2, 7 [86] Zilun Zhang, Tiancheng Zhao, Yulong Guo, and Jianwei Yin. Rs5m and georsclip: A large scale vision-language dataset and a large vision-language model for remote sensing. IEEE Transactions on Geoscience and Remote Sensing , 2024. 3 [87] Chong Zhou, Chen Change Loy, and Bo Dai. Extract free dense labels from clip. In European conference on computer vision , pages 696–712. Springer, 2022. 1, 2, 6 [88] Yue Zhou, Mengcheng Lan, Xiang Li, Litong Feng, Yip-ing Ke, Xue Jiang, Qingyun Li, Xue Yang, and Wayne Zhang. Geoground: A unified large vision-language model for remote sensing visual grounding. arXiv preprint arXiv:2411.11904 , 2024. 1, 3 [89] Muzhi Zhu, Yuzhuo Tian, Hao Chen, Chunluan Zhou, Qing-pei Guo, Yang Liu, Ming Yang, and Chunhua Shen. Sega-gent: Exploring pixel understanding capabilities in mllms by imitating human annotator trajectories. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 3686–3696, 2025. 2 [90] Qiqi Zhu, Yanan Zhang, Lizeng Wang, Yanfei Zhong, Qingfeng Guan, Xiaoyan Lu, Liangpei Zhang, and Deren Li. A global context-aware and batch-independent network for road extraction from vhr satellite imagery. ISPRS Journal of Photogrammetry and Remote Sensing , 175:353–365, 2021. 5, 13, 15 [91] Qi Zhu, Jiangwei Lao, Deyi Ji, Junwei Luo, Kang Wu, Yingying Zhang, Lixiang Ru, Jian Wang, Jingdong Chen, Ming Yang, et al. Skysense-o: Towards open-world remote sensing interpretation with vision-centric visual-language modeling. In Proceedings of the Computer Vision and Pat-tern Recognition Conference , pages 14733–14744, 2025. 1, 3
+
+19

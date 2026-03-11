@@ -1,0 +1,611 @@
+Title: Multimodal Adversarial Quality Policy for Safe Grasping
+
+URL Source: https://arxiv.org/pdf/2603.01479v1
+
+Published Time: Tue, 03 Mar 2026 03:26:11 GMT
+
+Number of Pages: 8
+
+Markdown Content:
+# Multimodal Adversarial Quality Policy for Safe Grasping 
+
+Kunlin Xie ∗, Chenghao Li ∗, Haolan Zhang, and Nak Young Chong 
+
+Abstract — Vision-guided robot grasping based on Deep Neu-ral Networks (DNNs) generalizes well but poses safety risks in the Human-Robot Interaction (HRI). Recent works solved it by designing benign adversarial attacks and patches with RGB modality, yet depth-independent characteristics limit their effectiveness on RGBD modality. In this work, we propose the Multimodal Adversarial Quality Policy (MAQP) to realize multimodal safe grasping. Our framework introduces two key components. First, the Heterogeneous Dual-Patch Optimiza-tion Scheme (HDPOS) mitigates the distribution discrepancy between RGB and depth modalities in patch generation by adopting modality-specific initialization strategies, employing a Gaussian distribution for depth patches and a uniform distribu-tion for RGB patches, while jointly optimizing both modalities under a unified objective function. Second, the Gradient-Level Modality Balancing Strategy (GLMBS) is designed to resolve the optimization imbalance from RGB and Depth patches in patch shape adaptation by reweighting gradient contributions based on per-channel sensitivity analysis and applying distance-adaptive perturbation bounds. We conduct extensive experi-ments on the benchmark datasets and a cobot, showing the effectiveness of MAQP. 
+
+I. INTRODUCTION Visual grasping is a core capability for robotics in HRI scenarios [1], aimed at helping humans improve work effi-ciency in the service and manufacturing domains. Traditional approaches [1]–[3] often rely on explicit object models and analytic metrics, which are limited in unstructured scenes with unknown objects. Recent DNNs-based methods [4]– [8] predict grasps directly from images and have shown strong generalization to unknown objects. However, this generalizability can introduce safety risks, that is grasping model may assign high grasp confidence to human hands or nearby objects in HRI, as shown in Fig. 1. To mitigate this safety risk, Li et al. [9] designed the Quality-focused Active Adversarial Policy (QFAAP) from the benign adversarial attack perspective, which proposes the Adversarial Quality Patch (AQP) together with the Pro-jected Quality Gradient Descent (PQGD) to manipulate grasp quality scores, thereby steering grasping away from unsafe regions. Specifically, the AQP is used to generate adversarial patches by the grasping model and dataset, and the PQGD is used to refine the patches and endow them with shape adaptation for human hands. However, QFAAP was validated only for RGB-based grasping models, while visual grasping platforms often rely on RGBD sensing. More importantly, realizing grasp quality manipulation to RGBD is non-trivial           
+
+> Author Insititute Omitted for Anonymous ReviewThe authors are with the School of Information Science, Japan Advanced Institute of Sci-ence and Technology, Nomi, Ishikawa 923-1292, Japan
+
+{s2410074, chenghao.li, haolan.z, nakyoung }@jaist.ac.jp . 
+
+> ∗These authors contributed equally to this work.
+> Fig. 1. An example of safety risk in HRI: the robot mistakenly identifies the human hand or adjacent objects as graspable targets for grasping, causing potential injury to the human worker.
+
+because of the distribution discrepancy and optimization imbalance between depth and RGB information. Therefore, in this work, we present the Multi-modal Adversarial Quality Policy (MAQP) framework, which is based on a comprehensive understanding of the distinctive characteristics of RGB and depth modalities. To address the distribution discrepancy between modalities in the patch generation process, we adopt modality-specific initialization strategies for RGB and depth while jointly training an RGBD adversarial quality patch under a unified objective function. To mitigate the optimization imbalance across modalities in the patch shape adaptation process, we reweight gradient contributions according to per-channel sensitivity analysis and apply distance-adaptive perturbation bounds that incor-porate the physical noise characteristics of the depth sensor. The contributions of this work are as follows:  
+
+> •
+
+We propose the HDPOS by modality-specific ini-tialization. Gaussian initialization aligned with zero-centered preprocessing for depth, and uniform initializa-tion with non-negative normalization and heterogeneous constraints for RGB, while jointly optimizing both modalities under a unified objective function.  
+
+> •
+
+We introduce the GLMBS by a gradient reweighting mechanism. Based on the analysis of depth sensitiv-ity, GLMBS inversely reweights gradients according to modality sensitivity and incorporates distance-adaptive perturbation bounds reflecting depth sensor noise.  
+
+> •
+
+The results demonstrate our modality-aware design is critical for effectively manipulating grasp quality scores in RGBD-based robotic grasping systems and have strong potential for generalization to broader multi-modal robotic manipulation tasks. 
+
+> arXiv:2603.01479v1 [cs.RO] 2 Mar 2026
+
+This paper is structured as follows. Section II (Related Work) provides a review of RGBD perception for robot grasping and adversarial attacks. Section III (Quality-focused Active Adversarial Policy) describes the concept of QFAAP. Section IV (Proposed Method) presents an overview of MAQP and elaborates on its two core components, HDPOS and GLMBS, together with their respective submodules. Sec-tion V (Experiments) evaluates the proposed approach across different grasping models and datasets, conducts ablation studies to assess the contribution of each component, and further validates the method in real-world robot grasping scenarios. Finally, Section VI (Conclusion) summarizes the main findings and outlines directions for future research. II. R ELATED WORK 
+
+A. DNNs-based Visual Grasping 
+
+Although numerous robot grasping frameworks have been proposed, this work specifically investigates DNNs-based 4-Degree-of-Freedom (4-DOF) visual grasping with a parallel-jaw gripper. These approaches exhibit strong generalization to previously unseen objects by training deep function ap-proximators on large-scale datasets to directly infer grasp success probabilities from visual observations. In addition, RGBD perception is widely adopted in such methods because of its complementary properties: RGB images convey rich appearance and texture information, whereas depth data provide explicit geometric structure. Along this line of research, [4] presented a multimodal deep CNN that maps RGBD image pairs of novel objects to optimal grasping. Kumra et al. [5] employed a ResNet-based architecture [6] to process RGBD inputs for grasp detection. From a region-proposal perspective, Chu et al. 
+
+[7] incorporated a Region Proposal Network (RPN) [8] to enable simultaneous prediction of multiple grasps across multiple objects using RGBD data. Asif et al. [10] proposed EnsembleNet, which produces four grasp representations and aggregates them to compute grasp quality scores, selecting the candidate with the highest score. Yan et al. [11] adopted a point-cloud-based CNN for grasp generation, where color, depth, and masked images are first processed to reconstruct a 3D point cloud of the target object, which is then fed into a dedicated prediction network. Moreover, Kumra et al. 
+
+[12] introduced a generative residual convolutional neural network capable of real-time synthesis of robust antipodal grasps from n-channel inputs. Despite demonstrating impressive generalization in un-structured environments, these methods emphasize grasp generalizability while overlooking safety considerations. Their object-agnostic nature may lead them to misidentify human hands or nearby objects as valid grasp targets, thereby introducing potential safety risks in HRI scenarios. 
+
+B. Adversarial Attacks 
+
+Since Szegedy et al. [13] first revealed the existence of adversarial examples, substantial efforts have been made to investigate the vulnerability of DNNs. Existing studies can be broadly classified into two categories: single-image adversarial attacks and image-agnostic attacks, also known as adversarial patch attacks. Single-image adversarial attacks generate global perturbations over the entire image by max-imizing the model’s discriminative loss. Goodfellow et al. 
+
+[14] introduced the Fast Gradient Sign Method (FGSM), which leverages the approximate linearity of neural networks to produce effective perturbations in a single step. Building upon this idea, Wang et al. [15] and Madry et al. [16] refor-mulated the one-step perturbation of FGSM into an iterative optimization process, resulting in I-FGSM and Projected Gradient Descent (PGD), respectively. While these single-image attacks can efficiently mislead image classification models, they are inherently input-specific and typically mod-ify the entire image, requiring re-optimization for each new sample. Such limitations motivate the development of more versatile approaches capable of targeting arbitrary images and localized regions. Adversarial patch attacks, in contrast, emphasize spatial locality and image-agnostic characteristics, making them particularly effective against object detection models with localization functionality. For instance, Liu et al. [17] pro-posed DPatch to attack widely used object detectors, re-ducing detection accuracy and inducing mislocalization or misclassification. Lee et al. [18] further examined the weak-nesses of DPatch and proposed Robust DPatch to enhance attack stability. Beyond degrading detection performance, subsequent studies [19], [20] explored detection evasion, where adversarial patches prevent detectors from identifying occluded objects. Later works [21]–[23] extended adver-sarial patches into adversarial clothing by replicating the patterns onto garments, thereby enabling more robust attacks under varying viewpoints. However, such replication-based extensions incur high costs and are generally limited by the deformation characteristics of clothing materials. More recently, Li et al. [9] integrated the strengths of single-image adversarial and adversarial patch attacks to pro-pose an active adversarial framework with rapid adaptability to diverse human hand shapes. By directly manipulating grasp quality scores, their method addresses safety concerns in DNN-based grasping systems during HRI. Nevertheless, their validation was confined to RGB-based grasping models, whereas most visual grasping systems typically rely on RGBD sensing. More importantly, achieving grasp quality manipulation by benign adversarial attacks in the RGBD modality is challenging due to the inherent distribution discrepancies and optimization imbalance between the RGB and depth modalities. III. QFAAP In this section, we recall the QFAAP [9], which is based on the RGB modality. Specifically, two main modules of QFAAP, the AQP and PQGD, will be explained here. 
+
+A. Adversarial Quality Patch 
+
+In the generation process of AQP ( pt), the training RGB images were normalized to the range [0, 1], and the AQP was initialized from a uniform distribution, as shown in Eq. 1, where H × W represents the size of the patch. U(0 , 1) 
+
+denotes the continuous uniform distribution over the interval [0, 1]. 
+
+pt ∼ U (0 , 1) 3×H×W (1) As the training process updated the AQP, the optimization could drive the adversarial patch outside the valid range. To satisfy the physical realizability constraint, the clipping operation was applied after each update to project the AQP back into the valid range, as shown in Eq. 2. Here, Π denotes the projection operator. 
+
+pt = Π [0 ,1] (pt) (2) The objective function consisted of three components. The quality loss Lpq is designed to stably maximize the mean quality score within the patch region, as shown in Eq. 3, where the quality score within the AQP area is denoted as 
+
+Qpi , and α controll the trade-off between maximizing the mean quality E(Qpi ) and minimizing the variance Var (Qpi ).The negative sign converts the maximization objective into a minimization problem compatible with gradient descent. 
+
+Lpq = 1
+
+B
+
+> B
+
+X
+
+> i=1
+
+[−E(Qpi ) + αVar (Qpi )] (3) The difference loss Ld encourages the quality within the patch region to exceed that of the surrounding areas, as shown in Eq. 4, where the quality score outside the AQP area is denoted as ˜Qpi . This formulation ensures that even the worst-performing pixel within the patch achieves a quality comparable to the best pixel outside it. 
+
+Ld = 1
+
+B
+
+> B
+
+X
+
+> i=1
+
+min Qpi − max ˜Qpi (4) The total variation is adopted to mitigate the noise intro-duced during AQP training, consistent with [20], as shown in Eq. 5. Here, pt(jp, k p) represent the pixel value of AQP at location (jp, k p).
+
+Ltv = 1
+
+H × W
+
+> H
+
+X
+
+> jp=1
+> W
+
+X
+
+> kp=1
+
+∥pt(jp, k p)∥2 (5) The complete loss function combines these components, as shown in Eq. 6, where β and γ control the relative importance of the difference loss and the total variation loss, respectively. 
+
+Laqp = Lpq + βLtv + γLd (6) 
+
+B. Projected Quality Gradient Descent 
+
+The PQGD had been employed to rapidly refine the AQP within the masked hand region during the shape adaptation process. First, x′ is defined as the RGB frame after inserting the AQP into the hand area, as shown in Eq. 7. Here, x
+
+denotes an RGB frame captured by a depth camera, and Mh
+
+represents the hand mask associated with x.
+
+x′ = x(1 − M h) + ptMh (7) Then, the PQGD loss Lpqgd is defined as shown in Eq. 8, where Qht represents the quality map inside the hand region of x′′  
+
+> t
+
+, and x′′  
+
+> t
+
+denotes the RGB frame after incorporating both AQP and PQGD within the hand area. 
+
+Lpqgd = −E(Qht−1) (8) Finally, Lpqgd together with the hand mask Mh were leveraged to refine the AQP within the hand region of x′′  
+
+> t
+
+, as shown in Eq. 9. Here, sgn denotes the sign function, which computes the direction of the derivative of Lpqgd with respect to x′′ 
+
+> t−1
+
+. The parameter δpqgd represents the learning rate. 
+
+x′′  
+
+> t
+
+=
+
+Y
+
+> x′,ϵ
+
+[x′′  
+
+> t−1
+
+− sgn (δpqgd 
+
+∂Lpqgd 
+
+∂x′′ 
+
+> t−1
+
+)] 
+
+ Mh + x′(1 − M h)
+
+(9) The parameter ϵ denotes the perturbation bound, which constrains x′′  
+
+> t
+
+from deviating excessively from x′ during refinement, as shown in Eq. 10. 
+
+x′′  
+
+> t
+
+= Π [x′−ϵ,, x′+ϵ](x′′  
+
+> t
+
+) (10) IV. P ROPOSED METHOD 
+
+In this section, we first provide an overview of the MAQP framework. Subsequently, we present a detailed description of its two key modules, the HDPOS and GLMBS. Finally, we elaborate on the deployment of MAQP for enhancing visual grasping safety in HRI scenarios. 
+
+A. Overview of MAQP 
+
+The MAQP framework integrates two tightly coupled components, HDPOS and GLMBS, to achieve effective RGBD grasp quality score manipulation. HDPOS accounts for modality-specific distribution differences by separately initializing RGB and depth patches ( U(0 , 1) and N (0 , σ p)), and using a unified objective function to generate the RGBD patch. GLMBS further addresses optimization imbalance in the patch shape adaptation process by reweighting gradients according to the sensitivity ratio ρ, scaling RGB gradients to approach the depth gradients, and introducing a distance-adaptive depth perturbation bound ϵ′(d) to further enhance balance. Together, these strategies ensure modality-aware and optimization-balanced benign adversarial learning for RGBD-based safe grasping. We show a pseudocode of MAQP in Algorithm 1. 
+
+B. Heterogeneous Dual-Patch Optimization Scheme 
+
+The HDPOS is operated in the patch generation pro-cess. We first initialize the patches in each modality by modality-specific initialization strategies to solve the distri-bution discrepancy between RGB and depth, that is gaussian distribution N (0 , σ p) for depth patches pd and a uniform distribution U(0 , 1) for RGB patches prgb . The depth patch values are clipped to [0, 1] after sampling, in the same range of RGB patch. This heterogeneous initialization ensures each modality starts from a distribution matching its preprocessed data characteristics. As shown in Eq. 11: 
+
+prgb ∼ U (0 , 1) 3×H×W , pd ∼ N (0 , σ p)1×H×W (11) The RGB and depth patches are then applied at the same spatial location of the RGB and depth image pair by a shared mask M, as shown in Eq. 12 and Eq. 13: 
+
+x′ 
+
+> rgb
+
+= xrgb (1 − M ) + prgb M (12) 
+
+x′ 
+
+> d
+
+= xd(1 − M ) + pdM (13) Therefore, the patched RGBD image x′ 
+
+> rgbd
+
+can be formed by channel-wise concatenation: 
+
+x′ 
+
+> rgbd
+
+= [ x′
+
+> rgb
+
+; x′
+
+> d
+
+]c ∈ R4×H×W (14) Finally, these RGBD images x′ 
+
+> rgbd
+
+can be used to jointly train both patches through a unified loss function Laqp , the same as Eq. 6. One generated RGBD patch example is shown in Fig. 2. The unified loss is reasonable because the two patches have the same goal, that is maximize quality scores in the patch region. So the gradients can be fused into a single grasp quality score map by the RGBD grasping model, and backpropagated to both patches according to their contribution. Notably, the constraints for each patch will also be maintained in [0,1] after each iteration of the training. 
+
+C. Gradient-Level Modality Balancing Strategy 
+
+After generating the RGB and depth patch pair by HD-POS, the GLMBS can be used in the patch shape adaptation process to solve the optimization imbalance problems be-tween RGB and depth patches. Specifically, the imbalance issue is induced by the sensitivity bias exacerbated by rapid shape adaptation. Since the visual grasping model is inherently dependent on the geometric information of the objects based on the depth information, grasping models will be more sensitive to depth features than RGB, especially in the shape adaptation process of the patch with only a few iterations. To better exploit the appearance and texture information provided by RGB images for training the RGBD grasping model, it is necessary to balance the gradient contributions of RGB and depth features during this process. Therefore, we first define per-parameter sensitivity as the average gradient magnitude per channel for RGB Srgb and depth Sd, as shown in Eq. 15. Here, x′ 
+
+> rgb
+
+and x′ 
+
+> d
+
+denote the RGB and depth image after add RGB and depth patches within the human hand area, Lpqgd is the same loss in Eq. 8, ∇ denotes the gradient calculation. 
+
+Srgb = ∥∇ x′ 
+
+> rgb
+
+Lpqgd ∥2
+
+3 , Sd = ∥∇ x′ 
+
+> d
+
+Lpqgd ∥2 (15) Then, the sensitivity ratio ρ is defined in Eq. 16. 
+
+ρ = Sd
+
+Srgb 
+
+(16)  
+
+> Fig. 2. Generated RGBD patch example (RGB and depth patch pair). The left is the RGB patch, the right is the depth patch.
+
+Algorithm 1 Multimodal Adversarial Quality Policy  
+
+> 1:
+
+Inputs: Dataset D, RGBD grasping model fθ 
+
+> 2:
+
+Outputs: Optimized patch pair (p′
+
+> rgb
+
+, p′
+
+> d
+
+) in human hand region  
+
+> 3:
+
+// HDPOS: Qp denote quality score within the patch area, E is epoch number  
+
+> 4:
+
+prgb ∼ U (0 , 1) 3×H×W 
+
+> 5:
+
+pd ∼ N (0 , σ p)1×H×W 
+
+> 6:
+
+for epoch = 1 to E do  
+
+> 7:
+
+for each batch {(x(i)
+
+> rgb
+
+, x(i) 
+
+> d
+
+)} ∈ D do  
+
+> 8:
+
+x′ 
+
+> rgb
+
+← xrgb , prgb , M 
+
+> 9:
+
+x′ 
+
+> d
+
+← xd, pd, M 
+
+> 10:
+
+x′ 
+
+> rgbd
+
+← [x′
+
+> rgb
+
+; x′
+
+> d
+
+]c 
+
+> 11:
+
+Qp ← fθ (x′
+
+> rgbd
+
+) 
+
+> 12:
+
+Laqp ← Qp 
+
+> 13:
+
+∇prgb Laqp ← ∇ , prgb , Laqp  
+
+> 14:
+
+∇pd Laqp ← ∇ , pd, Laqp  
+
+> 15:
+
+U pdated prgb ← prgb , ∇prgb Laqp  
+
+> 16:
+
+U pdated pd ← pd, ∇pd Laqp  
+
+> 17:
+
+end for  
+
+> 18:
+
+end for  
+
+> 19:
+
+// GLMBS: frgb and fd are real-time frame from depth camera, Mh is the human hand mask, Qh is the quality score within human hand area, I is iteration number  
+
+> 20:
+
+for iteration = 1 to I do  
+
+> 21:
+
+f ′ 
+
+> rgb
+
+← prgb , frgb , Mh 
+
+> 22:
+
+f ′ 
+
+> d
+
+← pd, fd, Mh 
+
+> 23:
+
+f ′ 
+
+> rgbd
+
+← [f ′
+
+> rgb
+
+; f ′
+
+> d
+
+]c 
+
+> 24:
+
+Qh ← fθ (f ′
+
+> rgbd
+
+) 
+
+> 25:
+
+Lpqgd ← Qh 
+
+> 26:
+
+∇p′ 
+
+> rgb
+
+Lpqgd ← ∇ , p′
+
+> rgb
+
+, Lpqgd  
+
+> 27:
+
+∇p′ 
+
+> d
+
+Lpqgd ← ∇ , p′
+
+> d
+
+, Lpqgd  
+
+> 28:
+
+Balanced ∇P′ 
+
+> rgb
+
+Lpqgd ← wrgb , ∇P′ 
+
+> rgb
+
+Lpqgd  
+
+> 29:
+
+Balanced ∇P′ 
+
+> d
+
+Lpqgd ← wd, ∇P′ 
+
+> d
+
+Lpqgd  
+
+> 30:
+
+U pdated p′ 
+
+> rgb
+
+← p′
+
+> rgb
+
+, Balanced ∇P′ 
+
+> d
+
+Lpqgd  
+
+> 31:
+
+U pdated p′ 
+
+> d
+
+← p′
+
+> d
+
+, Balanced ∇p′ 
+
+> d
+
+Lpqgd  
+
+> 32:
+
+end for  
+
+> 33:
+
+return (p′
+
+> rgb
+
+, p′
+
+> d
+
+)
+
+Based on sensitivity analysis from the whole image, we conduct reweighting for the gradient from RGB ∇p′ 
+
+> rgb
+
+Lpqgd and depth patches ∇p′ 
+
+> d
+
+Lpqgd in the human hand area, as shown in Eq. 17 and Eq. 18. Here wrgb and wd are reweighting parameters based on the sensitivity ratio, which is set to ρ and 1, respectively. Therefore, this operation can let the gradient from the RGB patch approach the gradient from the depth patch within the human hand area, realizing balanced gradient contribution. 
+
+∇b
+
+> p′
+> rgb
+
+Lpqgd = wrgb · ∇ p′ 
+
+> rgb
+
+Lpqgd (17) 
+
+∇b
+
+> p′
+> d
+
+Lpqgd = wd · ∇ p′ 
+
+> d
+
+Lpqgd (18) Finally, GLMBS also incorporates the distance-adaptive perturbation bound ϵ′(d) for the depth, as shown in Eq. 19. Where ϵ is a fixed perturbation bound for RGB, the same as in Eq. 9 and Eq. 10, d denotes one variable depth value, dmax and dmin denote the maximum and minimum depth value in the depth image, λ is a hyperparameter. This operation can maintain fixed perturbation bounds for RGB while allowing adaptive bounds for depth based on measured distance, reflecting the different noise characteristics of each modality, and further enhancing the shape adaptation process. 
+
+ϵ′(d) = ϵ
+
+
+
+1 + λ d − dmin 
+
+dmax − dmin 
+
+
+
+(19) 
+
+D. Implement in the Real Robot Grasping Platform 
+
+We follow the same deployment procedure as in QFAAP [9] to implement our method on a real robot grasping platform for RGBD-based safe grasping. Specifically, after integrating MAQP into the system, the human hand will serve as a suppression source to reduce the predicted quality scores of objects in its vicinity. Meanwhile, the quality scores within the hand region will be set to zero. As a result, the robot will be guided to grasp objects that are away from the human hand and its nearby objects, thereby enhancing HRI safety without emergency stops. V. E XPERIMENTS 
+
+In this section, we first provide a detailed description of the experiment setting, includes setting for MAQP and settings for robot grasping. Then, we validate the effectiveness of MAQP in different models and datasets, followed by the ablation studies to validate each component of MAQP. Fi-nally, we test our method in real grasping with hand dynamic interference. 
+
+A. Experimental Settings 1) Setting for MAQP: We perform our experiments on the Cornell Grasp Dataset [24] and the OCID Grasp Dataset [25]. The Cornell Grasp Dataset is a single-object RGBD dataset comprising 885 image pairs, whereas the OCID dataset contains cluttered scenes with approximately 1.7k image pairs. To facilitate RGBD patch generation, we pretrain sev-eral representative DNNs-based grasping networks, including  
+
+> Fig. 3. Robot grasping platform: consisting of an Intel RealSense D435 depth camera, a UFactory 850 robot, a UFactory xArm gripper, and the experimental objects
+
+GG-CNN [26], GG-CNN2 [27], GR-ConvNet [12], FCG-Net [28], and SE-ResUNet [29]. Among these models, GR-ConvNet and SE-ResUNet directly support RGBD inputs, FCG-Net is originally designed for RGB images, and the GG-CNN series operates on depth images. For consistency, we extend FCG-Net and the GG-CNN series to support RGBD data by modifying the input channel dimensions. All models are trained on a single NVIDIA RTX 3090Ti GPU with 24GB memory. Following the image-wise split of GR-ConvNet [12], the dataset is randomly shuffled, with 90% used for training and 10% for testing. During the training stage, the data will be uniformly cropped to 224 ×224 (GG-CNN series are 300 ×300), the total number of epochs for training is set to 50, the learning rate δmodel is fixed to 0.001, batch size B is set to 8, and data augmentation is applied. For the generation of the RGBD patch, we use the same device, system, and training parameters as the grasping model. Differently, we first initialize the RGB patch with a uniform distribution and the depth patch with gaussian distribution of size 224 ×224 (300 ×300 for GG-CNN series) as discussed in HDPOS. Next, during each iteration, we apply a random scale to the patch and paste it onto a random position of the training sample that is consistent with [9]. We also set α, β, and γ in Lpq and Laqp to 0.1, 0.1, and 0.5 like [9]. The initial learning rate δaqp is set to 0.03 (decreasing by a factor of ten at the 30th and 40th epochs), the same as in [9]. Finally, we evaluate the performance of the RGBD patch on the test set using the Q-ACC in [9]. For the shape adaptation of the RGBD patch, we set the following parameters that similar to [9]: the iteration number 
+
+N i is set to 1, the learning rate δpqgd is fixed at 0.008, ϵ for TABLE I RESULTS OF MAQP ON THE CORNELL GRASP DATASET Models O-ACC (%) Q-ACC (%) Runtime ( s)GG-CNN 89.9 70.1 0.004 GG-CNN2 94.9 90.3 0.010 GR-ConvNet 96.2 85.9 0.016 FCG-Net 94.9 89.5 0.047 SE-ResUNet 97.5 97.2 0.047 TABLE II RESULTS OF MAQP ON THE OCID GRASP DATASET Models O-ACC (%) Q-ACC (%) Runtime ( s)GG-CNN 28.8 85.7 0.006 GG-CNN2 43.5 97.6 0.012 GR-ConvNet 58.2 87.0 0.038 FCG-Net 59.3 92.5 0.051 SE-ResUNet 60.5 90.1 0.057 
+
+RGB patch is set to 8/255, ϵ′(d) for depth patch is based on variable depth value, and wrgb and wd are set to ρ and 1 as discussed in GLMBS. In addition, we use the pre-trained model from [31] for real-time hand segmentation to guide the shape adaptation process of the patch. Finally, since shape adaptation is based on patch generation, we use the same Q-ACC to evaluate the performance of our method. 
+
+2) Setting for Robot Grasping: Our robot grasping system and part of the experimental objects are illustrated in Fig. 3. For the grasping system, we adopt an eye-in-hand grasping architecture. For the experimental objects, we collected 10 novel objects that are not included in the training dataset. We employ the same Deviation–Return–Deviation Rate (DRD-Rate) in [9] as evaluation metric, that is, the hand will dynamically approach-away-approach an object with the highest grasp quality score in the camera view, and the distance between the hand and this object remains within 0.5 cm , without making physical contact. Finally, we also reproduce the closed-loop control method from [27] and integrate it into our method, endowing it with the reactive capability to counteract hand dynamic interference. 
+
+B. Results on the Different Datasets and Models 
+
+We employ the same experimental setting discussed in Section V-A.1 to validate the performance of MAQP (in-cluding both patch generation and shape adaptation process) across different datasets and grasping models. The results are presented in Table I (results in Cornell Grasp Dataset) and Table II (results in OCID Grasp Dataset). In these results, MAQP optimized by most models and datasets achieves a Q-AAC exceeding 85%, except for those optimized by GG-CNN and the Cornell Grasp Dataset, which attains 70.1%. The runtime indicates that our method can also achieve real-time speed in predicting a single MAQP. The above analyses indicate that MAQP in different datasets and models is effective.                                                                      
+
+> TABLE III THE IMPACT OF MODALITY -S PECIFIC INITIALIZATION ON Q-ACC Models Q-ACC (%) Fixed Q-ACC (%) Adaptive Runtime ( s)GG-CNN2 96.3 94.9 0.028 GR-ConvNet 93.4 94.4 0.015 FCG-Net 89.6 92.4 0.019 TABLE IV THE IMPACT OF GRADIENT REWEIGHTING ON Q-ACC Models Q-ACC (%) Unbalanced Q-ACC (%) Balanced ρ
+> GG-CNN2 90.6 93.1 1.03 GR-ConvNet 91.5 93.0 1.02 FCG-Net 88.4 85.3 0.99 TABLE V THE IMPACT OF ADAPTIVE PERTURBATION BOUND ON Q-ACC Models Q-ACC (%) Static ϵ
+> Q-ACC (%) Adaptive ϵRuntime ( s)GG-CNN2 87.5 90.3 0.010 GR-ConvNet 88.2 89.5 0.047 FCG-Net 89.2 85.9 0.016 TABLE VI GRASPING RESULTS IN DIFFERENT SCENARIOS
+> Patches S1 S2 S3 S4 S5 DRD-Rate (%) Original-generated 3/5 4/5 4/5 5/5 5/5 84% Shape-adapted 4/5 5/5 5/5 4/5 5/5 92%
+
+C. Ablation Studies 
+
+We conduct ablation studies in this part to evaluate the effectiveness of each of the components of the proposed MAQP framework. The experimental setting is consistent with Section V-A.1. First, we test the HDPOS in the patch generation process, and the results are presented in Table III, indicating that most of the Q-ACC is clearly increased after model-specific initialization, except for the Q-ACC in GG-CNN2 that caused by the design nature for depth modality since we just extend it to solve RGBD modality. In addition, the system can also run in real-time speed after adding HDPOS based on the Runtime results. These results demonstrate that the HDPOS is important in initializing the RGBD patch. Next, we validate the GLMBS in the shape adaptation process of the RGBD patch, which includes two steps: the gradient reweighting and distance-adaptive perturbation. Here, we evaluate them separately. The results for gradient reweighting are shown in Table IV. Our method can not only enhance the Q-ACC (except for FCG-Net because of its RGB modality nature, similar to the problem in GG-CNN2 of Table III), but also successfully push the sensitivity ratio ρ close to 1. The results for the adaptive perturbation bound are shown in Table V, which also indicates improved Fig. 4. Cases of the DRD process during grasping. Each row represents a single case. From left to right, the images in each row show: the robot’s initial approach to the target object, the first deviation caused by interference, the robot’s re-approach (return) to the target after the human hand moves away, the second deviation following the subsequent interference, and the final grasping after the human hand moves away again. We use the blue border to emphasize the target object that the robot is trying to grasp in each subfigure. 
+
+performance after use adapative bound and can run at real-time speed, except for FCG-Net because of its RGB modality nature. All of these results demonstrated the effectiveness of GLMBS in the shape adaptation process of the RGBD patch. 
+
+D. Real Robot Grasping Experiments 
+
+In this part, we randomly arrange 10 objects in the workspace and construct 5 different grasping scenes using these objects. For each scene, we perform 5 grasping at-tempts with the original-generated and shape-adapted RGBD patch by incorporating our method. A grasping is consid-ered successful if the robot completes the whole process of Deviation–Return–Deviation. Other experimetal setting is consistent with Section V-A.2. The results are shown in Table VI. The results show that the original-generated and shape-adapted by incorporating our method achieve very high DRD-Rate, 84% (21/25) and 92% (23/25), respectively. This demonstrates that our method can effectively integrate with RGBD patches, whether in the stage of original-generated or shape-adapted, and realize safe grasping by responding to the movement of the human hands in the real world. Finally, we show two cases of the DRD process during grasping in Fig. 4, where it can be seen that the robot consistently avoids the human hand and its nearby objects with hand dynamic interference. More clearly and detailed demonstrations are shown in the videos. VI. C ONCLUSION 
+
+In this paper, we present the Multimodal Adversarial Quality Policy (MAQP). Specifically, we employ the Het-erogeneous Dual-Patch Optimization Scheme (HDPOS) to mitigate the distribution discrepancy between RGB and depth modalities during RGBD patch generation by adopt-ing modality-specific initialization strategies. Furthermore, we utilize the Gradient-Level Modality Balancing Strategy (GLMBS) to address the optimization imbalance between RGB and depth patches in the shape adaptation process, by reweighting gradient contributions based on sensitivity analysis and applying distance-adaptive perturbation bounds. Extensive experiments demonstrate the effectiveness of our method across different datasets and models, as well as in real-world grasping scenarios. Future work can be organized into two primary directions. The first direction aims to tackle the limitations discussed in Section V-C, further improving the proposed method. The second direction focuses on extending MAQP to handle the multimodal backdoor attack problem introduced in [32]. REFERENCES [1] R. M. Murray, Z. Li, and S. S. Sastry, A Mathematical Introduction to Robotic Manipulation . Boca Raton, FL, USA: CRC Press, 2017. [2] D. Prattichizzo and J. C. Trinkle, “Grasping,” in Springer Handbook of Robotics , Berlin, Germany: Springer 2008. [3] B. Kehoe, A. Matsukawa, S. Candido, J. Kuffner, and K. Goldberg, “Cloud-based robot grasping with the google object recognition en-gine,” in IEEE International Conference on Robotics and Automation ,2013, pp. 4263–4270. [4] Z. Wang, Z. Li, B. Wang, and H. Liu, ”Robot grasp detection using multimodal deep convolutional neural networks,” Advances in Mechanical Engineering , vol. 8, no. 9, pp. 1–12, 2016. [5] S. Kumra and C. Kanan, “Robotic grasp detection using deep convo-lutional neural networks,” in IEEE/RSJ International Conference on Intelligent Robots and Systems , 2017, pp. 769–776. [6] K. He, X. Zhang, S. Ren, and J. Sun, ”Deep residual learning for image recognition,” in IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2016, pp. 770-778. [7] F.J. Chu, R. Xu, and P. A. Vela, “Real-world multiobject, multigrasp detection,” IEEE Robotics and Automation Letters , vol. 3, no. 4, pp. 3355–3362, 2018. [8] S. Ren, K. He, R. Girshick, and J. Sun, ”Faster r-cnn: Towards real-time object detection with region proposal networks,” in International Conference on Neural Information Processing Systems , 2015, pp. 91–99. [9] C. Li, R. Beuran, and N. Y. Chong, “Quality-focused Active Adver-sarial Policy for Safe Grasping in Human–Robot Interaction,” IEEE Transactions on Automation Science and Engineering , vol. 22, pp. 23269-23287, 2025. [10] U. Asif, J. Tang, and S. Harrer, ”Ensemblenet: Improving Grasp Detection using an Ensemble of Convolutional Neural Networks,” in British Machine Vision Conference , 2018, pp. 10–21. [11] X. Yan, M. Khansari, J. Hsu, Y. Gong, Y. Bai, S. Pirk, and H. Lee, ”Data-efficient learning for sim-to-real robotic grasping using deep point cloud prediction networks,” 2019 arXiv: 1906.08989. [12] S. Kumra, S. Joshi, and F. Sahin, “Antipodal robotic grasping using generative residual convolutional neural network,” in IEEE/RSJ In-ternational Conference on Intelligent Robots and Systems , 2020, pp. 9626–9633. [13] C. Szegedy et al., “Intriguing properties of neural networks,” in 
+
+International Conference on Learning Representations , 2014. [14] I. J. Goodfellow, J. Shlens, and C. Szegedy, “Explaining and harness-ing adversarial examples,” in International Conference on Learning Representations , 2015. [15] J. Wang, “Adversarial examples in physical world,” in International Joint Conference on Artificial Intelligence , 2021, pp. 4925–4926. [16] A. Madry, A. Makelov, L. Schmidt, D. Tsipras, and A. Vladu, “Towards deep learning models resistant to adversarial attacks,” in 
+
+International Conference on Learning Representations , 2018. [17] X. Liu, H. Yang, Z. Liu, L. Song, Y. Chen, and H. Li, “DPATCH: An adversarial patch attack on object detectors,” in AAAI Conference on Artificial Intelligence , 2019, pp. 1–8. [18] M. Lee and Z. Kolter, “On physical adversarial patches for object detection,” 2019, arXiv: 1906.11897. [19] K.-H. Chow et al., “Adversarial objectness gradient attacks in real-time object detection systems,” in IEEE International Conference on Trust, Privacy and Security in Intelligent Systems, and Applications ,2020, pp. 263–272. [20] S. Thys, W. Van Ranst, and T. Goedeme, “Fooling automated surveil-lance cameras: Adversarial patches to attack person detection,” in 
+
+IEEE/CVF Conference on Computer Vision and Pattern Recognition Workshops , 2019, pp. 49–55. [21] Z. Hu, S. Huang, X. Zhu, F. Sun, B. Zhang, and X. Hu, “Adver-sarial texture for fooling person detectors in the physical world,” in 
+
+IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2022, pp. 13307–13316. [22] K. Xu et al., “Adversarial T-shirt! Evading person detectors in a physical world,” in European Conference on Computer Vision , 2020, pp. 665–681. [23] Z. Hu, W. Chu, X. Zhu, H. Zhang, B. Zhang, and X. Hu, “Physically realizable natural-looking clothing textures evade person detectors via 3D modeling,” in IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2023, pp. 16975–16984. [24] I. Lenz, H. Lee, and A. Saxena, “Deep learning for detecting robotic grasps,” International Journal of Robotics Research , vol. 34, no. 4–5, pp. 705–724, 2015. [25] S. Ainetter and F. Fraundorfer, “End-to-end trainable deep neural network for robotic grasp detection and semantic segmentation from RGB,” in IEEE International Conference on Robotics and Automation ,2021, pp. 13452–13458. [26] D. Morrison, P. Corke, and J. Leitner, “Closing the loop for robotic grasping: A real-time, generative grasp synthesis approach,” in robotics: Science and Systems , 2018. [27] D. Morrison, P. Corke, and J. Leitner, “Learning robust, real-time, reactive robotic grasping,” International Journal of Robotics Research ,vol. 39, no. 2-3, pp. 183–201, 2020. [28] M. Shan, J. Zhang, H. Zhu, C. Li, and F. Tian, ”Grasp Detection Algorithm Based on CPS-ResNet,” in International Conference on Image Processing, Computer Vision and Machine Learning , 2022, pp. 501-506. [29] S. Yu, D.-H. Zhai, Y. Xia, H. Wu, and J. Liao, “SE-ResUNet: A novel robotic grasp detection method,” IEEE Robotics and Automation Letters , vol. 7, no. 2, pp. 5238–5245, 2022. [30] Y. Jiang, S. Moseson, and A. Saxena, “Efficient grasping from RGBD images: Learning using a new rectangle representation,” in IEEE International Conference on Robotics and Automation , 2011, pp. 3304–3311. [31] M. Gruosso, N. Capece, and U. Erra, “Egocentric upper limb segmen-tation in unconstrained real-life scenarios,” Virtual Reality , vol. 27, pp. 3421–3433, 2023. [32] C. Li, Z. Gao, and N. Y. Chong, “Shortcut-enhanced multimodal backdoor attack in vision-guided robot grasping,” IEEE Transactions on Automation Science and Engineering , vol. 22, pp. 18629 - 18645, 2025.

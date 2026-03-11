@@ -1,0 +1,421 @@
+Title: RAD: Retrieval-Augmented Monocular Metric Depth Estimation for Underrepresented Classes
+
+URL Source: https://arxiv.org/pdf/2602.09532v1
+
+Published Time: Wed, 11 Feb 2026 01:45:29 GMT
+
+Number of Pages: 16
+
+Markdown Content:
+# RAD: Retrieval-Augmented Monocular Metric Depth Estimation for Underrepresented Classes 
+
+## Michael Baltaxe 1,2 Dan Levi 1 Sagie Benaim 21General Motors, Herzliya, Israel 
+
+> 2
+
+## The Hebrew University of Jerusalem, Jerusalem, Israel 
+
+## Abstract 
+
+Monocular Metric Depth Estimation (MMDE) is essen-tial for physically intelligent systems, yet accurate depth estimation for underrepresented classes in complex scenes remains a persistent challenge. To address this, we pro-pose RAD, a retrieval-augmented framework that approxi-mates the benefits of multi-view stereo by utilizing retrieved neighbors as structural geometric proxies. Our method first employs an uncertainty-aware retrieval mechanism to iden-tify low-confidence regions in the input and retrieve RGB-D context samples containing semantically similar content. We then process both the input and retrieved context via a dual-stream network and fuse them using a matched cross-attention module, which transfers geometric information only at reliable point correspondences. Evaluations on NYU Depth v2, KITTI, and Cityscapes demonstrate that RAD significantly outperforms state-of-the-art baselines on underrepresented classes, reducing relative absolute error by 29.2% on NYU Depth v2, 13.3% on KITTI, and 7.2% on Cityscapes, while maintaining competitive performance on standard in-domain benchmarks. 
+
+## 1. Introduction 
+
+Monocular metric depth estimation (MMDE) is crucial to building intelligent systems and immersive digital experi-ences that interact with the physical world. Applications span autonomous driving [50], human-computer interaction [9, 12], and novel view synthesis [20]. Given the long-tailed nature of real-world data, accurately estimating depth for underrepresented classes is essential for their robust deploy-ment. In this work, we address MMDE in complex scenes that contain long-tailed, underrepresented classes. Recent years have seen substantial progress in MMDE. Two prevailing directions have been investigated, depend-ing on the type of data available for the task. One set of approaches relies on using domain-specific data to fine-DepthAnything v2 
+
+> RAD
+> Input
+> Retrieved context for underrepresented class of “candle”
+> Estimated depth
+
+Figure 1. Illustration. Given an input image, RAD (using DepthAnything v2 backbone [53]) retrieves context views for highly uncertain objects of underrepresented classes (e.g., candles) to serve as structural geometric proxies. These are used as part of a dual-stream network to output an accurate monocular metric depth estimation, in comparison to the direct baseline of DepthAnything v2, fixing uncertain regions. 
+
+tune depth estimation networks that incorporate strong pri-ors [2, 13, 45, 57]. These methods aim for specialization, resulting in networks that accurately estimate depth when trained with sufficient representative data. The second set of approaches learns from several large-scale datasets to per-form zero-shot MMDE [4, 5, 18, 39], which aims for strong generalization, enabling the model to perform well on un-seen target domains without test-time adaptation. Although promising, key gaps persist. On the one hand, fine-tuning methods yield highly accurate estimates for in-distribution classes, but when presented with underrepresented classes, the priors are inaccurate, leading to large errors. On the other hand, zero-shot methods ignore domain-specific in-formation, resulting in a performance degradation. 
+
+> arXiv:2602.09532v1 [cs.CV] 10 Feb 2026
+
+It is well established that multi-view methods outper-form monocular depth estimation due to their incorporation of geometric constraints from multiple viewpoints. Such additional information helps mitigate the limitations inher-ent to monocular setups. Our approach, called RAD (stand-ing for Retrieval Augmented Depth), remains within the monocular estimation framework but seeks to approximate the benefits of multi-view systems by retrieving content-relevant images that serve as proxy auxiliary supporting views for the input (see Fig. 1). To this end, we draw in-spiration from the retrieval-augmented generation (RAG) paradigm [31], used in vision and language tasks. Our training procedure for RAD consists of three main stages. First, we source a context sample, which consists of a context image (RGB) and its corresponding ground-truth depth map (D). This sample is generated in one of two ways: (a) via our uncertainty-aware retrieval pipeline, which uses the baseline’s uncertainty to find a similar context image, or (b) via 3D augmentation, which generates a new image and depth map from a random viewpoint. Second, we establish spatial correspondences between the input image and the sourced context image (for retrieved images, this is done via point matching; for 3D augmentations, these correspon-dences are known via the geometry). Finally, the complete context sample (RGB+D) is processed by our dual-stream network, which uses a matched cross-attention mechanism to fuse the context information only at these corresponding locations. At inference, we follow the same procedure as in training, with the exception that context images are only obtained using our uncertainty-aware retrieval pipeline. We demonstrate that RAD delivers substantial gains over state-of-the-art MMDE methods in regions containing un-derrepresented classes, while maintaining or even enhanc-ing performance in in-domain regions. To validate this, we evaluate RAD across both underrepresented and in-domain categories in complex scenes, comparing against fine-tuning and zero-shot baselines on NYU Depth v2 [46], KITTI [15], and Cityscapes [7]. To enable a robust eval-uation on underrepresented classes, we introduce a new benchmark depicting underreprested classes from each of these datasets. On underrepresented classes, our method achieves relative improvements in absolute relative error of 29.2%, 13.3%, and 7.2% on NYU, KITTI, and Cityscapes, respectively. For in-domain classes, RAD matches or even improves upon existing methods without degradation. 
+
+## 2. Related Work 
+
+Supervised Moncular Depth Estimation. Most monoc-ular depth estimation approaches rely on fully annotated datasets. Early work [11, 29] showed that depth can be directly regressed from ground truth and introduced loss functions to address scale ambiguity. This paradigm has evolved through improved regression techniques [13, 43], depth distribution modeling [2, 3, 45], and global scene consistency enforcement [57], resulting in highly accurate methods. While supervised models learn strong priors from large datasets, they struggle to generalize to long-tail re-gions, precisely the focus of our work. 
+
+Self-supervised Moncular Depth Estimation. Due to the data demands of fully supervised methods, self-supervised approaches have emerged as an alternative. These typically use video sequences, multi-camera setups, or auxiliary signals, paired with loss functions enforc-ing color constancy to enable monocular depth estimation [16, 17, 40, 49, 60]. Like supervised methods, they rely on large datasets to learn strong priors and struggle with under-represented data. Our retrieval mechanism addresses this by explicitly sourcing relevant context. 
+
+Domain Adaptation for Monocular Depth Estimation. 
+
+Domain adaptation for monocular depth estimation ad-dresses the shift between labeled source and unlabeled tar-get domains [1, 34, 59]. While it bridges cross-domain gaps, our work focuses on intra-domain imbalance caused by long-tailed data distributions. 
+
+Zero-shot and Few-shot Monocular Depth Estimation. 
+
+Recent zero-shot methods use massive datasets to enable broad generalization. These approaches have progressed from estimating relative depth [10, 27, 42, 53, 55], to recov-ering metric scale via camera intrinsics [4, 18, 22, 38, 56], and more recently, to jointly estimating depth and camera parameters [5, 39]. [23] proposed a few-shot method to adapt to new distributions using minimal labeled data. Un-like our approach, both paradigms trade domain-specific precision for generality, often degrading performance on complex, underrepresented classes where local priors are crucial. 
+
+Retrieval for Monocular Depth Estimation. While [26] introduced non-parametric retrieval with costly test-time optimization, we present the first deep, paramet-ric, feed-forward retrieval-augmented framework. Unlike multi-view methods [14, 32, 35, 52] that fuse views of the 
+
+same scene, our approach retrieves semantically similar in-the-wild images to enhance single-image depth estimation. 
+
+OOD and Open-Set 3D Vision. Most out-of-distribution (OOD) approaches in 3D vision focus on anomaly detection 
+
+[21, 24, 28, 47, 48, 58]. Recent open-set methods use deep visual [6, 19] and textual encodings [54], but remain limited to detection and classification. In contrast, we tackle met-ric depth estimation , using retrieved priors to reconstruct geometry for underrepresented data, not just detect it. 
+
+## 3. Method 
+
+We now describe our method. First, we detail the train-ing procedure in Sec. 3.1. During training, context images and corresponding depth maps are sourced either by retriev-ing samples containing similar underrepresented classes or Context sourcing (Sec. 3.1.1)   
+
+> Uncertainty-aware image retrieval
+> Context / Training dataset Spatial correspondence (Sec. 3.1.2)
+> Dual-stream depth estimation network (Sec. 3.1.3) Estimated depth Input image
+> Point matches
+> Context samples (RGB + D)
+> 3D Augmentation
+
+Figure 2. RAD Pipeline. Given an input image, a set of con-text samples is sourced (Sec. 3.1.2) using either uncertainty aware image retrieval (both at training and inference) or 3D augmenta-tion (only during training). Subsequently, spatial correspondences are established (Sec. 3.1.2). These are used to infer depth via a dual-stream depth estimation network employing matched cross-attention (Sec. 3.1.3). Blue blocks indicate components used for training and inference, while the green block is only for training. 
+
+via 3D augmentation of the input image (Sec. 3.1.1). We then establish spatial correspondences between the input and context images (Sec. 3.1.2) to guide matched cross-attention within a dual-stream network that performs depth estimation (Sec. 3.1.3). Second, we describe the inference procedure in Sec. 3.2. This follows the same pipeline as training, except that context is sourced exclusively via re-trieval. Fig. 2 presents an overview of RAD. 
+
+3.1. Training 
+
+3.1.1. Context Sourcing 
+
+Let T = {(xi, d i)}Ni=1 be the training dataset, where each 
+
+xi is an input image and di its corresponding ground-truth depth map. For each sample (xt, d t) ∈ T , we construct a context C = {(xic, d ic)}Mi=1 , consisting of M context images 
+
+xic and their associated depth maps dic. For a given train sample (xt, d t) ∈ T , the context C is generated using one of two randomly selected procedures: (1) uncertainty-aware image retrieval or (2) 3D augmentation, as detailed below. 
+
+Uncertainty-aware Image Retrieval. Let Dpool =
+
+{(xi, d i)}Li=1 denote the context dataset from which context samples are retrieved, where xi represents an image and di
+
+its corresponding ground-truth depth map (in our setting, we use the training set for Dpool , i.e., Dpool = T ). Given a training sample (xt, d t) ∈ T , our objective is to retrieve a subset of M context samples, C ⊆ Dpool (from different scenes than that of (xt, d t)), such that images in C contain objects similar to those underrepresented objects in xt.Conventional retrieval methods based on image descrip-tors tend to favor images with similar scene layouts. To address this limitation, we propose a custom retrieval strat-egy. Our central insight is that a depth estimation net-work trained on a dataset with representative distributions exhibits elevated uncertainty when encountering underrep-Input image Depth uncertainty calculation 
+
+> Image segmentation
+> Low uncertainty masking
+> Retrieved samples
+> DINO-based KNN search
+> Context / Training dataset
+
+Figure 3. Uncertainty-aware retrieval flow. Pixel-wise depth uncertainty is calculated in parallel to image segmentation. We use these to keep only highly uncertain segments, masking the rest of the image. Given the masked image we retrieve relevant examples from the context/training set using DINO descriptors. 
+
+resented object classes. This phenomenon arises from the weak priors encoded in the network’s parameters due to in-sufficient training data. We leverage this uncertainty signal to identify underrepresented objects within an image and guide the retrieval of relevant samples. Fig. 3 illustrates the proposed uncertainty-aware retrieval pipeline. Following the methodology outlined in [41], pixel-wise uncertainty is estimated by training a depth estimation net-work D on a representative dataset, applying it multiple times to perturbed versions of the input image, and analyz-ing the resulting standard deviation. Let xt denote the train-ing image, and let N (xt) represent a noisy variant of xt,generated by injecting random Gaussian noise, with stan-dard deviation σ. Let D(y) denote the estimated depth for some image y, calculated by a frozen version of a depth esti-mation model that uses our backbone. Define std (X) as the pixel-wise standard deviation and E(X) as the pixel-wise mean of a set of images X. The pixel-wise uncertainty for 
+
+xt, denoted Uncertainty (xt), is computed as follows: Noisy (xt) = {N (xt)}ni=1 (1) Uncertainty (xt) = std ({D(y) | y ∈ Noisy (xt)})
+
+E({D(y) | y ∈ Noisy (xt)}) . (2) Given a training sample (xt, d t) ∈ T , we first com-pute U = Uncertainty (xt) using DepthAnything v2 [53] for D(·), and generate a segmentation map S =
+
+Segmentation (xt) using SAM2 [44]. For each segment 
+
+s ∈ S, we compute the number of pixels exceed-ing a predefined uncertainty threshold h: p(s, U, h ) =
+
+|{ x | x ∈ s ∧ U (x) > h }| .To isolate regions of high uncertainty, we retain only seg-ments s ∈ S for which at least q% of pixels exceed thresh-old h. Thus, we generate a masked image ˜xt, as follows: 
+
+Keep (U, S, q, h ) = {s ∈ S | p(s, U, h ) > |s| · q
+
+100 } (3) 
+
+˜xt(x) = 
+
+(
+
+xt(x), ∃s ∈ Keep (U, S, q, h ), s.t. x ∈ s
+
+0, otherwise. (4) Finally, let DINO (x) represent the DINO v2 descriptor [36] of image x, and define KNN (x, Y, M ) as the set of M
+
+nearest neighbors to descriptor x within the descriptor set 
+
+Y . Then, the uncertainty-aware retrieved context C is: DINO Dpool = {DINO (x) | (x, d ) ∈ Dpool } (5) 
+
+W = KNN (DINO ( ˜ xt), DINO Dpool , M ) (6) 
+
+C = {c ∈ Dpool | DINO (c) ∈ W }. (7) In our implementation, cosine similarity is used to com-pute nearest neighbors. In effect, we use a masked image as query to retrieve from a pool of non-masked images. Empir-ically, this showed to be viable as the DINO v2 embedding aggregates a thorough description of the image contents. 
+
+3D Augmentation. Training using only retrieved sam-ples from a fixed context dataset leads to repetitive context for each training image across epochs. To promote robust-ness to varying contexts, we use a 3D augmentation method. To promote robustness to varying contexts, we em-ploy a 3D augmentation strategy. Given a training sample 
+
+(xt, d t) ∈ T and camera intrinsics K, we generate a syn-thetic context set C = {(xic, d ic)}Mi=1 . We first back-project the input image to 3D points X = Backproj (xt, d t, K ).Then, we sample M random camera poses {[Ri|ti]}Mi=1 
+
+and render the scene from these new viewpoints to ob-tain xic = Proj (X, K, [Ri|ti]) and dic = Z(X, K, [Ri|ti]) ,where Proj and Z denote the image and depth projection functions respectively. To avoid holes when projecting from a new point of view, we create a mesh (see supplementary). 
+
+3.1.2. Spatial Correspondence 
+
+Once training sample (xt, d t) ∈ T is complemented with context C, we search for precise spatial correspondences. When uncertainty-aware retrieval is used, we apply an off-the-shelf point matching method to identify semantic correspondences between training image xt and context im-ages {xic}Mi=1 . Specifically, we use LightGlue [33], which efficiently detects matches. When 3D augmentation is used, correspondences are calculated analytically through projec-tive geometry. These correspondences then guide cross-attention at matched locations, as detailed next in Sec. 3.1.3. 
+
+3.1.3. Dual-stream Depth Estimation Network 
+
+Our network builds upon the DepthAnything v2 architec-ture [53], utilizing the same Vision Transformer (ViT) en-coder and DPT decoder [43] for dense depth estimation. Context attention                       
+
+> Input attention
+> Vc
+> QcKc
+> Attention
+> Qi[j]Vi
+> Ki
+> Attention
+> Vm(j)
+> Km(j)
+> Matching tokens
+> Patch j
+> (a) Context sample (RGB+D) Input image (RGB)
+> (b)
+> Figure 4. Matched Cross-Attention. (a) illustrates the modi-fied attention architecture designed to enable effective informa-tion transfer from the context stream to the input stream. For each token jin the input image, with query vector Qi[j], attention is computed using key and value matrices formed by concatenating the input’s keys (Ki) and values ( Vi) with the matched context keys ( Km(j)) and values ( Vm(j)). These matched matrices are constructed by selecting j’s matching context tokens from the full context matrices Kcand Vc, respectively. (b) shows that matching tokens are defined as those located within a spatial neighborhood surrounding the matched point of jin the context image.
+
+The network is formed by two parallel ViT encoders, one for the RGB input and one for the RGB+D context sample. To incorporate depth into the context stream, a fourth chan-nel is added to the projection operation at the beginning of its ViT encoder. Let (xc, d c) ∈ C be a context sample, with xc ∈ RH×W ×3 and dc ∈ RH×W ×1, where W and H
+
+are the image’s width and height, respectively. The projec-tion operation in the context stream is defined as a function 
+
+P : RH×W ×4 → RHP ×WP ×c, where HP × WP are the number of patches extracted, and c is the dimensionality of the projected patch embeddings. The input to P is con-structed by concatenating xc and dc along the channel axis, yielding the projected representation P (concat( xc, d c)) .The input and context streams are linked via cross-attention at matching points. The context stream pro-cesses tokens using standard self-attention, while the in-put stream integrates information from the context stream through matched cross-attention detailed below. The archi-tecture for both streams is the same as DepthAnything v2, except for the context encoder adaptation described above and the attention mechanism in each block of the input stream. Both streams run in parallel. Our training objec-tives are identical to DepthAnything v2, aiming to predict the depth of the input stream. Note that these design choices are general, making our method easily adaptable to different backbones and objectives. The overall network architecture, training and implementation details, as well as memory and inference-time analysis, are provided in the supplementary. 
+
+Matched Cross-Attention. To enable effective infor-mation exchange between the context and input streams, we propose a modified attention mechanism called matched cross-attention . As depicted in Fig. 4(a), this mechanism allows the input stream to integrate contextual information by augmenting its attention computation as follows. Let Qi, Ki, and Vi be the queries, keys, and values ma-trices for the input feature map, where j represents the po-sition of a given token in this feature map. Likewise, let Qc,
+
+Kc and Vc be the queries, keys, and values matrices for the corresponding context feature map. For any of the matrices 
+
+X defined above, by X[a] we refer to the vector in X corre-sponding to token a. Additionally, let matching tokens (j)
+
+represent the set of context tokens matched to token corre-sponding to j in the input image. Then, the attention for token j in the input feature map, denoted Aj , is: 
+
+Km(j) = {Kc[a] | a ∈ matching tokens (j)} (8) 
+
+Vm(j) = {Vc[a] | a ∈ matching tokens (j)} (9) 
+
+˜Ki(j) = concat( Ki, K m(j)) (10) 
+
+˜Vi(j) = concat( Vi, V m(j)) (11) 
+
+Aj = attention( Qi[j], ˜Ki(j), ˜Vi(j)) (12) where attention is the standard attention mechanism. As illustrated in Fig. 4(b), the matching tokens associ-ated with token j are defined as those located within a spa-tial neighborhood surrounding its matched point in the con-text sample. This approach preserves spatial locality while facilitating cross-image correspondence. If more than one image is retrieved, we aggregate context tokens through all of them. Importantly, the set matching tokens (j) varies for each input token j, resulting in distinct key and value ma-trices for each attention computation. 
+
+3.2. Inference 
+
+At inference time, given an input image I, RAD em-ploys uncertainty-aware retrieval to assemble context C =
+
+{(xic, d ic)}Mi=1 , as defined in Eq. 7 (Sec. 3.1.1). Then, point correspondences between I and the retrieved context im-ages {xic}Mi=1 are computed following the procedure out-lined in Sec. 3.1.2. Finally, depth estimation is performed using the network described in Sec. 3.1.3, incorporating matched cross-attention as detailed in Eq. 12. 
+
+## 4. Experiments 
+
+We demonstrate the effectiveness of RAD through quanti-tative and qualitative evaluations. We stress that in all ex-periments, our retrieval context dataset Dpool is from the training set, making comparison to baselines fair. We then conduct experiments to visualize and analyze the behavior of RAD’s core components. Finally, we present a series of ablation studies. Limitations are in the supplementary. 
+
+4.1. Experimental Setup 
+
+Datasets. We evaluate our method on three widely used depth estimation datasets: NYU Depth v2 [46], KITTI [15] (Eigen split), and Cityscapes [7]. Since our focus is on underrepresented classes, we use semantic segmentation annotations to determine the location of underrepresented classes (detailed below) in test images, and calculate met-rics (detailed below) on pixels of such classes in an isolated manner. Both NYU and Cityscapes provide ground-truth semantic segmentation annotations (for Cityscapes, we use the fine annotations from the validation split). KITTI, how-ever, lacks semantic labels (a limitation that motivates the inclusion of Cityscapes as an outdoor dataset with manual annotated segmentation). To compensate for the absence of semantic annotations in KITTI, we generate segmentations using Detectron2 [51], employing the R101-FPN check-point trained on COCO panoptic segmentation data. NYU includes 894 classes, and KITTI (with Detectron2 segmentation) has 133. We define underrepresented classes as those appearing in fewer than 10% of training images but occurring more than five times, enabling analysis of the long tail while preserving natural distributions. For NYU, there are 231 underrepresented classes, while for KITTI, we have 22. Interestingly, we find that these long-tail cases occur in 93% of test examples in NYU and 51% in KITTI. For Cityscapes, we designate the following as underrep-resented classes: truck, bus, caravan, trailer, and train, based on their substantially lower instance counts, roughly an or-der of magnitude fewer than more common categories. The test sets include 611 samples for NYU, 334 for KITTI, and 133 for Cityscapes. Notably, NYU contains a large num-ber of sparsely represented classes, making it particularly well-suited for evaluating our task. 
+
+Metrics. We adopt standard depth estimation metrics [11], including threshold accuracy ( δn), relative absolute er-ror (RelAbs), root mean squared error (RMS), RMS in log-arithmic space ( RMS log ), and average Log 10 error ( Log 10 ). Using these metrics, we conduct two types of evaluations: (1) underrepresented classes evaluation, where metrics are computed exclusively on pixels belonging to underrepre-sented semantic classes in the test images; and (2) all classes evaluation, where metrics are computed across all pixels in the test images, corresponding to the standard test set. 
+
+Baselines. We refer to our method as RAD-X, where X denotes the size of the ViT encoder. We compare it against two categories of baselines: fine-tuning and zero-shot ap-proaches (other methods in Sec. 2 operate in different set-tings). In the fine-tuning category, we compare to BTS [30], Table 1. Underrepresented classes evaluation. Comparison of depth estimation performance on underrepresented classes across NYU, KITTI, and Cityscapes datasets. Top: fine-tuning methods, middle: zero-shot methods, bottom: our method. †: ZoeDepth is zero-shot for Cityscapes, but fine-tuned for NYU and KITTI. Best result in bold, second best underlined. Missing values correspond to methods without available code or trained model and that have not reported the relevant values in the literature. 
+
+NYU KITTI Cityscapes Method ↑ ↓ ↑ ↓ ↑ ↓
+
+δ1 δ2 δ3 AbsRel RMS Log 10 δ1 δ2 δ3 AbsRel RMS RMS log δ1 δ2 δ3 AbsRel RMS RMS log 
+
+AdaBins [2] 81.0 88.3 93.7 0.173 0.522 0.053 87.2 95.3 98.7 0.143 4.567 0.193 — — — — — —NewCRF [57] 80.3 89.7 95.4 0.169 0.497 0.049 89.1 96.7 99.1 0.121 4.247 0.166 — — — — — —DepthAnyV2 [53] 91.4 98.2 99.8 0.089 0.327 0.049 92.3 97.8 99.1 0.083 2.893 0.086 89.2 94.7 99.1 0.110 7.804 0.166 ZoeDepth † [4] 90.9 98.1 99.6 0.098 0.334 0.043 88.6 96.9 98.4 0.116 3.908 0.140 40.9 66.7 79.3 0.314 17.051 0.496 DepthPro [5] 89.6 97.6 99.1 0.106 0.375 0.048 77.9 97.7 99.3 0.160 2.698 0.170 47.5 87.8 98.0 0.224 11.973 0.285 Metric3Dv2 [56] 92.4 97.6 99.4 0.095 0.331 0.039 89.8 97.7 99.4 0.121 2.577 0.141 92.1 97.1 98.5 0.097 7.063 0.152 UniDepthV2 [39] 92.8 98.1 99.3 0.092 0.329 0.039 90.5 98.2 99.4 0.111 4.059 0.130 88.3 96.4 98.2 0.136 7.777 0.171 RAD-Small 95.3 98.5 99.1 0.084 0.321 0.057 92.2 95.9 98.0 0.143 3.943 0.097 86.7 96.6 98.5 0.133 5.573 0.168 RAD-Base 96.7 99.4 99.7 0.072 0.299 0.053 95.1 97.6 98.8 0.084 3.107 0.088 88.5 96.9 99.0 0.127 5.191 0.158 RAD-Large 97.5 99.5 99.9 0.063 0.288 0.040 96.6 98.6 99.4 0.072 2.498 0.052 93.5 97.0 99.1 0.090 5.083 0.150 
+
+Table 2. All classes evaluation. Comparison of depth estimation performance on all classes across NYU, KITTI, and Cityscapes datasets. Top: fine-tuning methods, middle: zero-shot methods, bottom: our method. Bold indicates best (for δ columns: largest; for lower-is-better columns: smallest). Underline indicates second best. †: ZoeDepth is zero-shot for Cityscapes, but fine-tuned for NYU and KITTI. Best result in bold, second best underlined. Missing values correspond to methods without available code or trained model and that have not reported the relevant values in the literature. 
+
+NYU KITTI Cityscapes Method ↑ ↓ ↑ ↓ ↑ ↓
+
+δ1 δ2 δ3 AbsRel RMS Log 10 δ1 δ2 δ3 AbsRel RMS RMS log δ1 δ2 δ3 AbsRel RMS RMS log 
+
+BTS [30] 88.5 97.8 99.4 0.109 0.391 0.046 96.2 99.4 99.8 0.056 2.430 0.089 — — — — — —AdaBins [2] 90.3 98.4 99.7 0.103 0.364 0.044 96.4 99.5 99.9 0.058 2.360 0.088 — — — — — —NewCRF [57] 92.1 99.1 99.8 0.095 0.333 0.040 97.4 99.7 99.9 0.052 2.129 0.079 — — — — — —IEBins [45] 93.6 99.2 99.8 0.087 0.314 0.038 97.1 99.6 99.9 0.050 2.011 0.075 — — — — — —iDisc [37] 93.8 99.2 99.8 0.086 0.313 0.037 97.5 99.7 99.9 0.050 2.070 0.077 — — — — — —DepthAnyV2 [53] 98.4 99.8 100 0.056 0.206 0.024 98.3 99.8 100 0.045 1.861 0.067 93.5 98.4 99.4 0.080 4.901 0.143 ZoeDepth † [4] 95.1 99.4 99.9 0.077 0.282 0.033 97.1 99.6 99.9 0.054 2.281 0.082 51.1 73.3 82.2 0.292 12.182 0.474 DepthPro [5] 91.8 98.0 99.2 0.099 0.387 0.045 83.5 97.8 99.3 0.141 3.375 0.157 70.8 93.3 97.7 0.169 8.020 0.255 Metric3Dv2 [56] 98.9 99.8 100 0.047 0.183 0.020 98.5 99.8 100 0.044 1.990 0.064 94.9 98.0 98.8 0.087 5.404 0.161 UniDepthV2 [39] 98.8 99.8 100 0.046 0.180 0.020 98.9 99.8 99.9 0.037 1.710 0.061 87.0 97.7 98.8 0.175 5.948 0.206 RAD-Small 96.8 99.7 99.9 0.066 0.233 0.028 97.7 99.7 99.9 0.051 2.311 0.077 90.6 97.8 99.3 0.092 5.375 0.154 RAD-Base 98.0 99.7 100 0.056 0.211 0.023 98.1 99.8 100 0.046 1.913 0.070 92.1 98.3 99.4 0.081 4.980 0.143 RAD-Large 98.8 99.8 100 0.048 0.192 0.020 98.9 99.8 100 0.043 1.801 0.065 93.8 98.7 99.7 0.078 4.891 0.140 
+
+AdaBins [2], NewCRF [57], IEBins [45], iDisc [37], and DepthAnything v2 [53]; in the zero-shot category, we com-pare to ZoeDepth [4], DepthPro [5], Metric3D v2 [22], and UniDepth v2 [39], which represent the state-of-the-art for MMDE. See supplementary for further details. 
+
+4.2. Quantitative Evaluation 
+
+We compare RAD against other state-of-the-art methods, reporting results based on publicly available code and pre-trained models, or as documented in the literature. 
+
+Underrepresented classes evaluation. Tab. 1 presents quantitative comparison of depth estimation methods eval-uated on underrepresented data from NYU, KITTI, and Cityscapes. For methods with multiple network sizes, we report results for the most comparable to a large ViT (the best variant). Overall, our RAD-Large consistently achieves the strongest performance across benchmarks. On NYU, RAD-Large achieves the highest overall per-formance, with relative improvements of 29.2% in Ab-sRel and 11.9% in RMS compared to the best-performing non-RAD method, DepthAnything v2, the foundation of our approach. Additionally, it achieves a 5.1% gain in δ1
+
+over UniDepthV2, which ranks second in that metric, ex-cluding other RAD models. On KITTI, RAD-Large again leads, demonstrating relative improvements of 13.3% in Re-lAbs, 39.5% in RMS log , and 4.7% in δ1 over the best non-RAD method, DepthAnything v2. Similarly, on Cityscapes, RAD-Large delivers the strongest results, with relative im-Input Ground truth DepthAnything v2 UniDepth v2 Metric3D v2 RAD 
+
+Figure 5. Qualitative results for NYU Depth v2 (top two rows), KITTI (middle two rows) and Cityscapes (bottom two rows). We compare our method (RAD) to baselines DepthAnything v2 [53], UniDepth v2 [39] and Metric3D v2 [22]. Best viewed zoomed in.    
+
+> Query Uncertainty Segmentation Masked query Uncertainty-aware retrieved 1 (ours) Uncertainty-aware retrieved 2 (ours) DINO retrieved 1 (baseline) DINO retrieved 2 (baseline)
+
+Figure 6. Uncertainty-aware retrieval. Comparison of image retrieval using our uncertainty-aware approach to the baseline DINO -based retrieval. Our approach identifies segments of high uncertainty in the query image and retrieves examples containing similar objects, rather than images with similar general layout. Best viewed zoomed in. 
+
+provements of 7.2% in AbsRel and 28.0% in RMS com-pared to Metric3Dv2, the best non-RAD baseline. 
+
+All classes evaluation. Tab. 2 presents a quantita-tive comparison to baselines evaluated across all seman-tic classes on NYU, KITTI, and Cityscapes, correspond-ing to the standard MMDE test protocol. On NYU and Cityscapes, RAD-Large performs on par with state-of-the-art methods such as UniDepthV2 and Metric3Dv2, while closely ranking second on KITTI. Notably, across all datasets, RAD-Large slightly outperforms DepthAnything v2, the backbone of our approach. 
+
+4.3. Qualitative Evaluation 
+
+Fig. 5 showcases qualitative results across the three datasets. RAD demonstrates a clear advantage in handling underrepresented objects. Notably, DepthAnything v2 and RAD exhibit similar performance in in-domain regions of the image, a natural outcome given their shared backbone. RAD detects underrepresented elements with high uncer-tainty, delivering improved depth estimations in the lamp in the first image, the stroller in the third image, and the side of the train in the fifth image. 
+
+4.4. Component Visualization 
+
+Fig. 6 analyzes the uncertainty-aware image retrieval mech-anism (Sec. 3.1.1). Uncertainty effectively localizes under-represented classes. Combined with segmentation, it en-ables specific retrieval of context images containing visually similar object instances. In contrast, the baseline method, based on Nearest-Neighbour retrieval using global DINO (a) (b) 
+
+Figure 7. Visualization of matched cross-attention . For a selected patch in the input image, indicated by a white marker, and its corresponding matched point in the context image, we separately visualize the attention directed toward the input (a) and the context (b). When the match is correct, strong cross-attention emerges within the local neighborhood of the matched point in the context image. In contrast, incorrect matches yield weak cross-attention responses. Colormaps are kept consistent across images. 
+
+v2 [36] descriptors, tends to retrieve images with similar overall layouts and semantics but fails to capture the tar-geted underrepresented objects. Fig. 7 illustrates matched cross-attention behavior (Sec. 3.1.3) by showing attention maps for input (a) and context (b) patches (all attention maps are com-puted by averaging across attention heads and ViT blocks). White markers denote reference patches; green lines show matches. The top row reflects a correct match, the bot-tom an incorrect one. In the input image, attention con-centrates on semantically relevant regions for the selected patch (e.g., the bicycle). For a correct match, strong activa-tion appears in the neighborhood of the matching location in the context image (e.g., the bicycle’s wheel), while incorrect matches result in weak attention responses, demonstrating the model’s ability to suppress unreliable correspondences, a direct consequence of our matching attention design. Ad-ditional examples are provided in the supplementary. The supplementary material presents visualizations of point matching instances, showing that the method effec-tively identifies correspondences between visually similar underrepresented objects across diverse scenes. 
+
+Table 3. Ablations of RAD-Large, evaluated on Cityscapes. Ablation δ1 AbsRel RAD-Large 93.5 0.090 
+
+✘ 3D data augmentation in train 92.8 0.096 
+
+✘ Retrieved data in train 91.7 0.099 
+
+✘ Uncertainty-aware retrieval in train 91.9 0.102 
+
+✘ Uncertainty-aware retrieval in test 90.1 0.107 
+
+✘ Matched cross-attention 90.3 0.106 
+
+✘ Dual-stream (i.e., concat(in, retrieval)) 89.4 0.109 
+
+✘ Retrieval (i.e., DepthAnyV2 [53]) 89.2 0.110 
+
+4.5. Ablation Study 
+
+Our ablation study is conducted on the RAD-Large model, evaluated on the Cityscapes dataset. Table 3 confirms the necessity of all components. Removing 3D augmentation 
+
+or retrieval during training increases AbsRel by 6.7% and 0 1 2 3 4 5     
+
+> Number of retrieved images
+> 0.0900
+> 0.0925
+> 0.0950
+> 0.0975
+> 0.1000
+> 0.1025
+> 0.1050
+> 0.1075
+> 0.1100
+> AbsRel 1x1 3x3 5x5 7x7 9x9 11x11
+> Number of patches in neighborhood
+> 0.090
+> 0.092
+> 0.094
+> 0.096
+> 0.098
+> 0.100
+> 0.102
+> 0.104
+> 0.106
+> AbsRel
+
+Figure 8. Ablation on number of retrieved images and neigh-borhood size. Absolute relative error as a function of the number of retrieved images (left) and neighborhood size in matched cross-attention (right) for RAD-Large, evaluated on Cityscapes. 
+
+10.0% respectively. The most critical component is the 
+
+uncertainty-aware retrieval ; disabling it (i.e. using global DINO KNN on the full image) at inference causes the largest drop (18.9% increase in AbsRel), confirming that targeted context is superior to global retrieval. Furthermore, replacing our matched cross-attention with standard full-context attention increases errors by 17.8%, validating the need for localized information transfer. Finally, eliminating the dual-stream design and instead using a single stream on the concatenated input and retrievals yields the worst per-formance, degrading AbsRel by over 22%. We now examine a key parameter: the number of re-trieved images. As shown in Fig. 8 (left), AbsRel steadily improves with more retrievals, reaching its lowest value at four. However, using five images introduces more irrelevant or misaligned content, slightly degrading performance. Finally, we analyze the effect of neighborhood size in matched cross-attention. As shown in Fig. 8 (right), a 3 × 3
+
+neighborhood yields optimal performance. 
+
+## 5. Conclusion 
+
+We presented RAD, a retrieval-augmented framework ad-dressing the challenge of monocular depth estimation for underrepresented classes. By identifying regions of high uncertainty and retrieving semantically similar context, our method effectively supplements the network’s internal pri-ors with external proxy geometric guidance. Through a dual-stream architecture and matched cross-attention, we demonstrate that this targeted context can be reliably fused to correct depth in long-tail scenarios. Our approach achieves state-of-the-art performance on rare classes across NYUv2, KITTI, and Cityscapes, validating our approach. 
+
+## References 
+
+[1] Amir Atapour-Abarghouei and Toby P Breckon. Real-time monocular depth estimation using synthetic data with do-main adaptation via image style transfer. In Proceedings of the IEEE conference on computer vision and pattern recog-nition , pages 2800–2810, 2018. 2 [2] Shariq Farooq Bhat, Ibraheem Alhashim, and Peter Wonka. Adabins: Depth estimation using adaptive bins. In Proceed-ings of the IEEE/CVF conference on computer vision and pattern recognition , pages 4009–4018, 2021. 1, 2, 6 [3] Shariq Farooq Bhat, Ibraheem Alhashim, and Peter Wonka. Localbins: Improving depth estimation by learning local dis-tributions. In European Conference on Computer Vision ,pages 480–496. Springer, 2022. 2 [4] Shariq Farooq Bhat, Reiner Birkl, Diana Wofk, Peter Wonka, and Matthias M¨ uller. Zoedepth: Zero-shot trans-fer by combining relative and metric depth. arXiv preprint arXiv:2302.12288 , 2023. 1, 2, 6, 4 [5] Aleksei Bochkovskii, Ama¨ el Delaunoy, Hugo Germain, Marcel Santos, Yichao Zhou, Stephan R. Richter, and Vladlen Koltun. Depth pro: Sharp monocular metric depth in less than a second. In International Conference on Learning Representations , 2025. 1, 2, 6 [6] Jun Cen, Peng Yun, Junhao Cai, Michael Yu Wang, and Ming Liu. Open-set 3d object detection. In 2021 International conference on 3D vision (3DV) , pages 869–878. IEEE, 2021. 2[7] Marius Cordts, Mohamed Omran, Sebastian Ramos, Timo Rehfeld, Markus Enzweiler, Rodrigo Benenson, Uwe Franke, Stefan Roth, and Bernt Schiele. The cityscapes dataset for semantic urban scene understanding. In Proceed-ings of the IEEE conference on computer vision and pattern recognition , pages 3213–3223, 2016. 2, 5 [8] Matthijs Douze, Alexandr Guzhva, Chengqi Deng, Jeff Johnson, Gergely Szilvasy, Pierre-Emmanuel Mazar´ e, Maria Lomeli, Lucas Hosseini, and Herv´ e J´ egou. The faiss library. 
+
+IEEE Transactions on Big Data , 2025. 4 [9] Ruofei Du, Eric Turner, Maksym Dzitsiuk, Luca Prasso, Ivo Duarte, Jason Dourgarian, Joao Afonso, Jose Pascoal, Josh Gladstone, Nuno Cruces, et al. Depthlab: Real-time 3d in-teraction with depth maps for mobile augmented reality. In 
+
+Proceedings of the 33rd Annual ACM Symposium on User Interface Software and Technology , pages 829–843, 2020. 1 [10] Ainaz Eftekhar, Alexander Sax, Jitendra Malik, and Amir Zamir. Omnidata: A scalable pipeline for making multi-task mid-level vision datasets from 3d scans. In Proceedings of the IEEE/CVF International Conference on Computer Vi-sion , pages 10786–10796, 2021. 2 [11] David Eigen, Christian Puhrsch, and Rob Fergus. Depth map prediction from a single image using a multi-scale deep net-work. Advances in neural information processing systems ,27, 2014. 2, 5, 3 [12] Sean Ryan Fanello, Cem Keskin, Shahram Izadi, Push-meet Kohli, David Kim, David Sweeney, Antonio Criminisi, Jamie Shotton, Sing Bing Kang, and Tim Paek. Learning to be a depth camera for close-range human capture and inter-action. ACM Transactions on Graphics (TOG) , 33(4):1–11, 2014. 1 [13] Huan Fu, Mingming Gong, Chaohui Wang, Kayhan Bat-manghelich, and Dacheng Tao. Deep ordinal regression net-work for monocular depth estimation. In Proceedings of the IEEE conference on computer vision and pattern recogni-tion , pages 2002–2011, 2018. 1, 2 [14] Jos´ e M. F´ acil, Alejo Concha, L. Montesano, and Javier Civera. Single-view and multiview depth fusion, 2016. 2 [15] Andreas Geiger, Philip Lenz, and Raquel Urtasun. Are we ready for autonomous driving? the kitti vision benchmark suite. In 2012 IEEE conference on computer vision and pat-tern recognition , pages 3354–3361. IEEE, 2012. 2, 5 [16] Cl´ ement Godard, Oisin Mac Aodha, Michael Firman, and Gabriel J Brostow. Digging into self-supervised monocular depth estimation. In Proceedings of the IEEE/CVF inter-national conference on computer vision , pages 3828–3838, 2019. 2 [17] Vitor Guizilini, Rares Ambrus, Sudeep Pillai, Allan Raven-tos, and Adrien Gaidon. 3d packing for self-supervised monocular depth estimation. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 2485–2494, 2020. 2 [18] Vitor Guizilini, Igor Vasiljevic, Dian Chen, Rares , Ambrus , ,and Adrien Gaidon. Towards zero-shot scale-aware monocu-lar depth estimation. In Proceedings of the IEEE/CVF Inter-national Conference on Computer Vision , pages 9233–9243, 2023. 1, 2 [19] Zhuolin He, Xinrun Li, Heng Gao, Jiachen Tang, Shoumeng Qiu, Wenfu Wang, Lvjian Lu, Xuchong Qiu, Xiangyang Xue, and Jian Pu. Towards open-set camera 3d object de-tection. arXiv preprint arXiv:2406.17297 , 2024. 2 [20] Peter Hedman, Suhib Alsisan, Richard Szeliski, and Jo-hannes Kopf. Casual 3d photography. ACM Transactions on Graphics (TOG) , 36(6):1–15, 2017. 1 [21] Julia Hornauer, Adrian Holzbock, and Vasileios Belagian-nis. Out-of-distribution detection for monocular depth esti-mation. In Proceedings of the IEEE/CVF International Con-ference on Computer Vision , pages 1911–1921, 2023. 2 [22] Mu Hu, Wei Yin, Chi Zhang, Zhipeng Cai, Xiaoxiao Long, Hao Chen, Kaixuan Wang, Gang Yu, Chunhua Shen, and Shaojie Shen. Metric3d v2: A versatile monocular geomet-ric foundation model for zero-shot metric depth and surface normal estimation. IEEE Transactions on Pattern Analysis and Machine Intelligence , 2024. 2, 6, 7 [23] Xueting Hu, Ce Zhang, Yi Zhang, Bowen Hai, Ke Yu, and Zhihai He. Learning to adapt clip for few-shot monocular depth estimation. In Proceedings of the IEEE/CVF Win-ter Conference on Applications of Computer Vision , pages 5594–5603, 2024. 2 [24] Chengjie Huang, Vahdat Abdelzad, Christopher Gus Mannes, Luke Rowe, Benjamin Therien, Rick Salay, Krzysztof Czarnecki, et al. Out-of-distribution detection for lidar-based 3d object detection. In 2022 IEEE 25th Inter-national Conference on Intelligent Transportation Systems (ITSC) , pages 4265–4271. IEEE, 2022. 2 [25] Jiahui Huang, Zan Gojcic, Matan Atzmon, Or Litany, Sanja Fidler, and Francis Williams. Neural kernel surface re-construction. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 4369– 4379, 2023. 1 [26] Kevin Karsch, Ce Liu, and Sing Bing Kang. Depth extrac-tion from video using non-parametric sampling. In European conference on computer vision , pages 775–788. Springer, 2012. 2 [27] Bingxin Ke, Anton Obukhov, Shengyu Huang, Nando Met-zger, Rodrigo Caye Daudt, and Konrad Schindler. Repurpos-ing diffusion-based image generators for monocular depth estimation. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 9492–9502, 2024. 2 [28] Michael K¨ osel, Marcel Schreiber, Michael Ulrich, Claudius Gl¨ aser, and Klaus Dietmayer. Revisiting out-of-distribution detection in lidar-based 3d object detection. In 2024 IEEE Intelligent Vehicles Symposium (IV) , pages 2806–2813. IEEE, 2024. 2 [29] Iro Laina, Christian Rupprecht, Vasileios Belagiannis, Fed-erico Tombari, and Nassir Navab. Deeper depth prediction with fully convolutional residual networks. In 2016 Fourth international conference on 3D vision (3DV) , pages 239– 248. IEEE, 2016. 2 [30] Jin Han Lee, Myung-Kyu Han, Dong Wook Ko, and Il Hong Suh. From big to small: Multi-scale local planar guidance for monocular depth estimation. arXiv preprint arXiv:1907.10326 , 2019. 5, 6 [31] Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio Petroni, Vladimir Karpukhin, Naman Goyal, Heinrich K¨ uttler, Mike Lewis, Wen-tau Yih, Tim Rockt¨ aschel, et al. Retrieval-augmented generation for knowledge-intensive nlp tasks. Advances in neural information processing systems ,33:9459–9474, 2020. 2 [32] Rui Li, Dong Gong, Wei Yin, H. Chen, Yu Zhu, Kaix-uan Wang, Xiaozhi Chen, Jinqiu Sun, and Yanning Zhang. Learning to fuse monocular and multi-view cues for multi-frame depth estimation in dynamic scenes, 2023. 2 [33] Philipp Lindenberger, Paul-Edouard Sarlin, and Marc Polle-feys. Lightglue: Local feature matching at light speed. In 
+
+Proceedings of the IEEE/CVF international conference on computer vision , pages 17627–17638, 2023. 4, 2, 5 [34] Adrian Lopez-Rodriguez and Krystian Mikolajczyk. Desc: Domain adaptation for depth estimation via semantic con-sistency. International Journal of Computer Vision , 131(3): 752–771, 2023. 2 [35] Mircea Paul Muresan, Marchis Raul, S. Nedevschi, and R. Danescu. Stereo and mono depth estimation fusion for an improved and fault tolerant 3d reconstruction, 2021. 2 [36] Maxime Oquab, Timoth´ ee Darcet, Th´ eo Moutakanni, Huy Vo, Marc Szafraniec, Vasil Khalidov, Pierre Fernandez, Daniel Haziza, Francisco Massa, Alaaeldin El-Nouby, et al. Dinov2: Learning robust visual features without supervision. 
+
+arXiv preprint arXiv:2304.07193 , 2023. 4, 8 [37] Luigi Piccinelli, Christos Sakaridis, and Fisher Yu. idisc: In-ternal discretization for monocular depth estimation. In Pro-ceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 21477–21487, 2023. 6 [38] Luigi Piccinelli, Yung-Hsu Yang, Christos Sakaridis, Mattia Segu, Siyuan Li, Luc Van Gool, and Fisher Yu. Unidepth: Universal monocular metric depth estimation. In Proceed-ings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 10106–10116, 2024. 2 [39] Luigi Piccinelli, Christos Sakaridis, Yung-Hsu Yang, Mat-tia Segu, Siyuan Li, Wim Abbeloos, and Luc Van Gool. UniDepthV2: Universal monocular metric depth estimation made simpler. arXiv preprint arXiv:2502.20110 , 2025. 1, 2, 6, 7 [40] Sudeep Pillai, Rares ¸ Ambrus ¸, and Adrien Gaidon. Su-perdepth: Self-supervised, super-resolved monocular depth estimation. In 2019 International Conference on Robotics and Automation (ICRA) , pages 9250–9256. IEEE, 2019. 2 [41] Matteo Poggi, Filippo Aleotti, Fabio Tosi, and Stefano Mat-toccia. On the uncertainty of self-supervised monocular depth estimation. In Proceedings of the IEEE/CVF con-ference on computer vision and pattern recognition , pages 3227–3237, 2020. 3 [42] Ren´ e Ranftl, Katrin Lasinger, David Hafner, Konrad Schindler, and Vladlen Koltun. Towards robust monocular depth estimation: Mixing datasets for zero-shot cross-dataset transfer. IEEE transactions on pattern analysis and machine intelligence , 44(3):1623–1637, 2020. 2 [43] Ren´ e Ranftl, Alexey Bochkovskiy, and Vladlen Koltun. Vi-sion transformers for dense prediction. In Proceedings of the IEEE/CVF international conference on computer vision ,pages 12179–12188, 2021. 2, 4, 1 [44] Nikhila Ravi, Valentin Gabeur, Yuan-Ting Hu, Ronghang Hu, Chaitanya Ryali, Tengyu Ma, Haitham Khedr, Roman R¨ adle, Chloe Rolland, Laura Gustafson, et al. Sam 2: Segment anything in images and videos. arXiv preprint arXiv:2408.00714 , 2024. 3, 5 [45] Shuwei Shao, Zhongcai Pei, Xingming Wu, Zhong Liu, Wei-hai Chen, and Zhengguo Li. Iebins: Iterative elastic bins for monocular depth estimation. Advances in Neural Informa-tion Processing Systems , 36:53025–53037, 2023. 1, 2, 6 [46] Nathan Silberman, Derek Hoiem, Pushmeet Kohli, and Rob Fergus. Indoor segmentation and support inference from rgbd images. In European conference on computer vision ,pages 746–760. Springer, 2012. 2, 5 [47] Louis Soum-Fontez, Jean-Emmanuel Deschaud, and Franc ¸ois Goulette. Hd-ood3d: Supervised and unsupervised out-of-distribution object detection in lidar data. arXiv preprint arXiv:2410.23767 , 2024. 2 [48] Lokesh Veeramacheneni and Matias Valdenegro-Toro. Abenchmark for out of distribution detection in point cloud 3d semantic segmentation. arXiv preprint arXiv:2211.06241 ,2022. 2 [49] Ruoyu Wang, Zehao Yu, and Shenghua Gao. Planedepth: Self-supervised depth estimation via orthogonal planes. In 
+
+Proceedings of the IEEE/CVF conference on computer vi-sion and pattern recognition , pages 21425–21434, 2023. 2 [50] Yan Wang, Wei-Lun Chao, Divyansh Garg, Bharath Hari-haran, Mark Campbell, and Kilian Q Weinberger. Pseudo-lidar from visual depth estimation: Bridging the gap in 3d object detection for autonomous driving. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 8445–8453, 2019. 1 [51] Yuxin Wu, Alexander Kirillov, Francisco Massa, Wan-Yen Lo, and Ross Girshick. Detectron2. https://github. com/facebookresearch/detectron2 , 2019. 5 [52] Jiaxin Xie, Chenyang Lei, Zhuwen Li, Li Erran Li, and Qifeng Chen. Video depth estimation by fusing flow-to-depth proposals, 2019. 2 [53] Lihe Yang, Bingyi Kang, Zilong Huang, Zhen Zhao, Xiao-gang Xu, Jiashi Feng, and Hengshuang Zhao. Depth any-thing v2. Advances in Neural Information Processing Sys-tems , 37:21875–21911, 2024. 1, 2, 3, 4, 6, 7, 8, 5 [54] Yung-Hsu Yang, Luigi Piccinelli, Mattia Segu, Siyuan Li, Rui Huang, Yuqian Fu, Marc Pollefeys, Hermann Blum, and Zuria Bauer. 3d-mood: Lifting 2d to 3d for monocular open-set object detection. arXiv preprint arXiv:2507.23567 , 2025. 2[55] Wei Yin, Jianming Zhang, Oliver Wang, Simon Niklaus, Long Mai, Simon Chen, and Chunhua Shen. Learning to recover 3d scene shape from a single image. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 204–213, 2021. 2 [56] Wei Yin, Chi Zhang, Hao Chen, Zhipeng Cai, Gang Yu, Kaixuan Wang, Xiaozhi Chen, and Chunhua Shen. Metric3d: Towards zero-shot metric 3d prediction from a single image. In Proceedings of the IEEE/CVF international conference on computer vision , pages 9043–9053, 2023. 2, 6 [57] Weihao Yuan, Xiaodong Gu, Zuozhuo Dai, Siyu Zhu, and Ping Tan. Neural window fully-connected crfs for monocu-lar depth estimation. In Proceedings of the IEEE/CVF con-ference on computer vision and pattern recognition , pages 3916–3925, 2022. 1, 2, 6 [58] Yuheng Zhang, Mengfei Duan, Kunyu Peng, Yuhang Wang, Ruiping Liu, Fei Teng, Kai Luo, Zhiyong Li, and Kailun Yang. Out-of-distribution semantic occupancy prediction. 
+
+arXiv preprint arXiv:2506.21185 , 2025. 2 [59] Shanshan Zhao, Huan Fu, Mingming Gong, and Dacheng Tao. Geometry-aware symmetric domain adaptation for monocular depth estimation. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 9788–9798, 2019. 2 [60] Tinghui Zhou, Matthew Brown, Noah Snavely, and David G Lowe. Unsupervised learning of depth and ego-motion from video. In Proceedings of the IEEE conference on computer vision and pattern recognition , pages 1851–1858, 2017. 2 RAD: Retrieval-Augmented Monocular Metric Depth Estimation for Underrepresented Classes 
+
+# Supplementary Material ViT Block           
+
+> Context (RGBD) Input (RGB)
+> DPTaHead
+> Output depth
+> Positional encoding
+> Patch projection
+> Patch projection
+> Positional encoding
+> ViT Block
+> x L
+> ...
+> ...
+> ...
+> ...
+> Vc
+> QcKc
+> Attention
+> Qi[j]Vi
+> Ki
+> Attention
+> Vm(j)
+> Km(j)
+> Matching tokens
+> Patch j
+> Norm
+> Q, K, V project
+> Norm
+> Q, K, V project
+> x M
+
+Figure 9. Full network architecture. The matched cross-attention mechanism allows the input stream to pull information from the context at the matched locations. Yellow blocks are op-timized during training, while the blue block is frozen. Plus signs correspond to addition, the “dot” operation is concatenation. 
+
+## A. Overall Network Architecture 
+
+Fig. 9 illustrates the complete network architecture em-ployed in RAD. The design is based on the DepthAnything v2 framework [53], with one key modification: the original attention module is replaced by our matched cross-attention mechanism, which connects between the context and in-put streams. The remainder of the encoder’s Vision Trans-former (ViT) architecture remains unchanged. The system comprises a dual-stream encoder, which is trainable during optimization, and a frozen DPT head [43]. For each token j in the input stream, the matching tokens 
+
+block retrieves matched keys Km(j) and values Vm(j), de-rived from the context keys Kc and values Vc at correspond-ing matching positions. These matched representations are concatenated with the input keys Ki and values Vi, forming the input to the standard scaled dot-product attention mech-anism within the ViT. The input and context queries, Qi[j]
+
+and Qc, are processed following the original DepthAny-thing v2 approach. Importantly, each stream employs its own positional en-coding , enabling the encoder to distinguish between context and input tokens. Additionally, each retrieved image is as-signed a unique positional encoding, allowing the tokens to remain distinguishable within the upstream blocks of the ViT. Consequently, if M context samples are retrieved, the context stream utilizes M distinct positional encodings. All positional encoders are trainable to support this differentia-tion. The patch projection for the input stream follows the original design of the DepthAnything v2 network. For the context stream, we introduce a fourth channel to process the sample’s depth, as detailed in Sec. 3.1.3. The procedures for 
+
+normalization and Q, K, V projection are identical to those employed in each ViT block of DepthAnything v2. Simi-larly, the attention mechanism remains unchanged, utilizing scaled dot-product attention. 
+
+## B. Additional Qualitative Results 
+
+Additional qualitative results are presented in Fig. 10. 
+
+## C. Mesh Creation for 3D Augmentation 
+
+During training, context samples may be generated through 3D augmentation (Sec. 3.1.1). In this process, the input image is rendered from a novel viewpoint using ground-truth depth and camera calibration parameters. A straight-forward approach is to back-project each pixel into 3D and re-project it onto a new image plane; however, this often produces large regions without valid signal because the new viewpoint is misaligned with the original pixel grid. Such gaps degrade the realism of augmented samples and can negatively impact downstream learning. To address this limitation, we reconstruct a continu-ous surface mesh from the back-projected 3D point cloud, enabling dense coverage and improved geometric consis-tency. For mesh generation, we employ NKSR [25], which has demonstrated strong performance across multiple do-mains. Figure 11 compares image re-projection using only the point cloud versus the full mesh, highlighting the sub-stantial improvement in completeness and fidelity. 
+
+## D. Additional Component Visualizations 
+
+D.1. Point Matching 
+
+Fig. 12 demonstrates the performance of the point-matching algorithm on three representative input images contain-ing underrepresented classes (left) and their correspond-ing retrieved images (right) from Cityscapes. While point-matching methods are typically trained on multiple views Input DepthAnything v2 UniDepth v2 Metric3D v2 RAD   
+
+> Figure 10. Qualitative results for NYU Depth v2 (top three rows), KITTI (middle three rows) and Cityscapes (bottom three rows). We compare our method (RAD) to baselines DepthAnything v2 [53], UniDepth v2 [39] and Metric3D v2 [22]. Best viewed zoomed in.
+
+of the same scene, LightGlue [33] exhibits strong gener-alization to semantic similarities across different scenes, even under variations in scale and illumination. No-tably, most matches occur on underrepresented objects, as these elements tend to be the most visually similar due to the uncertainty-aware retrieval mechanism described in Sec. 3.1.1. 
+
+D.2. Matched cross-attention 
+
+Fig. 13 illustrates additional results for matched cross-attention. Attention to input patches consistently concen-trates on relevant geometric structures, whereas attention to context patches is pronounced when point correspondences are correct and markedly weaker when correspondences are incorrect. This behavior underscores the model’s ability to leverage accurate matches for contextual reasoning, while reducing reliance on erroneous correspondences, thereby RGB input Point cloud projection Mesh projection     
+
+> Figure 11. Mesh creation for 3D augmentation. The input image (left) is projected from a new point of view. When using only the point cloud defined by the image pixels, projection yields large unmeasured regions (middle). When a mesh is used to reconstruct geometry, the scene is densely reconstructed.
+> Figure 12. Point matches for underrepresented classes (top: tram, middle: truck, bottom: bus). The left image is sampled from the validation set, while the right image is from the training set. Matches remain consistent despite variations in illumination and scale.
+
+enhancing robustness. 
+
+## E. Training and Implementation Details 
+
+E.1. Network Optimization 
+
+Our training procedure was carried out in stages, as outlined below: 1. Start with pre-trained DepthAnything v2. 2. Fine-tune the DepthAnything v2 network on the train-ing dataset to produce metric depth rather than relative depth. All weights are trained, with a significantly lower learning rate applied to the encoder, as recommended by the original authors. 3. Construct the context stream encoder by duplicating the fine-tuned encoder from Step 2. Modify the projection operation in the context ViT encoder to accept the depth channel (Sec. 3.1.3 in the main paper). 4. Freeze the decoder and fine-tune the dual-stream en-coder. Optimization is performed on the training dataset using the complete retrieval-augmented pipeline (Sec. 3.1.1 in the main paper). In Step 4 we optimized the positional encoding in both streams so that the network learns to differentiate between the two types of inputs. As objective, we used the scale invariant log loss [11], also used by DepthAnything v2. We trained our models (a) (b)   
+
+> Figure 13. Visualization of matched cross-attention .For a selected patch in the input image, indicated by a white marker, and its corresponding matched point in the context image, we separately visualize the attention directed toward the input (a) and the context (b). When the match is correct, strong cross-attention emerges within the local neighborhood of the matched point in the context image. In contrast, incorrect matches yield weak cross-attention responses. Colormaps are kept consistent across images.
+
+using the AdamW optimizer with β1 = 0 .9, β2 = 0 .999 ,and a weight decay of 1 × 10 −2. The initial learning rate was set to 5 × 10 −5 and decayed by a factor of 10 after 5 epochs of stagnation. Training was performed on four Nvidia L40S GPUs. 
+
+E.2. Uncertainty-aware Image Retrieval 
+
+To compute uncertainty, we generated 5 noisy variants of a given image image by adding Gaussian noise with a stan-dard deviation σ = 0 .1 (for normalized image values). The parameters h and q in Section 3.1.1 were set to 0.05 and 20%, respectively. Unless explicitly stated otherwise, in the experiments (Sec. 4) we retrieved 4 images and applied matched cross-attention using a 3 × 3 patch neighborhood. To perform efficient search we use the FAISS library [8]. 
+
+E.3. Baseline Details 
+
+For each baseline in the experiments section (Sec. 4) we use the publicly available code and weights. Specifically, for ZoeDepth [4] we use the horizontal flip augmentation suggested by the authors. All methods are run according to their official instructions. 
+
+## F. Runtime and Memory Analysis 
+
+We evaluate the model size, memory footprint, and infer-ence runtime of RAD, and compare these metrics against those of the baseline architecture, DepthAnything v2 [53], as presented in Tab. 4. All measurements are conducted on Cityscapes images at a resolution of 2048 × 1024 , using a single Nvidia L40S GPU and a RAD configuration that in-corporates four context samples.                                           
+
+> Table 4. Parameter count, memory and runtime analysis.
+> Compared to DepthAnything v2 [53], RAD has approximately twice the parameter count and memory due to the second stream. Runtime is in seconds. Method Parameters Memory Runtime DepthAny-Small 24.8M 94.55 MB 0.013 s DepthAny-Base 97.5M 371.82 MB 0.017 s DepthAny-Large 335.3M 1279.13 MB 0.019 s RAD-Small 48.5M 184.99 MB 1.724 s RAD-Base 187.4M 714.72 MB 1.738 s RAD-Large 644.1M 2457.02 MB 1.780 s Table 5. Runtime breakdown for RAD-Large. All values are reported in seconds. Process RAD-Small RAD-Base RAD-Large Uncertainty 0.017 s 0.020 s 0.024 s Segmentation 1.487 s 1.487 s 1.487 s Point matching 0.191 s 0.191 s 0.191 s KNN search 0.015 s 0.015 s 0.015 s Feed-forward 0.014 s 0.025 s 0.063 s
+
+A detailed breakdown of RAD’s runtime is provided in Tab. 5. To estimate uncertainty, five inference operations are executed in parallel, corresponding to five noisy versions of the input image. Similarly, the four context samples and the input image are processed concurrently during RAD’s feed-forward pass, synchronizing only to exchange information for matched cross-attention. For RAD, both the parameter count and memory con-sumption are approximately doubled relative to DepthAny-thing v2, primarily due to the inclusion of the context stream. The inference time is substantially higher, render-ing RAD unsuitable for real-time applications. This in-crease in runtime is largely attributable to the SAM2 seg-mentation [44] and LightGlue point matching [33] proce-dures. Consequently, the proposed approach would bene-fit significantly from future advances in segmentation and point-matching frameworks that combine accuracy with computational efficiency. Furthermore, it is possible to adapt the method to real-time applications by removing the segmentation process, and ussing only uncertainty, yielding a bit more noisy retrieval but improved runtime. 
+
+## G. Limitations 
+
+RAD exhibits three primary limitations: 1. High runtime. The method’s inference time is pro-hibitively large for real-time applications, with most of the overhead arising from image segmentation used for uncertainty-aware retrieval. A potential alternative is to employ pixel-wise uncertainty without coupling it to segmentation, enabling faster retrieval at the cost of in-creased noise, a trade-off that may be acceptable for real-time scenarios. 2. Dependence on depth-annotated context data. RAD requires a context dataset with ground-truth depth, which is not always available. While the context stream could operate on RGB-only inputs and leverage proxy multi-view cues to improve depth estimation, ground-truth depth is a strong signal for accurate performance. 3. Sensitivity to retrieval and matching errors. The approach relies on accurate image retrieval and point matching, as these components feed the matched cross-attention mechanism. Although attention partially miti-gates this issue by down-weighting unreliable patches, errors in these stages can still propagate and degrade overall performance.

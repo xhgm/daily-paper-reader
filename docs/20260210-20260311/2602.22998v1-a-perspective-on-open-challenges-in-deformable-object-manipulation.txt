@@ -1,0 +1,652 @@
+Title: A Perspective on Open Challenges in Deformable Object Manipulation
+
+URL Source: https://arxiv.org/pdf/2602.22998v1
+
+Published Time: Fri, 27 Feb 2026 02:07:53 GMT
+
+Number of Pages: 29
+
+Markdown Content:
+# A Perspective on Open Challenges in Deformable Object Manipulation 
+
+## Ryan Paul McKenna a,∗, John Oyekan a
+
+> a
+
+Department of Computer Science, University of York, Heslington, York, YO10 5DD, United Kingdom 
+
+A R T I C L E I N F O 
+
+Keywords :Deformable Object Manipulation (DOM) Reinforcement Learning Neural Radiance Fields (NeRFs) Simulation-to-Reality (Sim2Real) Differentiable Simulation Graph Neural Networks (GNNs) Expert Demonstrations in Robotics 
+
+A B S T R A C T 
+
+Deformable object manipulation (DOM) represents a critical challenge in robotics, with appli-cations spanning healthcare, manufacturing, food processing, and beyond. Unlike rigid objects, deformable objects exhibit infinite dimensionality, dynamic shape changes, and complex inter-actions with their environment, posing significant hurdles for perception, modeling, and control. This paper reviews the state of the art in DOM, focusing on key challenges such as occlusion han-dling, task generalization, and scalable, real-time solutions. It highlights advancements in multi-modal perception systems, including the integration of multi-camera setups, active vision, and tactile sensing, which collectively address occlusion and improve adaptability in unstructured environments. Cutting-edge developments in physically informed reinforcement learning (RL) and differentiable simulations are explored, showcasing their impact on efficiency, precision, and scalability. The review also emphasizes the potential of simulated expert demonstrations and generative neural networks to standardize task specifications and bridge the simulation-to-reality gap. Finally, future directions are proposed, including the adoption of graph neural networks for high-level decision-making and the creation of comprehensive datasets to enhance DOM’s real-world applicability. By addressing these challenges, DOM research can pave the way for versatile robotic systems capable of handling diverse and dynamic tasks with deformable objects. 
+
+## 1. Introduction 
+
+The ability to manipulate objects is a critical capability for robots, as their core function involves interacting with and influencing their environment. Over the years, significant advances have been made in robotic manipulation, particularly focusing on cost-efficient robotic arms and end-effectors designed to directly engage with the physical world [1]. Traditionally, research has assumed that objects being manipulated are rigid [2], but this assumption does not apply universally. Many objects can deform when external forces are applied. In many cases these deformations cannot be ignored during manipulation tasks. Equipping robots to handle deformable objects (DOs) opens up numerous possibilities in various fields, including industrial manufacturing, medical surgery, food processing, and elder care. These applications promise significant economic benefits, such as reducing physical strain on workers [3] [4] [5] [6] in manufacturing, assisting in surgical procedures, cutting labor costs in food processing [7] [8], and supporting the elderly and disabled in daily tasks [9] [10] Despite its importance, the manipulation of deformable objects (DOM) has been less explored compared to rigid object manipulation, largely due to the complexity of perceiving, modeling, and controlling deformable materials. In contrast to rigid objects, DOs present infinite dimensionality and intricate dynamics, which complicates robotic planning and control strategies. However, recent advances in computer graphics and machine learning offer promising tools to tackle the challenges associated with DOM. Data-driven approaches offer solutions to several limitations found in traditional methods for manipulating deformable objects (DOM) [11], [12]. A review by Kadi and Terzic [13] specifically examined the use of data-driven techniques for clothing manipulation. Other past reviews [14], [15], [16] concentrated on modeling deformable objects but did not take perception and manipulation into account. While previous reviews [2], [17] provided broad coverage of the subject, their emphasis was primarily on analytical methods. In contrast, the review by Yin et al. [12] offers a more comprehensive perspective by including both analytical and data-driven approaches. This literature review focuses on addressing key challenges in deformable object manipulation  
+
+> ⋆
+
+This research was supported by a Departmental Scholarship as part of the EPSRC DigiCORTEX Project. 
+
+> ∗
+
+Corresponding author 
+
+ryan.mckenna@york.ac.uk (R.P. McKenna) 
+
+> ORCID
+
+(s): 0009-0000-6339-9010 (R.P. McKenna); 0000-0001-6578-9928 (J. Oyekan) 
+
+McKenna et al.: Preprint Page 1 of 24 
+
+> arXiv:2602.22998v1 [cs.RO] 26 Feb 2026 Open Challenges in Deformable Object Manipulation
+
+(DOM), particularly those that have received less attention in existing research. One of the primary challenges in DOM is the need for generalization across different types of deformable objects [18]. Current approaches are often highly specific, tailored to both the object being manipulated and the task at hand, such as assembly [19] or cloth folding [20]. This narrow focus limits the flexibility of robotic systems, making them less adaptable to new objects or tasks without significant reprogramming. In addition to generalization, another critical challenge is bridging the gap between learning from state information and high-dimensional observations, which is essential for real-world applications [21]. State information refers to internal simulation data, such as object position or velocity, which is typically accessible in simulated environments but difficult to obtain in real-world scenarios. In contrast, high-dimensional observations, such as images or depth maps, offer more realistic sensory input but are far more complex to process. Overcoming this gap is crucial for enabling robots to manipulate deformable objects in unstructured, real-world environments. A third challenge concerns the need for physical accuracy in DOM [22], especially in high-stakes applications like robotic surgery [23]. Deformable objects exhibit highly complex and non-linear behavior, with a high number of degrees of freedom and dynamic changes in form. This complexity makes accurate physical modeling and control difficult, but precision is essential in tasks where even slight inaccuracies can lead to failure or harm. Scalability and computational efficiency also present significant hurdles [16]. The algorithms required to model and learn how to manipulate deformable objects are computationally expensive, slowing down research progress and innovation in this field [24]. Additionally, fundamental issues in reinforcement learning, such as reward shaping and defining goal states, become especially prominent in the context of DOM. These issues are compounded by the need to handle the unpredictable nature of deformable objects and the variability of tasks. Therefore, this review will address the challenge of task specification, specifically how to technically define when a task is completed. For example, what does it mean for a cloth to be "folded," water to be "poured," or fruit to be "picked"? Defining these tasks in a generalizable way is an open problem at the heart of DOM research [2]. Without clear and adaptable task specifications, robotic systems may struggle to generalize across different deformable objects and tasks, making it difficult to scale solutions across varied applications. 
+
+Key Challenges: 
+
+• The need for Generalization. 
+
+• The need to close the gap between learning from state information compared to high-dimensional observation. 
+
+• The need for physical accuracy in manipulation. 
+
+• The need for efficient learning. 
+
+• The need for task specifications. 
+
+• The need for Scalability across object and task types. We begin with an overview of core concepts and approaches to DOM and then a thorough literature review which addresses each of the aforementioned challenges. 
+
+## 2. Perception 
+
+Robots need fast, precise, and multi-modal perception capabilities to understand their environment, which is essential for performing complex manipulation tasks [25]. Perception’s main goal is to estimate the state of an object 
+
+𝑋 , by solving an optimization problem (Equation 1) based on the observation 𝑂 and object representation 𝑅 :
+
+𝑋 ∗ = arg min  
+
+> 𝑋
+
+‖𝑂 − 𝑅 (𝑋 )‖ (1) where 𝑋 represents the state of the object. However, accurately and efficiently representing a deformable object (DO) remains a significant challenge, and solutions are often tailored to specific applications. A common approach to represent DOs is to use particles [26]. In the perception part of this review, DOs are represented as particles unless stated otherwise. Because DOs have an infinite-dimensional state space, perceiving their deformations is especially challenging. In addition, occlusion and noise are frequent in unstructured settings, demanding robust state estimation for DOs. This section reviews visual and tactile perception.   
+
+> McKenna et al.: Preprint Page 2 of 24 Open Challenges in Deformable Object Manipulation
+
+2.1. Visual Perception 
+
+A vision-based approach to estimating the state of a deformable object (DO) involves three primary stages: segmentation, detection, and tracking. 
+
+2.1.1. Segmentation 
+
+Segmentation focuses on distinguishing the DO from the background in an image. Detection then estimates the state of the DO in a single image. Finally, tracking maintains an estimate of the state of the DO in multiple frames. Nadon et al proposes a comprehensive segmentation approach tailored for deformable objects [27]. This method primarily relies on multi-view, multi-modal sensory data, integrating RGB-D sensors positioned at various angles to build a full 3D model of the objects within the scene. Using multiple viewpoints, the framework can capture a more accurate representation, addressing occlusions and perspective limitations commonly faced with single-view systems. This segmentation method supports the accurate modeling and manipulation of complex deformable objects, which can change shape dynamically and marks a key benefit for robotic tasks in unstructured environments. While effective, the multi-view setup demands substantial processing power and precise sensor calibration, which can complicate its application in real-time, posing issues for real-world scenarios. This multisensor fusion also requires sophisticated data integration algorithms to seamlessly merge information across perspectives. Another challenge is that current object recognition datasets lack explicit deformability annotations, which can hinder segmentation accuracy when objects exhibit unexpected behaviors during manipulation. Nadon et al. [27] use scene identification during the initialization phase, which plays a crucial role in the framework, as it provides a comprehensive understanding of the workspace. By mapping out the relative positions of the robot, objects, and potential obstacles, this phase enables better task planning and object handling strategies. The ability to distinguish between rigid and non-rigid items and to adaptively plan grasps or trajectories based on scene complexity is a notable advantage, especially for mixed-object environments. Thus, this structured approach to segmentation and scene identification improves the flexibility and adaptability of robotic manipulation systems. In other works, Henrich et al. present a promising approach to segmentation within deformable object recon-struction, though they acknowledge some limitations [28]. The integrated segmentation and reconstruction model avoids the complexities of deformable registration, segmenting regions directly from point cloud data by using multi-class occupancy functions. This is particularly beneficial in scenarios like robot-assisted surgery, where accurate segmentation of an organ’s regions is crucial for precise interaction. The system leverages PointNet++ and an efficient sampling algorithm, "SortSample," to enhance the segmentation quality around object boundaries, achieving notable segmentation accuracy in both simulated and real-world data. However, the method faces challenges, especially in real-world applications. When trained on synthetic data, the segmentation accuracy drops when applied to actual physical objects, with the model struggling to generalize fully from simulation to reality. Another limitation is the requirement for watertight meshes for the occupancy function testing, which excludes some available datasets and limits its broader applicability. Additionally, the technique’s reliance on synthetic data raises concerns about real-world robustness, particularly in complex, dynamic environments. The approach, while reducing the need for registration, may still face difficulties adapting to real-time deformations without further refinement in segmentation and tracking capabilities. Future work aims to address these issues by enhancing generalization and data diversity. 
+
+2.1.2. Detection 
+
+Detection involves estimating the positions of particles that represent DOs within a single frame using preprocessed sensory input. Estimating the state of DOs from a single-frame point cloud, especially with occlusion, presents a complex challenge. Techniques like the one developed by Chen et al. represent progress in this area [29]. Their method DiPac for deformable object detection and state estimation uses particle-based modeling from RGBD images. DiPac detects deformable objects by converting depth images into point clouds, leveraging RGB data segmentation to isolate and detect object-related points, effectively filtering out the background. To improve detection accuracy, it merges multiple views into a unified 3D point cloud, constructing a complete representation and filling in occluded areas with uniformly sampled particles to model the object’s unseen interior. This particle-based detection method is flexible, allowing DiPac to represent and track various deformable objects such as beans, cloth, and liquids within a single framework. A key benefit of DiPac’s detection approach is its adaptability, particle-based detection and modeling allow for accurate, dynamic tracking, supporting gradient-based optimization in planning and control. DiPac also narrows the   
+
+> McKenna et al.: Preprint Page 3 of 24 Open Challenges in Deformable Object Manipulation
+
+sim-to-real gap by fine-tuning model parameters via differentiable particle dynamics. However, this detection method relies on limited occlusion and straightforward segmentation, which may pose challenges in cluttered or complex environments. When heavy occlusions or background noise are present, accurate detection and tracking are limited. Future improvements in particle extraction under occlusion would enhance DiPac’s robustness, enabling its application in real-world unstructured environments with complex visual setups. 
+
+2.1.3. Tracking 
+
+Tracking involves estimating the deformation of a DO over a sequence of frames, aiming to maintain a state consistent with the DO’s geometry in each frame. This becomes particularly challenging when parts of the object are occluded. Advances in computer vision have recently led to effective methods for reconstructing DOs in real-time, which dynamically adapt the tracking model to counteract occlusion issues [30], [31]. However, these methods often lack the model consistency necessary for visual-servoing algorithms in deformable object manipulation (DOM). DO tracking is also a focus in surgical robotics, where studies have shown significant progress in tracking soft tissues during medical procedures [32], [33]. However, these approaches are usually specific to the surgical domain and may not work for other objects, like ropes or fabrics. In robotics, physics simulation is often employed to track partially occluded DOs, with several studies adopting this method [34], [35]. Recent approaches [36], [37] have further used Gaussian Mixture Modeling (GMM) and Coherent Point Drift (CPD [38]) to generate inputs for physics simulations. Yet, these methods depend heavily on accurate physical models of DOs and environmental geometry, which are challenging to obtain in unstructured environments. An important approach to tackling occlusion is Interactive perception. An example of this is introduced by Weng et al [39]. This paper introduces an advanced methodology for tracking deformable objects within an interactive perception framework, utilizing an active camera and a specialized Dynamic Active Vision Space (DAVS). The system is designed to tackle the complexities associated with deformable object manipulation, such as occlusions and high degrees of freedom, by integrating a dual-arm setup with a coordinated active camera. Core to this approach is the identification of key structural features, termed the Structure of Interest (SOI), which dynamically inform the camera’s viewpoint selection as the object’s configuration evolves. A notable contribution is the construction of DAVS, a manifold-with-boundary representation of feasible camera actions that leverages the object’s structural features to constrain the exploration space. By formulating the active camera’s control space within this constrained subspace, DAVS significantly mitigates the space complexity of action selection; a critical limitation in high-dimensional control tasks involving deformable objects. The integration of DAVS with reinforcement learning further enables efficient perception and manipulation, as the active camera dynamically repositions based on SOI adjustments, thus achieving robust, real-time tracking. This active perception strategy not only enhances the system’s adaptability to variable object shapes and unseen dynamics but also optimizes computational resources, presenting a scalable solution for interactive perception in deformable object manipulation. 
+
+2.2. Tactile Perception 
+
+Recent advances in tactile sensing technology have sparked considerable interest in using tactile methods for deformable object manipulation (DOM). While vision primarily captures global features like shape and color, tactile sensing provides detailed, local information, such as texture and friction, which is especially useful in situations where visibility is limited. Tactile Devices: The BioTac tactile sensor is a notable tool capable of capturing a range of sensory information similar to that of the human fingertip [40]. It has a durable design, featuring a rigid core for its electronics and a flexible silicone outer layer, making it both resilient and cost-effective. However, BioTac’s output requires complex signal processing and data integration, leading to higher computational demands and potential delays. Vision-based tactile sensors represent another type of tactile technology, translating tactile information into visual data by capturing surface deformations with a camera. These sensors, offering high spatial resolution, have been effectively used in various robotic manipulation tasks. GelSight, introduced by Yuan et al. in 2017, is a prominent example of such a sensor [41]. However, GelSight does not mimic certain human tactile sensations like temperature, humidity, or pain. In another development, Sundaram et al. [42] created a tactile glove equipped with 548 sensors connected by conductive wires in a piezoresistive film. This glove uses deep convolutional neural networks to analyze pressure signals for tasks like object recognition, weight estimation, and tactile pattern exploration.   
+
+> McKenna et al.: Preprint Page 4 of 24
+
+Open Challenges in Deformable Object Manipulation 
+
+Table 1 
+
+Overview of recent literature in perception for deformable object manipulation                                                                                                         
+
+> Category Advantages Disadvantages Representative Literature
+> Visual perception
+> •Effective prediction of deformable object states.
+> •Accurate object representation (affordance, keypoints, point clouds).
+> •High performance for specific tasks.
+> •Improved precision via advanced sensing.
+> •Struggles with unseen scenarios.
+> •High computational and sensory demands.
+> •Limited generalization across tasks.
+> •Expensive hardware requirements.
+> •Learning Foresightful Dense Visual Af-fordance for Deformable Object Ma-nipulation [46]
+> •Learning Visual-Based Deformable Object Rearrangement with Local Graph Neural Networks [47]
+> •DeformerNet: Learning Bimanual Ma-nipulation of 3D Deformable Objects
+> [48] Tactile perception
+> •Excels where vision fails (e.g., occlusion, force-sensitive tasks).
+> •Enables precise force and posi-tion control for delicate interac-tions.
+> •Enhances adaptability with inte-gration into learning frameworks.
+> •Combines multimodal percep-tion for richer object understand-ing.
+> •Highly task-specific, requiring customization for new applica-tions.
+> •Dependence on specialized tac-tile sensors increases cost and complexity.
+> •Computational demands for real-time performance and multi-modal processing.
+> •Limited generalization across di-verse tasks or environments.
+> •Precise Robotic Needle-Threading with Tactile Perception and Reinforcement Learning [49]
+> •VIRDO++: Real-World, Visuo-tactile Dynamics and Perception of De-formable Objects [50]
+> •Interaction Control for Tool Manipu-lation on Deformable Objects Using Tactile Feedback [51] Interactive perception
+> •Enhances understanding of de-formable objects through active engagement.
+> •Improves performance via dy-namic adjustments and interac-tive feedback.
+> •Expands manipulation capabili-ties using novel methods (e.g., assistive tools, markerless sys-tems).
+> •Offers better modeling and data richness compared to static per-ception.
+> •High computational and hard-ware demands.
+> •Task-specific approaches limit generalization.
+> •Dependence on complex setups (e.g., multi-view systems, assis-tive tools).
+> •Struggles with unseen objects or scenarios without extensive re-training.
+> •Interactive Perception for Deformable Object Manipulation [39]
+> •Enhancing Deformable Object Manip-ulation by Using Interactive Percep-tion and Assistive Tools [52]
+> •HMDO: Markerless Multi-view Hand Manipulation Capture with Deformable Objects [53]
+
+Consider some DOM Applications using Tactile Sensing. Although tactile sensing is crucial for manipulation in visually occluded conditions, it is rarely the sole method used. One application is cable or fabric following; for example, She et al. [43] developed a technique to estimate the position and friction of a cable held by a robot using GelSight-based tactile sensing. Hellman et al. [44] created a real-time method using BioTac for tactile perception and decision-making in tasks like sealing a bag by tracking contours. Zheng et al. [10] proposed a BioTac-based approach to analyze tactile changes during page flipping, allowing robots to learn a logical page-turning sequence. Building on the tactile glove from [42], Zhang et al. [45] extended its use to a variety of tasks involving different objects. Their model combines predictive and contrastive learning techniques to estimate the 3D coordinates of both the hand and the object based solely on touch data. 
+
+2.3. Summary on Perception 
+
+In the domain of deformable object manipulation, addressing occlusions is a critical requirement for successful perception and control, as occlusions can obscure essential details needed for precise manipulation. A multi-view camera setup is instrumental in overcoming these challenges, as a single perspective often fails to capture the full structure of a deformable object in dynamic scenarios. Leveraging multiple RGB-D sensors positioned from various angles enables comprehensive 3D modeling, thus mitigating occlusion and providing a holistic representation of the scene. Nadon et al. emphasize that such a multi-view approach to segmentation allows a system to capture a deformable object’s complex configurations as they shift during manipulation, making it essential for accurate real-time robotic control in unstructured settings [27]. However, as occlusions evolve with the object’s configuration throughout manipulation tasks, an active camera system that can dynamically adjust viewpoints becomes necessary. Without this adaptability, robots may lose track of key object features, especially in tasks involving high degrees of freedom. Weng et al. propose an interactive perception approach utilizing a Dynamic Active Vision Space (DAVS), allowing the camera’s viewpoint to adjust in response to 
+
+McKenna et al.: Preprint Page 5 of 24 Open Challenges in Deformable Object Manipulation 
+
+changing occlusions. The active camera is coordinated with a dual-arm setup, which collectively combats occlusions as they develop, thus ensuring robust tracking and scene understanding in real-time [39]. Despite advances in visual perception, some occlusions remain intractable with vision alone, especially when visibility of certain object regions is entirely obstructed. Tactile perception steps in to fill this gap, providing detailed, localized data such as texture and friction, which are crucial for successful manipulation when visual cues are lacking. Narang’s work with the BioTac sensor, which replicates human fingertip sensitivity, illustrates the unique role tactile sensing plays in deformable object manipulation under occlusion. By complementing visual information, tactile sensors enhance overall perception capabilities, allowing robots to interact with deformable objects in occluded or visually inaccessible areas [40]. The necessity for rich, detailed datasets cannot be overstated when it comes to deformable object registration. In particular, highly varied datasets are required to capture the unpredictable and varied nature of deformable objects, enabling more precise registration models that can adapt to complex, real-world environments. Nadon et al. underscore the importance of these datasets, as they provide the foundational data needed to train and refine perception algorithms capable of handling the intricacies of deformable objects [27]. Additionally, whole-scene identification before planning and control is fundamental for generating a high-level understanding of the workspace, which includes mapping out object positions, obstacles, and other environmental features. This comprehensive scene awareness is critical to guiding subsequent high-level planning and effective manipulation. Nadon et al. highlight that this initial identification stage serves as a critical data-gathering step, enabling robots to distinguish between deformable and rigid objects and plan accordingly in mixed-object environments [27]. For complex tasks where both arms are engaged in manipulation, the use of a dual-arm active camera system is particularly effective in addressing occlusions. By coordinating the actions of both arms with an active camera, the system can reorient the camera as objects are manipulated, dynamically reducing occlusion challenges. This setup, advocated by Weng et al., provides enhanced adaptability and computational efficiency in scenarios involving highly variable object shapes and configurations [39]. Finally, while methods such as Gaussian Mixture Modeling (GMM) and Coherent Point Drift (CPD) have proven effective for tracking deformable objects, their application in unstructured environments remains challenging. Tang et al. and Myronenko demonstrate that these methods perform well in structured settings but require adaptation for real-world environments, where varied lighting, clutter, and irregular surfaces present additional challenges. Enriching datasets with real-world variability can help these models to adapt to the complexities of deformable object tracking, allowing these techniques to function more effectively in unstructured and dynamic contexts [37] [38] [40]. Together, these approaches create a robust framework for managing occlusions in deformable object manipulation, combining multi-perspective visual systems, active camera adjustments, tactile perception, and advanced modeling techniques to support the high-level planning and control required for effective manipulation in real-world environ-ments. For further notable literature in perception see Table 1 
+
+• Multiple camera perspectives reduce occlusion issues by capturing comprehensive 3D models [27]. 
+
+• Active cameras, with dynamically adjusting viewpoints, are necessary to track deformable objects as they change shape [39]. 
+
+• Tactile perception addresses occlusions that are inaccessible to vision alone [40]. 
+
+• Rich, detailed datasets are essential for accurate deformable object registration in complex environments [27]. 
+
+• Whole-scene identification prior to planning provides necessary context for manipulation tasks [27]. 
+
+• Dual-arm active camera systems effectively combat occlusions through coordinated control [39]. 
+
+• Gaussian Mixture Modeling (GMM) and Coherent Point Drift (CPD) need real-world dataset adaptations for effective use in unstructured environments [37] [38] [40]. 
+
+## 3. Modeling 
+
+The simulation and modeling of deformable object dynamics commonly rely on geometric representations using particles or meshes [54] [55]. According to Newton’s second law, the motion of a particle or vertex is governed by the time derivative of momentum and the forces applied, as described by:   
+
+> McKenna et al.: Preprint Page 6 of 24 Open Challenges in Deformable Object Manipulation
+
+𝑀̈ 𝑥 = 𝑓 (2) where 𝑀 represents the system’s mass, and 𝑥 𝑡 +1  
+
+> 𝑖
+
+= 𝑥 𝑡 𝑖 + 𝑣 𝑡 𝑖 Δ𝑡 describes the system’s state. The state can either be represented by a finite set of particles (discrete case) or defined using a displacement function (continuous case). The evolution of the system’s motion is determined by integrating from an initial state 𝑥 0. For each particle, the progression is described as: 
+
+𝑥 𝑡 +1  
+
+> 𝑖
+
+= 𝑥 𝑡 𝑖 + 𝑣 𝑡 𝑖 Δ𝑡 𝑣 𝑡 +1  
+
+> 𝑖
+
+= 𝑣 𝑡 𝑖 + Δ𝑡 𝑚 𝑖 
+
+(𝑓 int  
+
+> 𝑖
+
++ 𝑓 ext 
+
+> 𝑖
+
+) (3) where ̇ 𝑥 𝑖 = 𝑣 𝑖 , and the applied forces are explicitly divided into two parts. The term 𝑓 ext  
+
+> 𝑖
+
+. represents external forces, such as gravity or input forces, which are known at the current time step. For systems under constraints, this may also include external constraint forces from boundary conditions. The term 𝑓 int  
+
+> 𝑖
+
+= 𝑓 int  
+
+> 𝑖
+
+(𝑥 𝑡 , 𝑣 𝑡 , 𝜃 ) describes internal forces that depend on deformation-related parameters such as the deformed configuration 𝑥 𝑡 , velocity 𝑣 𝑡 , and material properties 𝜃 . Properly modeling these internal forces is crucial for simulating deformable objects. Once the force terms are determined, the simulation can proceed using explicit Euler integration, similar to the scheme in equation 3. Other methods, such as semi-implicit integration or Runge-Kutta methods, may be used for improved accuracy. However, stable simulations often require small time steps, where the step size depends on the specific application. A more robust approach is implicit integration, such as the backward Euler method. In this case, the internal force 𝑓 int  
+
+> 𝑖
+
+= 𝑓 int  
+
+> 𝑖
+
+(𝑥, 𝑣, 𝜃 ) depends on future states 𝑥 𝑡 +1 and 𝑣 𝑡 +1 making the integration of equation 3 less straightforward, as it requires solving for 𝑥 𝑡 +1 and 𝑣 𝑡 +1 .The advantage of implicit integration lies in its stability since the subsequent states remain closer to the dynamic constraints. Specific simulation methods often vary in their choice of principles and integration schemes, balancing between accuracy, stability, and computational cost. For instance, in computer graphics applications like character or scene animation, precise offline simulations are often acceptable, allowing for careful parameter tuning. In robotics, however, robustness and computational efficiency are critical for real-time tracking, interactive control, or learning in simulated environments. Additionally, accuracy becomes paramount in safety-critical fields such as medical simulations. With these considerations in mind, the next section provides a brief overview of methods based on different physical models and simulators. 
+
+3.1. Mass-Spring Models 
+
+Mass-spring systems (MSSs) represent deformable materials as a network, where each vertex is assigned a mass, and vertices are connected by spring edges. The internal force between two vertices, 𝑖 and 𝑗 , is calculated based on a spring-damping relationship along the direction of displacement. In implicit integration, these equality constraints are linearized around the current state, enabling the use of methods such as Newton-Raphson to solve the system [54]. MSSs are straightforward to implement and offer fast simulation speeds. They have been used to simulate various deformable objects, like modeling a rope as a chain [56] or a cloth as a two-dimensional (2D) grid [57]. However, a key limitation is that MSSs are most effective for small deformations and struggle with accurately capturing complex elastic behaviors. Even increasing mesh resolution doesn’t ensure convergence to the correct behavior, as the network’s topology and spring parameters also play a role [54]. Moreover, the spring parameters lack a direct correlation to material properties, requiring significant tuning to achieve the desired dynamic behavior. For an illustration of this concept see Figure 1. 
+
+3.2. Position-based-dynamics 
+
+Position-based dynamics (PBD) [54] is a meshless approach that models materials as a discrete system of particles. The simulation uses an implicit integration scheme where internal forces are derived from holonomic constraints, including temporary or unilateral constraints. For an illustration of this concept see Figure 1 however note rather than merely using hook’s law PBD allows for the use of a broad range of relations and boudary conditions. The update equations are given by:   
+
+> McKenna et al.: Preprint Page 7 of 24 Open Challenges in Deformable Object Manipulation
+
+𝑥 𝑡 +1  
+
+> 𝑖
+
+= 𝑥 𝑡 𝑖 + Δ 𝑡𝑣 𝑡 +1 
+
+> 𝑖
+
+𝑣 𝑡 +1  
+
+> 𝑖
+
+= 𝑣 𝑡 𝑖 + Δ𝑡 𝑚 𝑖 
+
+(( 𝑓 xt  
+
+> 𝑖
+
+− ∑
+
+> 𝑗
+
+𝑘 𝑗 ∇𝑥 𝑡 +1 
+
+> 𝑖
+
+𝐶 𝑗 
+
+(𝑥 𝑡 +1 1 , … , 𝑥 𝑡 +1 
+
+> 𝑛
+
+))) (4) Here, 𝑘 𝑗 represents the stiffness of the 𝑗 th constraint 𝐶 𝑗 (𝑥 1, 𝑥 2, … , 𝑥 𝑛 ) = 0 , where 𝑗 = 1 , 2, …. Unlike mass-spring systems (MSSs), PBD directly updates the position 𝑥 𝑡 +1  
+
+> 𝑖
+
+before calculating the velocity using 𝑣 𝑡 +1  
+
+> 𝑖
+
+= ( 𝑥 𝑡 +1  
+
+> 𝑖
+
+− 𝑥 𝑡 𝑖 )∕Δ 𝑡 .As noted in [55], the future state 𝑥 𝑡 +1  
+
+> 𝑖
+
+solves an optimization problem constrained by Equation (4), where 𝑘 𝑗 → ∞.PBD solves this optimization approximately by iteratively projecting the candidate position ̂ 𝑥 𝑡 +1  
+
+> 𝑖
+
+onto constraint manifolds, often using a Gauss-Seidel method. The elastic properties depend on the constraint parameters 𝜃 , the strictness of enforcement (via 𝑘 𝑗 ), and the number of projection iterations. Numerous constraints have been proposed to simulate various effects, such as volume conservation, frictional contact, or strain under continuum mechanics [55]. PBD offers fast, stable simulations with full control, enabling the easy incorporation of constraints and boundary conditions. The method is also versatile, capable of modeling plastic deformation, fluids, and rigid-body dynamics [58]. In robotics, PBD can be used to simulate manipulators, deformable objects, and their interactions within a unified framework. However, methods based on spring forces struggle with stiff systems like articulated rigid bodies. A key drawback of PBD is that it does not simulate forces accurately, and system stiffness is tied to the time-step size. A solution using constraint compliance has been suggested in more recent extensions [59]. Still, PBD typically relies on impulse updates, producing visually plausible but not always physically accurate simulations. Additionally, it can be challenging to interpret some parameters physically. While constraints between particles are intuitive, linking simulation results to physical material properties, like modulus, is less straightforward. This often requires tuning to achieve desired effects, and parameter identification with PBD can only yield qualitative material characterizations [60], similar to MSSs. 
+
+3.3. Continuum Mechanics 
+
+Continuum mechanics provides a more accurate physical model for describing material deformation in a continuous domain. The state at time 𝑥 𝑡 represents a displacement function over material coordinates. To describe material deformation, displacement is typically measured relative to an initial configuration 𝑥 0, known as the rest shape. The gradient of this displacement field reveals the distortion of the original element geometries. As a result, the conservation of momentum Equation (5) applies to each element of the domain: 
+
+𝜌̈ 𝑥 = 𝑓 int + 𝑓 ext = ∇ ⋅ 𝜎 + 𝑓 ext (5) where 𝜌 represents density, and the force terms correspond to body forces applied to a unit volume. The symbol 𝜎 
+
+denotes the stress tensor, which is a symmetric matrix. Taking the dot product with the gradient operator, the stress term captures internal elastic effects. The relationship between stress and material deformation is defined by a constitutive model. For Hookean materials, this relationship is linear as seen in Equation (6). 
+
+𝜎 = 𝐸𝜖 (6) where 𝐸 is a coefficient matrix (e.g., 6 × 6 for the 3D case). For isotropic materials, this matrix is fully determined by two scalars: (i) Young’s modulus, which measures material stiffness, and (ii) Poisson’s ratio, which is the ratio of lateral to longitudinal strain. The strain tensor 𝜖 is also a symmetric matrix, dependent on the deformation gradient of the displacement field: 
+
+𝜖 = ∇ 𝑝 + (∇ 𝑝 )𝑇 + (∇ 𝑝 )𝑇 ∇𝑝 (7) where 𝑝 = 𝑥 − 𝑥 0, known as the Green-Lagrange strain. A simplified version of this, called Cauchy strain, ignores the last quadratic term to yield a linear relationship with the displacement, assuming geometric linearity. The Hookean   
+
+> McKenna et al.: Preprint Page 8 of 24 Open Challenges in Deformable Object Manipulation
+
+material assumption is typically restricted to modeling small deformations around the rest shape. More advanced constitutive models include energy terms that penalize deformation, leading to nonlinear hyperelastic models like the Neo-Hookean model [61]. Simulating such systems involves solving the partial differential equation (5). The original form of the equation can be solved effectively only for simple, small-scale problems, such as a 1D string. For more complex cases, the finite element method (FEM) is the standard computational approach for solving continuum mechanics problems. FEM works by discretizing the material domain into a mesh of finite geometry elements, such as tetrahedra. Global consistency is enforced through constraints on element boundaries, and the physical fields are approximated as a linear combination of basis functions. Within each element, a weak form of the governing equation can be transformed into an ordinary differential equation, which is easier to solve via numerical integration. Similar to mass-spring systems (MSSs), implicit integration requires solving the internal force term through linearization at each time step, which can be complex in FEM when using a general constitutive model. Linear FEM assumes both material and geometric linearity, enabling offline precomputation for efficient simula-tion. However, the Cauchy linear strain provides a poor approximation for the rotational component of the displacement field. Corotational linear FEM addresses this by extracting the rigid rotation matrix and incorporating it into the stress-strain relationship, compensating for the rotational component. Modeling deformable objects using continuum mechanics leads to more accurate simulations, which is essential in applications where precision is critical. The parameters of the model have clear physical interpretations. Frameworks like FEM are widely used for their versatility in simulating various deformation effects. However, these computations and implementations are more complex compared to particle-based methods. Linear FEM is commonly used in robotics when accuracy under large deformation is not a priority. Nonlinear computational models generally struggle to achieve real-time performance, except in cases where explicit integration or hardware acceleration [62] is employed. For an illustration of this concept see Figure 2. 
+
+3.4. Physics-based Simulation 
+
+Several simulators have been developed based on the theoretical foundation mentioned earlier, offering devel-opment environments for communities in graphics, computer vision, robotics, and control. Here, we briefly discuss some of the most commonly used simulators, emphasizing their modeling techniques and applications in robotics. The Simulation Open Framework Architecture (SOFA) is an open-source framework designed for tissue modeling and surgical interaction [63]. It has a modular design that accommodates customized solvers for various mechanical objects, constraints, and collision geometries. SOFA includes built-in mass-spring models and a variety of finite element method (FEM) models, such as linear, corotational linear, and Neo-Hookean models, which enhance precision in medical applications. SOFA has been utilized in areas like motion planning [64], tracking deformable objects [65],[66] and vision-based tip force estimation [67], [68]. A key strength of SOFA lies in its open-source and modular architecture , distributed under the LGPL license, which empowers users to extend or reconfigure nearly every element of the simulation engine—from solvers to collision pipelines, mappings, and force models—without being locked into closed internals [69]. This design enables complete control over the physics stack , such that one can substitute or fine-tune integration schemes, linear solvers, constraint resolution strategies, and coupling mappings to precisely tailor the simulation to one’s scenario [69, 70]. In particular, researchers in soft robotics have leveraged this flexibility via plugins like SoftRobots , enabling real-time direct/inverse FEM modeling, custom actuation, and coupling between rigid and deformable elements [71]. Because SOFA supports multiple constitutive models (e.g., linear, corotational, Neo-Hookean), selective solver pipelines, and model order reduction or GPU offloading, it consistently delivers state-of-the-art deformable object performance in academic use cases [69, 70]. Importantly, despite its high fidelity, SOFA is engineered to maintain efficient computation even on moderate hardware . Its architecture allows parallel execution of collision detection and free motion, asynchronous solver execution, block-sparse assembly, constant sparsity pattern reuse, and optional GPU acceleration via CUDA plugins [70]. Users can trade off solver tolerances, iteration limits, or exploit reduced-order modeling to reduce cost while preserving essential deformation fidelity. In practice, many published works report complex soft robotic simulations (with full coupling to rigid elements) running in real time on desktop or workstation-class machines without requiring ultra–high-end GPU clusters [72]. This balance of high-fidelity deformable simulation, full user control, and computational efficiency makes SOFA particularly attractive for research in soft robotics, surgical interaction, and   
+
+> McKenna et al.: Preprint Page 9 of 24 Open Challenges in Deformable Object Manipulation
+
+deformable manipulation, where one often must integrate novel physical models, sensors, and control without being constrained by “black-box” simulation limits. PhysX, developed by NVIDIA, is another open-source simulator widely used in game engines. It incorporates cloth modeling based on Position-Based Dynamics (PBD) [73], allowing the simulation of both rigid and flexible objects without requiring multiple simulators, as seen in [74]. With extensions for handling frictional contact, PhysX has been employed in human dressing tasks, including haptics and force prediction [75], [76], and as a forward dynamics model for planning dressing motion [77]. Another simulator based on PhysX; Isaac Gym [78] offers groundbreaking modeling techniques and simulation capabilities that enhance robotic manipulation of deformable objects. By leveraging NVIDIA’s high-performance PhysX engine, Isaac Gym allows continuous control tasks to run directly on the GPU, achieving exceptional simulation speeds without the need for CPU-based physics calculations. This architecture enables highly parallelized simulations where thousands of environments run simultaneously, thus speeding up training by orders of magnitude compared to traditional methods. For deformable object manipulation, Isaac Gym provides tools that can realistically model soft-body physics and complex contact dynamics. Its end-to-end GPU simulation pipeline directly integrates with PyTorch, allowing for real-time feedback between the physics engine and the neural network policy training. This integration enables learning complex control strategies for deformable objects, which typically involve continuous changes in shape and require intricate contact handling. The platform supports diverse control environments, where robots like Shadow Hand and Allegro are trained to manipulate objects with varying textures and consistencies, advancing tasks such as squeezing, stretching, and shape adaptation. This high fidelity and performance make Isaac Gym well-suited for developing robotic applications in areas requiring soft-material manipulation, such as medical robotics, food processing, and advanced manufacturing, ultimately bridging simulation and real-world applicability in deformable object handling. Huang et al. introduces DefGraspSim [79], a physics-based simulation tool for robotic grasping of 3D deformable objects, utilizing the Isaac Gym environment with a GPU-accelerated finite element method (FEM). This model accurately represents how deformable objects respond to robotic manipulation, accounting for complex deformations, stresses, and instabilities. DefGraspSim models each object as a volumetric mesh, applying co-rotational linear FEM to capture nuanced deformation behavior under varied grasp forces. Coupled with an isotropic Coulomb friction contact model, it enables realistic simulation of grasp scenarios. Although DefGraspSim itself is not gradient-based, it produces extensive data—over a million grasp measure-ments—providing a foundation for training gradient-based learning models. This dataset can support machine learning techniques, such as deep learning or reinforcement learning, which rely on gradient descent. DefGraspSim’s output aids in developing predictive grasp models and optimizing grasp strategies, making it valuable for improving robotic performance in real-world deformable object manipulation. Another well-known simulator in this area; MuJoCo, previously proprietary engine that has subsequently been open-sourced, has been used for modeling rigid-linked characters [80] and as a backend for reinforcement learning (RL) benchmarks [81]. Featuring a convex soft contact model, MuJoCo enables optimization methods with faster convergence rates [82]. It takes a constraint-based approach to solving interaction forces, bearing some resemblance to PBD, and can model deformable objects. Initially designed for modeling articulated robots, MuJoCo provides useful interfaces for robot modeling and learning algorithms. Its deformable dynamics modeling has been applied in tasks like cloth folding [83] and rope manipulation planning [84]. Lastly, Bullet is an open-source library for collision detection and multibody simulation [85]. It also uses PBD to simulate deformable bodies and their interactions with other entities. Recent updates have added models for corotational and Neo-Hookean materials. Bullet offers user-friendly interfaces for robot modeling and machine learning [85]. It has been used in research for various deformable dynamics tasks, including object tracking ([34], [86]), sim-to-real transfer [65], learning manipulation [66], and assistive dressing simulations [87]. 
+
+3.5. Summary on Modeling 
+
+In the realm of deformable object manipulation (DOM), high-quality, real-time physical simulation is indispens-able. Given the vast complexity and high degrees of freedom inherent to deformable objects, achieving precise control and manipulation requires simulators that can accurately capture intricate dynamics. Unlike rigid objects, deformable materials respond to even minor forces with nuanced, non-linear behaviors that traditional models often struggle to replicate. Advanced physics-based simulators, such as Isaac Gym and SOFA, have thus become essential. By modeling   
+
+> McKenna et al.: Preprint Page 10 of 24
+
+Open Challenges in Deformable Object Manipulation 
+
+Table 2 
+
+Overview of recent literature in modelling for deformable object manipulation                                                         
+
+> Category Advantages Disadvantages Literature Mass-Spring-Systems
+> •Flexible for modeling deformable objects.
+> •Accounts for material variations like stiffness and knots.
+> •Supports real-world tasks (e.g., string han-dling, dual-arm coordination).
+> •Learning integration improves adaptability.
+> •Ensures grasp stability in deformable object manipulation.
+> •Easy to implement in robotic systems.
+> •High computational complexity for real-time applications.
+> •Simplified models may miss nonlinear defor-mations.
+> •Requires pre-computation and parameter tuning.
+> •Limited representation for complex materials (e.g., anisotropy).
+> •Needs extensive training data.
+> •Tabata et al. ([88])
+> •Shi et al. ([89])
+> •Zaidi et al. ([90])
+> Position-Based-Dynamics
+> •Efficient, stable simulation for deformable objects.
+> •Realistic modeling for ropes and DLOs.
+> •Suitable for real-world tasks (e.g., suturing, obstacle avoidance).
+> •Supports optimization via differentiable frameworks.
+> •Validated in practical scenarios.
+> •Limited to linear or rope-like objects, reduc-ing generalization.
+> •Computational challenges for real-time tasks.
+> •Relies on accurate parameter tuning.
+> •Sensitive to parameter estimation errors.
+> •Yu et al.[91]
+> •Liu et al.[92]
+> Continuum Mechanics
+> •High accuracy for modeling deformations.
+> •Provides physics-based realism.
+> •Enables blind manipulation using force sens-ing.
+> •Effective for grasping tasks with deformable objects.
+> •Validated through simulation and real-world applications.
+> •Computationally expensive, limiting real-time use.
+> •Requires precise material properties and meshing.
+> •Difficult to scale for complex objects.
+> •Limited generalization to other deformable manipulation scenarios beyond the specific tasks studied.
+> •Sanchez et al.[93]
+> •Huang et al.[79]
+
+soft-body physics, complex contact interactions, and shape changes in real-time, these simulators allow developers to experiment and refine control strategies in a realistic, dynamic environment. Further enhancing their value, these simulations integrate differentiable frameworks, providing critical, fine-grained gradients for optimization-based learning. For instance, differentiable simulators like DiffSRL empower learning algorithms to adjust with high precision, as they can access direct feedback on physical constraints. Such access is especially beneficial for reinforcement learning, enabling faster and more reliable policy training. Without these rich, physically informed insights, robotic systems often face limitations in responsiveness and adaptability, especially when transitioning from controlled simulations to unpredictable real-world environments. In summary, high-fidelity, real-time physical simulations are not just helpful; they are vital for the development of effective, adaptable DOM frameworks. For those looking for further recent notable works in modeling, please see Table 2. 
+
+• Real-time simulation vital for DOM 
+
+• Physical Simulation vital for DOM 
+
+• Differentiability of Simulation vital for learning algorithms 
+
+## 4. Manipulation 
+
+The purpose of manipulating deformable objects (DOs) is to find the ideal force or movement at key points to achieve a specific task. To start, we review approaches for planning and controlling deformable objects analytically, then focus on learning-based methods such as Reinforcement Learning (RL) and Imitation Learning (IL). 
+
+4.1. Planning for DOM 
+
+Planning for DOM involves determining the optimal sequence of configurations for a robot or object to achieve the desired result. For instance, bending a rope into a particular shape can be framed as an optimization problem: 
+
+McKenna et al.: Preprint Page 11 of 24 Open Challenges in Deformable Object Manipulation 
+
+𝑥 ∗0∶ 𝑇 , 𝑢 ∗0∶ 𝑇 −1 = arg min   
+
+> 𝑥 0∶ 𝑇 ,𝑢 0∶ 𝑇 −1
+
+𝑢 0∶ 𝑇 −1 
+
+(𝑥 0∶ 𝑇 
+
+)
+
+𝑥 𝑡 +1 = SystemDynamics (𝑥 𝑡 , 𝑢 𝑡 
+
+) (8) Where 𝑥 0∶ 𝑇 represents the sequence of system states (e.g., manipulated degrees of freedom), and  (⋅) denotes the cost associated with executing the planned trajectory 𝑥 0∶ 𝑇 , 𝑢 0∶ 𝑇 −1 over the time horizon 𝑇 .
+
+4.1.1. Shooting in the action space 
+
+One solution for the above optimization is to try a sample sequence of actions, then adjust based on calculated costs of projected paths. Since action space has a lower dimensionality than object state space, this method can simplify the search process. Precise dynamics modeling and efficient backward gradient evaluation are key to this approach. Huang et al. [94] demonstrated shape control for deformable linear objects (DLOs) using dual-arm robots in the action space, while Shi et al. [95] developed a method to shape Play-Doh into letters with human-like skill. Similar techniques are explored in [96], [97], [98]. See Figure 3 for an illustration of this concept. 
+
+4.1.2. Searching state trajectories 
+
+Another approach is to search within the object’s state space to find a feasible path 𝑥 𝑡 , then derive actions for each transition. This approach involves efficiently sampling configurations in a large state space. Sintov et al. [100] found that the configuration space of elastic rods forms a smooth, finite-dimensional manifold and developed a sampling-based algorithm to generate feasible paths. Lui and Saxena [101] improved DLO shape planning by using an energy model to create a rough path that ensures task success, followed by a local controller to adjust the path with real-time feedback for accuracy. Related studies [102], [103], [104] also work on efficient state representation and transition modeling to plan state trajectories. See Figure 4 for an illustration of this concept. 
+
+4.1.3. Control Strategies for DOM 
+
+Control aims to design the necessary inputs for robots to perform the desired motions. Closed-loop control, which uses sensory feedback, can handle various uncertainties in DOM. However, because of DOs’ complex dynamics, synthesizing a global control strategy with guaranteed success is challenging. Instead, local controllers are typically used to apply force or velocity at specific points. The control action can be described as: 
+
+𝑢 𝑡 = 𝑢 (𝜙 (𝑥 𝑡 
+
+) − 𝜙 (𝑥 𝑔 
+
+) , 𝜃 ) (9) where 𝑥 𝑡 is the current state, 𝑥 𝑔 is the goal state and 𝜙 (⋅) represents the feature space. Control then works to minimize the difference between the current state 𝑥 𝑖 and the target state 𝑥 𝑔 , potentially within the feature space 𝜙 (⋅).Due to real-time requirements, the function 𝑢 (⋅) is typically calculated using straightforward approaches like a linear function between operating points and feature points or through single-step horizon numerical optimization methods. Some approaches rely on visual-servoing frameworks to regulate velocity, such as arranging cloth or handling deformable linear objects (DLOs). In contrast, tactile feedback is sometimes used to refine actions, as seen in cable manipulation tasks. See Figure 5 for an illustration of this concept. 
+
+4.2. Learning-Based Approaches 
+
+Learning-based approaches, particularly Reinforcement Learning (RL) and Imitation Learning (IL), offer effective ways to manage DOM tasks without needing a complex dynamical model, which can be challenging to obtain for many DOs. 
+
+4.2.1. Reinforcement Learning for DOM 
+
+Reinforcement Learning (RL) operates on a trial-and-error basis, aiming to optimize control policies by maximizing accumulated rewards. The optimal policy 𝜋 is found by maximizing the expected future cumulative reward, represented as: 
+
+𝜋 ∗ = arg max 
+
+> 𝜋 ∈Π
+
+𝔼 𝜏 ∈𝑑 𝜋 
+
+( 𝑇 ∑
+
+> 𝑡 =1
+
+𝛾 𝑡 −1 𝑟 𝑡 
+
+)
+
+(10)   
+
+> McKenna et al.: Preprint Page 12 of 24 Open Challenges in Deformable Object Manipulation
+
+Here, 𝜏 represents a trajectory from the policy’s trajectory distribution 𝑑 𝜋 of trajectories generated by the Markov-Decision-Process (MDP) or policy. 𝑟 𝑡 is the reward at step 𝑡 and 𝛾 is a discount factor (0 to 1) that moderates the impact of future rewards. Model-free RL, which doesn’t require an explicit model of DO dynamics, faces challenges like sample inefficiency, especially with infinite-dimensional DOs. Additionally, extensive trial-and-error in real environments can be risky. Simulators help address these challenges by allowing initial training in simulated settings. The main obstacle then is translating these learned strategies to real robots. Embedding structures or reducing feature dimensions can enhance RL efficiency. See Figure 6 for an illustration of this concept. Chen et al. introduces DaXBench [108] in which reinforcement learning (RL) is enhanced with differentiable physics, providing a notable improvement in control and efficiency over traditional methods. The Short-Horizon Actor-Critic (SHAC) and Analytic Policy Gradients (APG) methods excel in low-level control tasks. For example, in the Whip-Rope task, APG and SHAC achieved near-optimal performance, with APG reaching a reward of 1.00 (perfect performance), significantly outperforming Proximal Policy Optimization (PPO), which achieved a reward of only 0.34. In high-level planning tasks, expert demonstrations further reduce exploration and sample inefficiency, guiding RL agents toward productive trajectories. This effect is critical in complex, sparse-reward tasks like cloth folding, where random exploration can be highly inefficient. For example, with expert demonstration integration, Imitation Learning via Differentiable Physics (ILD) achieved a reward of 0.85 in the Fold-T-shirt task. DaXBench’s differentiable physics also enables generalization across deformable object types by allowing RL agents to use analytical gradients to navigate diverse manipulation tasks. In Pour-Water, SHAC’s reward reached 0.91, compared to PPO’s 0.32, demonstrating superior generalization to fluid manipulation tasks. Thus, DaXBench’s approach achieves state-of-the-art results in both precise control and adaptability across diverse DOM challenges. Model-free RL, common in deep RL, demands significant data, limiting real-world applications. Model-based RL, however, is more data-efficient when a model is available. 
+
+Reducing RL Iteration Costs To decrease the cost of strategy iteration, initializing RL with manual demonstra-tions is often beneficial. Chen et al proposes DiffSRL [109], Learning Dynamical State Representation for DOM with Differentiable Simulation through a novel reinforcement learning (RL) approach, achieving state-of-the-art performance by using physically informed state representation learning. DiffSRL incorporates a differentiable physics engine into its pipeline, allowing it to learn physical constraints directly through gradients. This physics-informed learning is crucial for DOM, where maintaining physical properties like non-penetration and continuity is challenging but necessary for realistic manipulation. DiffSRL uses model-free reinforcement learning (MFRL), specifically the Twin Delayed Deep Deterministic Policy Gradient (TD3) algorithm, which is known for stability in continuous control tasks. With TD3, the policy network is trained on a latent space generated by DiffSRL’s encoder, where latent states are informed by differentiable simulation to capture key physical dynamics. This enables the model to produce actions that respect the object’s physical constraints, significantly improving performance in trajectory planning and manipulation. 
+
+Addressing Simulation-to-Reality Gaps : Although simulators are valuable for initial training, there is often a mismatch when applying learned strategies to real-world settings. Domain Randomization (DR) addresses this by introducing random visual variations in the simulation to better align with real-world visual differences. To close the sim2Real gap, DiffSRL [109] adapts from simulated to real-world environments by augmenting training data with noise and reducing particle density, thus preparing the model for real sensor data, which is often sparse or noisy. Despite its strengths, limitations remain, such as handling interactions between multiple deformable objects and extensive deformations. Overall, DiffSRL’s gradient-based, physics-aware approach significantly enhances DOM by incorporating physical constraints, accelerating training, and achieving more robust policy learning. Despite the success of domain randomization (DR) in enabling cross-domain generalization, challenges remain in tailoring strategies to specific tasks and adapting them effectively. [65] addressed this by implementing a visual reinforcement learning (RL) pipeline with pixel-level domain adaptation, effectively bridging simulation and real-world performance in a medical task involving tissue retraction. Another valuable approach is learning a residual strategy to address the simulation-reality gap. For instance, Lv et al. [110] demonstrated successful real-world needle threading by employing a residual strategy, showing that this method can significantly ease the transition from simulation to reality.   
+
+> McKenna et al.: Preprint Page 13 of 24
+
+Open Challenges in Deformable Object Manipulation 
+
+Table 3 
+
+Overview of recent literature in planning and Control for deformable object manipulation                                     
+
+> Planning and Control Advantages Disadvantages Literature Analytical Approaches
+> •High precision and predictability.
+> •Robust, systematic frameworks.
+> •Tailored, reproducible solutions.
+> •Scalable to variations.
+> •Poor adaptability to uncertainties.
+> •High computational cost.
+> •Relies on accurate models.
+> •Complex development.
+> •[113]
+> •[114]
+> •[115]
+> Reinforcement Learning
+> •Adaptive and robust.
+> •Excels in dynamic scenarios.
+> •Reduces need for explicit models.
+> •Handles complex, high-dimensional tasks.
+> •High training costs.
+> •Needs large, diverse data.
+> •Struggles with sim-to-real gaps.
+> •Risk of overfitting.
+> •[116]
+> •[117]
+> •[118]
+> Imitation Learning
+> •Adapts to deformable dynamics.
+> •Requires fewer data.
+> •Task-specific optimization.
+> •Sim2Real benefits.
+> •Needs high-quality demos.
+> •Limited generalization.
+> •Computationally heavy.
+> •Risk of overfitting.
+> •[115]
+> •[118]
+> •[119]
+
+4.2.2. Imitation Learning for DOM 
+
+Imitation Learning (IL) is a control method that learns a policy from expert demonstrations, mapping raw inputs to actions. IL has proven effective in various manipulation tasks. IL aims to derive a policy that accurately replicates expert behavior. This can be expressed mathematically as: 
+
+𝜋 ∗ = arg min 
+
+> 𝜋 ∈Π
+
+𝔻 (𝑝 (𝜋 demo ) ‖𝑝 (𝜋 )) (11) where 𝐷 represents a divergence metric measuring the difference between two distributions, which could be distributions of state-action pairs, trajectory features, or feature expectations. Unlike RL, IL does not require a reward function, thus avoiding the complexities of reward design, which can be challenging in robotic applications. However, IL requires extensive demonstration data and may struggle with generalizing beyond learned instances. Early IL research focused on teaching robots primitive motions for DOM through kinesthetic guidance. For instance, [111] developed a method for a two-armed robot to learn aerial knot-tying by breaking the task into six fundamental motions—grasping, releasing, double grasping, wrapping, twisting, and sliding learned through human demonstrations. This approach extends to tasks like rope tying , fabric folding , and stitching. Task-parameterized models can further improve generality, adapting actions like dressing motions to various arm positions. More recent work enables robots to plan actions based on current observations by leveraging large annotated datasets. For example, one approach uses 4,300 labeled human actions to train a model that can predict jaw-clamping poses for folding garments, achieving a 93% success rate in 120 seconds on average . However, IL requires retraining to transfer skills to new instances. For example, a hat-wearing model must undergo thousands of repetitions in training, both simulated and real, to learn the task. To adapt to a new hat with different shape and flexibility, the model must collect new data and undergo retraining to account for these variations. As a result, these steps introduce substantial computational and time requirements, limiting the practicality of this approach in real-world applications. Recent research has examined imitation learning (IL) for manipulation at the category level with rigid objects. However, these methods don’t extend to deformable objects (DOs). Unlike rigid objects, whose positions can be represented in low-dimensional space, DOs have a vast range of possible configurations and are prone to self-occlusion, making it challenging to generalize skills across different deformable objects. To address these challenges, [112] introduced an innovative framework for category-level manipulation of deformable 3D objects, allowing skills learned on one object to transfer to similar new objects with just a single demonstration. This framework includes two key components: the Nocs State Transition (NST) and Neuro-Spatial Encoding (NSE). NST aligns the observed target point cloud into a predefined, standardized pose (the "Nocs state"), which forms a consistent basis for learning skills across a category of objects. NSE then adapts these learned skills to new instances by encoding spatial information at the category level, enabling the system to determine the optimal grasping point for different objects without requiring retraining. 
+
+McKenna et al.: Preprint Page 14 of 24 Open Challenges in Deformable Object Manipulation 
+
+4.3. Summary on Manipulation 
+
+The integration of physically informed reinforcement learning (RL) and expert demonstrations has proven effective in addressing critical challenges in deformable object manipulation (DOM). Specifically, physically informed RL enables the precise control necessary for DOM tasks by embedding physical dynamics within the RL framework. For instance, Chen et al. demonstrate in their DaXBench framework that combining RL with differentiable physics significantly enhances control precision. In high-precision tasks, such as the "Whip-Rope" manipulation, advanced RL methods like Analytic Policy Gradients (APG) and Short-Horizon Actor-Critic (SHAC) outperformed traditional methods like Proximal Policy Optimization (PPO), achieving near-optimal control levels due to the model’s physics-informed guidance. This approach showcases the capacity of physically informed RL to handle the intricate, non-linear behaviors inherent in deformable objects. Additionally, physically informed RL enables orders of magnitude faster convergence and more efficient learning. In DaXBench, the incorporation of physical dynamics into the RL learning process substantially accelerates training and enhances adaptability. For example, in complex manipulation tasks such as "Pour-Water," the SHAC method achieved a significantly higher performance reward compared to PPO, demonstrating the benefits of a physics-aware model in reducing training time and improving task proficiency. This efficiency exemplifies how embedding physical constraints directly into RL models can drive rapid learning, particularly when addressing the complex state-action spaces typical in DOM. Moreover, the use of expert demonstrations within RL frameworks further accelerates convergence and enhances learning efficiency. In sparse-reward tasks like cloth folding, expert demonstrations provide essential initial guidance, effectively reducing the exploration phase and focusing learning trajectories on productive pathways. The integration of expert trajectories in imitation learning tasks led to notable performance improvements, with tasks like "Fold-T-shirt" reaching high reward levels (e.g., a reward of 0.85 with Imitation Learning via Differentiable Physics, ILD). This illustrates how leveraging expert demonstrations can dramatically expedite convergence by establishing an efficient foundation for learning without requiring extensive trial and error. Finally, expert demonstrations enable the execution of long-horizon, complex, and multi-stage tasks within RL frameworks. By defining task specifications through expert examples, this approach circumvents the challenges associated with purely exploratory learning, which may lead to efficient yet undesirable or unsafe solutions. Expert-guided trajectories allow for precise task definitions, ensuring that the RL agent avoids hazardous pathways and adheres to safe, feasible task completion strategies. This technique is particularly advantageous in handling long-horizon or multi-stage tasks in DOM, which are otherwise challenging due to the vast and variable state spaces involved. Collectively, these advancements in physically informed RL and expert demonstrations underscore their essential role in advancing the state-of-the-art in efficient and effective deformable object manipulation. For those seeking literature on notable recent advancements in manipulation, please see Table 3. 
+
+• Physically informed Reinforcement Learning enables precise control needed for DOM. 
+
+• Physically informed RL enables orders of magnitude faster convergence and more efficient learning. 
+
+• Expert demonstrations enable orders of magnitude faster convergence and more efficient learning. 
+
+• Expert demonstrations enable long-horizon or complex multi-stage tasks. 
+
+## 5. Discussion 
+
+Referring back to the challenges outlined at the beginning of this review and comparing them with the identified gaps from the summaries, we propose the following directions for future research. These are structured according to the key challenges (see Section 1). By combining multiple camera perspectives with an active camera and tactile perception into one perception system there is great potential to reduce occlusions (the main source of noise in perception data) in unstructured environments to a level we have not yet seen in DOM. In addition, perception systems have been shown to benefit greatly from performing whole scene identification prior to attempting a task, particularly for long-horizon or complex multi-stage tasks. For the purpose of scene identification and active tracking, the creation of rich simulated datasets with deform-ability annotations would greatly benefit registering deformable objects and their associated physical qualities (elasticity, plasticity, etc) and quantities (Young’s Modulus, Poisson Ratio, etc). A system such as this provides maximal data to the manipulation and modeling parts of a DOM framework (see Perception Module in Figure 7 ).   
+
+> McKenna et al.: Preprint Page 15 of 24 Open Challenges in Deformable Object Manipulation
+
+Enabling extensive domain randomization upon simulated sensor data could lead to significantly more robust policies in real experiments and applications. Recent innovations have made a previously computationally intensive technique suitable for real-time application, NERF [120] could be applied to perception in DOM since it excels at capturing whole scenes in high detail. This includes the capacity for novel view synthesis and the use of multiple camera perspectives. In addition NERF only requires an RGB camera, which doesn’t suffer from the drawbacks of RGBD such as the dampening effect upon the depth sensor when interacting with soft-objects; a key drawback to using RBGD in DOM. The highly detailed representations achievable with NERF can also collect textural details of objects, which may allow for better classification of material properties even before leveraging tactile data. NERF also enables the automatic generation of highly detailed 3D models, simplifying the task of simulated data collection. Evidently physically-informed reinforcement learning, that is, Reinforcement Learning agents trained within differentiable simulations show orders of magnitude improved performance on several metrics, including; learning efficiency, precision in low-level control and generalization. Further research should explore leveraging expert demonstrations to accelerate convergence and to mitigate the unproductive exploration that typically occurs when RL agents are trained without such guided seed trajectories. A broader innovation could be creating expert demonstrations within simulation, drastically reducing labor and equipment costs associated with doing this work in the real world. By using the simulation as a data collection tool we may be able to make use of expert demonstrations as a form of task specification. Defining not just the goal states, which are notoriously difficult to describe for deformable objects, but also the manner in which the task should be carried out. A large data set of this sort, covering a broad range of tasks and objects could have immense value to the field of DOM. Combining this approach with recent advancements in generative networks [121] and large language models [122] these task specifying simulated expert demonstrations could perhaps be generated as easily as large language models now generate human-level text. Advancements in generative networks have demonstrated effectiveness across text, images, 3-D models [123] according to the survey by Shi et al. Therefore it is reasonable to believe the application of generative networks could extend to deformable objects and digital twins more generally. This would open many doors, enabling a huge diversity of tasks and deformable object scenarios to be trained quickly and entirely automated. Simulated expert demonstrations as task specifications could become a kind of standardized data format for Reinforcement Learning approaches that are specialized to work with this sort of data. Zargarbashi et al. recently did something similar, albeit outside DOM, but within Robotics simulation [124]. A further innovation that is well supported is the use of graph neural networks for high-level decision making, the branching characteristic of these networks directly mimics algorithmic behavior of conventional computer programming languages [125] and even the networks of the human brain. A possible approach could be to use the sequences of simulation states of the simulated expert demonstrations as nodes in a graph neural network for high-level planning in DOM. This could make it possible to map and index key steps in the manipulators interactions and trajectory. This may simplify failure detection and make more straightforward the task of initiating re-grasping and other forms of dynamic or spontaneous decision making in response to trajectories that vary too widely from the next expected state. Furthermore, many of the core elements in deformable object manipulation, including scene representations, simulation trajectories, mesh structures, and deformability annotations can be naturally expressed as graph-structured data. This makes graph neural networks a compelling unifying framework for integrating heterogeneous information across tasks. Such representations may enable models that generalize more effectively across diverse deformable object scenarios, rather than being tailored to narrowly defined task instances. 
+
+## 6. Conclusion 
+
+The field of deformable object manipulation (DOM) has made significant strides, yet several challenges remain, particularly in addressing occlusions, enabling generalization across tasks and object types, and achieving scalable, real-time solutions. This review highlights promising advancements and proposes future directions rooted in the integration of perception, modeling, and manipulation. The combination of multi-camera perspectives, active vision systems, and tactile perception shows potential for significantly reducing occlusions in unstructured environments. Enhancements such as whole-scene identification and rich simulated datasets with detailed deformability annotations can further support robust and adaptive perception systems. The adoption of neural radiance fields (NERFs) may prove transformative in implementing such a perception system, offering high-detail scene capture with reduced hardware demands.   
+
+> McKenna et al.: Preprint Page 16 of 24 Open Challenges in Deformable Object Manipulation
+
+Physically informed reinforcement learning (RL) has emerged as a critical tool, with differentiable simulations improving efficiency, precision, and generalization. Incorporating expert demonstrations into these frameworks can accelerate convergence and address the complex task specifications unique to DOM. Simulated expert demonstrations offer a scalable approach to defining task specifications, particularly when combined with generative neural networks which could be able generalize to unseen object-task combinations given enough scale. In addition, task specifications (sequences of simulation states) have great potential as a standardized data format for RL applications in DOM. Finally, leveraging advanced computational frameworks such as graph neural networks for high-level decision-making and integrating simulated datasets for training can help bridge the gap between simulation and real-world application. By addressing these challenges, DOM research can unlock new possibilities across industries, creating adaptable robotic systems capable of handling diverse and dynamic deformable objects. 
+
+## 7. Funding sources 
+
+This work was supported by a Departmental Scholarship under the EPSRC DigiCORTEX Project, Deep Learning of Deformable Object Manipulation on Manufacturing Robots [EP/W014688/1]. The funding source had no role in the study design; collection, analysis, or interpretation of data; writing of the manuscript; or the decision to submit the article for publication. 
+
+## References 
+
+[1] O. Kroemer, S. Niekum, G. Konidaris, A review of robot learning for manipulation: Challenges, representations, and algorithms, The Journal of Machine Learning Research 22 (1) (2021) 1395–1476. [2] J. Zhu, et al., Challenges and outlook in robotic manipulation of deformable objects, IEEE Robotics and Automation Magazine 29 (3) (2022) 67–77, doi: 10.1109/MRA.2022.3147415. [3] Y. Gao, Z. Chen, Y. Ling, J. Yang, Y.-H. Liu, X. Li, A hierarchical manipulation scheme for robotic sorting of multiwire cables with hybrid vision, IEEE/ASME Transactions on Mechatronics (2022). [4] X. Li, X. Su, Y.-H. Liu, Vision-based robotic manipulation of flexible pcbs, IEEE/ASME Transactions on Mechatronics 23 (6) (2018) 2739–2749. [5] S. Jin, D. Romeres, A. Ragunathan, D. K. Jha, M. Tomizuka, Trajectory optimization for manipulation of deformable objects: Assembly of belt drive units, 2021 IEEE International Conference on Robotics and Automation (ICRA) (2021) 10002–10008IEEE. [6] H. Zhou, S. Li, Q. Lu, J. Qian, A practical solution to deformable linear object manipulation: A case study on cable harness connection, 2020 5th International Conference on Advanced Robotics and Mechatronics (ICARM) (2020) 329–333IEEE. [7] H. Shi, H. Xu, S. Clarke, Y. Li, J. Wu, Robocook: Long-horizon elasto-plastic object manipulation with diverse tools, arXiv preprintArXiv:2306.14447 (2023). [8] Z. Xu, Z. Xian, X. Lin, C. Chi, Z. Huang, C. Gan, S. Song, Roboninja: Learning an adaptive cutting policy for multi-material objects, arXiv preprintArXiv:2302.11553 (2023). [9] G. Narasimhan, K. Zhang, B. Eisner, X. Lin, D. Held, Self-supervised transparent liquid segmentation for robotic pouring, 2022 International Conference on Robotics and Automation (ICRA) (2022) 4555–4561IEEE. [10] Y. Zheng, F. F. Veiga, J. Peters, V. J. Santos, Autonomous learning of page flipping movements via tactile feedback, IEEE Transactions on Robotics 38 (5) (2022) 2734–2749. [11] A. Billard, D. Kragic, Trends and challenges in robot manipulation, Science 364 (6446) (2019) eaat8414. [12] H. Yin, A. Varava, D. Kragic, Modeling, learning, perception, and control methods for deformable object manipulation, Science Robotics 6 (54) (2021) eabd8803.   
+
+> McKenna et al.: Preprint Page 17 of 24 Open Challenges in Deformable Object Manipulation
+
+[13] H. A. Kadi, K. Terzić, Data-driven robotic manipulation of cloth-like deformable objects: The present, challenges and future prospects, Sensors 23 (5) (2023) 2389. [14] N. Lv, J. Liu, H. Xia, J. Ma, X. Yang, A review of techniques for modeling flexible cables, Computer-Aided Design 122 (2020) 102826. [15] Y. C. Hou, K. S. M. Sahari, D. N. T. How, A review on modeling of flexible deformable object for dexterous robotic manipulation, International Journal of Advanced Robotic Systems 16 (3) (2019) 1729881419848894. [16] V. E. Arriola-Rios, P. Guler, F. Ficuciello, D. Kragic, B. Siciliano, J. L. Wyatt, Modeling of deformable objects for robotic manipulation: A tutorial and review, Frontiers in Robotics and AI 7 (2020) 82. [17] J. Sanchez, J.-A. Corrales, B.-C. Bouzgarrou, Y. Mezouar, Robotic manipulation and sensing of deformable objects in domestic and industrial applications: a survey, The International Journal of Robotics Research 37 (7) (2018) 688–716. [18] F. Gu, Y. Zhou, Z. Wang, S. Jiang, B. He, A survey on robotic manipulation of deformable objects: Recent advances, open challenges and new frontiers, Unpublished or preprint (n.d.). [19] J. Luo, E. Solowjow, C. Wen, J. A. Ojea, A. M. Agogino, Deep reinforcement learning for robotic assembly of mixed deformable and rigid objects, 2018 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) (2018) 2062–2069IEEE. [20] L. Sun, G. Aragon-Camarasa, S. Rogers, J. P. Siebert, Accurate garment surface analysis using an active stereo robot head with application to dual-arm flattening, 2015 IEEE International Conference on Robotics and Automation (ICRA) (2015) 185–192IEEE. [21] X. Lin, Y. Wang, J. Olkin, D. Held, Softgym: Benchmarking deep reinforcement learning for deformable object manipulation, arXiv preprintAccessed: Oct. 09, 2023. Available: https://arxiv.org/abs/2011.07215v2 (2023). [22] J. Matas, A. Davidson, E. Johns, S. James, Learning end-to-end robotic manipulation of deformable objects, Unpublished or preprint (n.d.). [23] X. Liang, F. Liu, Y. Zhang, Y. Li, S. Lin, M. Yip, Real-to-sim deformable object manipulation: Optimizing physics models with residual mappings for robotic surgery, arXiv preprintArXiv:2309.11656. Accessed: Oct. 14, 2024. Available: http://arxiv.org/abs/2309.11656 (2024). [24] A. J. Valencia, F. Nadon, P. Payeur, Toward real-time 3d shape tracking of deformable objects for robotic manipulation and shape control, 2019 IEEE SENSORS (2019) 1–4Montreal, QC, Canada: IEEE. doi: 10.1109/SENSORS43011.2019.8956623. [25] M. A. Lee, Y. Zhu, P. Zachares, M. Tan, K. Srinivasan, S. Savarese, L. Fei-Fei, A. Garg, J. Bohg, Making sense of vision and touch: Learning multimodal representations for contact-rich tasks, IEEE Transactions on Robotics 36 (3) (2020) 582–596. [26] P. Battaglia, R. Pascanu, M. Lai, D. Jimenez Rezende, et al., Interaction networks for learning about objects, relations and physics, Advances in Neural Information Processing Systems 29 (2016). [27] F. Nadon, A. J. Valencia, N. Sambandam, S. Rowlands, J. Dickens, P. Payeur, Toward a general framework for 3d deformable object grasping and manipulation, Workshop on Robotic Manipulation of Deformable Objects (ROMADO) at the IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) (2020). [28] P. Henrich, B. Gyenes, P. M. Scheikl, G. Neumann, F. Mathis-Ullrich, Registered and segmented de-formable object reconstruction from a single view point cloud, Proc. 2024 IEEE/CVF Winter Confer-ence on Applications of Computer Vision (WACV)ArXiv:2311.07357. Accessed: Nov. 04, 2024. Available: http://arxiv.org/abs/2311.07357 (2023). [29] S. Chen, Y. Xu, C. Yu, L. Li, D. Hsu, Differentiable particles for general-purpose deformable object manipula-tion, arXivArXiv:2405.01044. Accessed: Nov. 04, 2024. Available: http://arxiv.org/abs/2405.01044 (2024).   
+
+> McKenna et al.: Preprint Page 18 of 24 Open Challenges in Deformable Object Manipulation
+
+[30] R. A. Newcombe, D. Fox, S. M. Seitz, Dynamicfusion: Reconstruction and tracking of non-rigid scenes in real-time, Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (2015) 343–352. [31] M. Dou, P. Davidson, S. R. Fanello, S. Khamis, A. Kowdle, C. Rhemann, V. Tankovich, S. Izadi, Motion2fusion: Real-time volumetric performance capture, ACM Transactions on Graphics (ToG) 36 (6) (2017) 1–16. [32] N. Haouchine, J. Dequidt, I. Peterlik, E. Kerrien, M.-O. Berger, S. Cotin, Image-guided simulation of hetero-geneous tissue deformation for augmented reality during hepatic surgery, 2013 IEEE International Symposium on Mixed and Augmented Reality (ISMAR) (2013) 199–208IEEE. [33] T. Collins, A. Bartoli, N. Bourdel, M. Canis, Robust, real-time, dense and deformable 3d organ tracking in la-paroscopic videos, International Conference on Medical Image Computing and Computer-Assisted Intervention (2016) 404–412Springer. [34] J. Schulman, A. Lee, J. Ho, P. Abbeel, Tracking deformable objects with point clouds, 2013 IEEE International Conference on Robotics and Automation (2013) 1130–1137IEEE. [35] A. Petit, V. Lippiello, G. A. Fontanelli, B. Siciliano, Tracking elastic deformable objects with an rgb-d sensor for a pizza chef robot, Robotics and Autonomous Systems 88 (2017) 187–201. [36] T. Tang, Y. Fan, H.-C. Lin, M. Tomizuka, State estimation for deformable objects by point registration and dynamic simulation, 2017 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) (2017) 2427–2433IEEE. [37] T. Tang, C. Wang, M. Tomizuka, A framework for manipulating deformable linear objects by coherent point drift, IEEE Robotics and Automation Letters 3 (4) (2018) 3426–3433. [38] A. Myronenko, X. Song, Point set registration: Coherent point drift, IEEE Transactions on Pattern Analysis and Machine Intelligence 32 (12) (2010) 2262–2275. [39] Z. Weng, et al., Interactive perception for deformable object manipulation, arXivArXiv:2403.05177. Accessed: Nov. 04, 2024. Available: http://arxiv.org/abs/2403.05177 (2024). [40] Y. S. Narang, B. Sundaralingam, K. Van Wyk, A. Mousavian, D. Fox, Interpreting and predicting tactile signals for the syntouch biotac, The International Journal of Robotics Research 40 (12-14) (2021) 1467–1487. [41] W. Yuan, S. Dong, E. H. Adelson, Gelsight: High-resolution robot tactile sensors for estimating geometry and force, Sensors 17 (12) (2017) 2762. [42] S. Sundaram, P. Kellnhofer, Y. Li, J.-Y. Zhu, A. Torralba, W. Matusik, Learning the signatures of the human grasp using a scalable tactile glove, Nature 569 (7758) (2019) 698–702. [43] Y. She, S. Wang, S. Dong, N. Sunil, A. Rodriguez, E. Adelson, Cable manipulation with a tactile-reactive gripper, The International Journal of Robotics Research 40 (12-14) (2021) 1385–1401. [44] R. B. Hellman, C. Tekin, M. van der Schaar, V. J. Santos, Functional contour-following via haptic perception and reinforcement learning, IEEE Transactions on Haptics 11 (1) (2017) 61–72. [45] Q. Zhang, Y. Li, Y. Luo, W. Shou, M. Foshey, J. Yan, J. B. Tenenbaum, W. Matusik, A. Torralba, Dynamic modeling of hand-object interactions via tactile sensing, 2021 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) (2021) 2874–2881IEEE. [46] R. Wu, C. Ning, H. Dong, Learning foresightful dense visual affordance for deformable object manipulation, arXivArXiv:2303.11057 (Jul. 21 2023). doi:10.48550/arXiv.2303.11057 .[47] Y. Deng, X. Wang, L. Chen, Learning visual-based deformable object rearrangement with local graph neural networks, Complex Intelligent Systems 9 (5) (2023) 5923–5936. doi:10.1007/s40747-023-01048-w .[48] B. Thach, B. Y. Cho, S.-H. Ho, T. Hermans, A. Kuntz, Deformernet: Learning bimanual manipulation of 3d deformable objects, arXivArXiv:2305.04449 (Feb. 19 2024). doi:10.48550/arXiv.2305.04449 .  
+
+> McKenna et al.: Preprint Page 19 of 24 Open Challenges in Deformable Object Manipulation
+
+[49] Z. Yu, et al., Precise robotic needle-threading with tactile perception and reinforcement learning, Unpublished-Details not provided (2023). [50] Y. Wi, A. Zeng, P. Florence, N. Fazeli, Virdo++: Real-world, visuo-tactile dynamics and perception of deformable objects, UnpublishedDetails not provided (2024). [51] H. Zhang, Z. Lu, W. Liang, H. Yu, Y. Mao, Y. Wu, Interaction control for tool manipulation on deformable objects using tactile feedback, IEEE Robotics and Automation Letters PP (2023) 1–8. doi:10.1109/LRA. 2023.3257680 .[52] P. Zhou, Enhancing deformable object manipulation by using interactive perception and assistive tools, arXivArXiv:2311.09659 (Nov. 16 2023). doi:10.48550/arXiv.2311.09659 .[53] W. Xie, Z. Yu, Z. Zhao, B. Zuo, Y. Wang, Hmdo: Markerless multi-view hand manipulation capture with deformable objects, arXivArXiv:2301.07652 (Jan. 18 2023). doi:10.48550/arXiv.2301.07652 .[54] M. Müller, J. Stam, D. James, N. Thürey, Real time physics: Class notes, ACM SIGGRAPH 2008 Classes, SIGGRAPH (2008) 88:1–88:90. [55] J. Bender, M. Müller, M. Macklin, Position-based simulation methods in computer graphics, EUROGRAPHICS Tutorials (2017). [56] J. Schulman, A. Gupta, S. Venkatesan, M. Tayson-Frederick, P. Abbeel, A case study of trajectory transfer through non-rigid registration for a simplified suturing scenario, Proceedings of the IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) (2013) 4111–4117. [57] Y. Kita, F. Kanehiro, T. Ueshiba, N. Kita, Clothes handling based on recognition by strategic observation, Proceedings of the IEEE-RAS International Conference on Humanoid Robots (2011) 53–58. [58] M. Macklin, M. Müller, N. Chentanez, T.-Y. Kim, Unified particle physics for real-time applications, ACM Transactions on Graphics 33 (2014) 153. [59] M. Macklin, M. Müller, N. Chentanez, Xpbd: Position-based simulation of compliant constrained dynamics, Proceedings of the 9th International Conference on Motion in Games, MIG ’16 (2016) 49–54. [60] P. Güler, K. Pauwels, A. Pieropan, H. Kjellström, D. Kragic, Estimating the deformability of elastic materials us-ing optical flow and position-based dynamics, Proceedings of the IEEE International Conference on Humanoid Robots (Humanoids) (2015) 965–971. [61] P. Boonvisut, M. C. Çavuşoğlu, Estimation of soft tissue mechanical parameters from robotic manipulation data, IEEE/ASME Transactions on Mechatronics 18 (2013) 1602–1611. [62] M. Zollhöfer, M. Nießner, S. Izadi, C. Rhemann, C. Zach, M. Fisher, C. Wu, A. Fitzgibbon, C. Loop, C. Theobalt, M. Stamminger, Real-time non-rigid reconstruction using an rgb-d camera, ACM Transactions on Graphics 33 (2014) 156. [63] F. Faure, C. Duriez, H. Delingette, J. Allard, B. Gilles, S. Marchesseau, H. Talbot, H. Courtecuisse, G. Bousquet, I. Peterlik, S. Cotin, Sofa: A multi-model framework for interactive physical simulation, Soft Tissue Biomechan-ical Modeling for Computer Assisted Surgery 11 (2012) 283–321. [64] E. Yoshida, K. Ayusawa, I. G. Ramirez-Alpizar, K. Harada, C. Duriez, A. Kheddar, Simulation-based optimal motion planning for deformable object, IEEE International Workshop on Advanced Robotics and its Social Impacts (ARSO) (2015) 1–6. [65] J. Matas, S. James, A. J. Davison, Sim-to-real reinforcement learning for deformable object manipulation, Proceedings of the Conference on Robot Learning (CoRL) (2018) 734–743. [66] D. McConachie, D. Berenson, Estimating model utility for deformable object manipulation using multiarmed bandit methods, IEEE Transactions on Automation Science and Engineering 15 (2018) 967–979.   
+
+> McKenna et al.: Preprint Page 20 of 24 Open Challenges in Deformable Object Manipulation
+
+[67] A. Petit, F. Ficuciello, G. A. Fontanelli, L. Villani, B. Siciliano, Using physical modeling and rgb-d registration for contact force sensing on deformable objects, International Conference on Informatics in Control, Automation and Robotics (ICINCO) 2 (2017) 24–33. [68] N. Haouchine, W. Kuang, S. Cotin, M. Yip, Vision-based force feedback estimation for robot-assisted surgery using instrument-constrained biomechanical three-dimensional maps, IEEE Robotics and Automation Letters 3 (2018) 2160–2165. [69] F. Faure, C. Duriez, H. Delingette, J. Allard, B. Gilles, S. Marchesseau, H. Talbot, H. Courtecuisse, G. Bousquet, I. Peterlik, et al., Sofa: A multi-model framework for interactive physical simulation, in: Y. Payan (Ed.), Soft Tissue Biomechanical Modeling for Computer Assisted Surgery, Springer, Berlin, Heidelberg, 2012, pp. 283– 321, doi: 10.1007/8415_2012_125. [70] SOFA Consortium, Improving performance in sofa simulations, https://sofa-framework.github.io/ doc/using-sofa/performances/improve-performances/ , accessed: 2025-10-07 (2023). [71] C. Duriez, E. Coevoet, F. Largilliere, J. Dequidt, M. Marchal, A. Kruszewski, O. Goury, Sofa and soft robotics: The sofa softrobot plugin, in: IEEE International Conference on Soft Robotics (RoboSoft), 2018, pp. 711–716, doi: 10.1109/ROBOSOFT.2018.8404955. [72] R. Nunes, A. Oliveira, P. Costa, P. Lima, Development of a ppo-reinforcement learned walking tripedal soft-legged robot using sofa, arXiv preprint arXiv:2504.09242Available at: https://arxiv.org/abs/2504. 09242 (2024). [73] NVIDIA, Physx sdk, OnlineAvailable: https://developer.nvidia.com/physx-sdk. Accessed: 25-Sep-2019 (2019). [74] Y. Bai, W. Yu, C. K. Liu, Dexterous manipulation of cloth, Proceedings of the 37th Annual Conference of the European Association for Computer Graphics, EG ’16 (2016) 523–532. [75] W. Yu, A. Kapusta, J. Tan, C. C. Kemp, G. Turk, C. K. Liu, Haptic simulation for robot-assisted dressing, Proceedings of the IEEE International Conference on Robotics and Automation (ICRA) (2017) 6044–6051. [76] Z. Erickson, H. M. Clever, G. Turk, C. K. Liu, C. C. Kemp, Deep haptic model predictive control for robot-assisted dressing, 2018 IEEE International Conference on Robotics and Automation (ICRA) (2018) 4437–4444. [77] A. Kapusta, Z. Erickson, H. M. Clever, W. Yu, C. K. Liu, G. Turk, C. C. Kemp, Personalized collaborative plans for robot-assisted dressing via optimization and simulation, Autonomous Robots 43 (2019) 2183–2207. [78] V. Makoviychuk, et al., Isaac gym: High performance gpu based physics simulation for robot learning, Thirty-fifth Conference on Neural Information Processing Systems Datasets and Benchmarks Track (Round 2)Accessed: Oct. 21, 2023 (Aug. 2021). URL https://openreview.net/forum?id=fgFBtYgJQX_ 
+
+[79] I. Huang, et al., Defgraspsim: Simulation-based grasping of 3d deformable objects, arXivArXiv:2107.05778, Accessed: Nov. 04, 2024 (Jul. 12 2021). URL http://arxiv.org/abs/2107.05778 
+
+[80] I. Mordatch, E. Todorov, Z. Popović, Discovery of complex behaviors through contact-invariant optimization, ACM Transactions on Graphics 31 (2012) 43. [81] G. Brockman, V. Cheung, L. Pettersson, J. Schneider, J. Schulman, J. Tang, W. Zaremba, Openai gym, arXiv preprint arXiv:1606.01540 (2016). [82] E. Todorov, Convex and analytically-invertible dynamics with contacts and constraints: Theory and implemen-tation in mujoco, 2014 IEEE International Conference on Robotics and Automation (ICRA) (2014) 6054–6061. [83] V. Petrík, V. Kyrki, Feedback-based fabric strip folding, 2019 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) (2019) 773–778.   
+
+> McKenna et al.: Preprint Page 21 of 24 Open Challenges in Deformable Object Manipulation
+
+[84] W. Yan, A. Vangipuram, P. Abbeel, L. Pinto, Learning predictive representations for deformable objects using contrastive estimation, Proceedings of the Conference on Robot Learning (CoRL) (2020). [85] E. Coumans, Y. Bai, Pybullet, a python module for physics simulation for games, robotics and machine learning, OnlineAvailable: http://pybullet.org (2016). [86] C. Elbrechter, R. Haschke, H. Ritter, Folding paper with anthropomorphic robot hands using real-time physics-based modeling, Proceedings of IEEE International Conference on Humanoid Robots (Humanoids) (2012) 210– 215. [87] Z. Erickson, V. Gangaram, A. Kapusta, C. K. Liu, C. C. Kemp, Assistive gym: A physics simulation framework for assistive robotics, Proceedings of the IEEE International Conference on Robotics and Automation (ICRA) (2020) 10169–10176. [88] K. Tabata, H. Seki, T. Tsuji, T. Hiramitsu, Mass spring model for non-uniformed deformable linear ob-ject toward dexterous manipulation, Artificial Life and Robotics 28 (4) (2023) 812–822. doi:10.1007/ s10015-023-00889-5 .[89] D. Shi, H. Hu, C. Yang, Z. Lu, Q. Li, A learning system for deformable object cooperative manipulation, IEEE Transactions on Automation Science and Engineering (2024) 1–12 doi:10.1109/TASE.2024.3486063 .[90] L. Zaidi, J. A. Corrales Ramon, L. Sabourin, B. C. Bouzgarrou, Y. Mezouar, Grasp planning pipeline for robust manipulation of 3d deformable objects with industrial robotic hand + arm systems, Applied Sciences 10 (23) (2020) Article 23. doi:10.3390/app10238736 .[91] M. Yu, K. Lv, C. Wang, M. Tomizuka, X. Li, A coarse-to-fine framework for dual-arm manipulation of deformable linear objects with whole-body obstacle avoidance, 2023 IEEE International Conference on Robotics and Automation (ICRA) (2023) 10153–10159 doi:10.1109/ICRA48891.2023.10160264 .[92] F. Liu, E. Su, J. Lu, M. Li, M. C. Yip, Robotic manipulation of deformable rope-like objects using differentiable compliant position-based dynamics, IEEE Robotics and Automation Letters 8 (7) (2023) 3964–3971. doi: 10.1109/LRA.2023.3264766 .[93] J. Sanchez, K. Mohy El Dine, J. A. Corrales, B.-C. Bouzgarrou, Y. Mezouar, Blind manipulation of deformable objects based on force sensing and finite element modeling, Frontiers in Robotics and AI 7 (2020). doi: 10.3389/frobt.2020.00073 .[94] Y. Huang, C. Xia, X. Wang, B. Liang, Learning graph dynamics with external contact for deformable linear objects shape control, IEEE Robotics and Automation Letters (2023). [95] H. Shi, H. Xu, Z. Huang, Y. Li, J. Wu, Robocraft: Learning to see, simulate, and shape elasto-plastic objects with graph networks, arXiv preprint arXiv:2205.02909 (2022). [96] L. Zaidi, J. A. Corrales, B. C. Bouzgarrou, Y. Mezouar, L. Sabourin, Model-based strategy for grasping 3d deformable objects using a multi-fingered robotic hand, Robotics and Autonomous Systems 95 (2017) 196–206. [97] Y. Li, Y. Yue, D. Xu, E. Grinspun, P. K. Allen, Folding deformable objects using predictive simulation and trajectory optimization, 2015 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) (2015) 6000–6006. [98] H. Lin, F. Guo, F. Wang, Y.-B. Jia, Picking up a soft 3d object by ’feeling’ the grip, The International Journal of Robotics Research 34 (11) (2015) 1361–1384. [99] J. Shiach, Shooting method for odes, Online resourceAccessed: Nov. 24, 2024 (2024). URL https://jonshiach.github.io/ODEs-book/_pages/5.1_Shooting_method.html 
+
+[100] A. Sintov, S. Macenski, A. Borum, T. Bretl, Motion planning for dual-arm manipulation of elastic rods, IEEE Robotics and Automation Letters 5 (4) (2020) 6065–6072.   
+
+> McKenna et al.: Preprint Page 22 of 24 Open Challenges in Deformable Object Manipulation
+
+[101] W. H. Lui, A. Saxena, Tangled: Learning to untangle ropes with rgb-d perception, 2013 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) (2013). [102] D. McConachie, T. Power, P. Mitrano, D. Berenson, Learning when to trust a dynamics model for planning in reduced state spaces, IEEE Robotics and Automation Letters 5 (2) (2020) 3540–3547. [103] T. Bretl, Z. McCarthy, Quasi-static manipulation of a kirchhoff elastic rod based on a geometric analysis of equilibrium configurations, The International Journal of Robotics Research 33 (1) (2014) 48–68. [104] A. J. Shah, J. A. Shah, Towards manipulation planning for multiple interlinked deformable linear objects, 2016 IEEE International Conference on Robotics and Automation (ICRA) (2016) 3908–3915. [105] R. Tedrake, Underactuated robotics: Algorithms for walking, running, swimming, flying, and manipulation, MIT Course Notes for 6.832Accessed: Nov. 24, 2024 (2023). URL https://underactuated.csail.mit.edu/trajectory_optimization.html 
+
+[106] M. W. Spong, S. Hutchinson, M. Vidyasagar, Robot modeling and control, Wiley 1st ed. (2005). [107] R. S. Sutton, A. G. Barto, Reinforcement learning: An introduction, MIT Press 2nd ed. (2018). [108] S. Chen, et al., Daxbench: Benchmarking deformable object manipulation with differentiable physics, Interna-tional Conference on Learning Representations (ICLR)Accessed: Jan. 17, 2024 (2022). URL https://openreview.net/forum?id=1NAzMofMnWl 
+
+[109] S. Chen, Y. Liu, J. Li, S. W. Yao, T. Fan, J. Pan, Diffsrl: Learning dynamical state representation for deformable object manipulation with differentiable simulator, arXiv preprint arXiv:2110.12352 (Jul. 2022). 
+
+doi:10.48550/arXiv.2110.12352 .[110] J. Lv, Y. Feng, C. Zhang, S. Zhao, L. Shao, C. Lu, Samrl: Sensing-aware model-based reinforcement learning via differentiable physics-based simulation and rendering, arXiv preprint arXiv:2210.15185 (2022). [111] S. Kudoh, T. Gomi, R. Katano, T. Tomizawa, T. Suehiro, In-air knotting of rope by a dual-arm multi-finger robot, 2015 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) (2015) 6202–6207. [112] Y. Ren, R. Chen, Y. Cong, Autonomous manipulation learning for similar deformable objects via only one demonstration, Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (2023) 17069–17078. [113] H. Zhi, et al., Non-prehensile object transport by nonholonomic robots connected by linear deformable elements, IEEE Robotics and Automation Letters 9 (10) (2024) 8651–8658. doi:10.1109/LRA.2024.3440096 .[114] H. Deng, F. Ahmad, J. Xiong, Z. Xia, A robot-object unified modeling method for deformable object manipulation in constrained environments, IEEE/ASME Transactions on Mechatronics (2024) 1–12 doi:10. 1109/TMECH.2024.3371111 .[115] A. Choi, D. Tong, D. Terzopoulos, J. Joo, M. K. Jawed, Learning neural force manifolds for sim2real robotic symmetrical paper folding, IEEE Transactions on Automation Science and Engineering (2024) 1–0 doi:10. 1109/TASE.2024.3366909 .[116] R. Gieselmann, Synergies between policy learning and sampling-based planning, Technical ReportAccessed: Nov. 24, 2024 (2024). URL https://urn.kb.se/resolve?urn=urn:nbn:se:kth:diva-341911 
+
+[117] Z. Yang, Y. Wang, Y. Jiang, H. Zhang, C. Yang, Deformernet based 3d deformable objects shape servo control for bimanual robot manipulation, 2024 IEEE International Conference on Industrial Technology (ICIT) (2024) 1–7 doi:10.1109/ICIT58233.2024.10570080 .[118] K. Galassi, B. Wu, J. Perez, G. Palli, J.-M. Renders, Attention-based cloth manipulation from model-free topological representation, 2024 IEEE International Conference on Robotics and Automation (ICRA) (2024) 18207–18213 doi:10.1109/ICRA57147.2024.10610241 .  
+
+> McKenna et al.: Preprint Page 23 of 24 Open Challenges in Deformable Object Manipulation
+
+[119] T. R. Winter, A. M. Sundaram, W. Friedl, M. A. Roa, F. Stulp, J. Silvério, State- and context-dependent robotic manipulation and grasping via uncertainty-aware imitation learning, arXivArXiv:2410.24035 (Oct. 2024). doi:10.48550/arXiv.2410.24035 .[120] B. Mildenhall, P. P. Srinivasan, M. Tancik, J. T. Barron, R. Ramamoorthi, R. Ng, Nerf: Representing scenes as neural radiance fields for view synthesis, arXivArXiv:2003.08934, Accessed: Oct. 14, 2024 (Aug. 2020). URL http://arxiv.org/abs/2003.08934 
+
+[121] I. J. Goodfellow, et al., Generative adversarial networks, arXivArXiv:1406.2661 (Jun. 2014). doi:10.48550/ arXiv.1406.2661 .[122] A. Vaswani, et al., Attention is all you need, arXivArXiv:1706.03762 (Aug. 2023). doi:10.48550/arXiv. 1706.03762 .[123] Z. Shi, S. Peng, Y. Xu, A. Geiger, Y. Liao, Y. Shen, Deep generative models on 3d representations: A survey, arXivArXiv:2210.15663, Accessed: Oct. 14, 2024 (Aug. 2023). URL http://arxiv.org/abs/2210.15663 
+
+[124] F. Zargarbashi, J. Cheng, D. Kang, R. Sumner, S. Coros, Robotkeyframing: Learning locomotion with high-level objectives via mixture of dense and sparse rewards, arXivArXiv:2407.11562, Accessed: Nov. 12, 2024 (Nov. 2024). URL http://arxiv.org/abs/2407.11562 
+
+[125] K. Xu, W. Hu, J. Leskovec, S. Jegelka, How powerful are graph neural networks?, arXivArXiv:1810.00826 (Feb. 2019). doi:10.48550/arXiv.1810.00826 .  
+
+> McKenna et al.: Preprint Page 24 of 24
+
+Open Challenges in Deformable Object Manipulation 
+
+## 𝐅 = − 𝐤𝐱 
+
+Figure 1: Illustration of cloth modeling using a mass-spring system: a triangular mesh structure representing the cloth is depicted, with a magnified view showing the individual mass points and spring connections, highlighting the deformation mechanics and the use of Hooke’s law (bottom centre). McKenna et al.: Preprint Page 25 of 24 Open Challenges in Deformable Object Manipulation Uncompressed Compressed 
+
+Figure 2: The undeformed cube (left) represents the reference configuration, while the deformed cube (right) illustrates the effect of compressive forces acting along the horizontal sides (grey arrows). The deformation is described by the deformation gradient ( 𝐅 ), where 𝐅 = 𝜕 𝐱  
+
+> 𝜕 𝐗
+
+, mapping the reference configuration ( 𝐗 ) to the deformed configuration ( 𝐱 ). The strain in the material is captured by the strain tensor 𝜺 = 12
+
+(∇𝐮 + (∇ 𝐮 )⊤), with 𝜀 𝑥𝑥 < 0 indicating compression along the horizontal axis. The stress tensor ( 𝝈 ) satisfies the equilibrium condition ∇ ⋅ 𝝈 = 0 under static loading, and the material behavior follows Hooke’s law: 𝝈 = 𝐂 ∶ 𝜺 . The top and bottom faces remain undeformed due to fixed boundary conditions (𝑢 𝑦 = 0 ). 
+
+Figure 3: Shooting control diagram demonstrating forward dynamics and optimization. The constrained variables are in the action and control space (dashed rectangle). Diagram is based on [99] McKenna et al.: Preprint Page 26 of 24 Open Challenges in Deformable Object Manipulation 
+
+Figure 4: State trajectory exploration: The constrained variables lie within the state space (dashed rectangle), with actions determined based on state trajectories and inverse dynamics. This is a common framework in Model-Predictive-Control, a thorough explanation can be found here [105] .
+
+Figure 5: A basic closed-loop control framework based on visual features. A thorough description can be found here [106] McKenna et al.: Preprint Page 27 of 24 Open Challenges in Deformable Object Manipulation 
+
+Figure 6: RL pipeline: First, the configurations of the DO are encoded into a latent space. Next, the RL agent generates manipulation actions by mapping the current and goal latent representations, enabling continuous interaction with the environment until the task is successfully completed. A thorough introduction to these concepts can be found in [107] McKenna et al.: Preprint Page 28 of 24 Open Challenges in Deformable Object Manipulation Challenges 
+
+1. Need for Generalization. 2. Need to close the gap between learning from state information compared to high-dimensional observation. 3. Need for physical accuracy in manipulation. 4. Need for efficient learning. 5. Need for task specifications. 6. Need for Scalability across object and task types. 
+
+Task Specification 
+
+• Expert demonstrations enable long-horizon or complex multi-stage tasks. 
+
+Perception Module 
+
+• Multiple camera perspectives reduce occlusion issues by capturing comprehensive 3D models. 
+
+• Active cameras, with dynamically adjusting viewpoints, are necessary to track deformable objects as they change shape. 
+
+• Tactile perception addresses occlusions that are inaccessible to vision alone . 
+
+• Rich, detailed datasets are essential for accurate deformable object registration in complex environments . 
+
+• Whole-scene identification prior to planning provides necessary context for manipulation tasks. 
+
+• Dual-arm active camera systems effectively combat occlusions through coordinated control. 
+
+Manipulation Module 
+
+• Physically informed RL enables precise control needed for DOM. 
+
+• Physically informed RL enables orders of magnitude faster convergence and more efficient learning. 
+
+• Expert demonstrations enable orders of magnitude faster convergence and more efficient learning. 
+
+• Expert demonstrations enable long-horizon or complex multi-stage tasks. 
+
+Modelling Module 
+
+• Real-time simulation vital for DOM. 
+
+• Physical Simulation vital for DOM. 
+
+• Differentiability of Simulation vital for learning algorithms. 
+
+1, 5, 6 2 3, 4 
+
+3, 4 
+
+Figure 7: Illustration links techniques and approaches that show great promise in DOM to face the key challenges outlined at the beginning of this review. McKenna et al.: Preprint Page 29 of 24

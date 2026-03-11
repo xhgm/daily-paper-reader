@@ -1,0 +1,582 @@
+Title: Direction-aware 3D Large Multimodal Models
+
+URL Source: https://arxiv.org/pdf/2602.19063v1
+
+Published Time: Tue, 24 Feb 2026 01:59:29 GMT
+
+Number of Pages: 16
+
+Markdown Content:
+# Direction-aware 3D Large Multimodal Models 
+
+## Quan Liu 1 Weihao Xuan 2,3 Junjue Wang 2 Naoto Yokoya 2,3 Ling Shao 4 Shijian Lu 1,†
+
+> 1
+
+## Nanyang Technological University 2The University of Tokyo 3RIKEN AIP 
+
+> 4
+
+## UCAS-Terminus AI Lab, University of Chinese Academy of Sciences 
+
+## Abstract 
+
+3D large multimodal models (3D LMMs) rely heavily on ego poses for enabling directional question-answering and spa-tial reasoning. However, most existing point cloud bench-marks contain rich directional queries but lack the corre-sponding ego poses, making them inherently ill-posed in 3D large multimodal modelling. In this work, we redefine a new and rigorous paradigm that enables direction-aware 3D LMMs by identifying and supplementing ego poses into point cloud benchmarks and transforming the correspond-ing point cloud data according to the identified ego poses. We enable direction-aware 3D LMMs with two novel de-signs. The first is PoseRecover, a fully automatic pose re-covery pipeline that matches questions with ego poses from RGB-D video extrinsics via object–frustum intersection and visibility check with Z-buffers. The second is PoseAlign that transforms the point cloud data to be aligned with the identified ego poses instead of either injecting ego poses into textual prompts or introducing pose-encoded features in the projection layers. Extensive experiments show that our designs yield consistent improvements across multi-ple 3D LMM backbones such as LL3DA, LL3DA-SONATA, Chat-Scene, and 3D-LLAVA, improving ScanRefer mIoU by 
+
+30 .0% and Scan2Cap LLM-as-judge accuracy by 11 .7% .In addition, our approach is simple, generic, and training-efficient, requiring only instruction tuning while establish-ing a strong baseline for direction-aware 3D-LMMs. 
+
+## 1. Introduction 
+
+Generalist point cloud 3D large multimodal models (3D-LMMs) pursue broad competence in 3D scene under-standing and reasoning, targeting key tasks such as object grounding [25, 49, 56, 58], referring [1, 5, 57], question answering [2, 55], ego position reasoning [33], object cap-tioning [10, 59], route planning [43], segmentation [18, 44], detection [45], etc. Such enabling represents a key step to-       
+
+> †Corresponding author: Shijian.Lu@ntu.edu.sg Code is available at https://github.com/liuQuan98/PoseAlign3D (a) Direction -agnostic 3 D LMM (b) Direction -aware 3D LMM
+> Q: Where is the bathroom placed relative to
+> the bed ?
+> Left Right Left
+
+Figure 1. Ego pose is critical in spatial reasoning and understand-ing. (a) Direction-agnostic 3D LMMs are struggling to reason spa-tial directions due to the absence of ego-pose information. (b) In-corporating ego pose resolves directional ambiguity, enabling con-sistent and robust spatial reasoning. 
+
+wards the visual-cognitive core of future embodied agents [14, 22]. In particular, an ideal generalist 3D-LMM should possess persistent awareness of ego poses and spatial direc-tions in the world coordinate for accurate understanding of 3D input data [41, 52], robust and alias-free spatial reason-ing [14, 60], and safely navigating in 3D environments [22]. Ego-pose awareness entails distinguishing lateral direc-tions (e.g., ‘left’, ‘right’, ‘front’, ‘back’) that are defined ac-cording to a reference frame [15]. Two forms of directions have been widely adopted: 1) Egocentric Direction that de-fines spatial relations relative to the agent’s own body axes (e.g. , ‘the object is on my left’) and 2) Allocentric Direction 
+
+that defines spatial relations relative to an external anchor (e.g. , ‘the man is on the left of his car’). For indoor scenar-ios where the anchor has no canonical axes, like a plate or a table, the reference of the allocentric direction falls back to the ego agent [15]. Hence, an ego pose is essential to reconcile the two forms of directions to achieve consistent spatial reasoning and understanding by 3D LMMs. However, most existing 3D indoor datasets such as Scan-1
+
+> arXiv:2602.19063v1 [cs.CV] 22 Feb 2026
+
+Refer [5], Multi3DRefer [61], ScanQA [2], Scan2Cap [10], and Nr3D [1] contain many allocentric directional queries but provide no explicit ego poses, positioning spatial rea-soning ill-posed and hindering the acquisition of persistent ego pose awareness as illustrated in Figure 1. This omis-sion largely stems from their assumption of a global third-person rather than an egocentric first-person perspective of the scene. Prior studies address this omission mostly by creating new datasets instead of rectifying existing ones, requiring 3D LMMs to infer ego poses while responding to spatial queries [33, 60]. Actually, inferring ego poses as a latent variable is conceptually redundant, as ego poses are already available when an embodied agent collects in-door point clouds via simultaneous localization and map-ping (SLAM) [35]. To this end, we propose to directly in-corporate the readily available pose data as model inputs due to two factors: (1) it rigorously resolves the directional ambiguity in existing 3D indoor benchmarks; (2) it does not affect the application scope of 3D LMMs by leveraging the ‘free-lunch’ pose in the practical embodied workflow. More discussion is available in section A.1. For efficient implementation, we enable the new paradigm with two new designs. The first is PoseRe-cover , an automatic pose generation pipeline that addresses the lack of ego poses in existing benchmarks. Specifi-cally, PoseRecover retrieves question-related camera poses from ScanNet RGB-D sequences by matching camera frus-tums with relevant object annotations such as segmentation masks, bounding boxes, and location annotators, leading to a list of candidate camera poses for online training or infer-ence. During the forward pass, candidates undergo various screenings to purge opposite-view errors and ensure authen-ticity while maintaining a certain degree of variety. The second is PoseAlign , a simple solution that incorporates the identified ego pose into point cloud data to enable their in-terpretation by existing 3D LMMs. Specifically, PoseAlign 
+
+repositions point clouds to align with the identified ego poses, enabling universal direction-awareness across exist-ing 3D LMMs of different architectures. Thanks to the co-ordinate sensitivity of pretrained point cloud encoders, the direction awareness can be boosted without even tuning the encoder of 3D LMMs. The contributions of this work can be summarized in three major aspects. First, we identify that most existing 3D LMM benchmarks suffer from ill-posed directions and propose a new paradigm that mitigates this problem effec-tively by incorporating an ego pose. Second, we design PoseRecover and PoseAlign, the former being a pose gen-eration pipeline that addresses the ill-posed problem in 3D LMM benchmarks by recovering mission-critical pose data, and the latter being a simple yet effective modifier that en-ables direction-awareness for existing 3D LMMs by inject-ing pose data into the point cloud. Third, extensive experi-ments show that our approach improves the direction aware-ness substantially and consistently across 4 different bench-marks and all 3D LMM architectures. 
+
+## 2. Related Work 
+
+2.1. Indoor 3D LMM Benchmarks 
+
+Following the huge success of 2D visual understand-ing benchmarks [31, 32] and the richly-annotated indoor datasets [4, 12, 49], the first batch of 3D understanding benchmarks [1, 55, 57] take similar approaches to link ob-jects with text descriptions in 3D with expert human annota-tors, achieving a stunning variety and volume of tasks, e.g. ,referral [5], captioning [10], and question-answering [2]. While one could argue that their human-centric pipelines implied the viewing direction must be from a human stand-ing inside the room, not explicitly defining such poses causes their questions to be inherently ill-posed [60]. Of-ten completed by crowdsourcing, these benchmarks could never again accurately recover those poses. Later attempts to improve directional awareness [16, 17, 25, 33, 49, 60] have recognized this problem but failed to fully address it. SQA3D [33] provides a text description of an ego situation and a QA pair that requires spatial rea-soning. While the text description implicitly conveys the ego pose, this approach introduces textual ambiguity and is not practically meaningful in real-world applications, where ego pose descriptions are not always available. View2Cap [60] proposes the Situation Grounding module, which takes in a frustum-cropped partial point cloud and regresses the associated camera pose. However, pose regression is far from textual reasoning with direction awareness, thus its ef-fect is limited. Scene-LLM [16] enhances egocentric aware-ness using a two-step inference scheme, with first an ego-centric frustum-cropped point cloud and then a scene-level point cloud. However, this approach is unnecessarily com-plex and uses proprietary code and data. Furthermore, these methods all set new benchmarks rather than altering exist-ing ones, which still suffer from the problem of ill-posed directional definition. 
+
+2.2. 3D LMMs 
+
+2D-based 3D LMMs. Based on powerful 2D-pretrained networks, e.g. , CLIP [42], DINOv2 [39], and LLAVA-Video [62], this line of research focuses on projecting RGB-D image features back to 3D for understanding [16, 19, 53, 63]. 3D-LLM [19] explored a mixture of projection meth-ods, including direct projection, SLAM [36], and NeRF [34]. Video-3D-LLM [63] and Spatial-MLLM [53] parse the scene as an RGB-D video with pretrained video- or vision-language-models (VLMs). These methods introduce implicit information of ego pose in the images, therefore can be seen as natural implementations of our method. 222.5 cm 
+
+# 6. 6 cm 
+
+(c) Z buffer 
+
+visibility check 
+
+RGB image 
+
+> [{
+> ‘scene’: ‘scene0203_00’,
+> ‘valid_obj_ids ’: [0,1,2,…],
+> ‘pose_files ’: [‘0.txt’,‘25.txt’,…],
+> ‘cam_object_intersect ions ’:[
+> [0.0, 0.231, 0.01, …]
+> …
+> [0.0, 0.60, 0.12, …]
+> ]
+> },{
+> ‘scene’: ‘scene0203_01’,
+> ‘valid_obj_ids ’: [0,6,7,…],
+> ‘pose_files ’: [‘25.txt’,‘50.txt’,…],
+> ‘cam_object_intersections ’:[
+> [0.116, 0.0, 0.0, …]
+> …
+> [0.01, 0.02, 0.30, …]
+> ]
+> },…]
+
+(d) Pose list (saved) 
+
+(b) Frustum -object 
+
+intersection check 
+
+> 40% Outlier
+> Frustum
+> 60% Intersection
+
+(a) Point cloud, camera 
+
+poses and objects Figure 2. The offline data generation pipeline for PoseRecover . (a) Object annotations and camera poses are obtained from ScanNet-v2 [12]. Camera poses and objects are downsampled for visibility. Zoom in for details. (b) PoseRecover exhaustively calculates the intersection rates between objects and camera frustums. (c) Visibility of the intersection is further validated with a z-buffer. (d) These intersection rates are saved and later sampled during training or inference to supplement ego poses to models. 
+
+Detector-based 3D LMMs. To reconcile between com-putational complexity and loss of task-centric information, these methods choose 3D detection [45] or instance seg-mentation [44] to encode objects as LLM input tokens [9, 18, 21, 22, 50, 64]. For example, Chat-Scene [21] ex-tracts object-centric features via a pretrained detector and passes these object features as tokens using a unified ob-ject identifier token. However, these methods are inherently limited by the detector capability and ignore background in-formation, which is essential for reasoning in real scenarios. 
+
+3D-backbone-based 3D LMMs. This line of method processes the scene-level point cloud in a single forward pass which is then compressed and sent to LLM for rea-soning [8, 14, 23]. LL3DA [8] encodes scene-level features through a Q-Former [30] for natural human interaction. In-spired by superpoint transformers [28, 29, 46], 3D-LLAVA [14] completes point cloud processing and compression si-multaneously using the cluster centers, i.e. , superpoints, as tokens. Due to natural processing of scene contexts, these methods achieve state-of-the-art performance but are highly contingent on the point cloud encoder design. 
+
+## 3. Data Pipeline 
+
+Existing point cloud benchmarks, including ScanQA, Scan-Refer, Multi3DRefer, SQA3D, Scan2Cap, and Nr3D, con-tain 40% to 95% direction-critical queries according to our analysis, yet they omit the camera pose information re-quired to determine the ego agent’s directional context. As analyzed in Section 1, this omission renders a significant portion of questions ill-posed with respect to egocentric or allocentric direction understanding. To address this, we in-troduce PoseRecover, a fully automatic pipeline that recov-ers ego poses for all text–scene pairs. We first introduce the question analysis to establish our motivation, then intro-duce the offline PoseRecover pipeline as depicted in Figure 2, which matches the question-specific ground-truth object annotation with the camera frustums, and finally introduce two pose selection strategies during online training or infer-ence. 
+
+3.1. Question-Level Analysis 
+
+We first quantify the degree of directional ambiguity in existing datasets. An open-source large language model (GPT-OSS-20B [38]) is prompted with a series of ques-tion–answer pairs and tasked to determine whether answer-ing the question requires explicit lateral direction reasoning (e.g., “left”, “behind”, “in front of”) [51]. We kindly refer readers to C for the full prompt and B.2 for detailed results. This binary judgment establishes the direction-critical sub-sets of existing datasets, which guide the downstream pose recovery stage. Across datasets, we find that between 40% to 95% of the questions require directional reasoning and are therefore ill-posed without ego-pose supervision. 
+
+3.2. Pose Supplementation via PoseRecover 
+
+Given the intrinsic and extrinsic parameters of the raw RGB-D sequences in ScanNet-v2, we compute the 3D cam-era frustums (a visible pyramid with near and far cutoff) and measure their spatial intersection with question-related ob-jects, and save all normalized intersection values into a pose list. Multiple forms of object annotations are supported: 
+
+Segmentation-based. For segmentation masks, every point in the point cloud is projected into the image plane using the camera intrinsic and extrinsic, forming a Z-buffer following Equations 1-3: 
+
+(x′
+
+> i
+
+, y ′
+
+> i
+
+, z ′
+
+> i
+
+)⊺ = R−1(pi − t), (1) 
+
+(ui, v i, 1) ⊺ = ⌊K(x′
+
+> i
+
+, y ′
+
+> i
+
+, z ′
+
+> i
+
+)⊺/z ′
+
+> i
+
+⌋, (2) 3(a) Vanilla 
+
+> Point Cloud
+> Encoder
+> Prompt
+> Answer
+> Projection
+> LLM LoRA
+
+(b) PoseAlign -Transform 
+
+> Point Cloud
+> Encoder
+> Prompt
+> Answer
+> Pose
+> Projection
+> LLM LoRA
+> Prompt
+
+(c) PoseAlign -Embed 
+
+> Point Cloud
+> Encoder
+> Answer
+> Pose
+> Projection*
+> LLM LoRA
+
+(d) PoseAlign -Prompt 
+
+> Point Cloud
+> Encoder
+> Prompt*
+> Answer
+> Pose
+> Projection
+> LLM LoRA
+
+Figure 3. Three viable designs for PoseAlign . We explore three mutually exclusive designs to incorporate ego poses into the vanilla model in (a): 1) PoseAlign-Transform that shifts point clouds to the ego reference frame in (b); 2) PoseAlign-Embed that encodes ego poses into point cloud features in (c); 3) PoseAlign-Prompt that integrates ego poses into the text prompt in (d). The projection layer and the LoRA [20] weights of the LLM are trained with instruction-tuning. 
+
+Zui,v i 
+
+> P
+
+= min    
+
+> j|(uj,v j)=( ui,v i)
+
+(z′ 
+
+> j
+
+),
+
+s.t. pi, p j ∈ P , 0 ≤ ui < U, 0 ≤ vi < V, 
+
+(3) where ZP ∈ RU ×V is the Z-buffer, P ∈ Rn×3 is the point cloud, K, (R| t) are the intrinsic and extrinsic, U, V are the Z-buffer sizes, and ⌊·⌋ is the floor operation. A visibility mask is established by depth-buffer comparison, where only the visible points are counted: 
+
+ϕseg = 1
+
+|Mobj |
+
+X   
+
+> k∈Mobj ,0≤uk<U, 0≤vk<V
+
+Iz′ 
+
+> k
+
+< Z uk ,v k 
+
+> P
+
++ δ
+
+(4) where Mobj is the segmentation mask consisting of point indices for the object, the margin δ = 10 −6 tolerates numer-ical instability, and I[·] is the Iverson Bracket. The intersec-tion ratio ϕseg is then defined as the proportion of visible object points lying within the frustum. 
+
+Bounding-box-based. As closed-form intersection be-tween bounding box and frustum can be hard to calculate, we apply Monte-Carlo sampling in the box for an estima-tion of the intersection ratio ϕbox with Equation 5: 
+
+ϕbox = 1
+
+|P sample |
+
+X
+
+> p∈P sample
+
+I[p ∈ F ],
+
+s.t. Psample = meshgrid( h, w, l, ∆) + ϵ, 
+
+(5) where F is the frustum region, h, w, l are the bounding box sizes, ∆ is a predefined grid size, meshgrid( ·) is a function that generates uniform spatial grid, and ϵ ∈ [0 , ∆) h    
+
+> ∆×w
+> ∆×l
+> ∆
+
+are random noises. 
+
+Point-based. For datasets that provide only a single ob-ject location [9], we compute the normalized pixel distance 
+
+ϕpoint between the projected object pixel and the image 0 50 100 150     
+
+> Maximum yaw difference (degrees)
+> 10 4
+> 10 3
+> 10 2
+> 10 1
+> KDE (log scale)  Clip Ratio X
+> 0.0
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> 0.49
+
+Figure 4. Effect of the pose clipping. The KDE [47] of maxi-mum yaw difference among pose candidates rapidly concentrates around zero with increasing clip ratio in ScanQA. Higher clip ratio reduces data variety but boosts pose stability. 
+
+center following Equations 6-7, where smaller distances im-ply larger intersections: 
+
+(uobj , v obj , 1) ⊺ = ⌊KR−1(pobj − t)/z ′ 
+
+> obj
+
+⌋ (6) 
+
+ϕpoint =
+
+
+
+1− ( U      
+
+> 2−uobj ,V
+> 2−vobj )2
+
+  U  
+
+> 2,V
+> 2
+
+    
+
+> 2
+> if 0≤uobj <U,
+> and 0≤vobj <V
+
+0 else (7) where pobj ∈ R3 is the object center coordinate, and z′ 
+
+> obj
+
+is the camera-view depth following Equation 1. These intersection ratios are exhaustively calculated be-tween all camera poses and objects, yielding a camera-object intersection matrix for each scene as depicted in Fig-ure 2(d). Thanks to vectorized implementation, the visibil-ity check costs less than 40 minutes for ScanNet-v2. We refer readers to section A.1 for more discussions. 
+
+3.3. Pose Selection Strategy 
+
+During the forward pass, we retrieve the question-specific column of the camera-object intersection matrix using the ground-truth object annotation in existing datasets. Among the candidate camera poses with non-zero intersection, we evaluate two strategies: (1) Top : Selecting the pose with the highest intersection ratio, and (2) Clip : Random sam-pling after discarding the top and bottom X% non-zero 4scores, where X is the clip ratio. Empirically, the second method with a mediocre X performs better, as it reduces outlier cases like opposite views with 180 ° yaw difference among candidate poses while still retaining decent variety, as shown in Figure 4. This final camera pose serves as the ego reference frame for the language query, enabling an au-thentic definition of direction semantics across all datasets. 
+
+## 4. Method 
+
+Owing to the absence of ego-pose information in existing benchmarks, current 3D LMMs are not designed to ac-cept pose data as direct input. To bridge this gap, we de-sign and compare three PoseAlign variants as displayed in Figure 3, each augmenting a common backbone (e.g., 3D-LLAVA-style architecture) with ego-pose information through a different pathway: (1) point cloud transforma-tion (PoseAlign-Transform), (2) projection-layer positional embedding (PoseAlign-Embed), and (3) pose prompt injec-tion (PoseAlign-Prompt). All variants finetune the multi-modal projector and the LLM (if applicable) jointly under a LoRA-based adaptation scheme. 
+
+4.1. PoseAlign-Transform 
+
+This variant directly transforms the input point cloud into the recovered camera coordinate frame: 
+
+(Paligned |1) ⊺ = UT −1(P| 1) ⊺,
+
+s.t. T =
+
+R t
+
+0 1
+
+
+
+, U =
+
+
+
+0 0 1 0
+
+−1 0 0 00 −1 0 00 0 0 1
+
+ , (8) where P is the point cloud, (R| t) is the camera extrin-sic matrix, and U transforms right-down-front camera co-ordinate to front-left-up coordinate for alignment with the pretrained point cloud encoder. This operation aligns the spatial distribution of scene points with the ego-viewing di-rection, ensuring that “left” and “right” are consistently ex-pressed in the egocentric frame. Because the transformation preserves all geometric relationships, no architectural mod-ifications are required downstream. This approach achieves the best empirical performance and is therefore used as our default method. 
+
+4.2. PoseAlign-Embed 
+
+Here, we keep the point cloud unchanged but modulate the projection layer of the multimodal projector with an embed-ding of the 6-DoF pose: 
+
+faligned = f + MLP(encode( R, t, Pf )) , (9) where we encode a series of manual geometric features of the coordinates of the tokens Pf ∈ R#tokens ×3 into the original feature vectors f ∈ R#tokens ×d using an MLP. This introduces pose awareness at the feature-projection stage without altering geometry. 
+
+4.3. PoseAlign-Prompt 
+
+In this variant, the pose is serialized as numeric to-kens and prepended to the textual prompt in the following format: f‘position {t}, up {R[:,2] },front {R[:,0] }, left {R[:,1] }’. This allows the LLM to reason explicitly about spatial direction in text. Despite its conceptual simplicity, the numeric-token format introduces numeric tokenization overhead and inconsistent positional grounding, resulting in modest performance de-terioration. More discussion is available in Section A.2 
+
+## 5. Results 
+
+5.1. Experiment Setup 
+
+Datasets. We conduct experiments on a series of datasets including ScanRefer [5], Multi3DRefer [61], ScanQA [2], SQA3D [33], and Scan2Cap [10]. These datasets are based on the ScanNet-v2 dataset [12], consisting of 1,513 indoor scenes, among which 1,201 are used for training and 312 are used for validation. 
+
+Metrics. We adopt both traditional metrics and new met-rics of LLM-as-judge [51] for a comprehensive assessment suite. The LLM-as-judge Accuracy ( L-A ) adopts GPT-OSS-20B [38] or GPT-5-mini [37] (see section B.2) as the base model. The prompt (see section C) is based on the SimpleQA benchmark [51]. L-A is consistent under differ-ent paraphrases of the same meaning, focusing on the in-variant meanings instead of more random wording choices [51]. We also report traditional metrics including CiDEr (C), BLEU-4 ( B-4 ), METEOR ( M), and ROUGE-L ( R) for QA datasets, where Scan2Cap metrics are restricted to in-stances with ≥ 0.5 IoU ( @0.5 ) except L-A. We follow com-mon practice to use thresholded Accuracy@0.5 ( A@0.5 ), F1-score@0.5 ( F1@0.5 ), and mean intersection over union (mIoU) for ScanRefer [5] and Multi3DRefer [61]. 
+
+Baselines and implementation. We adopt four baseline models from an array of distinct architectures to apply PoseAlign modifications, including LL3DA [8], LL3DA-SONATA, Chat-Scene [21], and 3D-LLAVA [14]. LL3DA-SONATA, referred to as LL3DA-S, is a variant of LL3DA whose point cloud encoder is switched to SONATA[54]. All modifications belong to PoseAlign-Transform ( PoseAlign-T) except for Chat-Scene, which employs PoseAlign-Embed ( PoseAlign-E ) due to its reliance on precomputed point cloud embeddings. 5Model Modality ScanRef (val) Multi3DRef (val) ScanQA (val) Scan2Cap (val) A@0.5 mIoU F1@0.5 mIoU C B-4 M R L-A C@0.5 B-4@0.5 M@0.5 R@0.5 L-A                                                                                                                                                                                                                                                                                                                                                                                                                        
+
+> Specialist Models:
+> ScanQA [2] PC ----64.9 10.1 13.1 33.3 ------3D-VLP [27] PC ----67.0 11.2 13.5 34.5 -54.9 32.3 24.8 51.5 -3D-VisTA [64] PC ----69.6 10.4 13.9 45.7 -61.6 34.1 26.8 55.0 -Scan2Cap [10] PC ---------39.1 23.3 22.0 44.8 -MORE [26] PC ---------40.9 22.9 21.7 44.4 -SpaCap3D [48] PC ---------44.0 25.3 22.3 45.4 -D3Net [6] PC ---------46.1 30.3 24.4 51.7 -UniT3D [11] PC ---------46.7 27.2 21.9 46.0 -3DJCG [3] PC ---------49.5 31.0 24.2 50.8 -Vote2Cap-DETR [7] PC ---------61.8 34.5 26.2 54.4 -TGNN [24] PC -27.8 ------------M3DRef-CLIP [61] PC -35.7 -32.6 ----------X-RefSeg3D [41] PC -29.9 ------------3D-STMN [52] PC -39.5 ------------
+> Finetuned Generalists:
+> 3D-LLM [19] PC+I ----69.4 12.0 14.5 35.7 ------Scene-LLM [16] PC+I ----80.0 12.0 16.8 40.0 ------SegPoint [18] PC -41.7 -36.1 ----------
+> Generalists:
+> LEO [22] PC ----101.4 13.2 20.0 49.2 -72.4 38.2 27.9 58.1 -Scene-LLM [16] PC ----80.0 11.7 15.8 35.9 ------Grounded 3D-LLM [9] PC ----72.7 13.4 ---70.6 35.5 ---
+> PoseRecover Benchmark:
+> LL3DA [8] PC ----75.3 13.1 15.2 36.7 34.7 61.6 35.3 25.6 54.3 16.0 LL3DA + PoseAlign-T PC ----76.7 13.9 15.6 37.1 35.6 E: Rotated box LL3DA-S [8, 54] PC ----75.0 12.6 15.1 37.0 34.8 E: No detector LL3DA-S + PoseAlign-T PC ----76.5 13.2 15.6 36.8 35.9 Chat-Scene [21] PC+I 46.4 -49.1 -85.6 15.6 17.8 40.4 43.9 74.0 34.5 26.8 56.4 26.6 Chat-Scene + PoseAlign-E PC+I 46.9 -50.2 -87.2 15.1 18.1 41.1 44.7 75.5 35.0 27.1 56.7 26.9 3D-LLAVA [14] PC 41.5 42.6 -48.1 95.4 16.3 18.9 44.6 45.7 77.4 36.4 26.9 57.4 28.1 3D-LLAVA + PoseAlign-T PC 58.7 55.4 -54.3 99.8 17.3 19.7 46.5 47.3 76.1 37.1 27.1 57.6 31.4
+
+Table 1. Cross-dataset performance comparison on multiple 3D vision-language tasks. ‘PC’ and ‘I’ represent point cloud and image modalities, respectively. Major metrics are highlighted with gray background. Performance on PoseRecover benchmark may differ from those in the original papers due to retraining with lower batch sizes. Baselines in PoseRecover benchmark are comparable with all methods because they do not use pose information, while our modifications are comparable within the benchmark due to additional pose input. 
+
+Training specifications. All comparison methods are trained with only the instruction-tuning stage using respec-tive original training schemes and datasets. For Chat-Scene [21] and 3D-LLAVA [14], the LLM LoRA [20] and the projection layer are trained while the 3D encoder is frozen. For LL3DA [8], only the Q-Former [30] is trained. Freezing the encoder prevents the formation of preference over objects on the positive x-axis, ensuring fairness in segmentation- or detection-based assessments. All point cloud data augmentations have been disabled for PoseAlign variants to precisely align the egocentric point cloud coor-dinates, which include random rotation, flipping, jittering, and scaling. We deem that data augmentation is compen-sated by the randomness of ego poses during pose selec-tion, where PoseAlign-Transform and -Embed can be seen as exotic implementations of rotation-shift augmentation. 
+
+5.2. Main Results 
+
+In this experiment, we validate the effectiveness of PoseRe-cover and PoseAlign designs with an array of specialist and generalist 3D LMMs on the ScanRefer, Multi3DRefer, ScanQA, and Scan2Cap datasets in Table 1. All modi-fied models on the PoseRecover Benchmark get the addi-tional pose input retrieved using the PoseRecover script. The performance of LEO [22] is colored in gray as it utilizes the ground truth object features, which forms a slightly stronger setting as discussed in section A.2. LL3DA has poor compatibility with rotated boxes, and SONATA is a feature extractor with no detector component, so some results on Scan2Cap are omitted. Methods en-hanced with PoseAlign receive performance boosts broadly across datasets and metrics, where 3D-LLAVA modified with PoseAlign-Transform hits the highest overall perfor-mance of 55 .4% (∆30 .0%) ScanRefer mIoU, 54 .3% (∆12 .9%) 
+
+Multi3DRefer mIoU, 47 .3% (∆3 .5%) and 31 .4% (∆11 .7%) 
+
+LLM-as-judge accuracy on ScanQA and Scan2Cap, respec-tively. We conclude that PoseAlign unleashes the full capa-bilities of current 3D LMMs, which were once bounded by the ill-posed problem definition in existing benchmarks. 6Design ScanRef Multi3DRef ScanQA Scan2Cap mIoU ↑ mIoU ↑ L-A ↑ L-A ↑                                           
+
+> Baseline 42.6 48.1 45.7 28.1 Baseline PoseAlign-T(Top) 37.5 41.5 43.0 23.5 Random Pose 39.0 44.3 44.7 25.8 PoseAlign-T(Clip X=0.3) 55.4 54.3 47.3 31.4
+> PoseAlign-T(Top) 68.5 60.2 47.5 29.7 PoseAlign-E(Top) 43.2 49.3 43.4 23.5 PoseAlign-P(Top) 44.2 49.4 44.9 28.1
+> Table 2. Ablation experiment on 3D-LLAVA .‘Baseline PoseAlign-T’ is the performance of the baseline model on PoseAlign-T data, where the input point cloud is transformed to the camera location following Equation 8. ‘Random Pose’ uses random camera poses instead of those found by PoseRecover.
+
+Is PoseAlign a good addition to existing tasks? We fo-cus on the PoseRecover benchmark to validate the effec-tiveness of PoseAlign. Comparing all four baselines with our respective modifications, performance boosts can be widely seen across QA datasets with an average bump of 
+
+1% and 0.6% on ScanQA and Scan2Cap, respectively, in-cluding CiDEr, BLEU-4, METEOR, and ROUGE-L on all four backbones. The LLM-as-judge accuracy boosts are greater for PoseAlign-T variants ( 35 .6% (∆2 .6%) on LL3DA, 35 .9% (∆3 .2%) on LL3DA-S, 47 .3% (∆3 .5%) on 3D-LLAVA) than PoseAlign-E variants ( 44 .7% (∆1 .8%) on Chat-Scene), signaling a better realization of direction awareness. On refer segmentation benchmarks, both Chat-Scene and 3D-LLAVA receive performance boosts among which 3D-LLAVA receives the largest +12 .8% and +6 .2% 
+
+mIoU on ScanRefer and Multi3DRefer, respectively. Such performance is astounding given that the point cloud seg-mentor ( i.e., 3D encoder) is frozen, which attributes all im-provements to improved ‘ <SEG >’ token quality generated by the LLM [14]. We conclude that, given their potential to improve performance, ego-poses are undoubtedly good additions to current 3D LMM pipelines. 
+
+Is LLM-as-judge a good metric? As discussed in sec-tion 5.1, a good language-task metric should be consistent under verbal randomness as confirmed by Table 1. LLM-as-judge accuracy is consistently higher across all our mod-ifications than the respective baselines, while other metrics tend to fluctuate. It is also robust to the judgment model, as shown in Tables 1 and 6. We conclude that LLM-as-judge is a sufficiently good metric for this task. 
+
+5.3. Other Results 
+
+Ablation on 3D-LLAVA. We compare the effect of dif-ferent PoseAlign designs on 3D-LLAVA in Table 2. Incor-porating ego-pose information clearly benefits spatial rea-soning, as the proposed PoseAlign-Transform consistently outperforms all other variants on refer segmentation tasks, improving mIoU by up to 68 .5% (∆60 .8%) on ScanRefer and 60 .2% (∆25 .2%) on Multi3DRefer. The Clip strategy ScanRef Multi3DRef ScanQA Scan2Cap                                   
+
+> XmIoU ↑mIoU ↑L-A ↑L-A ↑
+> 0.0 55.1 54.2 47.3 30.1 0.1 55.2 54.3 46.6 30.8 0.2 54.8 54.3 47.3 31.2 0.3 55.4 54.3 47.3 31.4
+> 0.4 55.4 54.3 46.9 30.9 0.45 55.2 54.3 46.5 31.4
+> 0.49 55.1 53.9 46.9 31.1
+> Table 3. Parameter tuning experiment for Clip Ratio X of PoseAlign-Transform on 3D-LLAVA.
+
+(X = 0 .3) for PoseAlign-Transform further stabilizes per-formance metrics across benchmarks by purging inconsis-tent views. In contrast, encoding poses as text (PoseAlign-Prompt) or projection features (PoseAlign-Embed) offers limited or inconsistent gains. Additionally, test perfor-mance of a well-trained 3D-LLAVA baseline model on PoseAlign-Transform data (Baseline PoseAlign-T) signifi-cantly degrades all metrics, which gives two important in-sights: 1) the segmentation model never uses the pose data as a shortcut because it is frozen, and 2) the current perfor-mance increments are brought purely by better ‘ <SEG >’tokens. Using random poses also decreases model per-formance slightly below baseline, showcasing the impor-tance of PoseRecover design. We conclude that PoseAlign-Transform with the Clip strategy where X = 0 .3 is the most balanced and robust way of introducing directional aware-ness into 3D LMMs. 
+
+Parameter tuning. Table 3 analyzes the sensitivity of the Clip Ratio X in PoseAlign-Transform, which discards the top and bottom X% of views based on object–frustum in-tersection during selection of the mission-critical pose. De-spite theoretical concerns about opposite-view errors dis-cussed in Figure 4, the model performance remains stable across datasets for 0.0 ≤ X ≤ 0.49 with a slight hill in the mediocre Clip Ratio ranging from 0.2 ≤ X ≤ 0.4,demonstrating the robustness of the method to this hyper-parameter. This is because a smaller variance in viewing di-rections indeed enhances pose coherence but destroys data diversity, while higher variance in viewing directions adds noise to the model but also serves as effective data aug-mentation as discussed in section 5.1. Moderate clipping (around X = 0 .3) yields the best balance, slightly improv-ing results on ScanQA and Scan2Cap to 47 .3% and 31 .4% ,respectively. Therefore, X = 0 .3 is adopted as the default value for all other experiments. 
+
+Performance on direction-critical subsets. Table 4compares the baseline 3D-LLAVA and its pose-aware variant (PoseAlign-Transform) on full validation sets, 7Model Evaluated on ScanQA ( 46 .7% Direction-critical) Scan2Cap ( 89 .7% Direction-critical) C↑ B-4 ↑ M↑ R↑ L-A ↑ C↑ B-4 ↑ M↑ R↑ L-A ↑
+
+3D-LLAVA Full Val set 95.4 16.3 18.9 44.6 45.7 77.4 36.4 26.93 57.4 28.1 Direction-critical subset 91.6 18.0 17.8 41.0 37.8 76.8 36.8 26.94 57.4 28.0 Complementary subset 97.6 11.9 20.1 47.7 52.4 82.7 32.6 26.88 56.9 29.6 3D-LLAVA+ PoseAlign-T Full Val set 99.8(+4.4) 17.3(+1) 19.7(+0.8) 46.5(+1.9) 47.3(+1.6) 76.1(-1.3) 37.1(+0.7) 27.11(+0.18) 57.6(+0.2) 31.4(+3.3) Direction-critical subset 96.1(+4.5) 19.6(+1.6) 18.7(+0.9) 43.1(+2.1) 40.3(+2.5) 75.9(-0.9) 37.5(+0.7) 27.12(+0.18) 57.7(+0.3) 31.3(+3.3) Complementary subset 101.8(+4.2) 11.5(-0.4) 20.8(+0.7) 49.4(+1.7) 53.3(+0.9) 77.8(-4.9) 33.4(+0.8) 27.10(+0.22) 56.9(+0.0) 32.6(+3.0) 
+
+Table 4. Performance on direction-critical question subset. User:  Where is the shelf                
+
+> located?
+> Baseline: T oright of door.
+> PoseAlign :Left of door.
+> User: What is on the left of
+> the light wood colored table?
+> Baseline: Microwave.
+> PoseAlign :Chair.
+> User: Capture the essence of the
+> appearance of <OBJ>, then analyze
+> its spatial relationships within
+> the scene's context.
+> Baseline: This is a white sink.
+> it is to the right of the toilet.
+> PoseAlign : This is a white sink.
+> it is to the left of the toilet.
+> User: Describe the appearance of
+> the <OBJ>, then elaborate on its
+> positioning relative to other
+> objects in the scene.
+> Baseline: This is a white door. it
+> is to the right of a trash can.
+> PoseAlign : There is a rectangular
+> door. it is next to a trash can.
+
+# 9cm 
+
+Figure 5. Qualitative results of direction-critical questions for 3D-LLAVA baseline (top row) and PoseAlign-Transform (bottom row). The XYZ axes of the world coordinate frame are colored with red, green, and blue, respectively. The baseline paradigm uses default world coordinates of ScanNet-v2, which are non-informative. Instead, the PoseAlign paradigm aligns the coordinate frame to the recovered ego pose, providing an anchor for robust spatial reasoning. Red text highlights wrong answers and green text highlights correct answers. 
+
+direction-critical subsets, and their respective complemen-tary direction-agnostic subsets of ScanQA and Scan2Cap. Firstly, the direction-critical subsets identified via LLMs exhibit a notable performance drop in the baseline model, confirming that existing 3D LMMs struggle with ques-tions requiring spatial orientation. Applying PoseAlign-Transform consistently improves all metrics, especially the LLM-as-judge accuracy, narrowing down the gap between the two subsets. The gains are especially pronounced on ScanQA, where PoseAlign-T achieves 96 .1(∆4 .9%) CiDEr and 40 .3% (∆6 .6%) LLM-as-judge accuracy. While the direction-critical subset is the best-effort judgment of a powerful LLM, some direction-critical questions may still leak into the complementary subset, causing performance to rise slightly there as well. We conclude that our PoseAlign design indeed enhances directional reasoning based on the substantial improvements, especially on the direction-critical subsets. 
+
+5.4. Qualitative Results 
+
+As displayed in Figure 5, baseline models struggle to per-ceive spatial relationships, where the default world coordi-nate only adds confusion and complicates spatial reasoning. In contrast, PoseAlign effectively avoids directional ambi-guity thanks to the recovered ego pose, enabling robust and consistent spatial reasoning for 3D LMMs. 
+
+5.5. Limitations 
+
+Despite being lightweight and generic, our method has sev-eral limitations, including assuming SLAM accuracy, the variety of training views, and a static environment. We kindly refer readers to section A.3 for a detailed discussion. 
+
+## 6. Conclusion 
+
+We have proposed PoseRecover and PoseAlign, a pair of lightweight yet powerful techniques that transform exist-ing 3D LMMs towards a rigorously defined direction-aware paradigm. To fix existing benchmarks, PoseRecover auto-matically reconstructs mission-critical ego poses by align-ing object annotations with camera frustums derived from ScanNet RGB-D extrinsics, effectively correcting ill-posed direction-critical queries across existing datasets. Build-ing upon these recovered poses, PoseAlign enables persis-tent directional awareness for 3D LMMs by transforming 8the input point cloud or encoded point cloud embeddings into the camera reference frame, thereby resolving ambi-guity in ego direction and substantially improving spatial reasoning performance. Extensive experiments on multi-ple benchmarks and model architectures prove that PoseRe-cover and PoseAlign together unlock the latent potential of current 3D LMM architectures, achieving consistent perfor-mance gains without retraining the point cloud encoder. We advocate this framework as a simple, generic, and effective paradigm for advancing direction-aware 3D-language un-derstanding of LMMs. 
+
+## Acknowledgments 
+
+This research is supported by Networked Exchange, United Strength for Stronger Partnerships between Japan and ASEAN (NEXUS), a collaboration program between the Agency for Science, Technology and Research (A*STAR), Singapore (Grant No. R2416IR138), and the Japan Sci-ence and Technology Agency (JST), Japan (Grant No. JPMJNX25CA). Weihao Xuan is supported by the RIKEN Junior Research Associate (JRA) Program. 
+
+## References 
+
+[1] Panos Achlioptas, Ahmed Abdelreheem, Fei Xia, Mohamed Elhoseiny, and Leonidas Guibas. Referit3d: Neural listeners for fine-grained 3d object identification in real-world scenes. In European conference on computer vision , pages 422–440. Springer, 2020. 1, 2 [2] Daichi Azuma, Taiki Miyanishi, Shuhei Kurita, and Motoaki Kawanabe. Scanqa: 3d question answering for spatial scene understanding. In proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 19129– 19139, 2022. 1, 2, 5, 6 [3] Daigang Cai, Lichen Zhao, Jing Zhang, Lu Sheng, and Dong Xu. 3djcg: A unified framework for joint dense captioning and visual grounding on 3d point clouds. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 16464–16473, 2022. 6 [4] Angel Chang, Angela Dai, Thomas Funkhouser, Maciej Halber, Matthias Niessner, Manolis Savva, Shuran Song, Andy Zeng, and Yinda Zhang. Matterport3d: Learning from rgb-d data in indoor environments. arXiv preprint arXiv:1709.06158 , 2017. 2 [5] Dave Zhenyu Chen, Angel X Chang, and Matthias Nießner. Scanrefer: 3d object localization in rgb-d scans using natural language. In European conference on computer vision , pages 202–221. Springer, 2020. 1, 2, 5 [6] Dave Zhenyu Chen, Qirui Wu, Matthias Nießner, and An-gel X Chang. D 3 net: A unified speaker-listener architecture for 3d dense captioning and visual grounding. In European Conference on Computer Vision , pages 487–505. Springer, 2022. 6 [7] Sijin Chen, Hongyuan Zhu, Xin Chen, Yinjie Lei, Gang Yu, and Tao Chen. End-to-end 3d dense captioning with vote2cap-detr. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 11124– 11133, 2023. 6, 2 [8] Sijin Chen, Xin Chen, Chi Zhang, Mingsheng Li, Gang Yu, Hao Fei, Hongyuan Zhu, Jiayuan Fan, and Tao Chen. Ll3da: Visual interactive instruction tuning for omni-3d understanding reasoning and planning. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 26428–26438, 2024. 3, 5, 6, 2 [9] Yilun Chen, Shuai Yang, Haifeng Huang, Tai Wang, Run-sen Xu, Ruiyuan Lyu, Dahua Lin, and Jiangmiao Pang. Grounded 3d-llm with referent tokens. arXiv preprint arXiv:2405.10370 , 2024. 3, 4, 6 [10] Zhenyu Chen, Ali Gholami, Matthias Nießner, and Angel X Chang. Scan2cap: Context-aware dense captioning in rgb-d scans. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 3193–3203, 2021. 1, 2, 5, 6 [11] Zhenyu Chen, Ronghang Hu, Xinlei Chen, Matthias Nießner, and Angel X Chang. Unit3d: A unified transformer for 3d dense captioning and visual grounding. In Proceed-ings of the IEEE/CVF international conference on computer vision , pages 18109–18119, 2023. 6 [12] Angela Dai, Angel X Chang, Manolis Savva, Maciej Hal-ber, Thomas Funkhouser, and Matthias Nießner. Scannet: Richly-annotated 3d reconstructions of indoor scenes. In 
+
+Proceedings of the IEEE conference on computer vision and pattern recognition , pages 5828–5839, 2017. 2, 3, 5 [13] Wenliang Dai, Junnan Li, Dongxu Li, Anthony Tiong, Junqi Zhao, Weisheng Wang, Boyang Li, Pascale N Fung, and Steven Hoi. Instructblip: Towards general-purpose vision-language models with instruction tuning. Advances in neural information processing systems , 36:49250–49267, 2023. 3 [14] Jiajun Deng, Tianyu He, Li Jiang, Tianyu Wang, Feras Day-oub, and Ian Reid. 3d-llava: Towards generalist 3d lmms with omni superpoint transformer. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 3772–3782, 2025. 1, 3, 5, 6, 7, 2 [15] Christian Freksa, Christopher Habel, and Karl F Wender. 
+
+Spatial cognition: An interdisciplinary approach to repre-senting and processing spatial knowledge . Springer Science & Business Media, 1998. 1 [16] Rao Fu, Jingyu Liu, Xilun Chen, Yixin Nie, and Wen-han Xiong. Scene-llm: Extending language model for 3d visual understanding and reasoning. arXiv preprint arXiv:2403.11401 , 2024. 2, 6 [17] Zoey Guo, Yiwen Tang, Ray Zhang, Dong Wang, Zhigang Wang, Bin Zhao, and Xuelong Li. Viewrefer: Grasp the multi-view knowledge for 3d visual grounding. In Proceed-ings of the IEEE/CVF International Conference on Com-puter Vision , pages 15372–15383, 2023. 2 [18] Shuting He, Henghui Ding, Xudong Jiang, and Bihan Wen. Segpoint: Segment any point cloud via large language model. In European Conference on Computer Vision , pages 349–367. Springer, 2024. 1, 3, 6 [19] Yining Hong, Haoyu Zhen, Peihao Chen, Shuhong Zheng, Yilun Du, Zhenfang Chen, and Chuang Gan. 3d-llm: In-jecting the 3d world into large language models. Advances 
+
+9in Neural Information Processing Systems , 36:20482–20494, 2023. 2, 6 [20] Edward J Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, Weizhu Chen, et al. Lora: Low-rank adaptation of large language models. ICLR ,1(2):3, 2022. 4, 6 [21] Haifeng Huang, Yilun Chen, Zehan Wang, Rongjie Huang, Runsen Xu, Tai Wang, Luping Liu, Xize Cheng, Yang Zhao, Jiangmiao Pang, et al. Chat-scene: Bridging 3d scene and large language models with object identifiers. 
+
+Advances in Neural Information Processing Systems , 37: 113991–114017, 2024. 3, 5, 6, 2 [22] Jiangyong Huang, Silong Yong, Xiaojian Ma, Xiongkun Linghu, Puhao Li, Yan Wang, Qing Li, Song-Chun Zhu, Baoxiong Jia, and Siyuan Huang. An embodied generalist agent in 3d world. arXiv preprint arXiv:2311.12871 , 2023. 1, 3, 6 [23] Kuan-Chih Huang, Xiangtai Li, Lu Qi, Shuicheng Yan, and Ming-Hsuan Yang. Reason3d: Searching and reasoning 3d segmentation via large language model. In International Conference on 3D Vision 2025 , 2025. 3 [24] Pin-Hao Huang, Han-Hung Lee, Hwann-Tzong Chen, and Tyng-Luh Liu. Text-guided graph neural networks for re-ferring 3d instance segmentation. In Proceedings of the AAAI Conference on Artificial Intelligence , pages 1610– 1618, 2021. 6 [25] Shijia Huang, Yilun Chen, Jiaya Jia, and Liwei Wang. Multi-view transformer for 3d visual grounding. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 15524–15533, 2022. 1, 2 [26] Yang Jiao, Shaoxiang Chen, Zequn Jie, Jingjing Chen, Lin Ma, and Yu-Gang Jiang. More: Multi-order relation mining for dense captioning in 3d scenes. In European Conference on Computer Vision , pages 528–545. Springer, 2022. 6 [27] Zhao Jin, Munawar Hayat, Yuwei Yang, Yulan Guo, and Yin-jie Lei. Context-aware alignment and mutual masking for 3d-language pre-training. In Proceedings of the IEEE/CVF Con-ference on Computer Vision and Pattern Recognition , pages 10984–10994, 2023. 6 [28] Maxim Kolodiazhnyi, Anna Vorontsova, Anton Konushin, and Danila Rukhovich. Oneformer3d: One transformer for unified point cloud segmentation. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 20943–20953, 2024. 3 [29] Xin Lai, Yuhui Yuan, Ruihang Chu, Yukang Chen, Han Hu, and Jiaya Jia. Mask-attention-free transformer for 3d in-stance segmentation. In Proceedings of the IEEE/CVF Inter-national Conference on Computer Vision , pages 3693–3703, 2023. 3 [30] Junnan Li, Dongxu Li, Silvio Savarese, and Steven Hoi. Blip-2: Bootstrapping language-image pre-training with frozen image encoders and large language models. In In-ternational conference on machine learning , pages 19730– 19742. PMLR, 2023. 3, 6 [31] Haotian Liu, Chunyuan Li, Qingyang Wu, and Yong Jae Lee. Visual instruction tuning. Advances in neural information processing systems , 36:34892–34916, 2023. 2 [32] Haotian Liu, Chunyuan Li, Yuheng Li, and Yong Jae Lee. Improved baselines with visual instruction tuning. In Pro-ceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 26296–26306, 2024. 2 [33] Xiaojian Ma, Silong Yong, Zilong Zheng, Qing Li, Yi-tao Liang, Song-Chun Zhu, and Siyuan Huang. Sqa3d: Situated question answering in 3d scenes. arXiv preprint arXiv:2210.07474 , 2022. 1, 2, 5 [34] Ben Mildenhall, Pratul P Srinivasan, Matthew Tancik, Jonathan T Barron, Ravi Ramamoorthi, and Ren Ng. Nerf: Representing scenes as neural radiance fields for view syn-thesis. Communications of the ACM , 65(1):99–106, 2021. 2[35] Riku Murai, Eric Dexheimer, and Andrew J Davison. Mast3r-slam: Real-time dense slam with 3d reconstruction priors. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 16695–16705, 2025. 2 [36] K Murthy Jatavallabhula, G Iyer, and L Paull. gradslam: dense slam meets automatic differentiation. arXiv preprint arXiv:1910.10672 , 2019. 2 [37] OpenAI. Chatgpt (gpt-5), 2025. Large language model. 5 [38] OpenAI. gpt-oss-120b & gpt-oss-20b model card, 2025. 3, 5[39] Maxime Oquab, Timoth´ ee Darcet, Th´ eo Moutakanni, Huy Vo, Marc Szafraniec, Vasil Khalidov, Pierre Fernandez, Daniel Haziza, Francisco Massa, Alaaeldin El-Nouby, et al. Dinov2: Learning robust visual features without supervision. 
+
+arXiv preprint arXiv:2304.07193 , 2023. 2 [40] Songyou Peng, Kyle Genova, Chiyu Jiang, Andrea Tagliasacchi, Marc Pollefeys, Thomas Funkhouser, et al. Openscene: 3d scene understanding with open vocabularies. In Proceedings of the IEEE/CVF conference on computer vi-sion and pattern recognition , pages 815–824, 2023. 1 [41] Zhipeng Qian, Yiwei Ma, Jiayi Ji, and Xiaoshuai Sun. X-refseg3d: Enhancing referring 3d instance segmentation via structured cross-modal graph neural networks. In Proceed-ings of the AAAI Conference on Artificial Intelligence , pages 4551–4559, 2024. 1, 6 [42] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learning transferable visual models from natural language supervi-sion. In International conference on machine learning , pages 8748–8763. PMLR, 2021. 2, 1 [43] Manolis Savva, Abhishek Kadian, Oleksandr Maksymets, Yili Zhao, Erik Wijmans, Bhavana Jain, Julian Straub, Jia Liu, Vladlen Koltun, Jitendra Malik, et al. Habitat: Aplatform for embodied ai research. In Proceedings of the IEEE/CVF international conference on computer vision ,pages 9339–9347, 2019. 1 [44] Jonas Schult, Francis Engelmann, Alexander Hermans, Or Litany, Siyu Tang, and Bastian Leibe. Mask3d: Mask trans-former for 3d semantic instance segmentation. arXiv preprint arXiv:2210.03105 , 2022. 1, 3, 2 [45] Yichao Shen, Zigang Geng, Yuhui Yuan, Yutong Lin, Ze Liu, Chunyu Wang, Han Hu, Nanning Zheng, and Baining Guo. V-detr: Detr with vertex relative position encoding for 3d 
+
+10 object detection. arXiv preprint arXiv:2308.04409 , 2023. 1, 3[46] Jiahao Sun, Chunmei Qing, Junpeng Tan, and Xiangmin Xu. Superpoint transformer for 3d scene instance segmentation. In Proceedings of the AAAI Conference on Artificial Intelli-gence , pages 2393–2401, 2023. 3 [47] Berwin A Turlach. Bandwidth selection in kernel density estimation: A review. In CORE and Institut de Statistique .Citeseer, 1993. 4 [48] Heng Wang, Chaoyi Zhang, Jianhui Yu, and Weidong Cai. Spatiality-guided transformer for 3d dense captioning on point clouds. arXiv preprint arXiv:2204.10688 , 2022. 6 [49] Tai Wang, Xiaohan Mao, Chenming Zhu, Runsen Xu, Ruiyuan Lyu, Peisen Li, Xiao Chen, Wenwei Zhang, Kai Chen, Tianfan Xue, et al. Embodiedscan: A holistic multi-modal 3d perception suite towards embodied ai. In Proceed-ings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 19757–19767, 2024. 1, 2 [50] Zehan Wang, Haifeng Huang, Yang Zhao, Ziang Zhang, and Zhou Zhao. Chat-3d: Data-efficiently tuning large language model for universal dialogue of 3d scenes. arXiv preprint arXiv:2308.08769 , 2023. 3 [51] Jason Wei, Nguyen Karina, Hyung Won Chung, Yunxin Joy Jiao, Spencer Papay, Amelia Glaese, John Schulman, and William Fedus. Measuring short-form factuality in large lan-guage models. arXiv preprint arXiv:2411.04368 , 2024. 3, 5[52] Changli Wu, Yiwei Ma, Qi Chen, Haowei Wang, Gen Luo, Jiayi Ji, and Xiaoshuai Sun. 3d-stmn: Dependency-driven superpoint-text matching network for end-to-end 3d referring expression segmentation. In Proceedings of the AAAI Conference on Artificial Intelligence , pages 5940– 5948, 2024. 1, 6 [53] Diankun Wu, Fangfu Liu, Yi-Hsin Hung, and Yueqi Duan. Spatial-mllm: Boosting mllm capabilities in visual-based spatial intelligence. arXiv preprint arXiv:2505.23747 , 2025. 2[54] Xiaoyang Wu, Daniel DeTone, Duncan Frost, Tianwei Shen, Chris Xie, Nan Yang, Jakob Engel, Richard New-combe, Hengshuang Zhao, and Julian Straub. Sonata: Self-supervised learning of reliable point representations. In Pro-ceedings of the Computer Vision and Pattern Recognition Conference , pages 22193–22204, 2025. 5, 6, 2, 3 [55] Xu Yan, Zhihao Yuan, Yuhao Du, Yinghong Liao, Yao Guo, Shuguang Cui, and Zhen Li. Comprehensive visual ques-tion answering on point clouds through compositional scene manipulation. IEEE Transactions on Visualization and Com-puter Graphics , 30(12):7473–7485, 2023. 1, 2 [56] Zhengyuan Yang, Songyang Zhang, Liwei Wang, and Jiebo Luo. Sat: 2d semantics assisted training for 3d visual grounding. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 1856–1866, 2021. 1 [57] Zhihao Yuan, Xu Yan, Yinghong Liao, Ruimao Zhang, Sheng Wang, Zhen Li, and Shuguang Cui. Instancerefer: Cooperative holistic understanding for visual grounding on point clouds through instance multi-level contextual refer-ring. In Proceedings of the IEEE/CVF International Confer-ence on Computer Vision , pages 1791–1800, 2021. 1, 2 [58] Zhihao Yuan, Xu Yan, Zhuo Li, Xuhao Li, Yao Guo, Shuguang Cui, and Zhen Li. Toward explainable and fine-grained 3d grounding through referring textual phrases. 
+
+arXiv preprint arXiv:2207.01821 , 2022. 1 [59] Zhihao Yuan, Xu Yan, Yinghong Liao, Yao Guo, Guan-bin Li, Shuguang Cui, and Zhen Li. X-trans2cap: Cross-modal knowledge transfer using transformer for 3d dense captioning. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 8563– 8573, 2022. 1 [60] Zhihao Yuan, Yibo Peng, Jinke Ren, Yinghong Liao, Ya-tong Han, Chun-Mei Feng, Hengshuang Zhao, Guanbin Li, Shuguang Cui, and Zhen Li. Empowering large language models with 3d situation awareness. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 19435–19445, 2025. 1, 2 [61] Yiming Zhang, ZeMing Gong, and Angel X Chang. Multi3drefer: Grounding text description to multiple 3d ob-jects. In Proceedings of the IEEE/CVF International Con-ference on Computer Vision , pages 15225–15236, 2023. 2, 5, 6 [62] Yuanhan Zhang, Jinming Wu, Wei Li, Bo Li, Zejun Ma, Zi-wei Liu, and Chunyuan Li. Video instruction tuning with synthetic data. arXiv preprint arXiv:2410.02713 , 2024. 2 [63] Duo Zheng, Shijia Huang, and Liwei Wang. Video-3d llm: Learning position-aware video representation for 3d scene understanding. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 8995–9006, 2025. 2 [64] Ziyu Zhu, Xiaojian Ma, Yixin Chen, Zhidong Deng, Siyuan Huang, and Qing Li. 3d-vista: Pre-trained transformer for 3d vision and text alignment. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 2911– 2921, 2023. 3, 6 
+
+11 Direction-aware 3D Large Multimodal Models 
+
+# Supplementary Material 
+
+## A. Additional Notes 
+
+A.1. Explanations 
+
+Ill-posed questions without poses. At first glance, it may seem odd that questions involving left/right directions are ill-posed when ego pose is not present, especially to re-searchers in the fields of image or VLM research. A key distinction between images and 3D point clouds is that im-ages are captured from an ego pose, which inherently de-fines left/right as the image left/right; However, a room-level point cloud is reconstructed using RGB-D video or even with 360 degree view LiDARs. Once the points are put into free 3D space, the concept of an ego reference frame disappears, now that the ego pose can no longer be trivially inferred from the room-level point cloud data itself. How-ever, existing 3D LMMs receive only such a room-level point cloud and are asked to answer questions containing directional words, which is an ill-posed problem we aim to conquer in this paper. 
+
+From implicit ego pose inference to explicit ego pose in-put. We could infer from past research that they want the 3D LMM to implicitly infer its ego position first, then de-rive the related answers based on that inferred ego pose. However, this regime is both (1) inherently ill-posed, and (2) adds unnecessary complexity for the 3D LMM to in-fer its ego position, while the robot’s ego pose is trivially available in realistic applications such as SLAM-capable embodied intelligence operating indoors. We therefore con-clude that adding such pose data as additional input to the 3D LMMs does not change its application potential at all, and such conversion of regime is both practical and theoret-ically grounded. 
+
+From an ego pose trajectory to a mission-critical pose. 
+
+In practice, even when the ego trajectory is a free lunch, the agent does not always face the target object of the query and the mission-critical pose has to be assessed on-the-fly. However, we argue that such a mission-critical pose should be retrieved with other techniques rather than with the 3D LMM itself, as the task is essentially a cross-modal align-ment problem with well-established solutions. For example, the agent can localize the mission-critical area by compar-ing the text embedding of the queried object with an offline precomputed semantic map of the indoor point cloud, e.g., using CLIP [42] or OpenScene [40]. After that, using our PoseRecover script, the agent can locate the most proba-ble ego position from the ego pose trajectory, which can then be used to reason consistently and unambiguously. In this work, we are more interested in the prior problem of 
+
+whether a mission-critical pose retrieved from ground truth is a necessary and beneficial addition to 3D LMM input, to rectify the ill-posed direction definitions , rather than a full end-to-end implementation; Our work is purely exploratory and there must exist some better way of integrating those poses into a coherent pipeline than with our PoseAlign. 
+
+A.2. Discussions 
+
+Compatibility with image-based methods. We deem all image-based methods to have implicitly used ego pose tra-jectory during the camera projection of the input images. Therefore, these image-based methods are already implicit implementations of the PoseAlign-Transform method and do not need further modifications. 
+
+Compatibility with SQA3D. Notably, PoseAlign re-ceives negative results on SQA3D as listed in Tables 7-8. This is because among all training datasets, SQA3D is the only dataset that does not provide any object annotations, which means that PoseRecover pipeline cannot determine authentic poses for the questions, yielding random poses instead. This results in a slightly decreased performance compared to the baseline. We list supplementing object an-notations and poses to the SQA3D benchmark as a major future work. 
+
+Difference compared to the setting of LEO [22]. While both PoseRecover and LEO can utilize the ground truth ob-ject label, we want to point out that they are different set-tings. PoseRecover aims to rule out the directional ambi-guity problem which requires a pose that can only be re-trieved using object annotations. PoseAlign only feeds a pose facing the object into the point cloud encoder and the point cloud encoder is not tuned at all, which forbids for-mation of any direct object feature shortcuts like presented in LEO. We are fully aware that the performance increment of PoseAlign is brought by the normally unavailable pose provided by PoseRecover, but we see this as a testament to our hypothesis that a mission-critical pose derived prior to 3D LMMs is a great tool for ruling out reasoning ambigu-ity. The system in real action should be composed of two stages, where the agent first ‘imagines’ itself to be at the mission location and then derives the answers based on that reference frame. Furthermore, the way PoseRecover gen-erates the pose is non-deterministic and the target pose is randomly chosen from all poses that can see the target ob-ject, which makes it a lot more realistic and forgiving than 1ScanRefer Multi3DRef ScanQA Scan2Cap Model Noise Bound mIoU ↑ mIoU ↑ B-4 ↑ B-4 ↑                 
+
+> 3D-LLAVA /42.6 48.1 16.3 36.4 3D-LLAVA+ PoseAlign-T (Top) 0◦, 0m 68.5 60.2 17.3 37.1 15 ◦, 0.2m 62.5 57.7 17.1 36.9 30 ◦, 0.5m 53.2 55.1 17.0 36.6
+
+Table 5. Robustness to added uniform pose error. 5 3 1 1 3 5     
+
+> World X (m)
+> 5
+> 3
+> 1
+> 1
+> 3
+> 5
+> World Y (m)
+> World (XY)
+> 012345
+> Ego X (m)
+> 2.5
+> 1.5
+> 0.5
+> 0.5
+> 1.5
+> 2.5
+> Ego Y (m)
+> Ego (XY)
+> 0
+> 250
+> 500
+> Point count
+
+Figure 6. Distribution of objects in world (L) and PoseAlign ego (R) coordinates on X-Y plane. While clustered in front view, ob-jects still follow non-trivial distribution. 
+
+LEO setup as shown in Table 1. More explanation can be found in section A.1. 
+
+Applicability to RGB-D data without camera extrinsics or LiDAR data. In practical embodied workflows, cam-era extrinsics are a free lunch from SLAM. For datasets lacking extrinsics, they can be recovered offline using ORB-SLAM2 or similar methods. We simulated SLAM pose noises in Table 5 which reveals the robustness of our method. For single-frame RGB-D or LiDAR data with-out extrinsics, which are too sparse for SLAM, we oper-ate on single-frame point clouds, which naturally lie in the ego frame and thus constitute a natural application of our method. 
+
+Does our setup introduce information leakage? First, we clarify that our benchmark is intentionally defined as an ego-conditioned understanding task, rather than standard free-view understanding. As such, ego alignment is part of the task specification rather than an unintended shortcut. Second, to reduce unintended bias, we avoid selecting the single best-matching viewpoint and instead sample from a diverse candidate set, resulting in non-trivial object spatial distributions in the horizontal plane (see Figure 6). Third, we freeze the point cloud encoder to prevent learning geo-metric shortcuts, further limiting overfitting to pose priors. Fourth, a PoseAlign-trained 3D-LLAVA model tested on random camera extrinsics results in ScanRefer mIoU drop-ping from 55.4% to 42.9% but still above vanilla 42.6%. So target facing is crucial to directional awareness but is not a shortcut, otherwise the performance would drop be-low vanilla. 
+
+Interpretation of the performance superiority of PoseAlign-T. The pretrained 3D encoder is trained on Design ScanQA SQA3D Scan2Cap L-A ↑ L-A ↑ L-A ↑                        
+
+> LL3DA 35.2 -23.3 LL3DA+PoseAlign-T 35.4 --LL3DA-S 36.3 --LL3DA-S+PoseAlign-T 36.5 --Chat-Scene 44.1 56.9 38.6 Chat-Scene+PoseAlign-E 44.7 56.8 39.7 3D-LLAVA 45.9 58.1 39.3 3D-LLAVA+PoseAlign-T 48.3 57.3 40.7
+
+Table 6. Comparison between baselines and respective PoseAlign variants using GPT-5-mini for LLM-as-judge. 
+
+cartesian coordinates which internalizes a concept of dis-tance and directions based on the input coordinates. Com-pared to PoseAlign-T which guarantees consistency at in-put, PoseAlign-E and PoseAlign-P variants cannot guaran-tee alignment with (or even fight against) the encoder’s con-cept of direction, causing deterioration. 
+
+A.3. Limitations 
+
+While PoseRecover and PoseAlign provide a lightweight and general solution for introducing directional awareness into existing 3D-LMMs, several limitations remain. First, our method relies on the assumption that the 3D LMM is applied on embodied agents, where the availability and ac-curacy of camera extrinsics are guaranteed. Noise from in-accurate sensor calibration or synchronization is not con-sidered. Second, the recovered poses are limited to the dis-crete set of views present in ScanNet and may not fully represent all possible viewpoints implied by the language queries, e.g., ‘standing on the kitchen counter’ or ‘crouch-ing under the desk’. Third, although PoseAlign improves directional reasoning without retraining the point cloud en-coder, it still assumes the encoder’s coordinate sensitivity is preserved, which may not hold for certain architectures employing rotation-invariant designs. Finally, our approach focuses on static indoor environments; extending it to dy-namic or outdoor scenarios where ego motion and scene layout change continuously remains an open direction. 
+
+## B. Additional Experiments 
+
+B.1. Other Experimental Setup 
+
+Diversity of backbone architectures. We adopt four baseline models, including LL3DA [8], LL3DA-SONATA, Chat-Scene [21] and 3D-LLAVA [14]. Their encoder backbones have distinct architectures ranging from BERT-style Vote2Cap-DETR operating on point patches [7], self-supervised PointTransformerV3 with serialized voxels [54], sparse convolutional neural network with sparse voxels [44], and Omni Superpoint Transformer operating on su-perpoints [14]. They include both object-wise [8, 21] and 2X ScanQA (val) SQA3D (test) Scan2Cap (val) C B-4 M R L-A EM EM-R L-A C@0.5 B-4@0.5 M@0.5 R@0.5 L-A None 85.6 15.6 17.8 40.4 43.9 52.8 56.1 56.9 74.0 34.5 26.8 56.4 26.6 0.0 83.8 14.2 17.4 39.7 43.1 53.4 56.2 57.2 37.2 27.9 23.4 52.0 9.76 0.1 86.7 14.9 17.9 40.8 44.3 52.6 55.7 56.6 74.1 34.7 26.9 56.5 27.0 0.2 87.2 15.1 18.1 41.1 44.7 53.3 56.1 57.1 75.5 35.0 27.1 56.7 26.9 0.3 87.5 15.5 17.9 40.9 44.8 53.3 56.2 57.1 74.9 34.7 26.9 56.5 26.9 0.4 82.7 14.3 17.0 39.2 42.7 52.8 55.4 56.1 27.5 25.6 22.4 50.6 6.2 0.45 84.3 14.0 17.5 39.9 42.9 52.8 55.4 56.3 28.2 26.4 22.7 51.1 6.8 0.49 83.6 15.4 17.4 39.5 42.8 52.8 55.5 56.3 60.7 32.2 25.8 54.9 19.0 
+
+Table 7. Full parameter tuning experiment for Clip Ratio X of PoseAlign-Embed on Chat-Scene.                                                                                                     
+
+> XScanQA (val) SQA3D (test) Scan2Cap (val) CB-4 MRL-A EM EM-R L-A C@0.5 B-4@0.5 M@0.5 R@0.5 L-A None 95.4 16.3 18.9 44.6 45.7 54.9 57.3 57.9 77.4 36.4 26.9 57.4 28.1 0.0 98.7 16.3 19.3 46.2 47.3 55.1 57.6 56.1 75.5 36.6 26.9 57.2 30.1 0.1 99.4 17.4 19.4 46.1 46.6 52.6 55.0 55.6 76.6 37.0 27.1 57.5 30.8 0.2 99.8 17.3 19.5 46.5 47.3 53.4 56.2 56.6 74.7 36.9 27.0 57.5 31.2 0.3 99.8 17.3 19.7 46.5 47.3 54.2 56.7 57.4 76.1 37.1 27.1 57.6 31.4 0.4 96.9 15.6 19.0 45.6 46.9 53.5 56.1 55.9 73.6 36.4 26.8 57.4 30.9 0.45 97.8 16.0 19.2 45.8 46.5 53.9 56.0 56.6 75.7 36.9 27.0 57.4 31.4 0.49 98.2 16.6 19.3 46.1 46.9 54.2 56.7 55.8 76.3 37.3 27.1 57.5 31.1
+
+Table 8. Full parameter tuning experiment for Clip Ratio X of PoseAlign-Transform on 3D-LLAVA. 
+
+point-wise [14, 54] feature projection, both with or with-out a Q-Former [13]. Their base LLMs include OPT-1.3B, Vicuna-v1.5-7B, and the LLM section of LLAVA-v1.5-7B. Consistent performance improvements despite such diver-sity proves the universal applicability of the PoseAlign modification. 
+
+Hardware specification. All comparison methods and respective improved versions are trained on 4× RTX 4090 24G. Batch sizes are trimmed to the same value within the same backbone to enable fair comparison. 
+
+PoseAlign-Embed implementation. For the only back-bone enhanced with PoseAlign-Embed, Chat-Scene has been a special case among all object-centric 3D LMMs be-cause it passes both the location and the feature of an ob-ject into the projection module. In that sense, encoding the ego-pose feature in Chat-Scene reduces to transforming the object locations following Equation 8. For other backbones where the object location is not passed to the LLM, similar modifications can be done by adding a sinusoidal position embedding of the transformed object location onto the pro-jection feature. 
+
+LLM-as-judge configuration. For GPT-OSS-20B, we use the officially-recommended vllm package, which packs information into harmony format. The reasoning effort is set to medium in the system prompt. A stronger assessment suite is enabled with GPT-5-mini using minimal reasoning budget. 
+
+B.2. Additional Results 
+
+Direction-critical question distribution. We apply the template in section C on the validation sets of three ex-isting point cloud language datasets, ScanQA, Scan2Cap, and SQA3D. The respective portions of direction-critical questions are 46.7% on ScanQA, 89.7% on Scan2Cap, and 95.2% on SQA3D, respectively. The high ratio for the latter two datasets are due to their strong dependence on allocen-tric spatial relationships to define the caption target or the ego position. We conclude that a significant portion of ex-isting 3D LMM benchmarks contain direction-critical ques-tions which are ill-posed without ego poses. 
+
+Results for LLM-as-judge with GPT-5. In addition to reporting accuracy judged by GPT-OSS-20B, we also pro-vide judgements from the powerful GPT-5 with the same set of prompts, which are listed in Table 6. Similar trends are observed as found in Table 1, where PoseAlign vari-ants improve LLM-as-judge metrics consistently across all baselines and the majority of datasets. Notably, PoseAlign achieves 48 .3% (∆5 .0%) and 40 .7(+1 .4)% (∆3 .6%) accuracy 3on ScanQA and Scan2Cap, and achieving top-tier accuracy of 57 .3% on SQA3D. We also note that the GPT-OSS-20B scores (Table 1) are consistent with the GPT-5 results and both follow the same order, which means that these metrics are consistent and reliable. 
+
+Full parameter tuning experiment on Chat-Scene and 3D-LLAVA. We provide all performance metrics of tun-ing the clip ratio X for two representative backbones, Chat-Scene and 3D-LLAVA, to examine the effect of X on direc-tional alignment. As shown in Tables 7 and 8, performance first improves with moderate clip ratios and then gradually declines beyond X = 0 .3, exhibiting a clear unimodal trend except on Scan2Cap. Extremely small values ( X< 0.1)cause overfitting to marginal pose deviations, while large values ( X> 0.4) discard too many candidate poses, reduc-ing diversity and robustness. Both models achieve their best balance between stability and discriminability near X=0 .3,where directional understanding improves across ScanQA, SQA3D, and Scan2Cap without sacrificing general reason-ing ability. This consistency across two architectures val-idates the robustness of the proposed cut-ratio mechanism and supports the choice of X=0 .3 as the default setting in all main experiments. 
+
+## C. Prompt Designs 
+
+Template for Direction-critical question analysis. The following template is for ScanQA dataset, while the prompts for other datasets are similarly constructed with different examples but the same prompt structure. 
+
+Your job is to look at a question asking about the interior of a room and a bunch of associated ground truth answers, and then assign the problem as either [A: "NEED_LATERAL_DIRECTION", B: "DO_NOT_NEED_LATERAL_DIRECTION"] in order to answer. First, I will give examples of each class, and then you will classify a new question. The following are examples of DO_NOT_NEED_LATERAL_DIRECTION questions. ‘‘‘ Question 1: What color is the chair in the kitchen? Answer 1: "brown", "dark brown". Question 2: What is the top of the table? Answer 2: "tv", "television". Question 3: What is placed next to the fridge? Answer 3: "door", "the beige door". Question 4: Where are the two chairs in front of one another? Answer 4: "end table closest to door", "across from each other over table" ‘‘‘ These questions all DO_NOT_NEED_LATERAL_DIRECTION because: - Either they ask a different trait of the object than its direction (e.g., color, material, shape, size, etc.). - Or the direction is dependent on an absolute direction (e.g., "top", "bottom", "next to", "between", "end") which can be implied without additional direction information. - Or like Question 4 where the reference frame is not needed or can be implied despite the existence of directional words like "in front of", because two chairs facing each other will be facing each other no matter where you look at them from. - While the question may contain spatial words, it does not necessarily need the directional information to answer. The following are examples of question that NEED_LATERAL_DIRECTION. ‘‘‘ Question 1: How many brown chairs are on the left of the brown table? Answer 1: "4", "4" Question 2: Where is the tall chair on the right of the table? Answer 2: "to left of narrow table tv", "next to 2 other chairs as third chair on right" Question 3: What part of the room has a fridge to its right? Answer 3: "right corner wall adjacent to tv", "corner with tv alongside same wall" Question 4: Where is the beige wooden desk placed? Answer 4: "up against wall", "at front of class" Question 5: What is on the front of the brown table? Answer 5: "tv", "chair" ‘‘‘ These predicted answers all NEED_LATERAL_DIRECTION because: - A relative direction word (e.g., "left", "right", "front", "back", "against") is present in the question or any of the answers. - Even if the question asks about directions relative to an object, in some cases the reference frame still cannot be implied, e.g., cylindrical or symmetric objects like dishes, tables, beds, etc, just like Question 5 above. - The question may be asking about a different trait of the object than its direction (e.g., color, material, shape, size, etc.), but the question cannot be answered without the directional information. Also note the following things: - For classifying the questions where the answers or question may seem odd, ignore that and just focus on whether the question can be answered without directional information. - The answers may not coincide with each other, but that is okay. There can be multiple objects to the left or right of something. Just focus on whether the question can be answered without directional information. Here is a new question. Simply reply with either NEED_LATERAL_DIRECTION or DO_NOT_NEED_LATERAL_DIRECTION. Do not ask any more questions to the user. ‘‘‘ Question: {question} Answers: {gt_answer} ‘‘‘ Classify the question as one of: A: NEED_LATERAL_DIRECTION B: DO_NOT_NEED_LATERAL_DIRECTION Just return the letters "A" or "B", with no text around it. 
+
+Template for LLM-as-judge. The following template is for LLM-as-judge on the result of ScanQA dataset, while the prompts for other datasets are similarly constructed with different examples but the same prompt structure. The tem-plates can be found in the open-sourced code. 4Your job is to look at a question, a ground-truth answer , and a predicted answer, and then assign a grade of either ["CORRECT", "INCORRECT"]. First, I will give examples of each grade, and then you will grade a new example. The following are examples of CORRECT predicted answers. ‘‘‘ Question 1: What type of stool is to the left of the door? Ground truth: "bar stool", "black topped wooden stool" Predicted answer 1: wooden stool. Predicted answer 2: black topped bar stool. Predicted answer 3: wooden bar stool. Question 2: Where is the door of the refrigerator located? Ground truth: "next to microwave", "on refrigerator to right of door" Predicted answer 1: next to the microwave. Predicted answer 2: on the refrigerator to the right of the door. Question 3: What is in the bin next to the door? Ground Truth: "trash for recycling", "recycling bins" Predicted answer 1: trash can. Predicted answer 2: litter waiting for recycling. Predicted answer 3: waste. ‘‘‘ These predicted answers are all CORRECT because: - They fully contain the important information in one of the ground truths. Aliases and synonyms are acceptable. - They do not contain any information that contradicts the ground truth. - Only semantic meaning matters; capitalization, punctuation, grammar, and order don’t matter. - Hedging and guessing are permissible, provided that the ground truth is fully included and the response contains no incorrect information or contradictions. The following are examples of INCORRECT predicted answers. ‘‘‘ Question 1: What is to the right of the refrigerator and above the kitchen cabinet? Ground truth: "microwave", "microwave" Predicted answer 1: kitchen counter. Predicted answer 2: kitchen sink. Predicted answer 3: water tap. Question 2: Where is the door of the refrigerator located? Ground truth: "next to microwave", "on refrigerator to right of door" Predicted answer 1: on the microwave. Predicted answer 2: on the door next to the refrigerator .Predicted answer 3: to right of refrigerator. Predicted answer 4: on the microwave above the refrigerator. Predicted answer 5: on the refrigerator to left of the door. Question 3: How much larger is the blue recycling bin compared to the beige trash can? Ground truth: "twice as wide", "about double size" Predicted answer 1: larger. Predicted answer 2: blue recycling bin is larger than beige trash can. Predicted answer 3: blue recycling bin is much larger than beige trash can. ‘‘‘ These predicted answers are all INCORRECT because: - None of the information in the ground truth is included in the answer. - Or the predicted answer contradicts facts contained in the question and the ground truth. Pay extra attention to object relations, e.g., the door of the refrigerator cannot be on the microwave or another door. Having the correct words is not enough; the meaning must be correct. - The answer shies away from the question and does not provide any useful information. Also note the following things: - For grading questions where the ground truth contains a number, the predicted answer needs to be correct to the counting figure in the ground truth, but can be relaxed by +-1 when describing rough figures like relative size. For example, consider a question "How much larger is the brown cabinet compared to the purple stool?" with ground truth "5 times larger". - Predicted answers "5", "4", and "6" are all CORRECT. - Predicted answers "2", "3" and "8" are INCORRECT. - Predicted answers "larger" and "more than 2" are considered INCORRECT because they provide no useful information. - Do not punish predicted answers if they omit information that would be clearly inferred from the question. - For example, consider the question "What surface texture is the wooden cardboard?" and the gold target "wooden matte", "brown flat". The predicted answer "flat" would be considered CORRECT, even though it does not include " wooden", since it is clear from the question that the cardboard is wooden. Here is a new example. Simply reply with either CORRECT or INCORRECT. ‘‘‘ Question: {question} Ground truth: {ground_truth} Predicted answer: {predicted_answer} ‘‘‘ Grade the predicted answer of this new question as one of: A: CORRECT B: INCORRECT Just return the letters "A" or "B", with no text around it. 
+
+5

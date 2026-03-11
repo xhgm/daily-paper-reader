@@ -1,0 +1,377 @@
+Title: AG-VAS: Anchor-Guided Zero-Shot Visual Anomaly Segmentation with Large Multimodal Models
+
+URL Source: https://arxiv.org/pdf/2603.01305v1
+
+Published Time: Tue, 03 Mar 2026 02:43:15 GMT
+
+Number of Pages: 11
+
+Markdown Content:
+# AG-VAS: Anchor-Guided Zero-Shot Visual Anomaly Segmentation with Large Multimodal Models 
+
+## Zhen Qu 1, 2 Xian Tao 1,2,3,4† Xiaoyi Bao 1,2 Dingrong Wang 1, 2 
+
+## ShiChen Qu 1, 2 Zhengtao Zhang 1,2,3 Xingang Wang 1, 2 1Institute of Automation, Chinese Academy of Sciences 
+
+> 2
+
+## School of Artificial Intelligence, University of Chinese Academy of Sciences 
+
+> 3
+
+## Casivision 4 Weiqiao-UCAS Science and Technology Park 
+
+## Abstract 
+
+Large multimodal models (LMMs) exhibit strong task gen-eralization capabilities, offering new opportunities for zero-shot visual anomaly segmentation (ZSAS). However, exist-ing LMM-based segmentation approaches still face funda-mental limitations: anomaly concepts are inherently ab-stract and context-dependent, lacking stable visual proto-types, and the weak alignment between high-level seman-tic embeddings and pixel-level spatial features hinders pre-cise anomaly localization. To address these challenges, we present AG-VAS (Anchor-Guided Visual Anomaly Segmen-tation), a new framework that expands the LMM vocabu-lary with three learnable semantic anchor tokens—[SEG], [NOR], and [ANO], establishing a unified anchor-guided segmentation paradigm. Specifically, [SEG] serves as an absolute semantic anchor that translates abstract anomaly semantics into explicit, spatially grounded visual entities (e.g., holes or scratches), while [NOR] and [ANO] act as relative anchors that model the contextual contrast between normal and abnormal patterns across categories. To further enhance cross-modal alignment, we introduce a Semantic-Pixel Alignment Module (SPAM) that aligns language-level semantic embeddings with high-resolution visual features, along with an Anchor-Guided Mask Decoder (AGMD) that performs anchor-conditioned mask prediction for precise anomaly localization. In addition, we curate Anomaly-Instruct20K, a large-scale instruction dataset that orga-nizes anomaly knowledge into structured descriptions of ap-pearance, shape, and spatial attributes, facilitating effective learning and integration of the proposed semantic anchors. Extensive experiments on six industrial and medical bench-marks demonstrate that AG-VAS achieves consistent state-of-the-art performance in the zero-shot setting.       
+
+> †Corresponding Author: taoxian2013@ia.ac.cn.
+> ‡Project Page: https://github.com/xiaozhen228/AG-VAS Image
+> Ground Truth
+> Mask
+> LISA
+> AG -VAS
+> (Ours)
+> Carpet Hazelnut Bottle Colon Colon Skin
+
+Figure 1. Comparison of zero-shot anomaly segmentation capa-bilities between LISA [21] and our AG-VAS. 
+
+## 1. Introduction 
+
+Zero-shot visual anomaly segmentation (ZSAS) aims to di-rectly localize anomalous regions on the surfaces of unseen-category objects without the need for retraining. This ca-pability is particularly important in data-scarce or privacy-sensitive scenarios, such as industrial defect localization [40] and medical image analysis [2]. Most existing ZSAS models [10–12, 19, 33, 34, 53] are built upon CLIP [35] due to its strong vision–language alignment capabilities. These models typically construct pairs of textual prompts representing normal and abnor-mal states, and align them with pixel-level patch embed-dings to localize anomalies. Representative methods, such as AnomalyCLIP [53] and Bayes-PFL [34], further enhance the fine-grained anomaly perception via prompt learning strategies. However, constrained by the limited represen-tation and understanding capabilities of CLIP, the ZSAS performance of these approaches appears to have reached a bottleneck. Moreover, they do not naturally produce bi-nary segmentation masks, often requiring heuristic thresh-1                                             
+
+> arXiv:2603.01305v1 [cs.CV] 1 Mar 2026 USER: Can you segment
+> the defect for the object
+> in this image?
+> ASSISTANT: Sure, it is
+> [NOR ][ ANO ][ SEG ]
+> USER: Please segment
+> the anomalies in this
+> image?
+> ASSISTANT:
+> [NOR ][ ANO ][ SEG ]
+> USER: What are defects in this image. Please describe them and then
+> output the segmentation map.
+> A S S I S T A N T : The defect is a cluster of discolored and frayed bristles
+> located on the top left side of the toothbrush head. The segmentation is
+> [NOR ][ ANO ][ SEG ].
+> U S E R : Normally, a cable has three intact, color -coded conductors with
+> tightly bundled wires, with copper strands visible where insulation ends.
+> What anomalies are present in this image? Please describe the anomalies
+> and then output the corresponding segmentation map.
+> ASSISTANT: The anomaly is a missing section on the leftmost conductor ,
+> located in the bottom left of the image , as indicated by [ NOR ][ ANO ][ SEG ].
+> USER: Please segment the defects in this image and explain the reason.
+> ASSISTANT: Sure, [NOR ][ ANO ][ SEG ]. Typically, the burlap fabric exhibits a
+> consistent woven pattern. However, athin, dark vertical line can be
+> observed on the left side, disrupting the regular weave pattern. This
+> irregularity suggests a defect in the fabric's structure. In summary, the
+> defect is a thin, dark vertical line on the left side of the burlap fabric.
+> USER: What anomalies
+> a r e p r e s e n t i n t h i s
+> i m a g e Please o u t p u t
+> segmentation mask.
+> A S S I S T A N T : It looks
+> normal to me.
+
+Reject Reject       
+
+> USER: What is shown in this image?
+> ASSISTANT: The image shows a wooden surface with three round, dark
+> holes , each surrounded by a rough, uneven texture.
+> USER: Please segment the defects on this wood surface.
+> ASSISTANT: Sure, [ NOR ][ ANO ][ SEG ]
+> U S E R : Please segment
+> the polyp on the colon
+> in this image.
+> ASSISTANT: Sure, it is
+> [NOR ][ ANO ][ SEG ]
+
+(1) 
+
+(2) 
+
+(3) 
+
+(4) 
+
+(5) 
+
+(6) 
+
+(7) 
+
+(8) Figure 2. AG-VAS is an effective and efficient LMM for zero-shot anomaly segmentation and understanding. (Left: raw image; Right: segmentation result.) The visualization results are shown across the following scenarios: (1)–(4) direct segmentation, (5)–(6) describe-then-segment, (7) segment-then-explain, and (8) segmentation within dialogue. 
+
+olding or empirical tuning, which hinders practical deploy-ment. These limitations motivate exploring large multi-modal models (LMMs) with stronger reasoning capacity and richer world knowledge [13, 28, 36, 44, 54]. Recent anomaly detection studies [17, 18, 24, 46] lever-aging LMMs have demonstrated remarkable performance in high-level visual understanding and conversational inter-action. However, most existing works (e.g. Anomaly-OV [46]) focus on enhancing image-level textual descriptions or anomaly classification accuracy, while precise pixel-level responses, such as binary segmentation masks, re-main largely unexplored. In this work, we aim to develop an end-to-end ZSAS framework built upon the pretrained LMMs, capable of understanding complex segmentation in-structions and directly outputting binary masks. LISA [21] is the first general-purpose image segmen-tation work to employ an embedding-as-mask scheme, extending visual comprehension to pixel-wise segmen-tation by integrating LMMs with dedicated segmenters (e.g. SAM [20]). However, when applied to indus-trial or medical ZSAS tasks, it often fails to correctly identify anomalous regions, sometimes even confusing foreground and background. For instance, given the instruction "Please segment the anomalies in this image" , LISA may produce masks that mislocal-ize the abnormal regions, as illustrated in Figure 1. We attribute these failures in ZSAS to two main factors: 1) anomalies or defects are highly abstract concepts with-out concrete semantic references—for example, unlike a well-defined object such as “apple”, anomalies can include “holes” or “scratches”, making them difficult to map from textual descriptions; 2) the segmenter’s pixel-level features are not well aligned with the LMM’s visual-textual embed-ding space, limiting effective anomaly localization. To address the above issues, we propose AG-VAS , an end-to-end ZSAS framework equipped with a set of learn-able anchor tokens that encode contextual and world knowl-edge about anomalies. These anchors serve as semantic bridges between the LMM and the segmenter, enabling ef-fective instruction-driven anomaly segmentation. Specifi-cally, we extend the LMM vocabulary with special anchor tokens: the absolute semantic anchor [SEG] provides ex-plicit cues regarding anomaly appearance, shape, and loca-tion, while the relative semantic anchors [NOR] and [ANO] capture contextual contrasts between normal and abnormal regions across diverse categories. To enhance cross-modal correspondence, we further introduce a Semantic–Pixel Alignment Module (SPAM), which aligns high-level seman-tic embeddings from the LMM with fine-grained pixel fea-tures from the segmenter. Finally, an Anchor-Guided Mask Decoder (AGMD) leverages these aligned representations for anchor-consistent mask generation, achieving binarized segmentation results. To further enrich the model’s understanding of anomaly-related semantics, we construct Anomaly-Instruct20K , an instruction-tuning dataset specifically designed for segmen-tation tasks. Unlike conventional instruction datasets fo-cused on dialogue or visual question answering, Anomaly-Instruct20K injects structured world knowledge of anoma-lies into the LMM through diverse descriptions of defect appearance, shape, and spatial context. This enables the anchor tokens to learn precise and discriminative seman-2Question: <Image>\n  What       
+
+> anomalies are present in this
+> image? Please describe the
+> a n o m a l i e s and then output
+> the segmentation map.
+> Semantic Image
+> Encoder
+> Pixel Image
+> Encoder
+
+Large Language Model  LoRA       
+
+> Visual Projector
+> Semantic Pixel -
+> Alignment Module
+> (SPAM)
+> Tokenize
+> The anomaly is a small hole located on the upper part of the hazelnut , as indicated by [ NOR ] [ ANO ] [ SEG ]
+> Anchor -Guided
+> Mask Decoder
+> (AGMD)
+> Trainable
+> Frozen
+> Token
+> Refiner
+> Anchor -Guided Semantic Interaction Flow
+
+…      
+
+> Visual
+> Features
+> Image Embedding Input Text Embedding Alignment Embedding Output Text Embedding
+> Relative Normal Anchor
+> Token / Embedding
+> [NOR ]/[NOR ]/[ANO ]/[ANO ]/Relative Anomalous Anchor
+> Token / Embedding [ANO ]/[ANO ]/Absolute Anchor
+> Token / Embedding spimg
+
+xsfalign ftxt fpfpfFigure 3. The pipeline of AG-VAS. We design two types of semantic anchors: the absolute anchor [SEG], which injects world and contextual knowledge about the appearance, structure, and location of anomalies (e.g., holes, scratches) into the segmentation process, and the relative normal/anomalous anchors [NOR]/[ANO], which guide the model to understand anomalies in relation to normal patterns. All parameters except those for the semantic/pixel image encoder, visual projector and LLM are trainable. 
+
+tic representations. Moreover, its instruction-based design allows AG-VAS to develop interactive segmentation behav-iors and flexibly respond to various user prompts. Figure 2 demonstrates that AG-VAS produces high-quality masks under different segmentation instructions. In summary, our contributions are: • We propose AG-VAS , an anchor-guided framework for ZSAS that directly produces binary masks through instruction-driven segmentation. It introduces absolute and relative semantic anchors to bridge the LMM and seg-menter, and incorporates two modules: SPAM for align-ing LMM and segmenter features, and AGMD for gener-ating accurate, anchor-consistent masks. • We construct Anomaly-Instruct20K, a segmentation-oriented instruction-tuning dataset that injects structured world knowledge of anomalies into the LMM, enhancing its understanding of defect-related semantics. • We achieve state-of-the-art performance on multiple in-dustrial and medical anomaly detection benchmarks, demonstrating the strong generalization ability and prac-tical applicability of AG-VAS. 
+
+## 2. Related Work 
+
+2.1. Large Multimodal Models 
+
+Recent advances in LMMs can be broadly categorized into two paradigms: comprehension-oriented and perception-oriented approaches. Comprehension-oriented methods fo-cus on enhancing visual understanding by aligning visual encoders with language models and improving representa-tion quality through progressive training or multi-scale fea-ture design [1, 15, 16, 23, 25, 28, 43]. Representative mod-els such as BLIP-2 [23], Flamingo [1], LLaVA [28], and Qwen-VL [43] have substantially advanced cross-modal reasoning and instruction-following capabilities. More re-cently, techniques like chain-of-thought reasoning [29, 32] and mixture-of-experts architectures [27, 47] have further improved LMMs’ ability to handle complex visual compre-hension tasks. In contrast, perception-oriented LMMs em-phasize fine-grained visual grounding, aiming to adapt lan-guage models for pixel-level localization tasks [6, 21, 26, 36, 38, 45, 51]. A promising direction is the embedding-as-mask paradigm, first introduced by LISA [21] and later ex-tended by PixelLM [36] and PaDT [38]. While these meth-ods achieve strong performance in general object segmen-tation, they remain suboptimal when applied to the ZSAS task. 
+
+2.2. Zero-Shot Anomaly Segmentation 
+
+Recent studies on ZSAS have highlighted the poten-tial of foundation models such as CLIP [35] for lo-calizing anomalies in unseen categories. Most exist-ing methods [10, 11, 19, 31, 33, 34, 53, 55] leverage CLIP’s strong vision–language alignment and improve fine-3grained anomaly understanding through feature adapta-tion or prompt learning. Early works like APRILN-GAN [11] and CLIP-AD [12] introduce learnable linear layers to project image patch features into the joint embedding space. Later methods strengthen cross-category ZSAS per-formance through various prompt-learning designs, includ-ing static learnable prompts (AnomalyCLIP [53]), visual-context prompts (VCP-CLIP [33]), hybrid static–dynamic prompts (AdaCLIP [10]), and prompt distribution learning (Bayes-PFL [34]). Several LMM-based methods have re-cently been proposed for zero-shot tasks [17, 18, 24, 46], such as Anomaly-OV [46] and IAD-R1 [24]. However, they primarily focus on image-level anomaly understanding and classification rather than segmentation. In contrast to the above methods, this work aims to develop an instruction-following ZSAS model based on LMMs that directly out-puts binarized segmentation masks, which is more practical in real industrial and medical scenarios. 
+
+## 3. Method 
+
+Following the recent ZSAD setting [34, 53], our model is trained under supervision on seen categories Cs from an auxiliary dataset including our curated Anomaly-Instruct20K, and directly tested on unseen categories Cu
+
+collected from industrial and medical domains. Impor-tantly, Cs and Cu are disjoint, and the datasets used for training and evaluation exhibit substantial domain gaps. 
+
+3.1. Model Design 
+
+Framework overview. As illustrated in Figure 3, AG-VAS is an anchor-guided framework that integrates absolute and relative semantic anchors into an instruction-driven seg-mentation pipeline. It consists of four key components: 1) a frozen semantic image encoder Fs and pixel image encoder 
+
+Fp; 2) a large language model FLLM ; 3) a Semantic–Pixel Alignment Module (SPAM); and 4) a lightweight Anchor-Guided Mask Decoder D.Given an input image ximg and a text query xtxt , the frozen encoders first extract semantic features fs and pixel-level features fp. These features are processed by the LLM together with the anchor tokens [NOR]/[ANO] and [SEG]. The mask decoder D then decodes the final-layer embed-ding corresponding to each anchor token to produce the binary segmentation mask M. SPAM enhances this pro-cess by aligning the LLM’s semantic representations with the pixel-level features, enabling the anchor embeddings to effectively guide mask generation. In the following, we de-scribe each component in detail. 
+
+Design of Semantic Anchors. In LMM-based ZSAS, we define semantic anchors as bridges that connects the high-level semantic representations produced by the LMM with the mask decoder. The key motivation is to enable the model to capture fine-grained anomaly-related seman-tics through specific anchor embeddings in the LMM output space. From the perspective of a human inspector, locating anomalies in unseen categories generally relies on two com-plementary reasoning processes: 1) leveraging prior world knowledge and contextual understanding of common de-fect types (e.g., holes, cracks, scratches) to recognize what anomalies might look like and where they typically appear; and 2) contrasting candidate regions against surrounding normal areas to identify inconsistencies or irregular pat-terns. Inspired by these two reasoning modes, we introduce two types of semantic anchors: the absolute anchor [SEG], which encodes world knowledge and contextual cues re-garding the appearance, structure, and location of potential anomalies, and the relative anchors [NOR]/[ANO], which guide the model to perceive anomalies in relation to nor-mal patterns. These anchors are implemented as special tokens that are inserted into the text sequence and added in the LMM’s vocabulary space, allowing them to learn task-specific embeddings that differ from those obtained through conventional prompt tuning. During inference, AG-VAS mainly supports two segmentation modes that differ in whether the reasoning process is explicitly externalized: (1) Implicit Mode . The model directly segments anoma-lies by leveraging internalized contextual and world knowl-edge. In this work, this corresponds to the Direct Segmen-tation scenario. For example:   
+
+> User: Please segment the anomalies in this image.
+> Assistant: Sure, it is [NOR][ANO][SEG].
+
+(2) Explicit Mode . The model externalizes its reason-ing process either before or after mask prediction, such as describing anomalies before segmentation (Describe-then-Segment) or explaining the predicted mask (Segment-then-Explain). As an example, in the Describe-then-Segment process:   
+
+> User: What anomalies are present in this image? Please de-scribe the anomalies and then output the segmentation map.
+> Assistant: The anomaly is a small hole located on the upper part of the hazelnut, as indicated by [NOR][ANO][SEG].
+
+Both modes rely on identical anchor representations and world knowledge grounding; they differ only in whether the description or reasoning process is explicitly articulated. Unless otherwise specified, we adopt the Direct Segmenta-tion mode for quantitative evaluation. 
+
+Semantic–Pixel Alignment Module. The introduction of semantic anchors bridges the high-level semantic un-derstanding of LMMs to pixel-level segmentation. How-ever, a gap exists between the high-level semantic embed-ding space of the LMM and the low-level visual features of the pixel encoder, hindering the anchors’ alignment with spatially coherent visual cues. Therefore, we propose the SPAM, which facilitates the alignment of pixel-level image features with the LMM’s embedding space through cross-modal interaction. 4"Expectation"  ： The fire  hood should have a uniform, smooth,                           
+
+> and consistent circular pattern.
+> "Observation" ：A thin, irregular, and slightly darker line appears
+> near the center, disrupting the uniform pattern. The line has a
+> rough texture compared to the surrounding smooth surface.
+> "Diagnosis" ：The irregular line breaks the smooth texture and
+> consistent pattern, indicating a scratch.
+> "Summary" ：The defect is a thin, irregular, and slightly darker
+> line near the center of the fire hood, with a rough texture. The
+> segmentation is [NOR][ANO] [SEG].
+> "Explanation" :Typically, the fire hood should exhibit a uniform,
+> smooth, and consistent circular pattern. However, athin,
+> irregular, and slightly darker line appears near the center,
+> disrupting the uniform pattern and showing a rough texture
+> compared to the surrounding smooth surface. This irregular line
+> breaks the smooth texture and consistent pattern, indicating a
+> scratch.
+> Raw Image + Bbox
+> Raw Image + GT
+> Normal Image
+> Direct Segmentation Describe-then-Segment
+> Describe-then-Segment-Plus Describe-then-Explain
+
+(a) 
+
+(b)              
+
+> USER: What are anomalies in this image ？
+> Please describe them and then output the
+> segmentation map.
+> ASSISTANT: {"Summary" }
+> USER: What are anomalies in this image?
+> Please output segmentation mask and
+> explain the reason.
+> ASSISTANT: Sure, it is [NOR][ANO][SEG].
+> {"Explanation" }
+> USER: Please segment the anomalies in
+> this image.
+> ASSISTANT: Sure, it is [NOR][ANO][SEG]
+> USER: Normally, { "Expectation" }. What are
+> anomalies in this image? Please describe
+> t h e m and then output the segmentation
+> map.
+> ASSISTANT: {"Summary" }
+
+Figure 4. (a) An example from our Anomaly-Instruct20K dataset. (b) An example of instruction-tuning with dynamic fusion of tem-plates during the actual training process. Note that only one spe-cific template is shown here, with further details provided in the Appendix. 
+
+Specifically, given an image ximg ∈ R3×h×w, the seman-tic image encoder and the pixel image encoder are first used separately to extract visual features. The extracted features are then mapped to the same embedding dimension using a simple linear layer: 
+
+fs = Linear s(Fs(ximg )) fp = Linear p(Fp(ximg )) (1) where Fs and Fp are semantic and pixel encoder, respec-tively. To facilitate better interaction between the anchors and the mask decoder, we employ a cross-modal attention module, where the semantic features extracted by the se-mantic image encoder serve as queries Q to attend to pixel embeddings ( K, V): 
+
+falign = M HCA (Q = fs, K = fp, V = fp) (2) where M HCA denotes the multi-head cross attention [41]. Subsequently, the image embeddings fs from the semantic encoder, the aligned embeddings falign , and the text em-beddings ftxt are concatenated and jointly fed into the large language model, which outputs a text response ˆytxt :
+
+ˆytxt = FLLM (Concat (fs, f align , f txt )) (3) where ftxt is a tokenized version of the input text query xtxt .The LLM output ˆytxt contains our designed anchor tokens [NOR],[ANO],[SEG]. We extract the LLM last-layer em-beddings corresponding to these tokens and map them into the mask decoder space as hnor , h ano , h seg using a shared Token Refiner Ftr , which consists of two linear layers. 
+
+Anchor-Guided Mask Decoder. Given the refined an-chor embeddings hnor , h ano , h seg and the pixel embeddings 
+
+fp, the proposed AGMD aims to generate absolute and rel-ative segmentation masks guided by semantic anchors. We first concatenate the anchor embeddings with three learn-able query tokens Tlearn = {tnor , t ano , t seg } to form the de-coder input: 
+
+Z0 = [ tnor , t ano , t seg , h nor , h ano , h seg ]. (4) The decoder performs L layers of bidirectional cross-attention between the initial latent feature Z0 and pixel em-beddings fp, resulting in the final output ZL and updated pixel embeddings f ′
+
+p. The process is described as: 
+
+ZL, f ′
+
+p = BiAttn L(Z0, f p) (5) where BiAttn L(·) refers to applying a sequence of L bidi-rectional cross-attention blocks, iteratively updating both 
+
+Z0 and fp, and following the design principles of SAM [20]. After the final layer, we select the updated learnable tokens 
+
+T′
+
+learn = {t′
+
+nor , t ′
+
+ano , t ′
+
+seg } from ZL to compute segmentation masks. More architectural details of AGMD are provided in the Appendix. For the absolute semantic anchor [SEG], a foreground probability map is produced via a sigmoid activation σ(·):
+
+Pseg = σ(t′
+
+seg f ′⊤ 
+
+p ), (6) while for the relative anchors [NOR] and [ANO], acontrastive softmax function is applied to produce nor-mal–abnormal probability maps: 
+
+[Pnor , P ano ] = Softmax ([ t′
+
+nor , t ′
+
+ano ]f ′⊤ 
+
+p ). (7) The final anomaly map is obtained by fusing the absolute and relative maps: 
+
+P = α · Pseg + (1 − α) · Pano , α = 0 .5 (8) Finally, the binary segmentation mask M is produced by thresholding the fused map at 0.5. This design allows the decoder to transform abstract anchor semantics into pixel-level representations under the guidance of both absolute ([SEG]) and relative ([NOR]/[ANO]) anchors. Detailed im-plementation and architecture specifications of AGMD are provided in the Appendix. 
+
+3.2. Training Objectives 
+
+The training of AG-VAS involves two complementary ob-jectives: 1) Textual Autoregressive Loss. All tokens output by the LLM (including the anchor tokens) are supervised with the standard autoregressive cross-entropy loss: 
+
+Ltxt = − X
+
+t
+
+log P (yt | y<t , x img , x txt ) (9) 5where yt denotes the ground-truth token at step t, and ximg ,
+
+xtext are the input image and text query, respectively. 2) Segmentation Loss. For the predicted masks from the Anchor-Guided Mask Decoder, we unify the loss for all anchors as a combination of Binary Cross-Entropy (BCE) loss and Dice loss: 
+
+Lseg = X
+
+> c
+
+
+
+λbce BCE (Pc, M c) + λdic Dice (Pc, M c)
+
+
+
+(10) where c ∈ { SEG , NOR , ANO },Pc is the predicted mask for anchor c, and Mc is the corresponding ground-truth mask. For the relative normal anchor, the ground-truth mask is the complement of the abnormal mask. The weights λbce and 
+
+λdic are set to 0.5 and 2.0 empirically. The total training objective is then defined as: 
+
+L = Ltxt + Lseg (11) 
+
+3.3. Anomaly-Instruct20K Dataset 
+
+To improve the instruction-based segmentation ability of large multimodal models, we introduce a new dataset, Anomaly-Instruct20K, designed to inject world knowl-edge on normal and abnormal visual patterns into the LMM backbone. Different from prior datasets such as Anomaly-Instruct-125K [46], which mainly provide ques-tion–answer annotations for general anomaly understand-ing, our dataset bridges vision–language reasoning with pixel-level anomaly perception through instruction-driven segmentation supervision. Anomaly-Instruct20K is built using samples from three publicly available datasets: Re-alIAD [42], GoodsAD [50], and DTD-Synthetic [3]. We generate the dataset with the scientific multimodal model Inter-S1-241B [4]. For each anomalous sample, the model receives three visual inputs: 1) the raw image with bounding boxes, 2) the raw image overlaid with the ground-truth mask, and 3) a corresponding normal refer-ence image. Conditioned on these inputs, Inter-S1 gener-ates a structured annotation comprising five fields: Expecta-tion , which describes the object’s ideal normal appearance; 
+
+Observation , which details concrete visual deviations (e.g., location, shape, size, or texture irregularities); Diagnosis ,which explains why these deviations break normal mate-rial or structural consistency; Summary , which converts the detected cues into a concise segmentation instruction and explicitly encodes spatial and appearance attributes neces-sary for grounding the anchor tokens [NOR][ANO][SEG]; and Explanation , which synthesizes all components into a coherent reasoning paragraph. An example of the gener-ated annotations, along with the visual inputs, is shown in Figure 4(a). During training, we generate final instructions by sam-pling templates from a library and combining them with dataset fields, covering four main instruction types: Di-rect Segmentation, Describe-then-Segment, Describe-then-Segment-Plus and Segment-then-Explain. An example of combining a template to generate a real instruction-tuning sample during the training process is shown in Figure 4(b). More detailed dataset construction procedures and system prompts are included in the Appendix. 
+
+## 4. Experiment 
+
+4.1. Experimental Setup 
+
+Datasets. The training of AG-VAS follows a multi-task joint learning strategy, leveraging datasets from two complementary domains: general object segmentation and anomaly segmentation. For general object segmentation, we adopt the setup from LISA [21], using datasets such as ADE20K [52] to provide comprehensive segmenta-tion capabilities. For anomaly segmentation, we employ two sources of auxiliary training data: 1) the constructed Anomaly-Instruct20K, and 2) a random set of 20k images extracted from existing industrial anomaly segmentation datasets [3, 5, 30, 37, 49], referred to as Anomaly-Seg20K, used under direct segmentation instructions. To preserve the model’s dialogue and instruction-following capabilities, we include VQA datasets (LLaVA-150K [28] and WebAD [46]) during training. This joint training enables the ab-solute semantic anchor [SEG] to align with specific de-fect entities (e.g., holes, scratches) through contextual se-mantics and world knowledge, while the relative anchors [NOR] and [ANO] capture the semantic contrast between normal and anomalous regions. To evaluate the ZSAS per-formance of our model, we follow the protocol in [34] and conduct experiments on six real-world datasets, including three from the industrial domain (MVTec-AD [7], KSDD2 [9], RSDD [48]) and three from the medical domain (ISIC [14], ColonDB [39], ClinicDB [8]). More details about the datasets can be found in Appendix. 
+
+Evaluation Metrics. In this work, we focus on the qual-ity of ZSAS predictions, particularly the binarized segmen-tation accuracy. We report pixel-level average precision (AP), the maximum F1 score at the optimal threshold (F1-Max), and the Intersection over Union of anomalous sam-ples (IoU ano ). To further evaluate the model’s ability to re-ject normal images, we define IoU nor : the model receives a score of 1 if it predicts an empty mask for a normal sample, and 0 otherwise. Both IoU ano and IoU nor are computed at the per-image level and then averaged over the correspond-ing subsets. 
+
+Implementation Details. By default, we adopt LLaVA-OneVision-7B [22] as our LMM backbone, equipped with a semantic image encoder (siglip-patch14-384), while SAM-ViT-H serves as the pixel image encoder for mask predic-tion. Training is implemented using DeepSpeed with the 6Table 1. Comparison with existing state-of-the-art methods. The best results are marked in red, while the second-best methods are indicated in blue. The superscript * indicates that these methods were retrained on the anomaly segmentation dataset used in our AG-VAS.                                                                                                                  
+
+> Method Base Model Industrial Datasets Medical Datasets MVTec-AD KSDD2 RSDD ISIC ColonDB ClinicDB CLIP-Based (AP, F1-Max, IoU ano )WinCLIP [19] CLIP(ViT-B-16-240) (18.0, 24.3, 0.0) (17.1, 24.6, 0.0) (2.1, 6.6, 0.1) (62.4, 64.1, 0.24) (14.3, 21.0, 0.0) (19.4, 27.3, 0.0) APRIL-GAN [11] CLIP(ViT-L-14-336) (40.8, 43.3, 25.1) (61.6, 62.6, 41.8) (30.6, 40.2, 24.3) (69.8, 69.3, 12.8) (23.2, 32.5, 14.4) (38.8, 44.4, 25.3) AnomalyCLIP [53] CLIP(ViT-L-14-336) (34.5, 39.1, 22.6) (41.8, 50.3, 27.6) (19.1, 30.6, 8.8) (74.4, 70.8, 51.0) (31.3, 39.8, 25.2) (42.2, 45.9, 30.0) AnomalyCLIP* [53] CLIP(ViT-L-14-336) (35.2, 39.0, 22.4) (48.8, 53.6, 28.6) (25.5, 34.4, 8.5) (76.5, 71.4, 54.1) (34.2, 39.8, 22.7) (44.1, 47.3, 29.4) Bayes-PFL [34] CLIP(ViT-L-14-336) (48.3, 49.1, 22.2) (73.7, 63.5, 25.4) (39.1, 45.2, 3.7) (84.6, 76.8, 60.0) (31.9, 39.2, 16.8) (53.2, 51.7, 21.0) Bayes-PFL* [34] CLIP(ViT-L-14-336) (50.3, 50.4, 29.9) (74.9, 67.6, 39.5) (41.9, 46.9, 7.7) (81.9, 74.3, 52.1) (30.5, 38.1, 27.7) (47.6, 50.7, 34.4) LMM-Based (AP, F1-Max, IoU ano )PixelLM [36] LLaVA-13B (13.6, 19.6, 11.9) (42.6, 46.8, 32.4) (5.3, 9.4, 4.9) (69.8, 61.7, 48.9) (8.9, 16.8, 9.8) (13.0, 20.9, 14.6) PaDT [38] Qwen2.5-VL-7B (6.8, 12.9, 16.4) (1.2, 2.9, 12.4) (0.9, 1.8, 1.7) (65.9, 68.3, 54.5) (35.4, 48.4, 39.1) (39.8, 51.4, 49.8) LISA [21] LLaVA-7B (9.8, 16.9, 10.2) (19.5, 23.8, 18.2) (6.9, 12.5, 2.9) (68.1, 66.3, 54.6) (25.9, 33.1, 19.4) (50.0, 45.3, 36.4) LISA [21] LLaVA-13B (14.6, 21.8, 13.7) (36.8, 39.8, 29.4) (5.2, 11.4, 2.6) (87.1, 78.1, 64.8) (35.3, 34.0, 26.2) (56.3, 52.9, 42.3) LISA* [21] LLaVA-13B (37.6, 40.8, 31.8) (63.7, 63.8, 50.9) (52.1, 57.1, 35.2) (88.7, 82.4, 64.1) (40.9, 43.2, 29.5) (67.8, 62.7, 48.3) LISA [21] LLaVA-OneVision-7B (32.4, 38.3, 32.2) (59.8, 65.8, 49.4) (31.6, 37.6, 22.6) (90.7, 81.6, 56.9) (29.1, 35.8, 14.4) (56.1, 54.4, 32.6) LISA* [21] LLaVA-OneVision-7B (41.0, 44.1, 32.3) (69.4, 69.8, 48.4) (48.8, 54.9, 34.6) (84.9, 77.6, 50.1) (67.2, 62.9, 43.8) (81.0, 74.1, 59.8) AG-VAS LLaVA-13B (40.5, 42.5, 37.0) (66.5, 65.4, 53.7) (54.3, 57.0, 35.9) (88.8, 82.7, 64.6) (43.7, 45.1, 32.2) (68.3, 65.5, 50.1) AG-VAS LLaVA-OneVision-7B (51.0, 52.7, 44.8) (76.6, 74.7, 53.8) (56.2, 57.8, 36.9) (92.7, 84.9, 65.0) (70.7, 66.2, 58.2) (86.6, 79.2, 69.5)
+
+Table 2. Comparison of the model’s ability to reject segmentation on normal samples on the MVTec-AD. 
+
+Method Base Model IoU ano IoU nor Average PixelLM [36] LLaVA-13B 11.9 2.4 7.2 PaDT [38] Qwen2.5-VL-7B 16.4 0.0 8.2 LISA [21] LLaVA-7B 10.2 1.9 6.1 LISA [21] LLaVA-13B 13.7 6.3 10.0 LISA* [21] LLaVA-13B 31.8 43.5 37.7 LISA [21] LLaVA-OneVision-7B 32.2 4.0 18.1 LISA* [21] LLaVA-OneVision-7B 32.3 80.9 56.6 AG-VAS LLaVA-OneVision-7B 44.8 87.7 66.3 
+
+AdamW optimizer at a learning rate of 0.0003. During in-struction tuning, the LLM is fine-tuned with LoRA at rank 16, using a global batch size of 80. The full training of the 7B model takes about 30 hours on four A100 GPUs with 40 GB memory each. More implementation details can be found in the Appendix. 
+
+4.2. Comparison with State-of-the-art methods 
+
+Since LMM-based ZSAS is still in an early exploratory stage, directly comparable approaches are limited. There-fore, we include four representative CLIP-based ZSAS methods (WinCLIP [19], APRIL-GAN [11], AnomalyCLIP [53], and Bayes-PFL [34]) together with three segmentation methods that address referring segmentation tasks, specifi-cally designed for natural scene understanding: PixelLM [36], PaDT [38], and LISA [21]. To ensure a fair com-parison, we also retrained other methods (e.g., Anomaly-CLIP, Bayes-PFL, and LISA) on the anomaly segmentation dataset used by our AG-VAS during training. More details regarding the comparison of these methods are shown in Appendix. 
+
+Quantitative Comparison. Table 1 presents a com-parison of our AG-VAS with other state-of-the-art meth-ods across various industrial and medical datasets. It can be observed that when using the default base model, LLaVA-OneVision, our ZSAS performance surpasses all other methods on every metric. CLIP-based methods, such as Bayes-PFL, achieve comparable AP and F1-Max scores relative to LMM-based approaches but perform poorly on metric IoU ano , which measures true segmentation accuracy. This suggests that their anomaly localization results are am-biguous, leading to lower IoU ano after binarization. Fur-thermore, we observe that LLM-based methods demon-strate superior zero-shot generalization on medical datasets compared to CLIP-based approaches, particularly after fine-tuning on our carefully curated Anomaly-Instruct20K and Anomaly-Seg20K datasets. It is noteworthy that no medical images were included in the training dataset, demonstrat-ing that LMMs can leverage pre-existing world knowledge for zero-shot generalization to unseen domains. Further-more, the introduction of the anchor mechanism allows our method to more effectively align semantic and pixel-level features, leading to substantial improvements over other LMMs in leveraging contextual semantics during training. 
+
+Comparison of rejection performance. For LMM-based ZSAS methods, it is crucial to not only accurately segment anomalous regions but also to reject normal sam-ples by predicting empty masks, even when the user pro-vides instructions to segment anomalies. The experimental results in Table 2 show that most LMMs struggle in this re-gard, whereas our AG-VAS demonstrates strong rejection ability, achieving an IoU nor of 87.7% on normal samples. This indicates a substantial reduction in over-segmentation risk, while AG-VAS also maintains superior performance 7Table 3. Ablation on different components.                                
+
+> AP F1-Max IoU nor IoU ano
+> Module Ablation w/o [SEG] 49.1 50.9 85.6 42.1 w/o [NOR][ANO] 47.2 49.7 52.1 39.5 w/o SPAM 46.5 48.0 70.6 41.4 Training Dataset Ablation w/o Anomaly-Instruct20K 48.4 50.0 85.2 39.9 w/o Anomaly-Seg20K 49.3 51.5 53.5 42.4 w/o General Segmentation 36.1 36.5 70.2 34.9 AG-VAS 51.0 52.7 87.7 44.8
+
+on anomalous regions, achieving an IoU ano of 44.8%. 
+
+4.3. Ablation 
+
+In this subsection, ablation experiments on the MVTec-AD dataset are conducted to further investigate the impact of different settings on the proposed AG-VAS. 
+
+Influence of Different Components. Table 3 presents an ablation study evaluating the impact of various modules and training datasets on ZSAS performance. From the mod-ule ablations, it can be observed that removing the abso-lute semantic anchor [SEG] leads to a noticeable drop in all metrics, highlighting its crucial role in aligning anchor se-mantics with concrete defect entities. Excluding the relative anchors [NOR] and [ANO] significantly decreases IoU nor ,indicating their importance in capturing the semantic con-trast between normal and anomalous regions. The removal of SPAM also causes performance degradation, suggesting its effectiveness in feature aggregation. Regarding dataset ablations, training without Anomaly-Instruct20K leads to a noticeable decrease in perfor-mance, particularly on metrics reflecting anomaly seg-mentation. This indicates that instruction tuning with Anomaly-Instruct20K successfully injects domain-specific world knowledge into the model, enabling the anchors to better interpret and localize anomalies. Excluding Anomaly-Seg20K causes a larger drop in IoU nor , showing that these auxiliary images are crucial for learning robust normal–abnormal contrasts. Omitting general segmentation data results in the most substantial decrease across all met-rics, confirming that multi-domain joint training is essential for aligning absolute semantic anchors with visual features. 
+
+Influence of different segmentation modes during in-ference. Table 4 compares AG-VAS performance under dif-ferent inference strategies. Describe-then-Segment refers to first generating a textual description of the target anomaly and then producing a segmentation mask. Describe-then-Segment-Plus prepends an additional sentence describing the normal appearance of the object to the input instruction before the anomaly description. This serves as an expert-provided prior, explicitly informing the model about the ob-ject’s typical state. Segment-then-Explain first predicts the                      
+
+> Table 4. Ablation on different segmentation mode during infer-ence.
+> Segmentation Mode AP F1-Max IoU nor IoU ano
+> Describe-then-segment 49.3 51.3 58.8 43.6 Describe-then-segment-plus 51.9 53.0 90.2 45.1
+> Segment-then-explain 48.6 51.4 91.1 43.4 Direct Segmentation 51.0 52.7 87.7 44.8
+
+mask and then generates an explanation, while Direct Seg-mentation predicts the mask directly from the instruction without intermediate text. Compared with Direct Segmentation , Describe-then-Segment and Segment-then-Explain slightly reduce segmen-tation performance due to textual noise introduced during intermediate reasoning. However, these modes enable the model to better follow user instructions and support inter-active reasoning, justifying a minor sacrifice in mask accu-racy. Notably, Describe-then-Segment-Plus , by providing explicit knowledge of the object’s normal state, improves contextual understanding and partially mitigates the perfor-mance drop, leading to the best overall results among the descriptive modes. 
+
+## 5. Conclusion 
+
+This paper introduces AG-VAS, an anchor-guided frame-work for zero-shot visual anomaly segmentation that en-dows large multimodal models with learnable seman-tic anchors—absolute token [SEG] and relative tokens [NOR]/[ANO]—to jointly encode world knowledge about defect appearance, shape and location while simultane-ously modeling the contextual opposition between nor-mal and abnormal regions. By fusing high-level vi-sion–language embeddings with fine-grained pixel features through the Semantic–Pixel Alignment Module, and decod-ing anchor-consistent masks via the bidirectional Anchor-Guided Mask Decoder, AG-VAS overcomes the lack of structured anomaly semantics and directly outputs accu-rate binary masks without requiring category-specific re-training. Extensive experiments on six challenging indus-trial and medical benchmarks demonstrate that AG-VAS establishes a new state-of-the-art, significantly outperform-ing both CLIP-based and recent LMM-based competitors. It shows strong rejection performance on normal images and demonstrates robust generalization across unseen do-mains, providing a practical solution for real-world zero-shot anomaly segmentation task. 
+
+## References 
+
+> [1] Jean-Baptiste Alayrac, Jeff Donahue, Pauline Luc, Antoine Miech, Iain Barr, Yana Hasson, Karel Lenc, Arthur Men-
+
+8sch, Katherine Millican, Malcolm Reynolds, et al. Flamingo: a visual language model for few-shot learning. Advances in neural information processing systems , 35:23716–23736, 2022. 3 [2] Syed Muhammad Anwar, Muhammad Majid, Adnan Qayyum, Muhammad Awais, Majdi Alnowami, and Muham-mad Khurram Khan. Medical image analysis using convolu-tional neural networks: a review. Journal of medical systems ,42:1–13, 2018. 1 [3] Toshimichi Aota, Lloyd Teh Tzer Tong, and Takayuki Okatani. Zero-shot versus many-shot: Unsupervised texture anomaly detection. In Proceedings of the IEEE/CVF Win-ter Conference on Applications of Computer Vision , pages 5564–5572, 2023. 6 [4] Lei Bai, Zhongrui Cai, Yuhang Cao, Maosong Cao, Wei-han Cao, Chiyu Chen, Haojiong Chen, Kai Chen, Pengcheng Chen, Ying Chen, et al. Intern-s1: A scientific multimodal foundation model. arXiv preprint arXiv:2508.15763 , 2025. 6[5] Tianpeng Bao, Jiadong Chen, Wei Li, Xiang Wang, Jingjing Fei, Liwei Wu, Rui Zhao, and Ye Zheng. Miad: A main-tenance inspection dataset for unsupervised anomaly detec-tion. In Proceedings of the IEEE/CVF international confer-ence on computer vision , pages 993–1002, 2023. 6 [6] Xiaoyi Bao, Siyang Sun, Shuailei Ma, Kecheng Zheng, Yuxin Guo, Guosheng Zhao, Yun Zheng, and Xingang Wang. Cores: Orchestrating the dance of reasoning and seg-mentation. In European Conference on Computer Vision ,pages 187–204. Springer, 2024. 3 [7] Paul Bergmann, Michael Fauser, David Sattlegger, and Carsten Steger. Mvtec ad–a comprehensive real-world dataset for unsupervised anomaly detection. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 9592–9600, 2019. 6 [8] Jorge Bernal, F Javier S´ anchez, Gloria Fern´ andez-Esparrach, Debora Gil, Cristina Rodr´ ıguez, and Fernando Vilari˜ no. Wm-dova maps for accurate polyp highlighting in colonoscopy: Validation vs. saliency maps from physi-cians. Computerized medical imaging and graphics , 43:99– 111, 2015. 6 [9] Jakob Boˇ ziˇ c, Domen Tabernik, and Danijel Skoˇ caj. Mixed supervision for surface-defect detection: From weakly to fully supervised learning. Computers in Industry , 129: 103459, 2021. 6 [10] Yunkang Cao, Jiangning Zhang, Luca Frittoli, Yuqi Cheng, Weiming Shen, and Giacomo Boracchi. Adaclip: Adapting clip with hybrid learnable prompts for zero-shot anomaly de-tection. In European Conference on Computer Vision , pages 55–72. Springer, 2025. 1, 3, 4 [11] Xuhai Chen, Yue Han, and Jiangning Zhang. A zero-/few-shot anomaly classification and segmentation method for cvpr 2023 vand workshop challenge tracks 1&2: 1st place on zero-shot ad and 4th place on few-shot ad. arXiv preprint arXiv:2305.17382 , 2023. 3, 4, 7 [12] Xuhai Chen, Jiangning Zhang, Guanzhong Tian, Haoyang He, Wuhao Zhang, Yabiao Wang, Chengjie Wang, and Yong Liu. Clip-ad: A language-guided staged dual-path model for zero-shot anomaly detection. In International Joint Confer-ence on Artificial Intelligence , pages 17–33. Springer, 2024. 1, 4 [13] Zhe Chen, Jiannan Wu, Wenhai Wang, Weijie Su, Guo Chen, Sen Xing, Muyan Zhong, Qinglong Zhang, Xizhou Zhu, Lewei Lu, et al. Internvl: Scaling up vision foundation mod-els and aligning for generic visual-linguistic tasks. In Pro-ceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 24185–24198, 2024. 2 [14] Noel CF Codella, David Gutman, M Emre Celebi, Brian Helba, Michael A Marchetti, Stephen W Dusza, Aadi Kalloo, Konstantinos Liopyris, Nabin Mishra, Harald Kit-tler, et al. Skin lesion analysis toward melanoma detection: A challenge at the 2017 international symposium on biomed-ical imaging (isbi), hosted by the international skin imaging collaboration (isic). In 2018 IEEE 15th international sym-posium on biomedical imaging (ISBI 2018) , pages 168–172. IEEE, 2018. 6 [15] Wenliang Dai, Junnan Li, Dongxu Li, Anthony Tiong, Junqi Zhao, Weisheng Wang, Boyang Li, Pascale N Fung, and Steven Hoi. Instructblip: Towards general-purpose vision-language models with instruction tuning. Advances in neural information processing systems , 36:49250–49267, 2023. 3 [16] Peng Gao, Jiaming Han, Renrui Zhang, Ziyi Lin, Shijie Geng, Aojun Zhou, Wei Zhang, Pan Lu, Conghui He, Xi-angyu Yue, et al. Llama-adapter v2: Parameter-efficient vi-sual instruction model. arXiv preprint arXiv:2304.15010 ,2023. 3 [17] Zhaopeng Gu, Bingke Zhu, Guibo Zhu, Yingying Chen, Ming Tang, and Jinqiao Wang. Anomalygpt: Detecting in-dustrial anomalies using large vision-language models. In 
+
+Proceedings of the AAAI conference on artificial intelli-gence , pages 1932–1940, 2024. 2, 4 [18] Wei Guan, Jun Lan, Jian Cao, Hao Tan, Huijia Zhu, and Weiqiang Wang. Emit: Enhancing mllms for industrial anomaly detection via difficulty-aware grpo. arXiv preprint arXiv:2507.21619 , 2025. 2, 4 [19] Jongheon Jeong, Yang Zou, Taewan Kim, Dongqing Zhang, Avinash Ravichandran, and Onkar Dabeer. Winclip: Zero-/few-shot anomaly classification and segmentation. In Pro-ceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 19606–19616, 2023. 1, 3, 7 [20] Alexander Kirillov, Eric Mintun, Nikhila Ravi, Hanzi Mao, Chloe Rolland, Laura Gustafson, Tete Xiao, Spencer White-head, Alexander C Berg, Wan-Yen Lo, et al. Segment any-thing. In Proceedings of the IEEE/CVF international confer-ence on computer vision , pages 4015–4026, 2023. 2, 5 [21] Xin Lai, Zhuotao Tian, Yukang Chen, Yanwei Li, Yuhui Yuan, Shu Liu, and Jiaya Jia. Lisa: Reasoning segmentation via large language model. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pages 9579–9589, 2024. 1, 2, 3, 6, 7 [22] Bo Li, Yuanhan Zhang, Dong Guo, Renrui Zhang, Feng Li, Hao Zhang, Kaichen Zhang, Peiyuan Zhang, Yanwei Li, Zi-wei Liu, et al. Llava-onevision: Easy visual task transfer. 
+
+arXiv preprint arXiv:2408.03326 , 2024. 6 [23] Junnan Li, Dongxu Li, Silvio Savarese, and Steven Hoi. Blip-2: Bootstrapping language-image pre-training with 
+
+9frozen image encoders and large language models. In In-ternational conference on machine learning , pages 19730– 19742. PMLR, 2023. 3 [24] Yanhui Li, Yunkang Cao, Chengliang Liu, Yuan Xiong, Xinghui Dong, and Chao Huang. Iad-r1: Reinforcing con-sistent reasoning in industrial anomaly detection. arXiv preprint arXiv:2508.09178 , 2025. 2, 4 [25] Zhang Li, Biao Yang, Qiang Liu, Zhiyin Ma, Shuo Zhang, Jingxu Yang, Yabo Sun, Yuliang Liu, and Xiang Bai. Mon-key: Image resolution and text label are important things for large multi-modal models. In proceedings of the IEEE/CVF conference on computer vision and pattern recognition ,pages 26763–26773, 2024. 3 [26] Zhang Li, Biao Yang, Qiang Liu, Shuo Zhang, Zhiyin Ma, Liang Yin, Linger Deng, Yabo Sun, Yuliang Liu, and Xiang Bai. Lira: Inferring segmentation in large multi-modal mod-els with local interleaved region assistance. In Proceedings of the IEEE/CVF International Conference on Computer Vi-sion , pages 24056–24067, 2025. 3 [27] Bin Lin, Zhenyu Tang, Yang Ye, Jiaxi Cui, Bin Zhu, Peng Jin, Jinfa Huang, Junwu Zhang, Yatian Pang, Munan Ning, et al. Moe-llava: Mixture of experts for large vision-language models. arXiv preprint arXiv:2401.15947 , 2024. 3[28] Haotian Liu, Chunyuan Li, Qingyang Wu, and Yong Jae Lee. Visual instruction tuning. Advances in neural information processing systems , 36:34892–34916, 2023. 2, 3, 6 [29] Zuyan Liu, Yuhao Dong, Yongming Rao, Jie Zhou, and Ji-wen Lu. Chain-of-spot: Interactive reasoning improves large vision-language models. arXiv preprint arXiv:2403.12966 ,2024. 3 [30] Xiaoming Lv, Fajie Duan, Jia-jia Jiang, Xiao Fu, and Lin Gan. Deep metallic surface defect detection: The new bench-mark and detection network. Sensors , 20(6):1562, 2020. 6 [31] Wenxin Ma, Xu Zhang, Qingsong Yao, Fenghe Tang, Chenxu Wu, Yingtai Li, Rui Yan, Zihang Jiang, and S Kevin Zhou. Aa-clip: Enhancing zero-shot anomaly detection via anomaly-aware clip. In Proceedings of the Computer Vi-sion and Pattern Recognition Conference , pages 4744–4754, 2025. 3 [32] Ji Qi, Ming Ding, Weihan Wang, Yushi Bai, Qingsong Lv, Wenyi Hong, Bin Xu, Lei Hou, Juanzi Li, Yuxiao Dong, et al. Cogcom: Train large vision-language models diving into details through chain of manipulations. 2024. 3 [33] Zhen Qu, Xian Tao, Mukesh Prasad, Fei Shen, Zhengtao Zhang, Xinyi Gong, and Guiguang Ding. Vcp-clip: A visual context prompting model for zero-shot anomaly segmenta-tion. In European Conference on Computer Vision , pages 301–317. Springer, 2024. 1, 3, 4 [34] Zhen Qu, Xian Tao, Xinyi Gong, Shichen Qu, Qiyu Chen, Zhengtao Zhang, Xingang Wang, and Guiguang Ding. Bayesian prompt flow learning for zero-shot anomaly detec-tion. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 30398–30408, 2025. 1, 3, 4, 6, 7 [35] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learning transferable visual models from natural language supervi-sion. In International conference on machine learning , pages 8748–8763. PmLR, 2021. 1, 3 [36] Zhongwei Ren, Zhicheng Huang, Yunchao Wei, Yao Zhao, Dongmei Fu, Jiashi Feng, and Xiaojie Jin. Pixellm: Pixel reasoning with large multimodal model. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 26374–26383, 2024. 2, 3, 7 [37] Yong Shi, Limeng Cui, Zhiquan Qi, Fan Meng, and Zhen-song Chen. Automatic road crack detection using random structured forests. IEEE Transactions on Intelligent Trans-portation Systems , 17(12):3434–3445, 2016. 6 [38] Yongyi Su, Haojie Zhang, Shijie Li, Nanqing Liu, Jingyi Liao, Junyi Pan, Yuan Liu, Xiaofen Xing, Chong Sun, Chen Li, et al. Patch-as-decodable-token: Towards uni-fied multi-modal vision tasks in mllms. arXiv preprint arXiv:2510.01954 , 2025. 3, 7 [39] Nima Tajbakhsh, Suryakanth R Gurudu, and Jianming Liang. Automated polyp detection in colonoscopy videos using shape and context information. IEEE transactions on medical imaging , 35(2):630–644, 2015. 6 [40] Xian Tao, Xinyi Gong, Xin Zhang, Shaohua Yan, and Chan-dranath Adak. Deep learning for unsupervised anomaly lo-calization in industrial images: A survey. IEEE Transactions on Instrumentation and Measurement , 71:1–21, 2022. 1 [41] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszko-reit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. Attention is all you need. Advances in neural information processing systems , 30, 2017. 5 [42] Chengjie Wang, Wenbing Zhu, Bin-Bin Gao, Zhenye Gan, Jiangning Zhang, Zhihao Gu, Shuguang Qian, Mingang Chen, and Lizhuang Ma. Real-iad: A real-world multi-view dataset for benchmarking versatile industrial anomaly detec-tion. In Proceedings of the IEEE/CVF Conference on Com-puter Vision and Pattern Recognition , pages 22883–22892, 2024. 6 [43] Peng Wang, Shuai Bai, Sinan Tan, Shijie Wang, Zhihao Fan, Jinze Bai, Keqin Chen, Xuejing Liu, Jialin Wang, Wenbin Ge, et al. Qwen2-vl: Enhancing vision-language model’s perception of the world at any resolution. arXiv preprint arXiv:2409.12191 , 2024. 3 [44] Weihan Wang, Qingsong Lv, Wenmeng Yu, Wenyi Hong, Ji Qi, Yan Wang, Junhui Ji, Zhuoyi Yang, Lei Zhao, Song XiX-uan, et al. Cogvlm: Visual expert for pretrained language models. Advances in Neural Information Processing Sys-tems , 37:121475–121499, 2024. 2 [45] Zhuofan Xia, Dongchen Han, Yizeng Han, Xuran Pan, Shiji Song, and Gao Huang. Gsva: Generalized segmentation via multimodal large language models. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 3858–3869, 2024. 3 [46] Jiacong Xu, Shao-Yuan Lo, Bardia Safaei, Vishal M Patel, and Isht Dwivedi. Towards zero-shot anomaly detection and reasoning with multimodal large language models. In Pro-ceedings of the Computer Vision and Pattern Recognition Conference , pages 20370–20382, 2025. 2, 4, 6 
+
+10 [47] Qinghao Ye, Haiyang Xu, Jiabo Ye, Ming Yan, Anwen Hu, Haowei Liu, Qi Qian, Ji Zhang, and Fei Huang. mplug-owl2: Revolutionizing multi-modal large language model with modality collaboration. In Proceedings of the ieee/cvf conference on computer vision and pattern recognition ,pages 13040–13051, 2024. 3 [48] Haomin Yu, Qingyong Li, Yunqiang Tan, Jinrui Gan, Jianzhu Wang, Yangli-ao Geng, and Lei Jia. A coarse-to-fine model for rail surface defect detection. IEEE Transactions on In-strumentation and Measurement , 68(3):656–666, 2018. 6 [49] Chenkai Zhang, Shaozhe Feng, Xulongqi Wang, and Yuem-ing Wang. Zju-leaper: A benchmark dataset for fabric defect detection and a comparative study. IEEE Transactions on Artificial Intelligence , 1(3):219–232, 2021. 6 [50] Jian Zhang, Runwei Ding, Miaoju Ban, and Linhui Dai. Pku-goodsad: A supermarket goods dataset for unsupervised anomaly detection and segmentation. IEEE Robotics and Au-tomation Letters , 9(3):2008–2015, 2024. 6 [51] Tao Zhang, Xiangtai Li, Hao Fei, Haobo Yuan, Shengqiong Wu, Shunping Ji, Chen Change Loy, and Shuicheng Yan. Omg-llava: Bridging image-level, object-level, pixel-level reasoning and understanding. Advances in neural informa-tion processing systems , 37:71737–71767, 2024. 3 [52] Bolei Zhou, Hang Zhao, Xavier Puig, Sanja Fidler, Adela Barriuso, and Antonio Torralba. Scene parsing through ade20k dataset. In Proceedings of the IEEE conference on computer vision and pattern recognition , pages 633–641, 2017. 6 [53] Qihang Zhou, Guansong Pang, Yu Tian, Shibo He, and Jim-ing Chen. Anomalyclip: Object-agnostic prompt learning for zero-shot anomaly detection. In The Twelfth International Conference on Learning Representations , 2023. 1, 3, 4, 7 [54] Deyao Zhu, Jun Chen, Xiaoqian Shen, Xiang Li, and Mo-hamed Elhoseiny. MiniGPT-4: Enhancing vision-language understanding with advanced large language models. In The Twelfth International Conference on Learning Representa-tions , 2024. 2 [55] Jiawen Zhu, Yew-Soon Ong, Chunhua Shen, and Guansong Pang. Fine-grained abnormality prompt learning for zero-shot anomaly detection. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 22241– 22251, 2025. 3 
+
+11

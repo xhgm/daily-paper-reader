@@ -1,0 +1,339 @@
+Title: Beyond Prompt Degradation: Prototype-guided Dual-pool Prompting for Incremental Object Detection
+
+URL Source: https://arxiv.org/pdf/2603.02286v1
+
+Published Time: Wed, 04 Mar 2026 01:08:38 GMT
+
+Number of Pages: 12
+
+Markdown Content:
+# Beyond Prompt Degradation: Prototype-guided Dual-pool Prompting for Incremental Object Detection 
+
+# Yaoteng Zhang, Qing Zhou, Junyu Gao, Qi Wang *
+
+# Northwestern Polytechnical University 
+
+zhang yt@mail.nwpu.edu.cn, mrazhou@mail.nwpu.edu.cn, gjy3035@gmail.com, crabwq@gmail.com 
+
+# Abstract 
+
+Incremental Object Detection (IOD) aims to continuously learn new object categories without forgetting previously learned ones. Recently, prompt-based methods have gained popularity for their replay-free design and parameter ef-ficiency. However, due to prompt coupling and prompt drift, these methods often suffer from prompt degrada-tion during continual adaptation. To address these issues, we propose a novel prompt-decoupled framework called PDP. PDP innovatively designs a dual-pool prompt decou-pling paradigm, which consists of a shared pool used to capture task-general knowledge for forward transfer, and a private pool used to learn task-specific discriminative features. This paradigm explicitly separates task-general and task-specific prompts, preventing interference between prompts and mitigating prompt coupling. In addition, to counteract prompt drift resulting from inconsistent super-vision where old foreground objects are treated as back-ground in subsequent tasks, PDP introduces a Prototypi-cal Pseudo-Label Generation (PPG) module. PPG can dy-namically update the class prototype space during train-ing and use the class prototypes to further filter valuable pseudo-labels, maintaining supervisory signal consistency throughout the incremental process. PDP achieves state-of-the-art performance on MS-COCO (with a 9.2% AP im-provement) and PASCAL VOC (with a 3.3% AP improve-ment) benchmarks, highlighting its potential in balancing stability and plasticity. The code and dataset are released at: https://github.com/zyt95579/PDP IOD/tree/main 
+
+# 1. Introduction 
+
+Incremental Object Detection (IOD) aims to continu-ously learn and recognize new object categories from a se-quential data stream, while maintaining detection perfor-mance on previously learned classes without relying on past data [8, 20, 28, 35, 38, 54, 55]. This setting embodies the 
+
+> *Corresponding author.
+
+Figure 1. Comparison of prompt-based methods. (a) Use task ID to isolate prompt, which forces task-general prompt to be re-learned at each task. (b) Missing annotations cause prompt tokens to drift. (c) The shared prompt pool continuously optimizes task-general prompt, and category prototypes guide the generation of pseudo labels for old categories. 
+
+stability–plasticity dilemma: a model must remain plastic enough to integrate novel knowledge yet stable enough to avoid catastrophic forgetting. Continual learning (CL) aims to mitigate catastrophic forgetting by achieving a balance between stability and plasticity, thereby enabling continu-ous adaptation to open-world tasks [3, 9, 18, 23, 26, 29, 33, 
+
+> arXiv:2603.02286v1 [cs.CV] 2 Mar 2026
+
+53, 57]. Recently, prompt-based methods [13, 16, 24, 34] have emerged as a promising paradigm for IOD, effectively avoiding data replay [1, 2, 14, 15, 25, 32] and uncontrolled model expansion [19, 30, 40, 45, 46, 49]. Despite their suc-cess, existing prompt-based continual learning methods still suffer from prompt degradation . We find that such degra-dation manifests as prompt coupling and prompt drift .Specifically, current prompt-based methods [3, 36, 42, 43] typically follow a single prompt pool paradigm. 
+
+Prompt coupling arises from this paradigm’s indiscrim-inate storage of functionally distinct prompts—shareable task-general prompts and discriminative task-specific prompts—within the same pool. Such a design forces them to compete and interfere under limited parameter space, causing prompt degradation, as illustrated in Fig. 1(a). Furthermore, the inconsistency in supervisory labels leads to prompt drift . In IOD settings, when learning new tasks, previously learned objects are relabeled as “back-ground”. This inconsistent supervision forces the model to update prompts that have already been optimized for old tasks, causing them to drift toward incorrect semantic directions, as shown in Fig. 1(b). Although some meth-ods [2, 37, 47, 50, 59] attempt to compensate for the in-consistent supervision through pseudo-labels, they gener-ally rely on a static confidence threshold, which is un-suitable for continual learning. Due to the category-wise distribution discrepancy, such fixed thresholds become ill-calibrated, producing unstable supervision that may further exacerbate prompt drift. To address these challenges, particularly the representa-tion degradation caused by prompt coupling and prompt drift , we propose PDP, a framework characterized by 
+
+prompt decoupling and prototype-guided pseudo-labeling mechanism . Specifically, to ensure that prompts remain de-coupled throughout cross-task learning, PDP introduces a dual-pool paradigm consisting of a shared pool and a private pool, which explicitly separates task-general prompts and task-specific prompts, as illustrated in Fig. 1(c). The shared pool is continuously optimized to capture generalized visual knowledge, facilitating stable forward knowledge transfer, while the private pool preserves task-specific representa-tions, effectively preventing knowledge forgetting. This dual-pool design ensures that task-general and task-specific prompts evolve collaboratively yet independently during continual learning, thereby preventing prompt degradation. Moreover, to counteract prompt drift induced by supervi-sion inconsistency, where old foreground instances are in-correctly treated as background in later tasks, PDP intro-duces a Prototypical Pseudo-Label Generation (PPG) mod-ule. During training, PPG constructs a category prototype space and generates pseudo-labels by measuring the dis-tance between candidate samples (even those with low con-fidence) and the corresponding class prototypes in the em-bedding space, ensuring consistent supervision and prevent-ing prompt drift throughout continual learning. In summary, the main contributions of this work are as follows: • To the best of our knowledge, we are the first to propose a dual prompt-pool framework for IOD that explicitly de-couples task-general from task-specific prompts, signifi-cantly enhancing the model stability-plasticity balance. • We design a Prototypical Pseudo-label Generation (PPG) that employs prototype-to-feature similarity in the em-bedding space to produce reliable and semantically con-sistent pseudo labels. • We achieve SOTA performance across multiple MS-COCO and Pascal VOC incremental settings, with 59.4% and 79.4% mAP, respectively. 
+
+# 2. Related Work 
+
+Prompt-based Continual Learning Methods. Prompt-based approaches have recently become a prevailing paradigm in Continual Learning, providing an effective way to mitigate catastrophic forgetting without exemplar replay. L2P [43] introduced a shared prompt pool, where the top-K
+
+prompts are selected to preserve prior knowledge. In con-trast, Coda-Prompt [36] and MD-DETR [3] use task IDs to isolate prompt parameters. During training, only prompt parameters for new tasks are updated, while prompt pa-rameters for old tasks remain frozen. The inference pro-cess retrieves prompts by calculating similarity. However, this rigid design constrains knowledge reuse and adaptation. DualPrompt [42] further partitions prompts into General-Prompts and Expert-Prompts for different decoder layers, yet both are still managed within a single pool—hindering proper decoupling and specialization of task knowledge. ConvPrompt [34] generates prompts via convolution over a shared pool combined with external text descriptors, but its performance heavily depends on the quality of textual inputs. CPrompt [10] adopts a component-growth strategy by incrementally adding task-specific prompts, with consis-tency regularization to preserve past knowledge. Despite these advances, prompt-based methods still use a single prompt pool to jointly model task-specific and task-general prompts, leading to mutual interference among prompts and resulting in prompt degradation. 
+
+Incremental Object Detection. IOD particularly challeng-ing since missing annotations of old classes cause them to be misclassified as background. ILOD [35] employed the Learning without Forgetting (LwF) [20] strategy to miti-gate forgetting. ABR [26] integrates old-class bounding box replay with RoI distillation, yielding improved reten-tion of past object representations. In addition, some meth-ods focus on generating pseudo-labels to prevent the for-getting of old knowledge. OW-DETR [11] introduced an Figure 2. Overview of our framework at incremental step t. Given an image x, the query function generates a content-aware query representation by adaptively computing query weights via a ranking function Fψ and performing weighted aggregation. Subsequently, prompts are retrieved from both the shared and private pool and injected into the decoder layer. In parallel, the teacher model Φt−1 
+
+> generates a set of candidate bounding boxes, where potentially valuable ones are projected into the feature space to compute their similarity with class prototypes. This process yields a set of refined, high-quality pseudo-labels to guide the training of the student model Φt.
+
+attention-based pseudo-label generation mechanism to dis-cover unannotated old-class instances. CL-DETR [27] and MD-DETR [3] incorporated threshold-based pseudo-label supervision to alleviate forgetting. However, due to the sig-nificant differences in confidence distributions across dif-ferent classes, a fixed threshold cannot be effectively gen-eralized to all classes. To address this, PseDet [41] pro-posed a categorical adaptive label selector that dynamically adjusts thresholds for each category via k-means cluster-ing on confidence scores, achieving more accurate and bal-anced pseudo-label selection. However, PseDet essentially performs classification on confidence distributions and is not an end-to-end framework. Unlike confidence-based pseudo-labeling, we propose a prototype-guided pseudo-label generation module that utilizes category prototypes in the embedding space to guide pseudo-label generation. 
+
+# 3. Preliminaries 
+
+Incremental Object Detection. The training process of IOD is organized into n sequential stages, where each stage introduces a disjoint set of novel categories. Let the overall class set be C = {C1, C 2, . . . , C t, . . . , C n} with Ci ∩ Cj =
+
+∅, ∀i̸ = j. At stage t, the detector is trained on the dataset 
+
+Dt = {Xt, Y t}, where Xt represents the input images and 
+
+Yt the corresponding annotations of classes in Ct. Although images may contain objects from any category in C, only in-stances of Ct are annotated. The objective is to adapt the de-tector from Mt−1 to Mt using only the current dataset Dt,without accessing previous datasets {D 1, . . . , Dt−1}, while preventing catastrophic forgetting and maintaining strong performance on previously learned classes {C1, . . . , C t−1}.
+
+MD-DETR. MD-DETR [3] introduces a learnable mem-ory bank that stores key–memory pairs for informa-tion retrieval. Its architecture consists of a frozen en-coder–decoder Θ∇ and a localized query function Q guided by a ranker gψ :
+
+Q(x, Θ∇, α ) = X
+
+> i
+
+αi · { Θ∇(x)}i (1) The relevance weights α are computed by gψ (Θ ∇(x)) .The resulting query Q(x, Θ∇, α ) then interacts with the keys in the memory bank to compute similarity scores, which are used to aggregate the corresponding memory val-ues into a retrieved representation. This retrieved memory is then injected into the decoder through prefix-tuning [42]. The overall training loss combines the DETR detection loss and a retrieval regularization: 
+
+LM D −DET R = LDET R + LQ (2) Given ground-truth pairs Y = {(ci, b i)}Mi=1 and predic-tions ˆY = {(ˆ sj , ˆbj )}Nj=1 . The optimal one-to-one assign-ment ˆσ is obtained by minimizing the matching cost: 
+
+ˆσ = arg min 
+
+> σ∈SN
+> M
+
+X
+
+> i=1
+
+Lmatch 
+
+ (ci, b i), (ˆ sσ(i), ˆbσ(i)) (3) and the detection loss is formulated as: 
+
+LDET R = X
+
+> i
+
+h
+
+Lcls (ci, ˆsˆσ(i))+ I{cˆσ(i)̸ =∅} ·L box (bi, ˆbˆσ(i))
+
+i
+
+(4) 
+
+LQ encourages the ranker gψ to produce relevance scores consistent with the optimal assignment ˆα obtained via Hun-garian matching, implemented as a cross-entropy loss: 
+
+LQ = λQ · L CE (α, ˆα) (5) 
+
+# 4. Method 
+
+4.1. Overall Framework 
+
+As illustrated in Fig. 2, PDP is a fully end-to-end train-able framework that effectively prevents prompt degrada-tion through prompt decoupling and pseudo-label gener-ation. The overall framework of PDP consists of two core modules: Decoupled Dual-Pool Prompting (DDP) and Prototypical Pseudo-Label Generation (PPG). Specifically, DDP decouples the prompts into task-general prompts and task-specific prompts, which are independently updated through a shared pool and a private pool, achieving explicit knowledge disentanglement and collaborative optimization. PPG avoids reliance on confidence thresholds and instead guides pseudo-label generation through a dynamically up-dated prototype space. 
+
+4.2. Decoupled Dual-Pool Prompting 
+
+DDP maintains two distinct prompt pools — a shared pool and a private pool — to explicitly decouple task-general and task-specific prompt representations. This design pre-vents cross-task interference, allowing the model to acquire discriminative task-specific knowledge while preserving reusable global information. Furthermore, DDP enforces an inter-pool diversity constraint to ensure that shared and private prompts learn complementary, orthogonal represen-tations. 
+
+Shared Pool. The shared pool serves as a global repository of transferable prompts accessible to all tasks. It is com-posed of learnable prompt tokens Ps ∈ RNs×Lp×D , key vectors Ks ∈ RNs×D , and a query adapter As ∈ RNs×D .This pool is designed to encode reusable visual prompts transferable across tasks. During each incremental stage, it is progressively refined with data from new tasks, thereby enhancing its representational capacity. As a globally ac-cessible component, the shared pool facilitates stable for-ward knowledge transfer throughout the training process. 
+
+Private Pool. Preserving task-specific discriminative infor-mation is crucial for preventing catastrophic forgetting. To this end, we introduce a private pool that dynamically main-tains task-specific prompts. For each task, a set of prompt parameters (Pp, K p, A p) is privatized to retain task-specific representations. During training on task t, only the current task prompt parameters (P tp , K tp, A tp) are trainable, while the prompt parameters from previous tasks θpriv i<t are frozen. Unlike the shared pool, the number of prompt tokens Np
+
+in the private pool is dynamically adjusted based on the number of new classes introduced in each task. The pri-vate pool not only prevents interference among tasks but also provides sufficient representational capacity for newly introduced classes. 
+
+Prompt Retrieval and Integration. Given an input im-age I, the query extractor Q(·) generates a query vector 
+
+Q(x, θ ∇) : R3×H×W → R1×D . The retrieval process begins by modulating the query with the query adapter through an element-wise Hadamard product, followed by computing cosine similarity scores ρ with both key vectors 
+
+(Ks, K p):
+
+w = ρ Q(x, θ ∇) ⊙ [As, A p], [Ks, K p] (6) 
+
+Pr =
+
+> Ns
+
+X
+
+> i=1
+
+wisP is +
+
+> Np
+
+X
+
+> j=1
+
+wjpP jp (7) The retrieved prompt Pr acts as a contextual memory to-ken, aggregating task-general and task-specific prompts to condition the decoder. We adopt Prefix-Tuning to inte-grate Pr into each Transformer decoder layer by splitting it into a key prefix PK = Pr [: Lp/2, :, :] and a value pre-fix PV = Pr [Lp/2 : , :, :] . The prefix tokens PK and PV
+
+are prepended to the key and value sequences K and V ,respectively, which are obtained by linearly projecting the decoder’s object queries. 
+
+M HA (Q, K, P K , V, P V ) = sof tmax 
+
+ Q[PK , K ]T
+
+√dk
+
+
+
+[PV , V ]
+
+(8) 
+
+Inter-Pool Diversity. To promote complementary learning between the shared and private pools, we employ the di-rectional decoupled loss [21, 53]. This loss maximizes the angular separation between vectors across the two pools, penalizing pairs with angles below a preset threshold θddl :
+
+θi,j = arccos 
+
+ Ps,i · Pp,j 
+
+∥Ps,i ∥ ∥ Pp,j ∥
+
+
+
+(9) 
+
+LDDL = λddl · 2
+
+|Ns|| Np|
+
+> |Ns|
+
+X
+
+> i=1
+> |Np|
+
+X
+
+> j=1
+
+max(0 , θ ddl − θi,j )
+
+(10) where θddl = 90 ◦ and λddl = 0 .15 . This constraint en-forces directional separation between the two pools, ensur-ing effective prompt decoupling. Figure 3. The pseudo-label generation process of PPG at stage t. PPG dynamically updates the prototypes of new task classes while keeping the old class prototypes frozen. The teacher model Φt−1 produces a set of candidate detections, where high-confidence predictions are directly regarded as reliable samples. For low-confidence candidates, similarity matching with frozen old class prototypes is performed, and those exceeding a predefined threshold are also considered reliable. Finally, both types of samples are merged to generate high-quality pseudo-labels. 
+
+4.3. Prototypical Pseudo-Label Generation 
+
+During incremental training at step t, generating pseudo-labels with the teacher model Φt−1 helps maintain su-pervision consistency across tasks. However, category-wise distribution discrepancies cause confidence-threshold-based methods to struggle in producing reliable pseudo-labels. To address this issue, we propose a Prototypical Pseudo-Label Generation (PPG) module (see Fig. 3). PPG computes the similarity between class prototypes and can-didate pseudo-labels in the embedding space, generating high-quality pseudo-labels for both easy (high-confidence) and hard (low-confidence) samples. This module can be seamlessly integrated into our framework in a plug-and-play manner without any additional post-processing. 
+
+Class Prototype Space Construction. PPG maintains a prototype for each learned class in the feature space, acting as a stable and generalized feature anchor that captures the semantic core of that class. For a new task t, prototypes of the newly introduced classes are constructed by extracting object query embeddings fi of correctly classified instances from the decoder’s final layer. These features are stored in a class-specific memory bank Fc, and the class prototype pc
+
+is computed as: 
+
+pc = 1
+
+|Fc|
+
+X
+
+> fi∈Fc
+
+fi (11) To ensure prototype stability, both Fc and pc are updated only during the final epoch of each task, when the feature representations have largely converged. 
+
+Hierarchical Validation. Building upon these prototypes, PPG performs a hierarchical validation process to refine pseudo-label quality. For each image, the teacher model 
+
+Φt−1 generates candidate detections associated with confi-dence scores si. These candidates are then validated in a two-stage manner: (1) Easy Samples: Detections with high confidence (e.g., si > τ h) are directly accepted as high-precision pseudo-labels. (2) Potential Hard Samples: For candidates with intermediate confidence ( τl < s i < τ h), we compute the feature similarity between the object rep-resentation and its corresponding class prototype pc. If the similarity exceeds a predefined threshold, the detection is retained as a valid hard sample, even if its confidence is rel-atively low. By integrating confidence-based easy samples and prototype-based hard samples, PPG yields a rich and reliable pseudo-label set. This dual mechanism effectively balances precision and diversity, thereby maintaining con-sistent and reliable supervision across tasks. Finally, the re-fined pseudo-labels Yppg are employed to optimize the stu-dent model using the MD-DETR [3] detection loss: 
+
+LDKD ( ˆY , Y ppg ) = LM D −DET R ( ˆY , Y ppg ) (12) 
+
+# 5. Experiments 
+
+5.1. Experimental Settings 
+
+Datasets and Metric. We evaluate our approach on two widely used benchmarks: MS-COCO [22] and PASCAL VOC [5]. Training is conducted on the official training sets, and evaluation is performed on the MS-COCO val-idation set and the PASCAL VOC test set, following the OW-DETR [11] protocol. We report COCO mAP@IoU=0.5 as the primary evalua-tion metric. To further assess the trade-off between stability Table 1. Comparison with state-of-the-art methods on MS-COCO under the multi-step IOD setting, the second-best results are underlined. 
+
+Method Task 1 Task 2 Task 3 Task 4 
+
+mAP@C mAP@P mAP@C mAP@A mAP@P mAP@C mAP@A mAP@P mAP@C mAP@A 
+
+ORE-EBUI [17] 61.4 56.5 26.1 40.6 37.8 23.7 33.7 33.6 26.3 31.8 OW-DETR [11] 71.5 62.8 27.5 43.8 45.2 24.4 38.5 38.2 28.1 33.1 PROB [58] 73.4 66.3 36.0 50.4 47.8 30.4 42.0 42.6 31.7 39.9 CL-DETR [27] – – – – – – – – – 39.2 ERD [7] – – – – – – – – – 35.4 MEPU-FS [6] 74.3 68.0 41.9 54.3 50.2 38.3 46.2 43.7 33.7 41.2 SGROD [12] 73.2 64.7 36.7 50.0 47.4 32.4 42.4 42.5 32.6 40.0 ORTH [39] 71.6 64.0 39.9 51.3 52.1 42.2 48.8 48.7 38.8 46.2 MD-DETR [3] 78.5 69.1 56.5 61.2 54.6 58.3 55.4 51.5 52.7 50.2 OWOBJ [52] 77.4 71.5 43.1 57.2 53.1 39.2 49.0 49.4 38.8 43.9 
+
+PDP (Ours) 79.1 ↑0.6 77.2 ↑5.7 59.9 ↑3.4 67.4 ↑6.2 65.7 ↑11 .1 60.5 ↑2.2 63.2 ↑7.8 61.3 ↑9.8 55.8 ↑3.1 59.4 ↑9.2
+
+Table 2. Performance comparison under the 40+40 and 70+10 IOD settings, the second-best results are underlined. Method 40+40 70+10 
+
+AP AP 50 AP 75 AP AP 50 AP 75 
+
+ABR [26] 34.5 57.8 35.2 31.1 52.9 32.7 FasterILOD [31] 20.6 40.1 – 21.3 39.9 –CL-DETR [27] 42.0 60.1 45.9 40.4 58.0 43.9 PseudoRM [48] 25.3 44.4 – – – –MMA [4] 33.0 56.6 34.6 30.2 52.1 31.5 BPF [28] 34.4 54.3 37.3 36.2 56.8 38.9 NSGP-RePRE [44] 35.4 55.3 38.6 36.5 56.0 39.8 PseDet ⋆ [41] 43.5 61.5 47.2 44.7 62.9 48.6 PDP (Ours) 43.8 62.0 47.5 42.9 61.1 47.1 
+
+and plasticity in IOD, we adopt three complementary met-rics from MD-DETR: 
+
+mAP @P = mAP IoU =0 .5(CT1 , . . . , CTt−1 ),mAP @C = mAP IoU =0 .5(CTt ),mAP @A = mAP IoU =0 .5(CT1 , . . . , CTt ).
+
+(13) 
+
+mAP @P measures performance on previous classes, indicating stability (knowledge retention); mAP @C eval-uates performance on current classes, reflecting plasticity (adaptation to new knowledge); and mAP @A provides an overall measure of continual detection ability over all ob-served classes. 
+
+Implementation Details. Our method is built upon Deformable-DETR [56] and implemented using the official files provided by the HuggingFace repository. In our ex-periments, we employ 100 shared prompt tokens, while the number of private prompt tokens is set to match the total number of categories in each dataset (e.g., 80 for COCO and 20 for Pascal VOC). The loss weighting coefficients 
+
+λddl , λQ are set to 0.15 and 0.1 respectively. The confidence thresholds θh and θl are set to 0.5 and 0.2, respectively, and the prototype similarity threshold θs is fixed at 0.5. 
+
+5.2. Results and Analyses 
+
+MS-COCO dataset. We compare SOTA methods under a multi-step incremental configuration, following prior stud-ies [3]. As shown in Table 1, our proposed method PDP consistently surpasses all competing approaches across the four incremental tasks and three evaluation metrics, achiev-ing an overall mAP @A of 59 .4% after completing all tasks. From the variation in mAP @P , it can be observed that PDP achieves the lowest forgetting rate on old knowledge, demonstrating strong resistance to catastrophic forgetting. Meanwhile, PDP also outperforms other methods in terms of mAP @C, indicating that the decoupled paradigm fully exploits the potential of the private prompt pool and en-hances the diversity of prompt representations. In addition, the unbiased supervision provided by PPG further prevents prompt degradation and stabilizes the learning process. We further conduct two-step incremental experiments under the 40+40 and 70+10 configurations, where PDP still exhibits competitive performance. Under the 40+40 setting, our method outperforms the SOTA PseDet, while in the 70+10 setting, PDP performs slightly worse than PseDet. It is worth noting that PseDet is not an end-to-end framework — it performs inference after each training stage and applies an additional k-means clustering step to generate pseudo-labels as supervision for the subsequent stage. 
+
+PASCAL VOC dataset. We evaluate our method in three incremental settings: 10+10, 15+5, and 19+1. As shown in Table 3, PDP consistently outperforms all other meth-ods in terms of mAP @A. Compared with the second-best method, PDP achieves an improvement in mAP @A
+
+of +2.9%, +1.3% and +3.3% on the 10+10, 15+5 and 19+1 tasks, respectively. We also visualize the performance of PDP in mitigating forgetting, as shown in Fig. 5. Under the Table 3. Comparison of different methods on the PASCAL VOC dataset under three IOD settings (10+10, 15+5, and 19+1), the second-best results are underlined. Method 10+10 15+5 19+1                                                                                                                                                                                     
+
+> mAP@P mAP@C mAP@A mAP@P mAP@C mAP@A mAP@P mAP@C mAP@A
+> ILOD [35] 63.2 63.2 63.2 68.3 58.4 65.8 65.8 62.7 68.2 Faster ILOD [31] 69.8 54.5 64.2 71.6 56.9 67.9 68.9 61.1 68.5 ORE-EBUI [17] 60.4 68.8 64.7 71.8 58.7 68.5 69.4 61.0 68.8 OW-DETR [11] 63.5 67.9 65.7 72.2 58.9 69.4 70.2 62.0 70.4 PROB [58] 66.0 67.2 66.5 73.2 60.3 70.1 73.9 48.5 72.6 ABR [26] 71.2 72.8 72.0 73.0 63.4 72.7 74.5 63.5 74.1 BPF [28] 71.7 74.0 72.9 74.0 63.2 72.7 74.8 63.5 74.1 MD-DETR [3] 73.1 77.5 73.2 77.4 69.4 76.7 76.8 67.2 76.1 RGR [51] 75.4 76.3 75.8 75.6 69.4 73.4 75.8 67.4 75.4 NSGP-RePRE [44] 75.3 72.7 74.0 77.5 61.8 73.6 76.3 69.0 76.0
+> PDP (Ours) 81.3 ↑5.979.4 ↑1.978.7 ↑2.980.5 ↑3.079.4 ↑10 .078.0 ↑1.379.7 ↑2.970.1 ↑1.179.4 ↑3.3
+> Table 4. Ablation study of Private Pool, Share Pool, and PPG modules. PP SP PPG Lddl
+> Task1 Task2 Task3 Task4
+> mAP@C mAP@P mAP@C mAP@A mAP@P mAP@C mAP@A mAP@P mAP@C mAP@A
+> ✓78.6 66.4 57.1 60.8 52.7 57.3 53.5 46.0 52.5 46.0
+> ✓✓✓79.0 74.9 58.9 65.6 63.5 59.8 61.6 56.9 52.5 55.1
+> ✓✓79.2 77.2 58.8 66.7 64.5 58.9 62.0 59.9 55.2 58.3
+> ✓✓✓78.9 77.2 59.5 67.0 65.2 60.0 62.7 61.0 55.3 59.0
+> ✓✓✓✓79.1 77.2 59.9 67.4 65.7 60.5 63.2 61.3 55.8 59.4
+
+19+1 setting, PDP can accurately detect objects from previ-ously learned classes. 
+
+5.3. Ablation Study 
+
+Analysis of Module components. We perform ablation ex-periments to evaluate the contributions of each component, as shown in Table 4. The Private Pool (PP) mitigates forget-ting of previously learned knowledge by isolating prompts according to task IDs. The Shared Pool (SP) independently manages task-general prompts, enabling PP to focus on category-specific representations and substantially improv-ing model performance. This dual-pool paradigm, which explicitly decouples prompt representations, effectively bal-ances model plasticity and stability. In addition, the pro-posed PPG improves the retention of previous knowledge by +13 .9% mAP @P , significantly enhancing model sta-bility. By generating high-quality pseudo-labels, PPG ef-fectively reduces foreground–background conflicts, further improving the plasticity metric mAP @C by +2 .7% . Fi-nally, the joint use of DDP and PPG achieves the best overall performance, demonstrating their complementary strengths in balancing stability and plasticity. 
+
+Analysis of Prototypical Pseudo-label Generation. Ta-ble 5 compares our PPG with the fixed-confidence pseudo-labeling method [27] and further analyzes the effect of dif-ferent similarity thresholds on PPG performance. Com-pared with the fixed-threshold approach, PPG consistently outperforms it across all four tasks, with the most signif-icant gains observed in the final task, achieving improve-ments of +3 .7% mAP @P , +2 .0% mAP @C, and +3 .3% 
+
+mAP @A. Moreover, the performance of PPG remains sta-ble across three different similarity thresholds, indicating that potentially valuable hard samples maintain high simi-larity with their corresponding prototypes in the embedding space. 
+
+Effect of Pool Size. We further conduct an ablation study on the size hyperparameters of the private and shared pools (Np and Ns) to investigate their effects on model perfor-mance, as shown in Fig. 4. The result demonstrates that the combination of Ns = 100 and Np = 80 achieves the best overall performance under the COCO multi-step con-tinual detection setting. Specifically, the shared pool size plays a crucial role in maintaining model stability. Increas-ing Ns from 40 to 100 yields notable improvements on sub-sequent tasks (Task 2-Task 4), demonstrating its importance in capturing and transferring task-general knowledge. How-Table 5. The effect of different threshold parameters θl, θh, and θs.                                                                        
+
+> θlθhθs
+> Task 1 Task 2 Task 3 Task 4
+> mAP@C mAP@P mAP@C mAP@A mAP@P mAP@C mAP@A mAP@P mAP@C mAP@A
+> –0.5 –79.2 76.9 57.3 65.8 63.1 58.0 60.6 57.6 53.8 56.1 0.2 0.5 0.5 79.1 77.2 59.9 67.4 65.7 60.5 63.2 61.3 55.8 59.4 0.2 0.5 0.6 79.1 77.1 59.6 67.0 65.3 60.1 62.8 61.3 55.9 59.5
+> 0.2 0.5 0.7 79.1 77.2 60.0 67.3 65.4 60.1 62.8 61.3 55.7 59.4
+> Figure 4. Ablation on shared and private pool sizes. Performance of PDP under different (Ns, N p)configurations on the COCO incremental detection benchmark, reported in mAP @C,mAP @P, and mAP @Aacross sequential tasks.
+> Figure 5. Visualization of old-class detection results on the PAS-CAL VOC dataset.
+
+ever, further enlarging Ns to 160 results in a performance drop, indicating that an excessively large shared pool may introduce representational redundancy or optimization dif-ficulties. In contrast, the private pool size primarily affects model plasticity. With Ns fixed at 100, increasing Np from 40 to 80 consistently enhances performance, particularly on later tasks (e.g., Task 4). This indicates that allocating suffi-cient parameter space for task-specific prompts enables ef-fective learning of category-discriminative knowledge, en-hancing the model’s plasticity. 
+
+# 6. Conclusion 
+
+In this paper, we focus on the critical challenge of prompt degradation in IOD. We argue that prompt degradation primarily stems from two root causes: prompt coupling and prompt drift. To address this, we propose PDP, a novel prototype-guided and decoupled prompting frame-work for IOD. The core of PDP comprises two key inno-vations. First, PDP explicitly decouples task-general and task-specific prompts through shared and private prompt pools. This design enables the shared pool to serve as a stable knowledge foundation for forward transfer, while the private pool focuses on learning discriminative features of new classes, effectively mitigating interference between prompts. Moreover, PDP designs a prototypical pseudo-label generation module to address prompt drift caused by inconsistent supervision in IOD. By leveraging class pro-totypes as stable semantic anchors, this module produces reliable pseudo-labels that enhance adaptation to new tasks without compromising prior knowledge. Extensive exper-iments demonstrate that PDP achieves state-of-the-art per-formance across multiple benchmarks, confirming its effec-tiveness in balancing plasticity and stability. Acknowledgements. This work was supported in part by the National Natural Science Foundation of China un-der Grant 62471394, and U21B2041, 62306241, 62576284. 
+
+# References 
+
+[1] Rahaf Aljundi, Min Lin, Baptiste Goujaud, and Yoshua Ben-gio. Gradient based sample selection for online continual learning. Advances in neural information processing sys-tems , 32, 2019. 2 [2] Jihwan Bang, Heesu Kim, YoungJoon Yoo, Jung-Woo Ha, and Jonghyun Choi. Rainbow memory: Continual learn-ing with a memory of diverse samples. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 8218–8227, 2021. 2 [3] Gaurav Bhatt, James Ross, and Leonid Sigal. Preventing catastrophic forgetting through memory networks in continu-ous detection. In European Conference on Computer Vision ,pages 442–458. Springer, 2024. 1, 2, 3, 5, 6, 7 [4] Fabio Cermelli, Antonino Geraci, Dario Fontanel, and Bar-bara Caputo. Modeling missing annotations for incremental learning in object detection. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition ,pages 3700–3710, 2022. 6 [5] Mark Everingham, Luc Van Gool, Christopher KI Williams, John Winn, and Andrew Zisserman. The pascal visual object classes (voc) challenge. International journal of computer vision , 88(2):303–338, 2010. 5 [6] Ruohuan Fang, Guansong Pang, Wenjun Miao, Xiao Bai, Jin Zheng, and Xin Ning. Unsupervised recognition of unknown objects for open-world object detection. IEEE Transactions on Neural Networks and Learning Systems , 2025. 6 [7] Tao Feng, Mang Wang, and Hangjie Yuan. Overcoming catastrophic forgetting in incremental object detection via elastic response distillation. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition ,pages 9427–9436, 2022. 6 [8] Junyu Gao, Liangliang Zhao, and Xuelong Li. Nwpu-moc: A benchmark for fine-grained multicategory object counting in aerial images. IEEE Transactions on Geoscience and Re-mote Sensing , 62:1–14, 2024. 1 [9] Junyu Gao, Da Zhang, Feiyu Wang, Lichen Ning, Zhiyuan Zhao, and Xuelong Li. Combining sam with limited data for change detection in remote sensing. IEEE Transactions on Geoscience and Remote Sensing , 63:1–11, 2025. 1 [10] Zhanxin Gao, Jun Cen, and Xiaobin Chang. Consistent prompting for rehearsal-free continual learning. In Proceed-ings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 28463–28473, 2024. 2 [11] Akshita Gupta, Sanath Narayan, KJ Joseph, Salman Khan, Fahad Shahbaz Khan, and Mubarak Shah. Ow-detr: Open-world detection transformer. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 9235–9244, 2022. 2, 5, 6, 7 [12] Yulin He, Wei Chen, Siqi Wang, Tianrui Liu, and Meng Wang. Recalling unknowns without losing precision: An effective solution to large model-guided open world object detection. IEEE Transactions on Image Processing , 2024. 6 [13] Kiseong Hong, Gyeong-hyeon Kim, and Eunwoo Kim. Rainbowprompt: Diversity-enhanced prompt-evolving for continual learning. arXiv preprint arXiv:2507.22553 , 2025. 2[14] Ahmet Iscen, Jeffrey Zhang, Svetlana Lazebnik, and Cordelia Schmid. Memory-efficient incremental learning through feature adaptation. In European conference on com-puter vision , pages 699–715. Springer, 2020. 2 [15] David Isele and Akansel Cosgun. Selective experience re-play for lifelong learning. In Proceedings of the AAAI con-ference on artificial intelligence , 2018. 2 [16] Yongwei Jiang, Yixiong Zou, Yuhua Li, and Ruixuan Li. Revisiting pool-based prompt learning for few-shot class-incremental learning, 2025. 2 [17] KJ Joseph, Salman Khan, Fahad Shahbaz Khan, and Vi-neeth N Balasubramanian. Towards open world object de-tection. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 5830–5840, 2021. 6, 7 [18] Bingyu Li, Haocheng Dong, Da Zhang, Zhiyuan Zhao, Junyu Gao, and Xuelong Li. Exploring efficient open-vocabulary segmentation in the remote sensing. arXiv preprint arXiv:2509.12040 , 2025. 1 [19] Xilai Li, Yingbo Zhou, Tianfu Wu, Richard Socher, and Caiming Xiong. Learn to grow: A continual structure learn-ing framework for overcoming catastrophic forgetting. In 
+
+International conference on machine learning , pages 3925– 3934. PMLR, 2019. 2 [20] Zhizhong Li and Derek Hoiem. Learning without forgetting. 
+
+IEEE transactions on pattern analysis and machine intelli-gence , 40(12):2935–2947, 2017. 1, 2 [21] Zilong Li, Yiming Lei, Chenglong Ma, Junping Zhang, and Hongming Shan. Prompt-in-prompt learning for universal image restoration. arXiv preprint arXiv:2312.05038 , 2023. 4[22] Tsung-Yi Lin, Michael Maire, Serge Belongie, James Hays, Pietro Perona, Deva Ramanan, Piotr Doll´ ar, and C Lawrence Zitnick. Microsoft coco: Common objects in context. In 
+
+European conference on computer vision , pages 740–755. Springer, 2014. 5 [23] Ke Liu, Jian Zou, Wei Zhang, Qiang Li, and Qi Wang. Msdp-net: Multi-scale distribution perception network for rotat-ing object detection in remote sensing. Pattern Recognition ,page 112740, 2025. 1 [24] Ye Liu and Meng Yang. Sec-prompt: Semantic complemen-tary prompting for few-shot class-incremental learning. In 
+
+Proceedings of the Computer Vision and Pattern Recognition Conference , pages 25643–25656, 2025. 2 [25] Yaoyao Liu, Yuting Su, An-An Liu, Bernt Schiele, and Qianru Sun. Mnemonics training: Multi-class incremental learning without forgetting. In Proceedings of the IEEE/CVF conference on Computer Vision and Pattern Recognition ,pages 12245–12254, 2020. 2 [26] Yuyang Liu, Yang Cong, Dipam Goswami, Xialei Liu, and Joost Van De Weijer. Augmented box replay: Overcoming foreground shift for incremental object detection. In Pro-ceedings of the IEEE/CVF international conference on com-puter vision , pages 11367–11377, 2023. 1, 2, 6, 7 [27] Yaoyao Liu, Bernt Schiele, Andrea Vedaldi, and Christian Rupprecht. Continual detection transformer for incremen-tal object detection. In Proceedings of the IEEE/CVF Con-ference on Computer Vision and Pattern Recognition , pages 23799–23808, 2023. 3, 6, 7 [28] Qijie Mo, Yipeng Gao, Shenghao Fu, Junkai Yan, Ancong Wu, and Wei-Shi Zheng. Bridge past and future: Overcom-ing information asymmetry in incremental object detection. In European Conference on Computer Vision , pages 463– 480. Springer, 2024. 1, 6, 7 [29] Lichen Ning, Qing Zhou, Qi Wang, Junyu Gao, and Xuelong Li. Cross-resolution change detection in remote sensing via unequal relationships from a frequency perspective. IEEE Transactions on Geoscience and Remote Sensing , 63:1–14, 2025. 1 [30] Oleksiy Ostapenko, Mihai Puscas, Tassilo Klein, Patrick Jah-nichen, and Moin Nabi. Learning to remember: A synaptic plasticity driven framework for continual learning. In Pro-ceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 11321–11329, 2019. 2 [31] Can Peng, Kun Zhao, and Brian C Lovell. Faster ilod: In-cremental learning for object detectors based on faster rcnn. 
+
+Pattern recognition letters , 140:109–115, 2020. 6, 7 [32] Sylvestre-Alvise Rebuffi, Alexander Kolesnikov, Georg Sperl, and Christoph H Lampert. icarl: Incremental classifier and representation learning. In Proceedings of the IEEE con-ference on Computer Vision and Pattern Recognition , pages 2001–2010, 2017. 2 [33] Patrick Rim, Hyoungseob Park, S. Gangopadhyay, Ziyao Zeng, Younjoon Chung, and Alex Wong. Protodepth: Unsu-pervised continual depth completion with prototypes, 2025. 1[34] Anurag Roy, Riddhiman Moulick, Vinay K Verma, Sap-tarshi Ghosh, and Abir Das. Convolutional prompting meets language models for continual learning. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 23616–23626, 2024. 2 [35] Konstantin Shmelkov, Cordelia Schmid, and Karteek Ala-hari. Incremental learning of object detectors without catas-trophic forgetting. In Proceedings of the IEEE international conference on computer vision , pages 3400–3409, 2017. 1, 2, 7 [36] James Seale Smith, Leonid Karlinsky, Vyshnavi Gutta, Paola Cascante-Bonilla, Donghyun Kim, Assaf Arbelle, Rameswar Panda, Rogerio Feris, and Zsolt Kira. Coda-prompt: Contin-ual decomposed attention-based prompting for rehearsal-free continual learning. In Proceedings of the IEEE/CVF con-ference on computer vision and pattern recognition , pages 11909–11919, 2023. 2 [37] Kihyuk Sohn, David Berthelot, Nicholas Carlini, Zizhao Zhang, Han Zhang, Colin A Raffel, Ekin Dogus Cubuk, Alexey Kurakin, and Chun-Liang Li. Fixmatch: Simplifying semi-supervised learning with consistency and confidence. 
+
+Advances in neural information processing systems , 33:596– 608, 2020. 2 [38] Haopeng Sun, Yingwei Zhang, Lumin Xu, Sheng Jin, Ping Luo, Chen Qian, Wentao Liu, and Yiqiang Chen. Unsuper-vised continual domain shift learning with multi-prototype modeling. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pages 10131–10141, 2025. 1 [39] Zhicheng Sun, Jinghan Li, and Yadong Mu. Exploring or-thogonality in open world object detection. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 17302–17312, 2024. 6 [40] Fu-Yun Wang, Da-Wei Zhou, Han-Jia Ye, and De-Chuan Zhan. Foster: Feature boosting and compression for class-incremental learning. In European conference on computer vision , pages 398–414. Springer, 2022. 2 [41] Qiuchen Wang, Zehui Chen, Chenhongyi Yang, Jiaming Liu, Zhenyu Li, and Feng Zhao. Psedet: Revisiting the power of pseudo label in incremental object detection. In The Thirteenth International Conference on Learning Represen-tations , 2025. 3, 6 [42] Zifeng Wang, Zizhao Zhang, Sayna Ebrahimi, Ruoxi Sun, Han Zhang, Chen-Yu Lee, Xiaoqi Ren, Guolong Su, Vin-cent Perot, Jennifer Dy, et al. Dualprompt: Complementary prompting for rehearsal-free continual learning. In European conference on computer vision , pages 631–648. Springer, 2022. 2, 3 [43] Zifeng Wang, Zizhao Zhang, Chen-Yu Lee, Han Zhang, Ruoxi Sun, Xiaoqi Ren, Guolong Su, Vincent Perot, Jen-nifer Dy, and Tomas Pfister. Learning to prompt for con-tinual learning. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 139–149, 2022. 2 [44] Qirui Wu, Shizhou Zhang, De Cheng, Yinghui Xing, Di Xu, Peng Wang, and Yanning Zhang. Demystifying catastrophic forgetting in two-stage incremental object detector. arXiv preprint arXiv:2502.05540 , 2025. 6, 7 [45] Ju Xu and Zhanxing Zhu. Reinforced continual learning. Ad-vances in neural information processing systems , 31, 2018. 2[46] Shipeng Yan, Jiangwei Xie, and Xuming He. Der: Dy-namically expandable representation for class incremental learning. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 3014–3023, 2021. 2 [47] Weiqi Yan, Lvhai Chen, Huaijia Kou, Shengchuan Zhang, Yan Zhang, and Liujuan Cao. Ucod-dpl: Unsupervised cam-ouflaged object detection via dynamic pseudo-label learning. In Proceedings of the Computer Vision and Pattern Recogni-tion Conference , pages 30365–30375, 2025. 2 [48] Dongbao Yang, Yu Zhou, Xiaopeng Hong, Aoting Zhang, Xin Wei, Linchengxi Zeng, Zhi Qiao, and Weipinng Wang. Pseudo object replay and mining for incremental object de-tection. In Proceedings of the 31st ACM International Con-ference on Multimedia , pages 153–162, 2023. 6 [49] Jaehong Yoon, Eunho Yang, Jeongtae Lee, and Sung Ju Hwang. Lifelong learning with dynamically expandable net-works. arXiv preprint arXiv:1708.01547 , 2017. 2 [50] Jiacheng Zhang, Jiaming Li, Xiangru Lin, Wei Zhang, Xiao Tan, Junyu Han, Errui Ding, Jingdong Wang, and Guanbin Li. Decoupled pseudo-labeling for semi-supervised monoc-ular 3d object detection. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pages 16923–16932, 2024. 2 [51] Shizhou Zhang, Xueqiang Lv, Yinghui Xing, Qirui Wu, Di Xu, and Yanning Zhang. Revisiting generative replay for class incremental object detection. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 20340–20349, 2025. 7 [52] Shan Zhang, Yao Ni, Jinhao Du, Yuan Xue, Philip Torr, Piotr Koniusz, and Anton van den Hengel. Open-world objectness modeling unifies novel object detection. In Proceedings of the Computer Vision and Pattern Recognition Conference ,pages 30332–30342, 2025. 6 [53] Yanyi Zhang, Binglin Qiu, Qi Jia, Yu Liu, and Ran He. Not just object, but state: compositional incremental learning without forgetting. Advances in Neural Information Process-ing Systems , 37:123182–123206, 2024. 2, 4 [54] Qing Zhou, Junyu Gao, Yuan Yuan, and Qi Wang. Single-stream extractor network with contrastive pre-training for remote-sensing change captioning. IEEE Transactions on Geoscience and Remote Sensing , 62:1–14, 2024. 1 [55] Qing Zhou, Junyu Gao, and Qi Wang. Scale efficient train-ing for large datasets. 2025 IEEE/CVF Conference on Com-puter Vision and Pattern Recognition (CVPR) , pages 20458– 20467, 2025. 1 [56] Xizhou Zhu, Weijie Su, Lewei Lu, Bin Li, Xiaogang Wang, and Jifeng Dai. Deformable detr: Deformable trans-formers for end-to-end object detection. arXiv preprint arXiv:2010.04159 , 2020. 6 [57] Yuchen Zhu, Cheng Shi, Dingyou Wang, Jiajin Tang, Zhengxuan Wei, Yu Wu, Guanbin Li, and Sibei Yang. Re-thinking query-based transformer for continual image seg-mentation. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pages 4595–4606, 2025. 2 [58] Orr Zohar, Kuan-Chieh Wang, and Serena Yeung. Prob: Probabilistic objectness for open world object detection. In 
+
+Proceedings of the IEEE/CVF Conference on Computer Vi-sion and Pattern Recognition , pages 11444–11453, 2023. 6, 7[59] Jian Zou, Wei Zhang, Qiang Li, and Qi Wang. Mosaic-tracker: Mutual-enhanced occlusion-aware spatiotemporal adaptive identity consistency network for aerial multi-object tracking. ISPRS Journal of Photogrammetry and Remote Sensing , 229:138–154, 2025. 2 Beyond Prompt Degradation: Prototype-guided Dual-pool Prompting for Incremental Object Detection 
+
+# Supplementary Material 
+
+# 7. Model Complexity Analysis 
+
+We provide a detailed comparison of model parameters and computational complexity with MD-DETR in Table 6. PDP introduces only a marginal increase in parameters (64.9M 
+
+→ 66.4M). During inference, the additional computational overhead is negligible (approximately 0.01 GFLOPs). Al-though a frozen teacher model is employed during training for distillation, it increases GPU memory usage by only ap-proximately 1GB (from 12.3GB to 13.4GB), which does not impose significant practical burden. Importantly, the teacher network is discarded during inference and therefore does not affect deployment efficiency. 
+
+Table 6. Model parameters and FLOPs comparison.          
+
+> Method Params (M) Training FLOPs (G) Inference FLOPs (G) MD-DETR 64.9 166.2 (12.3GB GPU) 166.17 PDP (Ours) 66.4 332.4 (13.4GB GPU) 166.18
+
+# 8. Training Strategy in Incremental Stages 
+
+During each incremental stage (Task i > 1), distillation guided by PPG is applied to provide supervision for previ-ously learned categories. In terms of parameter updates, all parameters in the shared prompt pool are updated through-out training. For the private prompt pool, only the prompts corresponding to the current categories are updated, while the private prompts associated with old and future cate-gories remain frozen. This selective update strategy pre-vents catastrophic forgetting while maintaining adaptability to newly introduced classes. 
+
+# 9. Additional Results under the 40 + 20 × 2 Set-ting 
+
+To further validate the robustness and generality of PDP, we conduct experiments under the multi-step incremental set-ting of 40 + 20 × 2 on COCO. The results are presented in Table 7. Under the same Deformable DETR framework, PDP consistently outperforms prior methods, demonstrat-ing strong adaptability in multi-step incremental scenarios. 
+
+# 10. Upper and Lower Bound Analysis under the 70 + 10 Setting 
+
+We additionally report results under the 70+10 incremental setting on COCO in Table 8. For completeness, we provide both a lower bound (direct fine-tuning) and an upper bound 
+
+Table 7. Results under the 40 + 20 × 2 setting on COCO.                   
+
+> Method Baseline AP AP 50
+> CL-DETR CVPR ′23 Deformable-DETR 35.3 –SSDGR CVPR ′24 Deformable-DETR 41.1 59.5 DCA AAAI ′25 Deformable-DETR 40.3 54.1 PDP (Ours) Deformable-DETR 42.1 60.7
+
+(joint training with full access to all data).Direct fine-tuning results in severe forgetting of old categories. In contrast, PDP achieves 43.8% AP on old categories and approaches the upper bound performance (47.4% AP ). In terms of overall performance across all categories, PDP remains only 3.3% AP below the upper bound, demonstrating effective mitigation of catastrophic forgetting. 
+
+Table 8. Performance under the 70 + 10 setting on COCO.

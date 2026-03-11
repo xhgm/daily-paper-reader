@@ -1,0 +1,510 @@
+Title: LLMs for High-Frequency Decision-Making: Normalized Action Reward-Guided Consistency Policy Optimization
+
+URL Source: https://arxiv.org/pdf/2603.02680v1
+
+Published Time: Wed, 04 Mar 2026 01:47:47 GMT
+
+Number of Pages: 8
+
+Markdown Content:
+# LLMs for High-Frequency Decision-Making: Normalized Action Reward-Guided Consistency Policy Optimization 
+
+## Yang Zhao 1 , Zihao Li 1 , Zhiyu Jiang 1 , Dandan Ma 1 , Ganchao Liu 1 , Wenzhe Zhao 11School of Artificial Intelligence, OPtics and ElectroNics (iOPEN), Northwestern Polytechnical University, Xi’an 710072, China izhaoyang@nwpu.edu.cn, lzhiopen@mail.nwpu.edu.cn 
+
+## Abstract 
+
+While Large Language Models (LLMs) form the cornerstone of sequential decision-making agent development, they have inherent limitations in high-frequency decision tasks. Existing research mainly focuses on discrete embodied decision sce-narios with low-frequency and significant seman-tic differences in state space (e.g., household plan-ning). These methods suffer from limited perfor-mance in high-frequency decision-making tasks, since high-precision numerical state information in such tasks undergoes frequent updates with min-imal fluctuations, and exhibiting policy misalign-ment between the learned sub-tasks and composite tasks. To address these issues, this paper proposes Normalized Action Reward guided Consistency Policy Optimization (NAR-CP). 1) Our method first acquires predefined dense rewards from envi-ronmental feedback of candidate actions via reward functions, then completes reward shaping through normalization, and theoretically verifies action re-ward normalization does not impair optimal pol-icy. 2) To reduce policy misalignment in composite tasks, we use LLMs to infer sub-observation candi-date actions and generate joint policies, with con-sistency loss ensuring precise alignment between global semantic policies and sub-semantic poli-cies. Experiments on UAV pursuit, a typical high-frequency task, show our method delivers superior performance on independent and composite tasks with excellent generalization to unseen tasks. 
+
+## 1 Introduction 
+
+Large language models (LLMs), empowered by their strong semantic understanding ability and vast prior knowledge, have emerged as the core driving force for the develop-ment of sequential decision-making agents [Huang et al. ,2022] [Brohan et al. , 2023] [Carta et al. , 2023] [Chung et al. , 2024]. They exhibit enormous potential to break through the sample efficiency bottleneck of traditional reinforcement learning (RL) in fields such as embodied interaction and task planning [Chevalier-Boisvert et al. , 2018] [Szot et al. ,2023] [Carta et al. , 2023] [Tan et al. , 2024]. As decision-making agents, LLMs are required to achieve accurate align-ment with environmental dynamics and optimize decision-making policy through trial-and-error learning, thereby ro-bustly complete complex tasks. The current advanced methods have effectively addressed the problems of environment alignment and action optimiza-tion in discrete scenarios through techniques such as token normalization [Tan et al. , 2024] and token-level credit allo-cation [Wen et al. , 2024], significantly improving decision-making efficiency and sample utilization rate. However, their core designs are all tailored for discrete embodied decision-making scenarios with short-term (fewer decision steps) and distinct semantic differences in the state space (e.g., house-hold planning, kitchen collaboration [Tan et al. , 2024] [Wen 
+
+et al. , 2024]). By contrast, in continuous decision-making scenarios, tasks exhibit core characteristics such as high-frequency temporal dynamic evolution, observations contain-ing high-precision numerical text, and the need for compos-ite task decision-making. Existing methods fail to adapt to the numerical-semantic hybrid observation characteristics of high-frequency continuous decision-making and no attention was paid to the policy bias of the large language model in the composite task. Consequently, they have significant limitations in two core directions: 1. Policy convergence problem in high-frequency de-cision making environments: In high-frequency se-quential decision-making tasks, observations consist of high-precision numerical text and environmental de-scriptions. Minimal numerical variations between con-secutive mixed observations lead to high semantic over-lap, making it difficult for the model to discern envi-ronmental dynamics from raw textual representations, and the weak and sparse reward feedback is difficult to provide effective supervision for action value. Con-sequently, the model tends to misclassify similar states into identical semantic categories, impairing the estab-lishment of accurate state-action value mapping and ul-timately leading to difficulties in training convergence and environmental alignment. 2. Policy bias in LLM composite task: The autore-gressive generation property inherent in large language 
+
+> arXiv:2603.02680v1 [cs.AI] 3 Mar 2026
+
+models imposes strong input dependence on their pol-icy learning, thereby impeding the transfer of effective knowledge acquired in sub-tasks to composite task sce-narios. When composite observations are input, the gen-erated composite policy differs significantly from the product of sub-task policy ( π(a1a2 | s1s2)̸ = π(a1 |
+
+s1) × π(a2 | s2)). To address policy convergence issues caused by sparse re-wards in high-frequency environments, traditional RL has proposed several countermeasures. Reward shaping in-troduces intermediate feedback signals to bridge reward gaps [Ng et al. , 1999; Grzes, 2017; Hu et al. , 2020], curriculum learning reduces exploration difficulty by pro-gressively increasing task complexity [Bengio et al. , 2009; Narvekar et al. , 2020], and model-based RL improves sample efficiency by learning environment dynamics [Sutton, 1996; Clavera et al. , 2018; M. Moerland et al. , 2023]. While these methods aim to stabilize training and accelerate state–action correlation learning, they face intrinsic limitations when ap-plied to LLM-driven high-frequency decision-making. Un-like conventional RL operating on structured numerical rep-resentations, LLMs encode precise values into text, where subtle reward differences are difficult to distinguish, leading to ambiguous state–action equivalence and impaired conver-gence. For policy bias in LLM-based composite tasks, exist-ing approaches exhibit clear limitations. Chain-of-Thought prompting enhances coordination reasoning [Wei et al. , 2022; Feng et al. , 2023], but its high inference latency hinders real-time sequential decision-making. Alternatively, observation decoupling and policy concatenation simplify training [Xu 
+
+et al. , 2023], yet disrupt semantic coherence, causing policy inconsistencies when composite tasks are encountered with unified observations. In this paper, we enhance the discrimination of rewards through normalized action reward to optimize strategy learn-ing, and theoretically discuss that our method will not influ-ence the optimal strategy. We propose a policy consistency learning architecture with observation decoupling, which re-tains the advantages of decoupled training while reducing the deviation between the composite task strategy and the sub-task joint strategy. Our main contributions are as follows: • Extend LLM-based agents to high-frequency decision-making scenarios, propose the normalized action re-ward has alleviated the problem of policy learning fail-ure caused by low discrimination rewards. • Propose an observation-decoupled consistency policy learning method that retains the advantage of decoupled training and enables consistent policy performance of LLMs on sub-tasks and composite task. • Taking UAV tracking as the high-frequency decision-making research subject, we design pertinency simula-tion experiments to verify the proposed method’s task performance and generalization ability in this scenario. 
+
+## 2 Preliminaries 
+
+Dense Reward shaping in RL. The sequential decision-making problem in traditional reinforcement learning can be formalized within the Markov Decision Process (MDP) [Put-erman, 1990] framework M = (S, A, T, R, γ ), where S
+
+denotes the state space, A denotes the action space, T :
+
+S × A → ∆( S) represents the state transition probability function, R : S × A × S → R is the reward function, and 
+
+γ ∈ [0 , 1) is the discount factor. The primary objective is to learn an optimal policy π∗ : S → ∆( A) that maximizes the expected cumulative discounted reward over a trajectory 
+
+τ = ( s0, a 0, . . . , s T , a T ).However, current methods often adopt a terminal reward form, providing non-zero feedback only at the terminal time step. This sparse feedback characteristic easily leads to slow convergence during policy training. To address this issue, in-troduce a dense reward shaping mechanism [Grzes, 2017], defining a new MDP process MD = ( S, A, T, R D , γ ). Here, the dense reward function is defined as RD = R + F , where the additive term F = γϕ (st+1 ) − ϕ(st) [Ng et al. , 1999]. The function ϕ serves as a potential function that quantifies the distance between the current state and the goal state. Under this mechanism, the optimal action-value function satisfies the Bellman optimality equation: 
+
+Q∗ 
+
+> D
+
+(s, a ) = Es′∼P (s,a )[R(s, a, s ′) + γϕ (s′) − ϕ(s)+ 
+
+γ max 
+
+> a′∈A
+
+(Q∗(s′, a ′) − ϕ(s′))] . (1) At optimality, the optimal policy of MD is given by : 
+
+π∗ 
+
+> MD
+
+(s) ∈ arg max  
+
+> a∈A
+
+Q∗ 
+
+> MD
+
+(s, a )= arg max  
+
+> a∈A
+
+Q∗(s, a ) − ϕ(s). (2) 
+
+ϕ(s) is solely a function of state s and action-independent, the correction magnitude remains uniform across all actions; consequently, maximizing Q∗(s, a ) − ϕ(s) is mathematically equivalent to maximizing the original MDP Q∗(s, a ) , ensur-ing that the optimal policy π∗ coincides with π∗ 
+
+> MD
+
+and that the dense reward mechanism introduces no policy bias. 
+
+## 3 NAR-CP 
+
+3.1 Dense Reward to Language-augmented RL 
+
+For large language model reinforcement learning scenarios dependent on precise numerical values, rewards are no longer derived from text state but computed directly from the envi-ronment’s original numerical state to ensure accuracy. To this end, we formalize this problem as a numer-ically enhanced Markov decision process Mnum-LLM =(Snum , S text , A text , T, R dense , γ, Φ) . Snum ⊆ Rn denotes the environment’s original numerical state space containing pre-cise observations required for continuous decision-making such as distance measurements and precision metrics; T :
+
+Snum × Atext → S′ 
+
+> num
+
+represents the environmental state tran-sition function that describes the objective mapping of numer-ical states and actions to subsequent numerical states; RD :
+
+Snum × Atext → R is the dense reward function whose values are calculated directly from the original numerical states and Large Language Models    
+
+> Composite Action Prompt
+> Composite Observation Prompt
+> Composite Policy (𝜋 𝐹 )
+> Execute Action
+> Reward Model
+> Joint Policy (𝜋 𝐽 )𝑉 i(𝑆 i)
+> Reward
+
+Critic                               
+
+> 𝐴 ction
+> 𝐿 𝑐𝑜𝑛𝑠𝑖𝑠𝑡𝑒𝑛𝑐𝑦
+> Sub Action Prompt 2
+> Sub Action Prompt 1
+> Sub Observation 2
+> Sub Observation 1
+> Sub Policy 1(𝜋 1)
+> Sub Policy 2(𝜋 2)Consistency Policy Loss
+> Candidate Actions
+> Action Reward Normalize
+> Dense Reward (𝑅 𝐷 )Normalize Reward ( 𝑅 𝑁 )
+> 𝐿 𝑐𝑜𝑛𝑠𝑖𝑠𝑡𝑒𝑛𝑐𝑦 =𝐷𝐾𝐿 (𝜋 𝐽 ||𝜋 𝐹 )
+> 𝑅 𝑁 =𝑅 𝐷 −𝜇 𝐷
+> 𝜎 𝐷 +𝜖 0
+
+Figure 1: Method Overview. (a) Reduce the deviation between the sub-tasks joint policy πJ and the composite policy πF through the consistency loss. (b) By applying Action Reward Normalization to the original dense reward, we dynamically amplify the reward variance and restore the effectiveness of gradient signals. 
+
+actions; Φ : Snum → Rd constitutes the nonlinear numerical-to-text-to-vector conversion function that transforms numeri-cal states into semantic vectors. In high-frequency continuous decision-making environ-ments, the precision of rewards depends on subtle varia-tions in numerical states, resulting in extremely small re-ward differences for different actions under identical numer-ical states—the difference concentrates in the 10 −3 ∼ 10 −2
+
+magnitude : 
+
+D RD (s, Atext ) = sup 
+
+> a,a ′∈A text
+
+RD (s, a ) − RD (s, a ′) . (3) 
+
+D(X) denotes the diameter of the set X; sup represents the supremum operator (least upper bound); for all nu-merical states ∀s ∈ Snum , the reward diameter must sat-isfy D(RD (s, Atext )) ≤ κ (with κ ∈ [10 −3, 10 −2]). To-gether, they characterize the upper bound of reward differ-ences across all possible action pairs in Atext .Considering the reward distribution centered at the reward mean μ(s) = Ea∼π [RD (s, a )] , all possible action rewards lie within the interval [μ(s) − D(X)/2, μ (s) + D(X)/2] ,strictly constraining the reward dispersion. Consequently, for any state s ∈ S num , the theoretical upper bound of reward variance relates deterministically to the reward diameter as: Var [RD (s, Atext )] ≤ D(X)2
+
+4 , ∀s ∈ S num . (4) The variance of the original gradient estimate can be ex-pressed as: Var (∇J(θ)) = 1
+
+n ·Var (RD )·E ∥∇ θ log πθ (atext ,i |stext ,i )∥2 .
+
+(5) 
+
+E ∥∇ θ log πθ (atext ,i |stext ,i )∥2 represents the mathematical expectation of the squared log-likelihood gradient with re-spect to the model parameters (denoted as E[·]) [Wei et al. ,2025], which is a non-zero constant independent of the re-ward distribution. The gradient norm relates to the gradient variance as: 
+
+∥∇ J(θ)∥ ∝ 
+
+q
+
+Var ( b∇J(θ)) . (6) when ∥∇ J(θ)∥ < 10 −2 [Wei et al. , 2025], significant gradi-ent vanishing occurs, rendering model updates ineffective. The transformation Φ : Snum → Rd maps numerical values similar to highly analogous semantic representations, whose induced overlap reduces the distinguishability of input fea-tures and impairs the model’s detection of subtle numerical variations. Even with reward signals accurately reflecting ac-tion values, such weak gradients fail to enable effective opti-mization, leading to ultimate training stagnation. 
+
+3.2 Normalized Action Reward 
+
+In this section, we introduce an action-reward normalization mechanism. By applying Z-score normalization to the orig-inal dense reward , we dynamically amplify the reward vari-ance and restore the effectiveness of gradient signals. Mean-while, we theoretically guarantee that the optimal policy de-rived from the normalized reward is consistent with that of the original reward. 
+
+Normalize. The original dense reward function is defined as RD : Snum × A text 7 → R, which maps the environment’s original numerical state snum and the candidate textual action 
+
+atext to the corresponding dense reward value. In timestep t, given the numerical state snum ,t observed in the environment, a set of candidate actions is provided 
+
+At = {ai}|A t| 
+
+> i=1
+
+. This set encompasses all semantically valid and executable actions available under the current state. Based on this candidate set, we model the distribution of the original dense reward function RD . Specifically, we first compute the first and second-order statistics: the mean μD,t 
+
+and the standard deviation σD,t , as defined by the following equations: 
+
+
+
+μD,t = 1
+
+|A t|
+
+X
+
+> ai∈A t
+
+RD (snum ,t , a i).σD,t =
+
+s 1
+
+|A t|
+
+X
+
+> ai∈A t
+
+(RD (snum ,t , a i) − μD,t )2.
+
+(7) 
+
+|A t| denotes the cardinality of the candidate action set, which serves as the batch size for the normalization calculation. These two statistics collectively constitute a dynamic repre-sentation of the reward distribution at the current timestep. We apply Z-score Normalization to transform the raw re-ward RD . The normalized dense reward function RN is for-mally defined as: 
+
+RN (snum ,t , a i) = RD (snum ,t , a i) − μD,t 
+
+σD,t + ϵ0
+
+, (8) where ϵ0 is a small constant ( 10 −5) introduced to ensure nu-merical stability and prevent division by zero. 
+
+Gradient Norm. After Z-score normalization, the original dense rewards at a single timestep are mapped to a unit vari-ance distribution, explicitly amplifying the variance magni-tude. The policy gradient variance is then expressed as: Var ( ˆ∇J(θ)) = 1
+
+|A t| · Var (RN ) · E[∥∇ θ log πθ (ai | stext ,t )∥2],
+
+(9) where |A t| denotes the number of candidate actions at the current timestep, and Var (RN ) = 1 holds by definition of the normalization. This operation reconstructs the gradient scale, driving the gradient norm ∥∇ J(θ)∥ beyond the effective update thresh-old. Consequently, it ensures robustness and convergence of the policy optimization process even when the original reward variance is constrained. 
+
+Optimal Policy. We defined a potential function based on the z-score normalization, which depends solely on the nu-merical state snum ,t at a single time step t:
+
+ϕ(snum ,t ) = μD,t 
+
+(σD,t + ϵ0)(1 − γ) . (10) 
+
+μD,t and σD,t are the reward statistics of candidate actions exclusive to snum ,t , so this potential function is independent of actions; γ is the discount factor. Based on Eq. (8) and the negligible state difference be-tween adjacent time steps, the normalized reward can be re-formulated as a new reward mechanism: 
+
+RN (snum ,t , a i) = 1
+
+σD,t + ϵ0
+
+RD (snum ,t , a i)+ γϕ (s′
+
+> num ,t
+
+) − ϕ(snum ,t ).
+
+(11) Substituting the normalization reward into the Bellman optimality equation, the corresponding optimal action-value function can be derived: 
+
+Q∗ 
+
+> N
+
+(snum , a ) = Es′ 
+
+> num ∼P(snum ,a )
+
+[ 1
+
+σD + ϵ0
+
+RD
+
++ γϕ (s′
+
+> num
+
+) − ϕ(snum ) + γ max 
+
+> a′∈A
+
+(1
+
+σD + ϵ0
+
+Q∗ 
+
+> D
+
+(s′
+
+> num
+
+, a ′) − ϕ(s′
+
+> num
+
+))] .
+
+(12) 
+
+Es′  
+
+> num ∼P(snum ,a )
+
+denotes the expectation over the next nu-merical state s′ 
+
+> num
+
+following the state transition distribution 
+
+P (snum , a ); Rd is the shorthand for RD (snum , a ) for brevity, and 1 
+
+> σd,t +ϵ0
+
+> 0 which is a positive scaling coefficient. The optimal policy under the normalization action reward can be expressed as: 
+
+π∗ 
+
+> MN
+
+(s) ∈ arg max  
+
+> a∈A
+
+Q∗ 
+
+> N
+
+(snum , a )= 1
+
+σD + ϵ0
+
+arg max  
+
+> a∈A
+
+Q∗ 
+
+> D
+
+(snum , a ) − ϕ(snum )= arg max  
+
+> a∈A
+
+Q∗ 
+
+> D
+
+(snum , a ).
+
+(13) The positive scaling by 1  
+
+> σD+ϵ0
+
+and the translation by the potential function ϕ(snum ) do not alter the optimal values of the action-value function. Consequently, the optimal policy 
+
+π∗ 
+
+> MN
+
+(s) under normalized rewards and the optimal policy 
+
+π∗ 
+
+> MD
+
+(s) under original dense rewards exhibit no bias. Ultimately, through normalization action reward, we effec-tively enhance the gradient signal fidelity while preserving the optimality of the policy. 
+
+3.3 Decoupled Consistency Policy 
+
+The decision-making process of language agents is mod-eled as a Language-Augmented Markov Decision Process (MDP) [Carta et al. , 2023]. To bridge token-level language modeling with action-level policy optimization, the probabil-ity of a language action P (a|s) is factorized into the product of its constituent tokens’ probabilities [Tan et al. , 2024]: 
+
+P (a | s) = 
+
+> |a|
+
+Y
+
+> i=1
+
+P (wi | s, w 1: i−1), (14) For complex tasks composed of independent sub-tasks, each sub-task possesses a distinct action space. The core re-quirement is to ensure consistency between the joint policy of learned sub-tasks and the composite task policy. Specifically, the composite policy under composite observations should align with the joint policy of sub-policies under decoupled observations, thereby enabling knowledge reuse to improve learning efficiency and reliability. The optimal policy for each independent sub-task πi is for-mulated as: 
+
+πi(ai | si) = exp (log Pi(ai | si)/L (ai)) 
+
+P 
+
+> a′
+> i∈A i
+
+exp (log Pi(a′ 
+
+> i
+
+| si)/L (a′
+
+> i
+
+)) . (15) ai ∈ A i, si ∈ S i, L(ai) respectively corresponding to the tasks i action, state, and action normalization coefficient. Because the independence of sub-tasks, the joint action space is the Cartesian product {Ai} = Q 
+
+> i=1
+
+Ai composed of the action set {ai}. The joint policy is defined as the prod-uct of individual policies: 
+
+πJoint ({ai} | { si}) = Y
+
+> i=1
+
+πi(ai | si), (16) where {ai} and {si} represent the collections of actions and states. Our objective is to ensure that the composite task policy 
+
+πFull (a | s) (with a ∈ { Ai} and composite state s) remains consistent with πJoint ({ai} | { si}).To balance the preservation of policy consistency with reduced computational demands, we employ a Top-K
+
+mothod, select k actions with the highest probabilities from the joint action space {Ai} of the -sub-task joint policy 
+
+πJoint ({ai}|{ si}). These selected actions constitute the Top-
+
+K action set Atop-k ⊆ { Ai} and |A top-k | = k.We denote S = {si} and re-normalize the probabilities of actions within this subset to obtain the Top-K policy distri-bution πJ-topk :
+
+πJ-top-k (a | s) = πJoint (a | s)
+
+P 
+
+> a′∈A top-k
+
+πJoint (a′ | s) . (17) Compute the probability distribution of the composite task policy over the Atopk , denoted as πF-topk :
+
+πFull-top-k (a | s)= exp (log P (a | s)/L (a)) 
+
+P 
+
+> a′∈A top-k
+
+exp (log P (a′ | s)/L (a′)) . (18) To minimize the distributional discrepancy between πJ-topk 
+
+and πF-topk within the Top-K Atopk subset and ensure decision consistency, we employ the KL divergence to construct the consistency loss Lcon , which measures the overall fitness of the two distributions: 
+
+Lconsistency = DKL (πJ-topk ∥ πF-topk ) . (19) 
+
+DKL (· ∥ · ) denotes the KL divergence calculated over the Top-K action set Atop-k . By aggregating the probability con-tributions of the k core actions, this term characterizes the overall distributional discrepancy and enforces alignment at the policy ensemble level. We formulate the overall policy loss function by combin-ing the PPO loss, entropy regularization, and the consistency term. The unified expression is defined as: 
+
+Lpolicy = − E [min ( ρA, clip (ρ, 1 − ε, 1 + ε)A)] 
+
+− αeLentropy + αcLconsistency , (20) where ρ denotes the importance sampling ratio, calculated as :
+
+ρ = πJ ({ai} | { si})
+
+πJ, old ({ai} | { si}) .A represents the advantage function with Generalized Ad-vantage Estimation; ε is the PPO clipping range (typically 
+
+0.2); Lentropy is the entropy loss with coefficient αe (typically 
+
+0.01 ) to encourage exploration; and αc (typically 0.1) is the weight for the consistency loss. Large Language Models      
+
+> 𝐿 𝐶 onsistency =𝐷𝐾𝐿 (𝜋 𝐽 −𝑡𝑜𝑝 𝑘 ||𝜋 𝐹 −𝑡𝑜𝑝𝑘 )
+> Sub Policy 1 ( 𝜋 1)
+> Sub Policy 2 ( 𝜋 2)
+> 𝜋 𝐹 −𝑡𝑜𝑝𝑘 𝜋 𝐽 −𝑡𝑜𝑝𝑘
+> Consistency Policy Loss
+> 𝐴 𝑡𝑜𝑝 −𝑘
+> 0
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+> 0
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+> Joint Policy (𝜋 𝐽 )
+
+Figure 2: Details Of The Consistency Policy. Atop-k represents the action with the highest probability extracted from the joint policy πJ
+
+.πFull-topk obtained by inputting the combination of Atop-k and com-posite observation prompt into the LLM. Finally employ the KL di-vergence to construct the consistency loss Lconsistency 
+
+## 4 Experiments 
+
+4.1 Experimental Overview 
+
+Experiments use Qwen2.5-3B as the base model, fine-tuned via LoRA with 1 NVIDIA RTX 4090 GPU. Four methods are compared: (1) original untuned Qwen2.5-3B, (2) TWO-SOME (basic fine-tuned version), (3) TWOSOME + dense reward, and (4) our proposed method. All evaluations are conducted in the aforementioned UAV dynamic tracking sce-nario, where the agent operates in an open 3D dynamic airspace to stably track a target UAV, with decisions driven entirely by high-precision numerical-textual information. All experiments are built and run on NVIDIA Isaac Gym. By addressing the following four key research questions, we systematically validate the effectiveness, stability, and generalization of the proposed method: 1. Comparison Experiment: Does the proposed method improve policy convergence and reduce policy bias be-tween sub-tasks and the composite task compared with baselines? 2. Generalization Experiment: Does the trained model generalize well to unseen tracking scenarios and varied target UAV motion patterns? 3. Decision Latency Verification: In 10 Hz high fre-quency settings, does the proposed method achieve lower inference latency than large models and other baselines? 4. Ablation Study: How can we quantify the contribution of each core module in the proposed method? 
+
+4.2 Experiment 1: Comparison Experiment 
+
+Experimental Setup 
+
+This experiment aims to verify the effectiveness of the pro-posed method in high-frequency decision-making scenarios: by examining the training curves of direction tracking, dis-tance keeping, and integrated Tracking to verify improved Figure 3: Figure from left to right in turn shows: The reward curve in the direction-tracking task. The reward curve in the distance-keeping task. The reward curve in the Integrated-tracking task.                      
+
+> Figure 4: Error distribution characteristics: Direction tracking :x-axis = root sum of squared deviations, y-axis = density; red zone = 0–0.141
+> (precision), yellow zone = 0–0.707 (general); accuracy increases as curve approaches 0 in positive zone. Distance keeping :x-axis = current
+> −target distance, y-axis = density; red zone = ±0.1(precision), yellow zone = ±1.0(general); accuracy increases as curve approaches 0.
+> Integrated Tracking :x-axis = direction + distance error (+ = distance ¿ target, −= distance ¡ target), y-axis = density; red zone = ±0.241
+> (precision), yellow zone = ±1.707 (general); coordinated control increases as curve approaches 0.
+
+policy convergence; by evaluating success rate and stability metrics to further demonstrate this enhancement; and by uti-lizing policy discrepancy metrics to assess the mitigation of policy bias. The introduction of the three tasks is as follows: 1. Direction Tracking: The agent selects appropriate flight headings based on the target’s relative position and motion to maintain tracking continuity and prevent loss of sight. 2. Distance Keeping: Given a heading, the agent regulates its speed relative to the target to maintain a specified dis-tance, avoiding collisions (too close) or disengagement (too far). 3. Integrated Tracking: The agent performs direction tracking and distance keeping simultaneously, achieving stable tracking by maintaining both angular advantage and optimal distance. 
+
+Results and Analysis 
+
+As shown in Fig. 3, the training reward curves indicate that NAR-CP consistently outperforms TWOSOME and TWOSOME-DR in direction tracking, distance maintenance, and the integrated task, while dense rewards only provide limited convergence improvement. Table 1 further supports these findings: (i) NAR-CP achieves substantially better per-formance than both baselines across all tasks, demonstrat-ing strong decision-making in high-precision, high-frequency scenarios; (ii) the untrained Qwen2.5-3B base model even surpasses trained TWOSOME on certain tasks, exposing the latter’s limitations in strategy convergence; and (iii) dense rewards yield marginal gains—TWOSOME-DR underper-forms TWOSOME in distance maintenance, and Fig. 4(b) shows that neither method overcomes the performance bottle-neck. Overall, the results in Table 1 confirm that the proposed consistency strategy effectively reduces policy deviation. 
+
+4.3 Experiment 2: Generalization Experiment 
+
+Experimental Setup 
+
+To evaluate the generalization capability of the proposed method, we test the model on four unseen task scenarios: • Distance Generalization: The training stage only in-volved fixed distance thresholds (5 meters and 10 me-ters). Now, the target distance has been randomized. • Strategy Generalization: The target UAV used astraight flight strategy in training, and now the target was switched to a circle flight strategy. • Complex Composite Task: We construct a multi-dimensional unknown environment by simultaneously introducing dynamic distances, color randomization, and circular trajectories. 
+
+Results and Analysis 
+
+Table 2 show that leveraging the semantic capability of large models, our method can generalize to various unseen sce-narios and has a certain ability to understand numerical in-formation, achieving accurate tracking to a certain extent in Model Direction Tracking Distance Keeping Integrated Tracking General Rate % Precise Rate % General Rate % Precise Rate % General Rate % Precise Rate % Policy Bias Qwen2.5-3B 31.62 4.62 25.04 0.04 2.83 0.02 0.05 Twosome 1.38 0.08 19.00 1.08 0.46 0.06 0.186 Twosome-DR 51.58 17.38 15.12 0.13 24.58 0.10 1.22 NAR-CP 96.79 91.33 76.67 60.83 82.00 61.46 0.006 
+
+> Table 1: Performance comparison across different tracking scenarios with additional policy bias metric for integrated tracking.
+
+Model Distance Generalization Strategy Generalization Complex Composite Task General Rate % Precise Rate % General Rate % Precise Rate % General Rate % Precise Rate % Qwen2.5-3B 9.11 0.44 3.04 0.42 0.88 0.02 NAR-CP 68.00 48.05 74.50 22.38 19.62 1.08 
+
+> Table 2: Conducting generalization experiments for verification in unseen scenario.
+
+distance generalization and trajectory strategy generalization tasks. However, constrained by the discrete action space de-sign, it is difficult for the method to complete tasks accurately in more complex unseen scenarios. 
+
+4.4 Experiment 3: Decision Latency Verification 
+
+Experimental Setup 
+
+This experiment aims to verify the real-time performance of our method in high-frequency decision-making scenar-ios. We conduct a core comparison of action inference la-tency between the trained model and the original Qwen2.5 model. By recording the time consumption from receiving high-precision numerical text to outputting flight commands and calculating the average latency, we quantitatively eval-uate the real-time decision-making capability to verify if it meets the real-time requirements. Method Direction Tracking Distance Keeping Integrated Tracking Qwen2.5-3B-infer 1968 ms 1654 ms 2489 ms NAR-CP 114 ms 95 ms 144 ms 
+
+> Table 3: Decision Latency
+
+Results and Analysis 
+
+As shown in Table 3, the inference decision-making time of the large model is significantly longer than that of our method. Moreover, the inference latency is strongly corre-lated with the input prompt length. 
+
+4.5 Experiment 4: Ablation Study 
+
+This section evaluates the individual and synergistic effects of action reward normalization and consistent policy loss func-tion via ablation experiments, validating their effectiveness in high-frequency numerical decision scenarios. As show in Table 4, ablation experiments demonstrate that action reward normalization and consistent policy loss NAR CP General Rate Precise Rate Policy bias 
+
+✓ ✓ 82.54% 62.75% 0.008 
+
+✓ 78.96% 57.67% 7.174 
+
+✓ 6.71% 0.92% 0.025 7.54% 0.02% 1.163 
+
+> Table 4: Ablation Test
+
+function form an effective complement in addressing high-frequency decision problems: the former provides a stable convergence foundation for the model, while the latter signif-icantly enhances the adaptability of the policy. By integrating these two techniques, the model not only achieves a rapid and stable convergence but also effectively reduces policy bias, striking an ideal performance balance between generalization control capability of composite task and precise operations in high-frequency tasks, thereby fully validating the scientific and practical merits of their collaborative design. 
+
+## 5 Conclusion 
+
+In this paper, we address the inherent limitations of LLMs in high-frequency decision tasks, specifically the difficulty in adapting to high-precision numerical state information and the misalignment of strategies in sub-combined tasks, by proposing the NAR-CP method that normalizes and shapes dense environmental feedback rewards while theoret-ically preserving optimal strategies, and aligns global and sub-semantic strategies through consistency loss to mitigate combined-task strategy misalignment, with drone tracking experiments demonstrating excellent performance in both sub-tasks and combined tasks along with strong generaliza-tion capabilities for unseen tasks. However, although our method extends LLM decision-making to a high-frequency continuous environment, we set the action space is discrete, which makes it difficult to apply to more complex tasks. In the future, we hope to expand this work to the continuous action space, enabling LLMs to truly act as a decision-making intelligent agent and participate in high-frequency decision-making. References 
+
+[Bengio et al. , 2009] Yoshua Bengio, J´ erˆ ome Louradour, Ronan Collobert, and Jason Weston. Curriculum learn-ing. In Proceedings of the 26th annual international con-ference on machine learning , pages 41–48, 2009. [Brohan et al. , 2023] Anthony Brohan, Yevgen Chebotar, Chelsea Finn, Karol Hausman, Alexander Herzog, Daniel Ho, Julian Ibarz, Alex Irpan, Eric Jang, Ryan Julian, et al. Do as i can, not as i say: Grounding language in robotic affordances. In Conference on robot learning , pages 287– 318. PMLR, 2023. [Carta et al. , 2023] Thomas Carta, Cl´ ement Romac, Thomas Wolf, Sylvain Lamprier, Olivier Sigaud, and Pierre-Yves Oudeyer. Grounding large language models in interactive environments with online reinforcement learning. In Inter-national Conference on Machine Learning , pages 3676– 3713. PMLR, 2023. [Chevalier-Boisvert et al. , 2018] Maxime Chevalier-Boisvert, Dzmitry Bahdanau, Salem Lahlou, Lucas Willems, Chitwan Saharia, Thien Huu Nguyen, and Yoshua Bengio. Babyai: A platform to study the sample efficiency of grounded language learning. arXiv preprint arXiv:1810.08272 , 2018. [Chung et al. , 2024] Hyung Won Chung, Le Hou, Shayne Longpre, Barret Zoph, Yi Tay, William Fedus, Yunxuan Li, Xuezhi Wang, Mostafa Dehghani, Siddhartha Brahma, et al. Scaling instruction-finetuned language models. Jour-nal of Machine Learning Research , 25(70):1–53, 2024. [Clavera et al. , 2018] Ignasi Clavera, Jonas Rothfuss, John Schulman, Yasuhiro Fujita, Tamim Asfour, and Pieter Abbeel. Model-based reinforcement learning via meta-policy optimization. In Conference on robot learning ,pages 617–629. PMLR, 2018. [Feng et al. , 2023] Guhao Feng, Bohang Zhang, Yuntian Gu, Haotian Ye, Di He, and Liwei Wang. Towards revealing the mystery behind chain of thought: a theoretical perspec-tive. Advances in Neural Information Processing Systems ,36:70757–70798, 2023. [Grzes, 2017] Marek Grzes. Reward shaping in episodic re-inforcement learning. 2017. [Hu et al. , 2020] Yujing Hu, Weixun Wang, Hangtian Jia, Yixiang Wang, Yingfeng Chen, Jianye Hao, Feng Wu, and Changjie Fan. Learning to utilize shaping rewards: A new approach of reward shaping. Advances in Neural Informa-tion Processing Systems , 33:15931–15941, 2020. [Huang et al. , 2022] Wenlong Huang, Fei Xia, Ted Xiao, Harris Chan, Jacky Liang, Pete Florence, Andy Zeng, Jonathan Tompson, Igor Mordatch, Yevgen Chebo-tar, et al. Inner monologue: Embodied reasoning through planning with language models. arXiv preprint arXiv:2207.05608 , 2022. [M. Moerland et al. , 2023] Thomas M. Moerland, Joost Broekens, Aske Plaat, and Catholijn M. Jonker. Model-based reinforcement learning: A survey. Foundations and Trends in Machine Learning , 16(1):1–118, 2023. [Narvekar et al. , 2020] Sanmit Narvekar, Bei Peng, Matteo Leonetti, Jivko Sinapov, Matthew E Taylor, and Peter Stone. Curriculum learning for reinforcement learning domains: A framework and survey. Journal of Machine Learning Research , 21(181):1–50, 2020. [Ng et al. , 1999] Andrew Y Ng, Daishi Harada, and Stuart Russell. Policy invariance under reward transformations: Theory and application to reward shaping. In Icml , vol-ume 99, pages 278–287. Citeseer, 1999. [Puterman, 1990] Martin L Puterman. Markov decision pro-cesses. Handbooks in operations research and manage-ment science , 2:331–434, 1990. [Sutton, 1996] Leonid Kuvayev Rich Sutton. Model-based reinforcement learning with an approximate, learned model. In Proceedings of the ninth Yale workshop on adaptive and learning systems , volume 1996, pages 101– 105, 1996. [Szot et al. , 2023] Andrew Szot, Max Schwarzer, Harsh Agrawal, Bogdan Mazoure, Rin Metcalf, Walter Talbott, Natalie Mackraz, R Devon Hjelm, and Alexander T To-shev. Large language models as generalizable policies for embodied tasks. In The Twelfth International Conference on Learning Representations , 2023. [Tan et al. , 2024] Weihao Tan, Wentao Zhang, Shanqi Liu, Longtao Zheng, Xinrun Wang, and Bo An. True knowl-edge comes from practice: Aligning llms with embodied environments via reinforcement learning. arXiv preprint arXiv:2401.14151 , 2024. [Wei et al. , 2022] Jason Wei, Xuezhi Wang, Dale Schuur-mans, Maarten Bosma, Fei Xia, Ed Chi, Quoc V Le, Denny Zhou, et al. Chain-of-thought prompting elicits reasoning in large language models. Advances in neural information processing systems , 35:24824–24837, 2022. [Wei et al. , 2025] Chenxing Wei, Jiarui Yu, Ying Tiffany He, Hande Dong, Yao Shu, and Fei Yu. Redit: Reward dither-ing for improved llm policy optimization. arXiv preprint arXiv:2506.18631 , 2025. [Wen et al. , 2024] Muning Wen, Ziyu Wan, Jun Wang, Weinan Zhang, and Ying Wen. Reinforcing llm agents via policy optimization with action decomposition. Advances in Neural Information Processing Systems , 37:103774– 103805, 2024. [Xu et al. , 2023] Binfeng Xu, Zhiyuan Peng, Bowen Lei, Subhabrata Mukherjee, Yuchen Liu, and Dongkuan Xu. Rewoo: Decoupling reasoning from observations for efficient augmented language models. arXiv preprint arXiv:2305.18323 , 2023.

@@ -1,0 +1,413 @@
+Title: Hierarchical Audio-Visual-Proprioceptive Fusion for Precise Robotic Manipulation
+
+URL Source: https://arxiv.org/pdf/2602.13640v1
+
+Published Time: Tue, 17 Feb 2026 01:29:25 GMT
+
+Number of Pages: 10
+
+Markdown Content:
+# Hierarchical Audio-Visual-Proprioceptive Fusion for Precise Robotic Manipulation 
+
+Siyuan Li 1∗† , Jiani Lu 1∗, Yu Song 1, Xianren Li 1, Bo An 2, Peng Liu 1
+
+> 1
+
+Harbin Institute of Technology, China 
+
+> 2
+
+Nanyang Technological University, Singapore 
+
+> ∗
+
+Equal contribution 
+
+> †
+
+Corresponding author: siyuanli@hit.edu.cn 
+
+Abstract —Existing robotic manipulation methods primarily rely on visual and proprioceptive observations, which may struggle to infer contact-related interaction states in partially observable real-world environments. Acoustic cues, by contrast, naturally encode rich interaction dynamics during contact, yet remain underexploited in current multimodal fusion liter-ature. Most multimodal fusion approaches implicitly assume homogeneous roles across modalities, and thus design flat and symmetric fusion structures. However, this assumption is ill-suited for acoustic signals, which are inherently sparse and contact-driven. To achieve precise robotic manipulation through acoustic-informed perception, we propose a hierarchical repre-sentation fusion framework that progressively integrates audio, vision, and proprioception. Our approach first conditions vi-sual and proprioceptive representations on acoustic cues, and then explicitly models higher-order cross-modal interactions to capture complementary dependencies among modalities. The fused representation is leveraged by a diffusion-based policy to directly generate continuous robot actions from multimodal observations. The combination of end-to-end learning and hi-erarchical fusion structure enables the policy to exploit task-relevant acoustic information while mitigating interference from less informative modalities. The proposed method has been evaluated on real-world robotic manipulation tasks, including liquid pouring and cabinet opening. Extensive experiment results demonstrate that our approach consistently outperforms state-of-the-art multimodal fusion frameworks, particularly in scenarios where acoustic cues provide task-relevant information not readily available from visual observations alone. Furthermore, a mutual information analysis is conducted to interpret the effect of audio cues in robotic manipulation via multimodal fusion. 
+
+I. I NTRODUCTION 
+
+Robotic manipulation is a prominent research direction in embodied intelligence, and most existing manipulation work relies on two types of perception [1, 8, 20, 5, 22, 33]: visual ex-ternal sensing to perceive the environment and proprioceptive sensing to perceive robots’ own state. Although visual obser-vations provide detailed spatial information about surrounding environments, purely visual observations are insufficient to fully capture the dynamics and rich contact during physical interaction, hindering precise and robust manipulation. In particular, visual observations are sensitive to occlusion and struggle with transparent or reflective objects [17, 14], which commonly appear in real-world environments. In contrast, acoustic sensing is promising for capturing fine-grained inter-action dynamics that are challenging or impossible to perceive visually [2, 18, 19]. As audio signals are able to encode subtle tPoint  Clouds Audio Proprioception       
+
+> xzyq0 q1 q2 q3
+> Sudden Change
+
+Fig. 1. Example trajectory of visual, audio, and proprioception obser-vations in a real-world pouring task. The three modalities are temporally synchronized, yet exhibit markedly different characteristics. Visual and propri-oceptive signals vary smoothly over time, reflecting gradual motion and pose changes, whereas audio signals are sparse and exhibit abrupt transients tightly coupled with physical interactions. These empirical observations suggest that acoustic information encodes interaction-specific cues that are complementary to vision, and these three modalities are inherently hetergeneous. 
+
+temporal dynamics induced by physical contacts and material properties, audio is regarded as complementary information that effectively reflects underlying interaction states beyond the visual modality [11, 28]. Therefore, integrating visual, acous-tic, and proprioceptive modalities is promising for achieving precise robotic manipulation in real-world environments. Existing audio-visual manipulation approaches either handle audio signals with additional supervision labels [29] and task-specific knowledge [9], or perform multimodal fusion with lightweight structures, such as concatenation [32] or basic attention [16]. More recent works try to design sophisticated architectures for more effective fusion [32, 34, 23], and ManiWAV [21] stands out as a superior method among them, as it can leverage in-the-wild audio signals. In most previous work, audio is treated as a homogeneous modality with visual and proprioceptive observations. However, these modalities are inherently heterogenous. As illustrated in Fig. 1, audio signals are contact-driven, sparse, and vary abruptly. In contrast, the variation of visual observation is much smoother. The substantial differences among audio, visual, and propriocep-tive observations constrain the effectiveness of symmetrically designed fusion structures that treat all modalities equally. 
+
+> arXiv:2602.13640v1 [cs.RO] 14 Feb 2026
+
+To address this heterogeneous fusion issue, we propose a novel hierarchical audio-visual-proprioceptive fusion approach that especially emphasizes the audio modality. Different from symmetrical fusion methods, we first utilize the audio modality to augment the other two separately through a binary-branched fusion module . Then, we obtain two fused representations: an audio-visual representation and an audio-proprioceptive representation. These two representations extract cross-modal features, but due to the sparsity of audio signals, contact-related information valuable for precise manipulation may be attenuated. To emphasize audio more, we build a highway from the audio encoder to a fusion module that further models cross-modal interactions, called interaction modeling module .These two modules (binary-branched fusion and interaction modeling) compose the hierarchical multimodal fusion frame-work, and the resulting fused representation is finally used within an end-to-end diffusion-based manipulation policy to generate continuous actions. The proposed approach is evaluated in real-world manipula-tion tasks, including liquid pouring and cabinet opening, where precision is critical. The experimental results show that our approach consistently outperforms baselines that rely on single modalities or state-of-the-art audio-visual fusion strategies, demonstrating better precision and stronger generalization. Furthermore, we conduct a mutual information analysis and ablation studies to probe the proposed audio-centric hierarchi-cal fusion, revealing that audio information plays a dominant role in acoustically rich tasks. The main contributions of this paper can be summarized as follows:  
+
+> •
+
+A binary-branched fusion module that uses audio as a conditioning signal to modulate visual and robot propri-oception representations.  
+
+> •
+
+An interaction modeling module built upon an audio highway, which further models the higher-order cross-modal interactions with an emphasize of audio signals.  
+
+> •
+
+Extensive experiment results not only demonstrate the precision and generalization of multimodal manipulation, but also validate the effectiveness of each module. II. R ELATED WORK 
+
+This section briefly reviews the robotic manipulation liter-ature about the two external sensing modalities, vision and audio, and their fusion. Specifically, Section II-A reviews visual and audio representation learning in isolation, and Section II-B discusses the audio-visual fusion works. 
+
+A. Visual and Audio Representations 
+
+Vision-based observations, such as RGB [1, 8, 20] or RGB-D images [5, 22], provide rich perceptual information for robotic manipulation, such as geometric, spatial, and semantic properties of surrounding objects [15]. In recent years, point clouds have emerged as a powerful visual modality, which has demonstrated greater spatial generality than RGB images. Early visual-based approaches typically adopt point-based encoders, such as PointNet [3] and its variants [25, 26]. These encoders have been widely used in manipulation policies and combined with robot proprioception or language instructions to predict actions, as demonstrated in works such as DexPoint [27], PolarNet [4], and PointFlowMatch [6]. However, aggres-sive pooling operations often compress rich spatial information into a global representation, limiting the expressiveness for fine-grained interaction reasoning. To improve efficiency and training stability, more recent works adopt lightweight point cloud encoders that focus on extracting compact, task-relevant geometric features [33, 30]. In parallel, other works explore structured point cloud representation, such as voxel grids [10], sparse convolutional features, or point maps that rearrange 3D points into regular girds [13], enabling the use of convolutional or transformer-based architectures at the cost of increased preprocessing complexity. Therefore, in this work, we adopt point clouds as the visual perception. Inspired by humans’ ability to infer states from acoustic cues in visually partially observable environments, previous research attempts to leverage audio signals in robotic pouring to estimate liquid height [2, 18, 19]. Beyond state estimation, Guo et al. [11] propose to utilize interaction sounds for object recognition and instruction understanding. Thankaraj and Pinto [28] develop a self-supervised framework that uses audio to generate robot actions, but relying solely on audio lacks spatial and geometric context. Generally, most audio representation learning works in robotic manipulation serves as one component in the perception-decision-action pipeline, but has not been integrated into the end-to-end policy learning. These methods contribute to audio feature extraction for the following audio-visual fusion methods. 
+
+B. Audio-Visual Fusion 
+
+Audio–visual fusion has been extensively explored across various robotic perception tasks, demonstrating the strong complementarity between acoustic and visual modalities. Early related research adopts lightweight fusion structures, e.g., simple concatenation of audio and visual representations [32] or basic attention mechanism [16]. Without a well-designed fusion strategy, these methods can hardly leverage the unique strengths of each modality effectively. To better support robotic manipulation, more recent audio-visual fusion works try to develop more sophisticated architure. For example, considering the long-term temporal history, Du et al. [7] pro-pose to concatenate audio, visual, and robot state embeddings before processing them through a Multi-Layer Perceptron (MLP) to obtain a joint feature. The following works develops staged or task-specific fusion pipelines [34, 9], or rely on additional supervision to learn intermediate semantic represen-tations [29]. One of the most related works is ManiWAV [21], which concatenates audio and visual features and fuses them using a Transformer encoder. Concurrently to ManiWAV, Mejia et al. [23] also propose a similar Transformer-based fusion framework. In spite of the progress in audio-visual fusion, most related work assumes that the visual and audio modalities are homogeneous, neglecting the contact-driven and sparsity property of audio signals. Therefore, the critical information for manipulation from audio signals has been underexploited. To address this issue, we propose a novel hierarchical audio-visual-proprioceptive fusion framework that especially emphasizes the audio modality. III. P ROBLEM FORMULATION AND PRELIMINARIES 
+
+A. Problem Formulation 
+
+We consider a robotic manipulation task in which ob-servations are obtained from three types of sensing: visual, audio, and proprioceptive. The learning objective of this work is to derive a policy that maps raw observations to robot actions. The robotic manipulation is temporally extended, and at each timestep t, the multimodal observation ot is denoted as follows: 
+
+ot = {oat , o pt , o st }, (1) where oat ∈ RNo×T ×M is the audio segment that starts at timestep t − T , and ends at timestep t. T serves as a sliding window size to capture the temporally related information, and 
+
+M corresponds to the number of Mel-frequency bins for the audio signals. opt ∈ RNo×N ×3 represents the 3D spatial point cloud observation, and N is the point number of each frame. 
+
+ost ∈ RNo×Ds , where Ds indicates the dimension of the robot proprioception. No denotes the number of recent timesteps stacked along the temporal dimension, providing necessary temporal context, as a single observation is insufficient to capture robot motion dynamics. Since the raw observations 
+
+{oat , o pt , o st } are generally high-dimensional, these observations are first processed by the corresponding feature encoders before the fusion process. 
+
+zt = F (fa(oat ), f p(opt ), f s(ost )) , (2) where fa, f p, f s represent the encoders of audio, point cloud, and robot proprioception separately, and the ouputs of these encoders are denoted as {xat , x pt , x st }. The main focus of this work is to develop the fusion function F to obtain the fused latent representation zt that fully captures the acoustic dynamic, the spatial scene geometry, and the robot motion. In this work, we adopt an imitation learning method [12] to optimize the manipulation policy, so we assume an ex-pert dataset Dexp is given, which contains Nexp successful trajectories for the target task. The policy π takes the latent embedding zt in Equation (2) as input, and outputs the robot action. The robot action a is defined over the end-effector position-orientation space, which is standard in the robotic manipulation literature. The whole manipulation policy con-taining the feature encoders {fa, f p, f s}, the fusion network 
+
+F , and the control policy network π is optimized in an end-to-end manner with behavior cloning, and the details about policy π are presented in the following subsection. 
+
+B. Diffusion Policy 
+
+Diffusion models [31] are widely used in sequence gen-eration, which have also been adopted for action generation in robotic manipulation. Following the DP3 approach [33], we employ a diffusion-based policy to generate future robot actions by modeling a conditional distribution over action trajectories. Let at:t+H = {at, . . . , a t+H } denote the future actions to execute with a horizon of H + 1 , where at ∈ RDa
+
+is the end-effector control command. The output action is sampled from the distribution 
+
+at:t+H ∼ π(· | zt; k), (3) where zt is the multimodal latent feature in Equation 2, and 
+
+k indicates the noise level in the diffusion network. The entire policy network is optimized with the following behavior cloning loss function: 
+
+Ldiff = EDexp 
+
+h
+
+∥at:t+H − ˆat:t+H ∥22
+
+i
+
+, (4) where ˆa denotes the action sequence sampled from the expert dataset Dexp , and at:t+H is the output of the diffusion policy with the corresponding observations. Note that all the param-eters in the policy network, including diffusion-based π, the feature encoders {fa, f p, f s}, and the fusion network F , are all optimized with the loss function in Equation (4). At inference time, an action sequence is generated by iterative denoising conditioned on zt. Only the last Na actions will be executed, and the process is repeated in a receding-horizon manner. IV. M ETHOD 
+
+To achieve effective multimodal fusion with an emphasize of the sparse and fluctuating audio signals, we propose a novel hierarchical audio-visual-proprioceptive fusion architecture, as illustrated in Fig. 2. The proposed hierarchical architecture consists of two main components: a binary-branched fusion module (B-BFM), which aggregates these modalities progres-sively, described in Section IV-B, and an interaction modeling module (IMM) presented in Section IV-C, using a cross-attention mechanism to model the higher-order interactions among these modalities with an emphasize of audio signals. As a precondition for multimodal fusion, we employ sepa-rate feature encoders for each modality to process the high-dimensional raw observations, as depicted in Section IV-A. 
+
+A. Separate Feature Encoder 
+
+This subsection elaborates on the feature encoders 
+
+{fa, f p, f s} for the audio, point cloud, and proprioception observations. As illustrated in the upper part of Fig. 2, The outputs of these encoders {xat , x pt , x st } serve as preconditions of the following hierarchical fusion model. 
+
+Audio Encoder. Audio signals contain rich information across both temporal and frequency dimensions. Therefore, we pro-pose to extract acoustic features using a dual-path audio encoder that captures complementary temporal and spectral cues from the log-Mel spectrogram. Specifically, the encoder consists of two parallel branches. The temporal branch ftime 
+
+focuses on modeling temporal dynamics across time frames to capture fine-grained temporal variations induced by physical interactions, while the spectral branch ffreq emphasizes spec-tral patterns to extract frequency-dependent features associated with interaction-induced vibrations. The outputs of the two Binary -Branched  Fusion Module  (B -BFM)                       
+
+> Interaction Modeling Module (IMM)
+> ෠ℎ𝑡
+> s
+> ℎ𝑡
+> 𝑝
+> Linear
+> LayerNorm
+> ReLu
+> a𝑡 :𝑡 +𝐻
+> 𝑘
+> Noised Action
+> a𝑡 :𝑡 +𝐻
+> 𝑘 −1…a𝑡 :𝑡 +𝐻
+> 0
+> Denoised Action
+> x3
+> Projection
+> Linear
+> ReLu
+> Linear
+> Conditioning
+> Temporal
+> Spectral
+> 𝑥 𝑡
+> 𝑝 𝑥 𝑡
+> 𝑠
+> 𝑜 𝑡
+> 𝑝 𝑜 𝑡
+> 𝑎 𝑜 𝑡
+> 𝑠
+> Cross -attention
+> Add &Norm
+> Q
+> K_V
+> ෠ℎ𝑡
+> s
+> ℎ𝑡
+> 𝑝
+> 𝑥 𝑡
+> 𝑎
+> ෨ZA←PS
+> Cross -attention
+> Add &Norm
+> Q
+> K_V
+> ෠ℎ𝑡
+> s𝑥 𝑡
+> 𝑎
+> ℎ𝑡
+> 𝑝
+> ෨ZP←AS
+> Cross -attention
+> Add &Norm
+> Q
+> K_V
+> ℎ𝑡
+> 𝑝
+> 𝑥 𝑡
+> 𝑎 ෠ℎ𝑡
+> s
+> ෨ZS←AP
+> 𝑓 𝑝 𝑓 𝑎
+> MLP
+> 𝑥 𝑡
+> 𝑎
+> 𝑓 𝑠
+> 𝑥 𝑡
+> 𝑝 𝑥 𝑡
+> 𝑎 𝑥 𝑡
+> 𝑠
+> MLP a2p MLP a2 sSelf -Attention
+> MLP p2s
+> FiLM
+> ℎ𝑡
+> 𝑠
+> ℎ𝑡
+> 𝑝 ෠ℎ𝑡
+> s
+> Ha damard
+> Product Ha damard
+> Product
+> Self -Attention
+> Feature  Encoder
+> Highway
+> Hierarchical  Fusion  𝑧 𝑡
+> Diffusion -Based
+> Manipulation Policy Fig. 2. The architecture of the proposed hierarchical fusion method. Each modality is initially encoded, followed by the Binary-Branched Fusion Module, which aggregates the extracted features. The resulting intermediate features then undergo interactive fusion to yield the final embedding zt, which serves as the conditioning input to the diffusion policy. This policy iteratively denoises the trajectory from random noise to executable robot actions.
+
+branches are concatenated to extract the audio embedding 
+
+xat ∈ RD as follows: 
+
+xat = fa(oat )= f a
+
+> enc
+
+(ftime (LogMel( oat )) ∥ ffreq (LogMel( oat ))) , (5) where ∥ denotes the concatenation of features, D denotes the embedding dimension. f a
+
+> enc
+
+, ftime and ffreq constitute the audio encoder fa.Acoustic cues alone can be ambiguous for manipulation, as similar sounds may arise from distinct interaction events under different physical conditions. To ground acoustic representa-tions in the physical interaction context, we pretrain the audio encoder jointly with the proprioceptive encoder fs(ost ) using an autoencoding objective. This joint pretraining encourages the audio encoder to learn representations that are physically grounded in the robot’s interaction state. The pretrained audio encoder is then used to extract acoustic features for subsequent audio–visual–proprioceptive fusion. 
+
+Visual Encoder. Inspired by the DP3 approach [33], we process the point clouds with an encoder composed of linear layers, layer normalization, ReLu activation, and a projection layer. Before being fed into the visual encoder fp, the point cloud opt is cropped to the task-relevant region and down-sampled to N points using farthest point sampling, so that each visual observation maintains a unified size no matter how many points are captured by the camera. In addition, because the manipulation tasks considered in this work primarily depend on geometric structure rather than appearance, color information is discarded. 
+
+Proprioceptive Encoder. As the dimension of the propriocep-tive observation ost is lower than the other two modalities, its encoder is relatively lighter than the others. As shown in the upper right part of Fig. 2, the proprioceptive encoder fs is a two-layered MLP activated with the ReLu function, which output a proprioception embedding xst ∈ RD .
+
+B. Binary-Branched Fusion Module 
+
+In manipulation tasks, audio primarily conveys interaction events, while point cloud and proprioceptive inputs describe the environment geometry and the robot’s motion, respectively. To extract the correlation between audio and the other two modalities, we propose a binary-branched fusion module (B-BFM) that integrates audio, vision, and proprioceptive infor-mation through structured, feature-wise modulation. Rather than treating audio as an independent input, B-BFM uses it as a conditioning signal that modulates the interpretation of the other modalities. As illustrated in the upper right of Fig. 2, the module consists of two parallel binary branches. In the first branch, point cloud features are processed by a self-attention layer to capture spatial dependencies within the scene representa-tion. In the last branch, proprioceptive features are similarly processed to model temporal and kinematic structure in the robot’s motion. In the middle, audio features are transformed by MLPs to produce branch-specific modulation signals, which are then applied via the Hadamard product. This operation injects event-related and phase-related information into visual and proprioceptive features, allowing geometric and motion features to be interpreted in the context of the current interac-tion: 
+
+hpt = SelfAttn( xpt ) ⊙ MLP a2p(xat ), (6a) hst = SelfAttn( xst ) ⊙ MLP a2s(xat ), (6b) where ⊙ denotes the Hadamard product. To further integrate the two branches, we adopt a Feature-wise Linear Modulation (FiLM) mechanism [24]. Specifically, the audio-modulated point cloud features are used to generate feature-wise affine parameters β and γ that modulate the proprioceptive represetation. Formally, given the intermediate proprioceptive representation hst , the FiLM-modulated output is computed as 
+
+ˆhst = (1 + γ) ⊙ hst + β. (7) The affine parameters are generated from hpt through a learn-able mapping: 
+
+[γt ∥ βt] = MLP p2s (hpt ), (8) where MLP p2s(·) outputs a 2D-dimensional vector that is split along the feature dimension to obtain the scale γt ∈ RD and shift βt ∈ RD . This formulation enables geometric context, informed by acoustic events, to directly influence how robot motion states are represented. Overall, the fusion process follows a binary-tree structure. Individual modality features form the leaves, pairwise fusion operations constitute intermediate nodes, and the final FiLM-modulated representation serves as the root. This hierarchical design allows the model to selectively exploit informative acoustic cues while suppressing irrelevant ones, leading to a unified multimodal embedding that captures both modality-specific structure and their interactions. 
+
+C. Interaction Modeling Module 
+
+While B-BFM integrates modalities in a structured and con-ditioned manner, it primarily captures pairwise dependencies. To further model higher-order interactions among modalities, we introduce an interaction modeling module (IMM) based on cross-attention as shown in the lower right of Fig. 2. Since audio signals are sparse and fluctuating, as illustrated in Fig. 1, to avoid missing the important information from audio signals, we additionally introduce a highway that crosses B-BFM to directly pass the output of the audio encoder to the lower-level IMM. Furthermore, in contrast to simple feature aggregation, IMM allows each modality to update its representation by querying the joint context formed by the other two modalities, thereby explicitly modeling conditional and bidirectional cross-modal interactions. Specifically, IMM consists of three parallel cross-attention components. In each component, one modality serves as the query, while the remaining two modalities are concate-nated along the temporal dimension and used jointly as the key–value pair. One representative component (the rightmost box in Fig. 2) is defined as follows: 
+
+QS = ˆhst , KAP = VAP = [ xat || hpt ]. (9) Cross-attention is then applied to allow the proprioceptive representation to attend to the joint audio–geometric context: 
+
+ZS←AP = CrossAttn( QS , KAP , VAP ). (10) RealSense D455   
+
+> Audio-Technica
+> AT2020
+> Franka Panda
+> RH56DFTPL
+> Franka Hand
+> RealSense D455
+> Audio-Technica
+> AT2020
+> (a) equipment setup for pouring task
+> (b) equipment setup for cabinet opening task
+> Fig. 3. Overview of the experimental environment. Both experiments involve visual, acoustic, and proprioceptive sensing.
+
+A residual connection followed by layer normalization is used to stabilize learning: 
+
+eZS←AP = LayerNorm ( ZS←AP + QS ) . (11) The same fusion structure is applied to the other two modal-ity pairs, yielding eZA←P S and eZP ←AS , where each modality attends to the combined information from the other two. Fi-nally, the three cross-attended representations are concatenated and projected into a unified interaction-aware embedding: 
+
+zt =
+
+heZA←P S ∥ eZP ←AS ∥ eZS←AP 
+
+i
+
+(12) This design enables explicit cross-modal reasoning by al-lowing each modality to attend to a joint cross-modal context formed by the other two. As a result, the learned representation 
+
+zt captures interaction-level dependencies with an emphasis on audio features, leading to more informed and robust decision-making in multimodal manipulation tasks. Finally, zt is used as a conditioning variable to generate actions in an end-to-end manner as introduced in Section III-B. V. E XPERIMENTS 
+
+We evaluate the proposed method through a series of experiments. These experiments are designed to answer the following key research questions:  
+
+> •
+
+Can audio feedback improve precision in acoustic-rich manipulation tasks? (Section V-C)  
+
+> •
+
+How does the proposed hierarchical fusion framework compare to existing multimodal methods? (Section V-C)  
+
+> •
+
+Can the proposed approach enhance the generalization ability of manipulation learning? (Section V-D)  
+
+> •
+
+Which component in the hierarchical fusion structure is more important? (Section V-E)  
+
+> •
+
+Does the hierarchical fusion method preserve more task-relevant information? (Section V-F) 
+
+A. Setup 
+
+We evaluate the proposed hierarchical multimodal fusion entirely in real-world settings using a Franka Emika Panda robot arm. As shown in Fig. 3, the robot is equipped with an Inspire RH56DFTPL dexterous hand for pouring and a Franka gripper for the cabinet opening task. The system adopts a dual-computer architecture. A NUC is directly connected to the robot controller and handles low-level control, while a separate policy workstation acquires multimodal observations (audio, vision, and proprioception), executes the learned dif-fusion policy, and transmits predicted actions to the NUC for execution. 
+
+Audio sensing is collected using an Audio-Technica AT2020 microphone with a TASCAM US-1x2HR audio interface, positioned to capture interaction sounds within the workspace. 
+
+Visual observation is obtained from an Intel RealSense D455 depth camera mounted above the workspace, providing a stable top-down view. 
+
+Robot proprioception is accessed via the panda_py inter-face. For the pouring task, proprioception consists of the end-effector Cartesian position and orientation, while for cabinet opening it additionally includes the gripper closure state of the Franka gripper. 
+
+B. Baselines and Metrics 1) Baselines: The proposed method is compared with both a vision-based method and multimodal manipulation methods: 
+
+PointCloud-State (P C ∥ State ). This baseline directly concatenates point cloud features with robot proprioceptive features, without using audio information [33]. 
+
+Audio-PointCloud-State ( Audio ∥ P C ∥ State ). This naive multimodal baseline concatenates all three modality features straight, following the approach in [32]. 
+
+ManiWAV Fusion. This baseline adopts an implicit mul-timodal fusion. Audio and visual features are first passed through a Transformer encoder, then concatenated with propri-oception and processed by a multilayer perceptron to produce the final fused representation, as described in [21]. 
+
+2) Evaluation Metrics: The policy performance is evaluated using the following precision-related metrics: 
+
+Pouring Task. We evaluate manipulation precision using the height of the air column in the target container after pouring. At the beginning of each trial, the target container is initialized with an identical air column height. The robot then pours water from a source container into the target container. Performance is quantified by the final air column height in the target con-tainer. Since the air column height equals the container height minus the liquid height, this metric directly reflects the final liquid level achieved by the robot. To obtain this measurement, the target container is placed on a height-adjustable platform, as illustrated in Fig. 4. After pouring, the platform is gradually raised until the liquid surface contacts a vertically suspended ruler, allowing the liquid height to be measured accurately. A lower final air column height (i.e., a higher remaining liquid level) indicates better pouring performance. 
+
+Cabinet Opening Task. To evaluate the stability and accuracy of cabinet manipulation, we assess task performance using a composite score that accounts for both task completion quality and unintended cabinet motion. The cabinet door is initially closed. The robot gripper first opens the door by pulling along the curved edge of the cabinet and subsequently closes it. While the door handle is visible at the beginning of the motion, its final position lies outside the camera view. Consequently, task completion is inferred from the acoustic cue generated by the final contact when the door reaches its closed position. To quantify cabinet motion induced during the interaction, we record the coordinates of two reference points on the circular base of the cabinet in the desk coordinate frame, both before and after the closing action. These measurements are used to compute the translational displacement and the rotational change of the cabinet, as illustrated in Fig. 5. Performance is evaluated using a weighted combination of three terms: the remaining sliding distance of the door dslide , the translational displacement of the cabinet ddisp , and the rotational change of the cabinet θrot . The overall score is computed as 
+
+S = α d slide + β d disp + γ θ rot , (13) where α, β, and γ denote the weighting coefficients. In our experiments, we set α = 0 .3, β = 0 .3, and γ = 0 .4, placing slightly higher emphasis on minimizing cabinet rotation. This composite metric captures both how completely the door is closed and how much the cabinet is disturbed during the ma-nipulation process. Lower scores indicate better performance, corresponding to a fully closed door with minimal translational and rotational cabinet motion. 
+
+C. Comparison Results 
+
+Table I reports a quantitative comparison of different fusion methods on the pouring and cabinet opening tasks, where the results are reported as mean ± standard deviation over five trials. Overall, the results show that incorporating audio as an additional modality can improve robotic manipulation performance, and our hierarchical fusion method significantly outperforms the baselines, including flat fusion and ManiWAV (Transformer-based) fusion. In the pouring task, the baseline method using only point cloud data and robot proprioception achieves an average final air-column height of 2.72 cm. When audio is intro-duced through our hierarchical fusion approach, this value is reduced to 1.86 cm, indicating that acoustic cues provide container height                    
+
+> air column height
+> liquid height Fig. 4. Measurement of the liquid level. We measure the height of the liquid after the robot arm has poured. The air column height is then computed as the container height minus the measured liquid height. 𝑥
+> 𝑦
+> 𝑂
+> 𝑎 2(𝑥 2,𝑦 2)
+> 𝑎 1(𝑥 1,𝑦 1)
+> 𝑎 1
+> ′(𝑥 1
+> ′,𝑥 1
+> ′)
+> 𝑎 2
+> ′(𝑥 2
+> ′,𝑥 2
+> ′)
+> before
+> after
+> 𝑜
+> 𝑜 ′
+> orientation
+> remaining
+> sliding distance
+> Fig. 5. Measurement in the cabinet opening task. The left is the measurement of the remaining sliding distance of the cabinet door. The right is a top view of the cabinet on the desk. The coordinates of two reference points on the cabinet base diameter are recorded before (green) and after (orange) the gripper pulls the door, enabling computation of the cabinet’s translational displacement and rotational change.
+
+complementary information beyond visual geometry and robot state. A similar trend is observed in the cabinet opening task. The method without audio attains a score of 7.58, which is higher than the simple audio concatenation baseline (7.44) and substantially higher than both the ManiWAV fusion method (4.53) and our approach (4.50). At the same time, the results indicate that adding audio alone does not guarantee improved performance. Methods based on flat concatenation or implicit Transformer-based fusion show only marginal gains and, in some cases, degrade performance. For example, in the pouring task, audio con-catenation yields an air-column height of 3.08 cm, comparable to ManiWAV-style fusion at 3.02 cm, and both are worse 
+
+> TABLE I PERFORMANCE COMPARISON ACROSS DIFFERENT FUSION METHODS .
+
+Method Pouring Cabinet Opening 
+
+P C ∥ State 2.72( ±0.07) 7.58( ±5.39) 
+
+Audio ∥ P C ∥ State 3.08( ±0.13) 7.44( ±4.23) 
+
+ManiWAV Fusion 3.02( ±0.07) 4.53( ±1.37) 
+
+Ours (Hierarchical) 1.86 (±0.13 ) 4.50 (±0.54 )i ii iii iv v   
+
+> expert data generalization
+> Fig. 6. Target containers used in the pouring experiments. Cup (i) is used for expert data collection, training, and in-distribution evaluation in subsection V-C. Cups (ii)–(v) are used exclusively for generalization experiments in subsection V-D.
+
+than the baseline without audio. We attribute this behavior to the fact that acoustic signals in manipulation tasks are often intermittent and time-dependent. During large portions of the interaction, audio feedback may be weak or irrelevant, and without mechanisms to regulate cross-modal interactions, such signals can introduce noise rather than useful information. In contrast, our approach explicitly constructs cross-modal interactions through a hierarchical fusion structure, allowing the policy to emphasize task-relevant acoustic cues while suppressing irrelevant ones. This leads to clear performance gains in audio-rich tasks such as pouring, consistent with the mutual information analysis in subsection V-F. For the cabinet opening task, where acoustic feedback is sparse and primarily occurs at the end of the interaction, the benefit of audio-aware fusion is less pronounced. Even so, our method matches the performance of ManiWAV fusion while exhibiting greater stability, suggesting that the value of advanced fusion strategies depends on how informative the audio modality is for the task. Finally, our method consistently exhibits lower variance across trials, particularly in the cabinet opening task. The reduced standard deviation indicates more stable and robust behavior, suggesting that hierarchical fusion helps mitigate the influence of noisy or weak modalities. 
+
+D. Generalization Experiments 
+
+To evaluate generalization, we test the learned policy on four target containers with different geometry and appearance, as shown in Fig. 6, while keeping the remaining task setup unchanged. All evaluations on Cups (ii)–(v) are conducted in a zero-shot setting: the policy is trained exclusively on Cup (i), with no additional data, fine-tuning, or adaptation for the unseen containers. As shown in Table II, the performance of all methods degrades as the target container deviates further from the one used to collect expert demonstrations. This trend is expected because the target container affects both the visual observations (e.g., shape and rim geometry) and the interaction acoustics (e.g., resonance and impact characteristics), thereby inducing a distribution shift in multimodal inputs. Among the evaluated containers, the blue cup exhibits the largest domain gap due to its substantially different geometry (an inverted conical frustum rather than a straight cylinder), which leads to noticeably different audio signatures and altered TABLE II GENERALIZATION PERFORMANCE ON NOVEL TARGET CONTAINERS IN THE POURING TASK (MEAN ± STD OVER 5 TRIALS ). L OWER IS BETTER .                          
+
+> Method red cup(ii) black cup(iii) white cup(iv) blue cup(v)
+> P C ∥State 2.26( ±0.19) 2.6( ±0.14) 3.3( ±0.09) 3.42( ±0.07)
+> Audio ∥P C ∥State 3.08( ±0.23) 3.12( ±0.07) 3.4( ±0.13) 3.68( ±0.12)
+> ManiWAV Fusion 2.3( ±0.18) 2.6( ±0.13) 3.32( ±0.17) 3.58( ±0.26)
+> Ours (Hierarchical) 1.78 (±0.25 )2.5(±0.06 )2.8(±0.17 )3.14 (±0.14 )
+
+fluid or impact dynamics. Despite this increasing domain shift, our hierarchical fusion consistently achieves the best or comparable performance across all target containers. These results suggest that explicitly structured multimodal fusion improves robustness to container-dependent variations and helps preserve task-relevant cues under out-of-distribution conditions. Compared with implicit fusion (ManiWAV) and simple concatenation, our method retains higher performance under larger domain shifts, indicating that explicit hierarchical interactions better exploit complementary cues from audio, vision, and proprioception. 
+
+E. Ablation Studies 
+
+Our hierarchical framework consists of two main compo-nents: (i) B-BFM, which conditions audio information onto point cloud and robot proprioceptive representations, and (ii) IMM, which models cross-modal relationships through attention over the conditioned features with an audio highway. To understand the contribution of each component, we conduct an ablation study on both manipulation tasks. The results are summarized in Table III. In the pouring task, using only the Binary-Branched Fusion module results in poor performance, indicating that condi-tioning audio onto visual and proprioceptive features alone is insufficient to guide accurate pouring. The model with only the Interaction Modeling module performs better than this baseline but still falls short of the full model, suggesting that interaction modeling without structured audio conditioning cannot fully capture the task dynamics. A similar trend is observed in the cabinet opening task. While the Binary-Branched Aggregation Fusion–only variant slightly outper-forms the Interaction Representation Learning–only variant, both exhibit significantly worse performance than the complete framework. This indicates that neither component alone can reliably handle the interaction complexity of the task. The ablation results demonstrate that the two components are complementary. Effective performance is achieved only when audio is first used to condition visual and propriocep-tive representations, and these conditioned features are then jointly processed by the interaction Modeling module. This combination enables the model to exploit audio cues while reasoning explicitly over all three modalities, leading to the best results across both tasks. 
+
+F. Mutual Information Analysis 
+
+We employ mutual information (MI) to quantify how much task-relevant information is preserved in the fused multimodal           
+
+> TABLE III
+> ABLATION STUDIES FOR THE HIERARCHICAL FRAMEWORK .
+> Method Pouring Cabinet Opening B-BFM Only 4.60( ±0.00) 6.21( ±2.29)
+> IMM Only 3.38( ±0.47) 6.70( ±1.46)
+> Ours 1.86 (±0.13 )4.50 (±0.54 )
+> TABLE IV
+> I(zt;y)ANALYSIS ON POURING AND OPENING CABINET TASKS
+
+Method I(zt; y)pouring I(zt; y)cabinet 
+
+P C ∥ State 0.039 0.047 
+
+Audio ∥ P C ∥ State 0.082 0.071 ManiWAV Fusion 0.041 0.041 
+
+Ours 0.088 0.097 
+
+representation. Specifically, we measure the mutual informa-tion between the fused latent representation zt and the task evaluation metric y, denoted as I(zt; y), which characterizes how much uncertainty about y is reduced by observing the multimodal representation. 
+
+I(zt; y) = Ep(zt,y )
+
+
+
+log p(zt, y )
+
+p(zt)p(y)
+
+
+
+. (14) In this context, a higher I(zt; y) indicates that the representa-tion fuses information that is predictive of the task outcome, rather than merely correlating with expert actions. For the pouring task, the target variable y is the final poured liquid amount, while for the cabinet-closing task, y is the task score as defined in Equation 13. Table IV summarizes the mutual information I(zt; y) between the fused representation and the task outcome for both the pouring and cabinet-closing tasks. Across both tasks, incorporating audio consistently increases the MI compared with the P C ∥ State baseline, indicating that acoustic cues provide complementary task-relevant infor-mation beyond geometric and proprioceptive observations. Compared with flat concatenation and ManiWAV fusion, our hierarchical method achieves the highest MI in both tasks. In the pouring task, our fused representation yields an MI of 0.088, surpassing both flat concatenation (0.082) and ManiWAV (0.041), suggesting that the proposed hierarchical fusion more effectively preserves task-relevant information related to liquid dynamics. A similar trend is observed in the cabinet-closing task, where our method attains an MI of 0.097, significantly higher than flat baselines and ManiWAV fusion. VI. C ONCLUSION AND FUTURE WORK 
+
+This paper examines the role of audio in multimodal robotic manipulation and introduces an explicit hierarchical fusion framework that integrates audio, visual, and robot propri-oceptive information within an end-to-end diffusion policy. Real-world experimental results demonstrate that the pro-posed approach consistently outperforms flat concatenation and Transformer-based fusion methods. Nevertheless, the pro-posed framework has limitations. The benefits of hierarchical audio fusion are most evident in acoustically rich tasks, while performance gains are less pronounced when audio feedback is sparse or task-irrelevant. This suggests that the future development of effective multimodal fusion should account for the task relevance of each sensory modality. REFERENCES 
+
+[1] Boshi An, Yiran Geng, Kai Chen, Xiaoqi Li, Qi Dou, and Hao Dong. Rgbmanip: Monocular image-based robotic manipulation through active object pose estima-tion. In 2024 IEEE International Conference on Robotics and Automation (ICRA) , pages 7748–7755, 2024. doi: 10.1109/ICRA57147.2024.10610690. [2] Piyush Bagad, Makarand Tapaswi, Cees G. M. Snoek, and Andrew Zisserman. The sound of water: Inferring physical properties from pouring liquids. In ICASSP 2025 - 2025 IEEE International Conference on Acous-tics, Speech and Signal Processing (ICASSP) , pages 1–5, 2025. doi: 10.1109/ICASSP49660.2025.10889950. [3] R. Qi Charles, Hao Su, Mo Kaichun, and Leonidas J. Guibas. Pointnet: Deep learning on point sets for 3d clas-sification and segmentation. In 2017 IEEE Conference on Computer Vision and Pattern Recognition (CVPR) ,pages 77–85, 2017. doi: 10.1109/CVPR.2017.16. [4] Shizhe Chen, Ricardo Garcia Pinel, Cordelia Schmid, and Ivan Laptev. Polarnet: 3d point clouds for language-guided robotic manipulation. In 7th Annual Conference on Robot Learning , 2023. URL https://openreview.net/ forum?id=efaE7iJ2GJv. [5] Cheng Chi, Siyuan Feng, Yilun Du, Zhenjia Xu, Eric Cousineau, Benjamin CM Burchfiel, and Shuran Song. Diffusion Policy: Visuomotor Policy Learning via Action Diffusion. In Proceedings of Robotics: Science and Systems , Daegu, Republic of Korea, July 2023. doi: 10.15607/RSS.2023.XIX.026. [6] Eugenio Chisari, Nick Heppert, Max Argus, Tim Welschehold, Thomas Brox, and Abhinav Valada. Learn-ing robotic manipulation policies from point clouds with conditional flow matching. In 8th Annual Conference on Robot Learning , 2024. URL https://openreview.net/ forum?id=vtEn8NJWlz. [7] Maximilian Du, Olivia Y. Lee, Suraj Nair, and Chelsea Finn. Play it by ear: Learning skills amidst occlusion through audio-visual imitation learning. In Proceedings of Robotics: Science and Systems , NewYork City, NY, USA, June 27-July 1 2022. [8] Marco Faroni, Carlo Odesco, Andrea Zanchettin, and Paolo Rocco. Uncertainty-aware planning with inaccu-rate models for robotized liquid handling, 2025. URL https://arxiv.org/abs/2507.20861. [9] Ruoxuan Feng, Di Hu, Wenke Ma, and Xuelong Li. Play to the score: Stage-guided dynamic multi-sensory fusion for robotic manipulation. CoRR , abs/2408.01366, 2024. URL https://doi.org/10.48550/arXiv.2408.01366. [10] Haoran Geng, Ziming Li, Yiran Geng, Jiayi Chen, Hao Dong, and He Wang. Partmanip: Learning cross-category generalizable part manipulation policy from point cloud observations. In Proceedings of the IEEE/CVF Con-ference on Computer Vision and Pattern Recognition (CVPR) , pages 2978–2988, June 2023. [11] Di Guo, Huaping Liu, and Fuchun Sun. Audio–visual language instruction understanding for robotic sort-ing. Robotics and Autonomous Systems , 159:104271, 2023. ISSN 0921-8890. doi: https://doi.org/10.1016/j. robot.2022.104271. URL https://www.sciencedirect.com/ science/article/pii/S0921889022001609. [12] Ahmed Hussein, Mohamed Medhat Gaber, Eyad Elyan, and Chrisina Jayne. Imitation learning: A survey of learning methods. ACM Computing Surveys (CSUR) , 50 (2):1–35, 2017. [13] Xiaogang Jia, Qian Wang, Anrui Wang, Han A. Wang, Bal´ azs Gyenes, Emiliyan Gospodinov, Xinkai Jiang, Ge Li, Hongyi Zhou, Weiran Liao, Xi Huang, Maxim-ilian Beck, Moritz Reuss, Rudolf Lioutikov, and Ger-hard Neumann. Pointmappolicy: Structured point cloud processing for multi-modal imitation learning. In The Thirty-ninth Annual Conference on Neural Information Processing Systems , 2025. URL https://openreview.net/ forum?id=ZR2mdBrhJX. [14] Jiaqi Jiang, Guanqun Cao, Jiankang Deng, Thanh-Toan Do, and Shan Luo. Robotic perception of transparent objects: A review. IEEE Transactions on Artificial Intelligence , 5(6):2547–2567, 2024. doi: 10.1109/TAI. 2023.3326120. [15] Yunfan Jiang, Agrim Gupta, Zichen Zhang, Guanzhi Wang, Yongqiang Dou, Yanjun Chen, Li Fei-Fei, Anima Anandkumar, Yuke Zhu, and Linxi Fan. Vima: robot ma-nipulation with multimodal prompts. In Proceedings of the 40th International Conference on Machine Learning ,ICML’23. JMLR.org, 2023. [16] Hao Li, Yizhi Zhang, Junzhe Zhu, Shaoxiong Wang, Michelle A. Lee, Huazhe Xu, Edward Adelson, Li Fei-Fei, Ruohan Gao, and Jiajun Wu. See, hear, and feel: Smart sensory fusion for robotic manipulation. In CoRL ,2022. [17] Shoujie Li, Haixin Yu, Wenbo Ding, Houde Liu, Linqi Ye, Chongkun Xia, Xueqian Wang, and Xiao-Ping Zhang. Visual–tactile fusion for transparent object grasp-ing in complex backgrounds. IEEE Transactions on Robotics , 39(5):3838–3856, 2023. doi: 10.1109/TRO. 2023.3286071. [18] Hongzhuo Liang, Shuang Li, Xiaojian Ma, Norman Hendrich, Timo Gerkmann, Fuchun Sun, and Jianwei Zhang. Making sense of audio vibration for liquid height estimation in robotic pouring. In IEEE International Conference on Intelligent Robots and Systems (IROS) ,2019. [19] Hongzhuo Liang, Chuangchuang Zhou, Shuang Li, Xi-aojian Ma, Norman Hendrich, Timo Gerkmann, Fuchun Sun, and Jianwei Zhang. Robust robotic pouring using audition and haptics. In IEEE/RSJ International Con-ference on Intelligent Robots and Systems (IROS) , pages 10880–10887, 2020. [20] Haitao Lin, Yanwei Fu, and Xiangyang Xue. Pourit!: Weakly-supervised liquid perception from a single image for visual closed-loop robotic pouring. In Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV) , pages 241–251, October 2023. [21] Zeyi Liu, Cheng Chi, Eric Cousineau, Naveen Kup-puswamy, Benjamin Burchfiel, and Shuran Song. Mani-wav: Learning robot manipulation from in-the-wild audio-visual data. In Pulkit Agrawal, Oliver Kroemer, and Wolfram Burgard, editors, Proceedings of The 8th Conference on Robot Learning , volume 270 of Pro-ceedings of Machine Learning Research , pages 947–962. PMLR, 06–09 Nov 2025. URL https://proceedings.mlr. press/v270/liu25c.html. [22] Udaka A. Manawadu and Naruse Keitaro. Dexterous manipulation based on object recognition and accurate pose estimation using rgb-d data. Sensors , 24(21), 2024. ISSN 1424-8220. doi: 10.3390/s24216823. URL https: //www.mdpi.com/1424-8220/24/21/6823. [23] Jared Mejia, Victoria Dean, Tess Hellebrekers, and Ab-hinav Gupta. Hearing touch: Audio-visual pretraining for contact-rich manipulation. In 2024 IEEE Interna-tional Conference on Robotics and Automation (ICRA) ,pages 6912–6919, 2024. doi: 10.1109/ICRA57147.2024. 10611305. [24] Ethan Perez, Florian Strub, Harm de Vries, Vincent Du-moulin, and Aaron C. Courville. Film: Visual reasoning with a general conditioning layer. In AAAI , 2018. [25] Charles R. Qi, Li Yi, Hao Su, and Leonidas J. Guibas. Pointnet++: deep hierarchical feature learning on point sets in a metric space. In Proceedings of the 31st Interna-tional Conference on Neural Information Processing Sys-tems , NIPS’17, page 5105–5114, Red Hook, NY, USA, 2017. Curran Associates Inc. ISBN 9781510860964. [26] Guocheng Qian, Yuchen Li, Houwen Peng, Jinjie Mai, Hasan Abed Al Kader Hammoud, Mohamed Elhoseiny, and Bernard Ghanem. Pointnext: Revisiting pointnet++ with improved training and scaling strategies. In Alice H. Oh, Alekh Agarwal, Danielle Belgrave, and Kyunghyun Cho, editors, Advances in Neural Information Processing Systems , 2022. URL https://openreview.net/forum?id= EAcWgk7JM58. [27] Yuzhe Qin, Binghao Huang, Zhao-Heng Yin, Hao Su, and Xiaolong Wang. Dexpoint: Generalizable point cloud reinforcement learning for sim-to-real dexterous manipulation. In 6th Annual Conference on Robot Learning , 2022. URL https://openreview.net/forum?id= tJE1Yyi8fUX. [28] Abitha Thankaraj and Lerrel Pinto. That sounds right: Auditory self-supervision for dynamic robot manipula-tion. In 7th Annual Conference on Robot Learning , 2023. URL https://openreview.net/forum?id=sLhk0keeiseH. [29] Zhongli Wang, Guohui Tian, and Shijie Guo. Gmm enabled by multimodal information fusion network for detection and motion planning of robotic liquid pour-ing. IEEE Transactions on Neural Networks and Learn-ing Systems , 36(7):11943–11952, 2025. doi: 10.1109/ TNNLS.2024.3476685. [30] Ge Yan, Jiyue Zhu, Yuquan Deng, Shiqi Yang, Ri-Zhao Qiu, Xuxin Cheng, Marius Memmel, Ranjay Krishna, Ankit Goyal, Xiaolong Wang, and Dieter Fox. Maniflow: A general robot manipulation policy via consistency flow training. In 9th Annual Conference on Robot Learning , 2025. URL https://openreview.net/forum?id= etSYDtRO0Z. [31] Ling Yang, Zhilong Zhang, Yang Song, Shenda Hong, Runsheng Xu, Yue Zhao, Wentao Zhang, Bin Cui, and Ming-Hsuan Yang. Diffusion models: A comprehensive survey of methods and applications. ACM computing surveys , 56(4):1–39, 2023. [32] Ruolin Ye, Yifei Hu, Yuhan Anjelica Bian, Luke Kulm, and Tapomayukh Bhattacharjee. Morpheus: a multimodal one-armed robot-assisted peeling system with human users in-the-loop. In 2024 IEEE International Conference on Robotics and Automation (ICRA) , pages 9540–9547, 2024. doi: 10.1109/ICRA57147.2024.10610050. [33] Yanjie Ze, Gu Zhang, Kangning Zhang, Chenyuan Hu, Muhan Wang, and Huazhe Xu. 3d diffusion policy: Generalizable visuomotor policy learning via simple 3d representations. In Proceedings of Robotics: Science and Systems (RSS) , 2024. [34] Dandan Zhang, Wen Fan, John Lloyd, Chenguang Yang, and Nathan F. Lepora. One-shot domain-adaptive imita-tion learning via progressive learning applied to robotic pouring. IEEE Transactions on Automation Science and Engineering , 21(1):541–554, 2024. doi: 10.1109/TASE. 2022.3220728.

@@ -1,0 +1,265 @@
+Title: CLIP-driven Zero-shot Learning with Ambiguous Labels
+
+URL Source: https://arxiv.org/pdf/2603.05053v1
+
+Published Time: Fri, 06 Mar 2026 01:52:06 GMT
+
+Number of Pages: 5
+
+Markdown Content:
+## CLIP-DRIVEN ZERO-SHOT LEARNING WITH AMBIGUOUS LABELS 
+
+## Jinfu Fan 1,†, Jiangnan Li 1,†, Xiaowen Yan 1, Xiaohui Zhong 1, Wenpeng Lu 2, Linqing Huang 3,∗ 
+
+> 1
+
+## College of Computer Science and Technology, Qingdao University  
+
+> 2
+
+## Key Laboratory of Computing Power Network and Information Security, Ministry of Education, Shandong Computer Science Center, Qilu University of Technology (Shandong Academy of Sciences)  
+
+> 3
+
+## School of Computer Science, Shanghai JiaoTong University 
+
+ABSTRACT 
+
+Zero-shot learning (ZSL) aims to recognize unseen classes by leveraging semantic information from seen classes, but most existing methods assume accurate class labels for train-ing instances. However, in real-world scenarios, noise and ambiguous labels can significantly reduce the performance of ZSL. To address this, we propose a new CLIP-driven partial label zero-shot learning (CLIP-PZSL) framework to handle label ambiguity. First, we use CLIP to extract instance and label features. Then, a semantic mining block fuses these features to extract discriminative label embeddings. We also introduce a partial zero-shot loss, which assigns weights to candidate labels based on their relevance to the instance and aligns instance and label embeddings to minimize semantic mismatch. As the training goes on, the ground-truth labels are progressively identified, and the refined labels and label embeddings in turn help improve the semantic alignment of instance and label features. Comprehensive experiments on several datasets demonstrate the advantage of CLIP-PZSL. 
+
+Index Terms — Zero-shot learning, semantic mining block, partial zero-shot loss, visual language models. 
+
+1. INTRODUCTION 
+
+Compared with traditional classification tasks, zero-shot learning (ZSL) [1, 2] transfers knowledge from seen classes to unseen classes via shared semantic information (e.g., at-tributes [3], label vectors [4] or sentence descriptions [5]), enabling recognition without labeled instances of unseen classes. Despite its progress, most ZSL methods assume ac-curately labeled training data, whereas obtaining clean and complete labels is challenging, time-consuming, and not scal-able. In practical scenarios, alternative solutions like crowd-sourcing [6] and online queries [7] can reduce label costs but introduce noise and ambiguous labels, leading to ZSL overfitting to ambiguous labels and degraded performance.   
+
+> This research was supported by the National Natural Science Foundation of China (Nos. 62401309, 62376130, 62401362), the China Postdoctoral Science Foundation (No. 2025M771692), the Natural Science Foundation of Shandong Province and Qingdao (No. 2R2024QF119, No. 24-4-4-zrjj-89-jch), and open project (No. 2024PY030).
+> †Equal contribution. * The corresponding author.
+
+To reduce the annotation workload, weakly supervised learning approaches like partial label learning (PLL) [8, 9, 10] have been explored, where each instance is linked to multiple candidate labels, but only one is correct. PLL relaxes labeling constraints, allowing ambiguous and noisy labels. However, PLL is limited to predicting only the seen classes, which re-stricts its capacity to recognize unseen classes. To advance further, we propose a CLIP-driven partial la-bel zero-shot learning (CLIP-PZSL) framework, which effec-tively alleviates the impact of ambiguity and noisy labels in training data and achieves the prediction of unseen classes by combining the strengths of ZSL and PLL. This setting is more complex, as ambiguous candidate labels mislead ZSL and harm generalization. The model must both handle ambi-guity and maintain strong recognition for unseen classes. This raises a new challenge: How to learn semantic information from seen classes under the influence of ambiguous labels and effectively transform it into unseen classes for recognition. To address these issues, we consider contrastive language-image pre-training (CLIP) [11], which matches each input image to the most relevant text and shows strong zero-shot performance. However, ambiguous labels can cause semantic differences when embedding instance features into the label space, where distribution alignment is often beneficial [12]. For this problem, we propose CLIP-PZSL, which enhances the generalization performance of ZSL by instance-label alignment and label disambiguation. Specifically, CLIP en-coders generate instance and label features, which are fused through a semantic mining block to adaptively extract dis-criminative features of different labels to learn a set of label embeddings for downstream disambiguation. This makes instance-label similarity measurable, enabling effective noisy labels detection and alignment of label and instance semantic vectors. Furthermore, we propose a robust partial zero-shot loss function to handle ambiguous labels in seen classes, which assigns weights to candidate labels based on instance-label relevance, guiding classifier training, and minimizing semantic mismatch. As the training goes on, the ground-truth labels are progressively identified, and the refined labels and class embeddings further improve the semantic alignment. 
+
+> arXiv:2603.05053v1 [cs.CV] 5 Mar 2026 Frozen
+
+(a) Feature extraction &  Semantic mining block   
+
+> fox
+> dog
+> deer
+> CLIP （Image Encoder ）
+> Softmax
+> Prompt Engineering
+> CLIP （Text Encoder ）
+> wolf
+> lion
+> Seen Label
+> Uneen Label
+> wolf dog
+> fox lion
+> …
+> …
+> Align semantic embedding space
+> wolf
+> dog
+> fox
+> lion
+> deer
+
+(b) Instance-label alignment block    
+
+> Self attention
+> K-means cross-attention  block
+> Multi-layer perception
+> …
+> …
+> A photo of a { class1,class2… }
+> …
+> wolf dog fox lion
+> ×M
+> Input Image
+> …
+> …
+> Semantic mining block
+> deer
+> …
+> …
+> Learnable Label Embeddings
+
+Fig. 1 . Flowchart of CLIP-PZSL. Our key contributions are briefly summarized as follows: (1) To our knowledge, CLIP-PZSL is the first work for ZSL that effectively handles ambiguous labels in seen classes. (2) We design a new semantic mining block from a clus-tering perspective to extract key information and align it with label embeddings for better noisy-label detection. (3) We propose a robust partial zero-shot loss function for training CLIP-PZSL, which not only mitigates the impact of noisy labels but also aligns instance and label embeddings in the same dimension to minimize semantic mismatch. 
+
+2. THE PROPOSED APPROACH 
+
+The problem of CLIP-PZSL is formulated as follows. Let X
+
+denote the instance space and Ys = {yc : c = 1 , . . . , Q } de-note the output space with Q class labels. The training dataset is D = {(xi, S i)|1 ≤ i ≤ N }, where xi ⊆ X is a feature vec-tor, N is the number of instances, Si ⊆ Y s is the set of candi-date labels associated with xi and Si represents the number of candidate labels for instance xi. Particularly, instance xi is annotated by a label vector yi = {yc}Qc=1 , where yi ∈ { 0, 1}
+
+denotes whether the label yc is present in the candidate labels (‘1’) or not(‘0’). When testing, CLIP-PZSL predict a set of unseen compositions Yu that is mutually exclusive with train-ing labels Yu: Ys ∩ Y u = ⊘. The goal is to remove the influence of noise and learn a classifier f : X 7 → Y s ∪ Y u that can predict true labels of unseen classes. 
+
+2.1. Feature Extraction 
+
+As shown in Fig. 1, CLIP-PZSL first extracts instance and label features using CLIP, which contains an Image encoder and a Text encoder jointly trained on large-scale image–text pairs. For zero-shot classification, a label set is defined in natural language. Given an instance and set of labels, each label is embedded within a prompt to produce a “caption” is Lm ：Label embeddings                    
+
+> Lm+ 1：Updated label embeddings
+> …
+> K-means cross-attention
+> ………
+> ：Instance embeddings
+> ……
+> Pm+ 1：Updated instance embeddings
+> (a) K-means cross-attention block
+> ………
+> (b) K-means cross-attention
+> Linear Linear
+> MatMul
+> Scale
+> Gumbel-Softmax
+> MatMul
+> QKV
+> Vm
+> Multi-layer perception
+> Linear
+> Lm：Label embeddings ：Instance embeddings
+> Att (Qm,Km,Vm)
+> Multi-layer perception
+
+Fig. 2 . Detailed structure of K-means cross-attention. “A photo of a {} .”. Let Ys ∪ Y u = {tc : c = 1 , . . . , K } be the set of texts after such a prompt, where K contains the number of seen and unseen classes. Then, the text ti is encoded by the CLIP Text encoder as ci = T (ti ) ∈ Rd, where T (·)
+
+denotes the CLIP Text encoder and ci ∈ Rd with d being the dimension of the label embedding. Meanwhile, each instance 
+
+xi is encoded by the Image encoder as pi = E(xi) ∈ Rd,where E(·) denotes the Image encoder and pi ∈ Rd.
+
+2.2. Semantic Mining Block Label Embeddings. The label embeddings can be denoted as L = [ l1, l2, . . . , lK ]T ∈ RK×d, where each row is a label embedding. L is the learnable parameters during training and initialized with the text embedding from CLIP (i.e., li = ci). 
+
+Transformer Architecture. We apply a new Transformer architecture to pool class-related features in CLIP instance embeddings, further exploring the potential feature relation-ship between instances and labels for semantic alignment, which consists of self-attention, K-means cross-attention [10] and multi-layer perception. Fig. 2 depicts the structure of K-means cross-attention. Its inputs are label and instance embeddings, enabling extraction of key instance information and matching with label embeddings to detect noisy labels. Specifically, let Lm as the label embeddings at the m-th layer, where m ∈ [0 , M ]. L0 = L and M is the number of K-means cross-attention transformer layers. 
+
+P = [ p1, . . . , pi, . . . , pN ]T ∈ RN ×d is the instance em-bedding matrix from CLIP image encoder, and ¯P is its output after self-attention. Then, we use label embeddings of the linear transformation layer as query Qm and perform K-means cross-attention to pool label features from the instance embeddings. Meanwhile, we respectively obtain key Km and value Vm projections of ¯P by linear transformation layers: 
+
+Qm = LmWQm, Km = ¯PW Km , Vm = ¯PW Vm (1) where WQm, WKm , WVm ∈ Rd×d are learnable parameter matrices of query, key, and value. The query and a set of key pairs to compute an attention map. Values are weighted and summed with the weight on the attention map to output the hidden feature of the label class for the following layer. Therefore, the K-means cross-attention can be calculated as: 
+
+Att (Qm, Km, Vm) = ω
+
+ Qm × KTm
+
+√d
+
+
+
+Vm (2) where √d is a scaling factor based on the depth of the network and d is the feature dimension; ω(·) is a Gumbel-Softmax [13] function to approximate argmax function. This operation up-dates label embeddings to obtain better class-related features by taking a weighted average of the same label classes. 
+
+Feature Projection. The output of the K-means cross-attention is then normalized and fed into the MLP to gener-ate the input to the next block. Finally, we will get the label embeddings LM ∈ RK×d for K classes and instance em-beddings PM ∈ RN ×d. Then, a linear classifier is used to classify the instance embeddings based on PM :
+
+M = softmax ( PM W + b) (3) where W ∈ Rd×Q and b are the parameters to be learned. 
+
+M is the predicted label confidence matrix, where only seen 
+
+Q classes in the training dataset are predicted. 
+
+2.3. Instance-label Alignment with Partial Zero-shot Loss 
+
+In this phase, the goal is to identify potential ground-truth label in candidate label set to reduce the impact of ambiguous labels. We compute cosine similarity between instance and text embedding to detect noisy labels in candidate label set: 
+
+rtij = pticTj
+
+∥pti∥2 cTj 2
+
+(4) where rtij measures the similarity between instance xi and text embedding cj , cj corresponds to the label yj and pti rep-resents the embedding features of instance xi in the t-th iter-ation. A larger rij indicates the instance has a greater proba-bility of being labeled yj . According to Eq.(4), the label cor-rection matrix R ∈ RN ×Q can be calculated, where rij ∈ R.The partial zero-shot loss is defined as 
+
+L = Lce (M, R, Y) + Ldist (C, L)= −
+
+> N
+
+X
+
+> i=1
+> Q
+
+X
+
+> j=1
+
+(rtij Ytij log Mtij ) + C − Lt 22
+
+(5) where rij is correction weight, which can reduce the impact of noise labels by increasing the weight of instances and sim-ilar label embedding. Ytij represents label confidence weight at the t-th iteration, i.e., the probability that yj is the ground-truth label of xi. Mtij is the predict value of xi as yj in the 
+
+t-th iteration. C is text embedding learned from CLIP and Lt
+
+represents the label embeddings learned in the t-th iteration. Confidence weights are iteratively refined: 
+
+Yt+1  
+
+> ij
+
+=
+
+ Utij / P  
+
+> yk∈Si
+
+Utik , if yj ∈ Si
+
+0, otherwise (6) where Utij = rtij + Mtij . Therefore, Eq.(6) is intuitively rea-sonable. For the first part of cross entropy loss, as the training epochs grow, the ground-truth labels are identified incremen-tally, while refined labels in turn help to improve the classi-fier by guiding model learning. For the second part of mean square error loss, which can aligns instance and label embed-dings in the same dimension to minimize semantic mismatch. Thus, for each test instance, ˜y denotes the predicted result of the instance x that has the highest label score: 
+
+˜y = arg max 
+
+> Ys∪Y u
+
+(pC T ) (7) 
+
+2.4. Computational Complexity 
+
+CLIP-PZSL consists of two core modules: semantic mining block and instance-label alignment block. In the semantic mining block, self-attention mechanism costs O(N d 2), with additional transformations in the K-means cross-attention block resulting in O(3 N d 2). The computations for Qm ×KTm
+
+and Gumbel-Softmax both contribute O(N Kd ), while the MLP adds O(N d 2 + Kd 2). Since K ≪ N , the complexity simplifies to O(N d 2). In the instance-label alignment block, the label correction matrix requires O(N Kd ), and the loss functions contribute O(N K ) and O(N d ). Thus, the overall complexity is O(Epoch (3 N d 2 + N d )) .
+
+3. EXPERIMENTS 3.1. Experimental Setup Datasets. We select six public ZSL benchmarks: CIFAR-10 
+
+[14] (10 classes, divided into 8 seen/2 unseen), CIFAR-100 
+
+[14] (100 classes, 80 seen/20 unseen), Food-101 [15] (101 classes, 80 seen/21 unseen), Caltech-UCSD Birds-200-2011 (CUB ) [16] (200 classes, 150 seen/50 unseen), Flowers-102 [17] (102 classes, 80 seen/22 unseen), Animals with Attributes 2 ( AWA2 ) [18] (50 classes, 40 seen/10 unseen). Table 1 . The comparison with other ZSL methods.                                                                                                                                                                               
+
+> Dataset Method q= 0 .1q= 0 .3q= 0 .5
+> S.Acc U.Acc S.Acc U.Acc S.Acc U.Acc CLIP 87.23 89.90 87.23 89.90 87.23 89.90
+> CIFAR-10 CALIP 85.30 93.25 85.30 93.25 85.30 93.25 CLIP-PZSL 92.15 95.45 91.97 95.40 91.71 95.3
+> CLIP 62.36 61.85 62.36 61.85 62.36 61.85
+> CIFAR-100 CALIP 61.71 63.25 61.71 63.25 61.71 63.25 CLIP-PZSL 74.83 64.10 74.30 64.05 71.21 64.01
+> CLIP 81.13 79.29 81.13 79.29 81.13 79.29
+> Food-101 CALIP 79.77 78.03 79.77 78.03 79.77 78.03 CLIP-PZSL 89.46 80.24 88.8 80.17 87.58 80.07
+> CLIP 61.67 71.63 61.67 71.63 61.67 71.63
+> Flowers-102 CALIP 59.22 63.61 59.22 63.61 59.22 63.61 CLIP-PZSL 89.86 71.82 87.09 71.77 80.44 71.73
+> CLIP 92.64 89.86 92.64 89.86 92.64 89.86 CALIP 92.10 89.54 92.10 89.54 92.10 89.54 ABP 53.55 9.51 52.73 8.47 9.64 5.49
+> AWA2 SDGZSL 42.56 11.82 42.41 10.23 41.00 9.77 Transzero 30.94 56.51 12.82 36.77 3.33 9.65 CoAR-ZSL 77.86 50.87 41.74 36.53 37.27 28.76 CLIP-PZSL 95.09 90.37 95.08 90.33 94.52 90.32
+> CLIP 46.57 41.96 46.57 41.96 46.57 41.96 CALIP 43.41 35.21 43.41 35.21 43.41 35.21 ABP 33.46 2.16 28.81 1.47 28.66 1.27
+> CUB SDGZSL 15.42 1.95 14.35 2.00 14.05 1.84 Transzero 22.62 8.43 0.88 2.47 0.88 1.16 CoAR-ZSL 17.40 16.82 2.95 3.37 1.36 1.92 CLIP-PZSL 58.27 42.16 51.04 42.16 47.68 42.16
+
+Synthesized partial zero-shot datasets. Following the PLL dataset synthesis method [19, 20], we employ Q − 1
+
+independent decisions on noise labels to generate a candi-date label set of instance, where q ∈ 0.1, 0.3, 0.5 controls the probability of including a noise label. Higher q implies more noise and greater disambiguation difficulty. Irrelevant labels are randomly selected as candidates across all benchmarks. 
+
+Implementation Details. We use the CLIP [11] with ViT-B/16 for Image and Text encoders. Images are resized to 224×224. CLIP-PZSL uses M = 3 consecutive transformer layers, and is trained for t = 100 epochs with the SGD opti-mizer (momentum=0.9), a mini-batch size of 64, and a learn-ing rate of 0.001. The model is implemented in PyTorch. 
+
+3.2. Compared Methods. 
+
+We compare CLIP-PZSL with six state-of-the-art ZSL meth-ods, including CLIP [11], CALIP [21], ABP [22], SDGZSL [23], Transzero [24], and CoAR-ZSL [25]. CLIP-based meth-ods are evaluated on all datasets. While traditional meth-ods (marked in gray) rely on attribute information, applicable only for the AWA2 and CUB datasets. 
+
+3.3. Main Experiment Results and Analysis 
+
+Table 1 presents results with the accuracy of seen classes (S.Acc) and unseen classes (U.Acc). 
+
+CLIP-based ZSL methods. CLIP-PZSL shows superior performance on all datasets compared to the CLIP-based ZSL methods, with significant improvements in both S.Acc and U.Acc. This indicates that compared with pre-trained ZSL models, CLIP-PZSL can better reduce the impact of ambigu-ous labels and achieve effective alignment of instance and la-bel embeddings, thereby improving the generalization ability of the model in unseen classes. 
+
+Traditional ZSL methods. Experiments on the AWA2 
+
+and CUB datasets show that traditional methods degrade markedly in the presence of ambiguous labels, as they tend to overfit noisy annotations. This overfitting limits the model’s ability to learn effective, meaningful information and gen-eralize to unseen classes, leading to a drop in overall per-formance. In contrast, CLIP-PZSL retains a clear advantage even under such challenging conditions, outperforming tradi-tional methods across all scenarios. 
+
+Table 2 . Ablation study on Food-101 and CUB with q = 0 .3.Ablation CUB Food-101 S.Acc U.Acc S.Acc U.Acc w/o cross-entropy loss 84.00 80.02 48.45 41.96 w/o mean square error loss 82.05 80.04 45.81 41.68 w/o semantic mining block 84.26 80.01 48.62 42.10 CLIP-PZSL 88.80 80.17 51.04 42.16 
+
+3.4. Ablation study 
+
+Table 2 validated the importance of components in CLIP-PZSL, including the semantic mining block and partial zero-shot loss. Compared with w/o semantic mining block, CLIP-PZSL achieves stronger disambiguation and recognition on unseen classes, as the block extracts latent semantic infor-mation and reduces the effect of noisy labels. CLIP-PZSL also outperforms two variants involving loss, as Lce learns weights for candidate labels, while Ldist aligns instance and label embeddings to reduce semantic mismatch. These two terms complement each other, further boosting performance. 
+
+4. CONCLUSION 
+
+This paper proposes CLIP-PZSL to address ambiguous labels. The method introduces a semantic mining block, which inte-grates both instance and label semantic information to adap-tively extract distinct features, allowing for the detection of noisy labels by assessing the similarity between instances and ambiguous labels. It improves the semantic alignment of em-beddings in high-dimensional space. Additionally, the paper presents a new partial zero-shot loss, which not only reduces the impact of noisy labels but also aligns instance and label embeddings within the same dimension to minimize seman-tic discrepancies. As training progresses, the true labels are gradually identified, and these refined labels contribute to im-proving the classifier’s performance on unseen classes. Ex-periments verify CLIP-PZSL’s effectiveness. 5. REFERENCES 
+
+[1] Yang Liu, Lei Zhou, Xiao Bai, Yifei Huang, Lin Gu, Jun Zhou, and Tatsuya Harada, “Goal-oriented gaze estimation for zero-shot learning,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2021, pp. 3794– 3803. [2] Andrea Frome, Greg S Corrado, Jon Shlens, Samy Bengio, Jeff Dean, Marc’Aurelio Ranzato, and Tomas Mikolov, “Devise: A deep visual-semantic embedding model,” Advances in Neu-ral Information Processing Systems , vol. 26, pp. 2121–2129, 2013. [3] Ali Farhadi, Ian Endres, Derek Hoiem, and David Forsyth, “Describing objects by their attributes,” in Proceedings of the IEEE Conference on Computer Vision and Pattern Recogni-tion , 2009, pp. 1778–1785. [4] Jeffrey Pennington, Richard Socher, and Christopher D Man-ning, “Glove: Global vectors for word representation,” in Pro-ceedings of the Conference on Empirical Methods in Natural Language Processing , 2014, pp. 1532–1543. [5] Scott Reed, Zeynep Akata, Honglak Lee, and Bernt Schiele, “Learning deep representations of fine-grained visual descrip-tions,” in Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition , 2016, pp. 49–58. [6] Yan Yan, R´ omer Rosales, Glenn Fung, Ramanathan Subrama-nian, and Jennifer Dy, “Learning from multiple annotators with varying expertise,” Machine Learning , vol. 95, pp. 291–327, 2014. [7] Avrim Blum, Adam Kalai, and Hal Wasserman, “Noise-tolerant learning, the parity problem, and the statistical query model,” Journal of the ACM , vol. 50, no. 4, pp. 506–519, 2003. [8] Feng Sun, Ming-Kun Xie, and Sheng-Jun Huang, “A deep model for partial multi-label image classification with curriculum-based disambiguation,” Machine Intelligence Re-search , vol. 21, no. 4, pp. 801–814, 2024. [9] Jinfu Fan, Yang Yu, Zhongjie Wang, and Jinyi Gu, “Partial la-bel learning based on disambiguation correction net with graph representation,” IEEE Transactions on Circuits and Systems for Video Technology , vol. 32, no. 8, pp. 4953–4967, 2021. [10] Jinfu Fan, Linqing Huang, Chaoyu Gong, Yang You, Min Gan, and Zhongjie Wang, “Kmt-pll: K-means cross-attention trans-former for partial label learning,” IEEE Transactions on Neural Networks and Learning Systems , vol. 36, no. 2, pp. 2789–2800, 2024. [11] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, et al., “Learning transfer-able visual models from natural language supervision,” in Pro-ceedings of the International Conference on Machine Learn-ing , 2021, pp. 8748–8763. [12] Linqing Huang, Jinfu Fan, Shilin Wang, Gongshen Liu, and Alan Wee-Chung Liew, “Incomplete data classification via distribution alignment with evidence combination,” Machine Intelligence Research , 2026, doi: 10.1007/s11633-025-1565-1. [13] Eric Jang, Shixiang Gu, and Ben Poole, “Categorical repa-rameterization with gumbel-softmax,” in Proceedings of the International Conference on Learning Representations , 2017. [14] Alex Krizhevsky, Geoffrey Hinton, et al., “Learning multiple layers of features from tiny images,” Handbook of Systemic Autoimmune Diseases , vol. 1, no. 4, 2009. [15] Lukas Bossard, Matthieu Guillaumin, and Luc Van Gool, “Food-101–mining discriminative components with random forests,” in Proceedings of the European Conference on Com-puter Vision , 2014, pp. 446–461. [16] Catherine Wah, Steve Branson, Peter Welinder, Pietro Per-ona, and Serge Belongie, “The caltech-ucsd birds-200-2011 dataset,” California Institute of Technology , 2011. [17] Maria-Elena Nilsback and Andrew Zisserman, “Automated flower classification over a large number of classes,” in Pro-ceedings of the Indian Conference on Computer Vision, Graph-ics & Image Processing , 2008, pp. 722–729. [18] Yongqin Xian, Christoph H Lampert, Bernt Schiele, and Zeynep Akata, “Zero-shot learning—a comprehensive eval-uation of the good, the bad and the ugly,” IEEE Transactions on Pattern Analysis and Machine Intelligence , vol. 41, no. 9, pp. 2251–2265, 2018. [19] Gengyu Lyu, Songhe Feng, Tao Wang, Congyan Lang, and Yi-dong Li, “Gm-pll: Graph matching based partial label learn-ing,” IEEE Transactions on Knowledge and Data Engineering ,vol. 33, no. 2, pp. 521–535, 2019. [20] Minling Zhang and Fei Yu, “Solving the partial label learning problem: An instance-based approach,” in Proceedings of the International Joint Conference on Artificial Intelligence , 2015, pp. 4048–4054. [21] Ziyu Guo, Renrui Zhang, Longtian Qiu, Xianzheng Ma, Xu-peng Miao, Xuming He, and Bin Cui, “Calip: Zero-shot en-hancement of clip with parameter-free attention,” in Proceed-ings of the AAAI Conference on Artificial Intelligence , 2023, vol. 37, pp. 746–754. [22] Yizhe Zhu, Jianwen Xie, Bingchen Liu, and Ahmed Elgam-mal, “Learning feature-to-feature translator by alternating back-propagation for generative zero-shot learning,” in Pro-ceedings of the IEEE/CVF International Conference on Com-puter Vision , 2019, pp. 9844–9854. [23] Zhi Chen, Yadan Luo, Ruihong Qiu, Sen Wang, Zi Huang, Jingjing Li, and Zheng Zhang, “Semantics disentangling for generalized zero-shot learning,” in Proceedings of the IEEE/CVF International Conference on Computer Vision ,2021, pp. 8712–8720. [24] Shiming Chen, Ziming Hong, Yang Liu, Guo-Sen Xie, Baigui Sun, Hao Li, Qinmu Peng, Ke Lu, and Xinge You, “Tran-szero: Attribute-guided transformer for zero-shot learning,” in 
+
+Proceedings of the AAAI Conference on Artificial Intelligence ,2022, vol. 36, pp. 330–338. [25] Yu Du, Miaojing Shi, Fangyun Wei, and Guoqi Li, “Boost-ing zero-shot learning via contrastive optimization of attribute representations,” IEEE Transactions on Neural Networks and Learning Systems , vol. 35, no. 11, pp. 16706–16719, 2024.

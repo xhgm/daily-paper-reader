@@ -1,0 +1,1446 @@
+Title: MetaMind: General and Cognitive World Models in Multi-Agent Systems by Meta-Theory of Mind
+
+URL Source: https://arxiv.org/pdf/2603.00808v1
+
+Published Time: Tue, 03 Mar 2026 02:13:26 GMT
+
+Number of Pages: 24
+
+Markdown Content:
+# MetaMind: General and Cognitive World Models in Multi-Agent Systems by Meta-Theory of Mind 
+
+Lingyi Wang 1 Rashed Shelim 1 Walid Saad 1 Naren Ramakrishna 2
+
+# Abstract 
+
+A major challenge for world models in multi-agent systems is to understand interdependent agent dynamics, predict interactive multi-agent trajectories, and plan over long horizons with col-lective awareness, without centralized supervision or explicit communication. In this paper, Meta-Mind, a general and cognitive world model for multi-agent systems that leverages a novel meta-theory of mind (Meta-ToM) framework, is pro-posed. Through MetaMind, each agent learns not only to predict and plan over its own beliefs, but also to inversely reason goals and beliefs from its own behavior trajectories. This self-reflective, bidirectional inference loop enables each agent to learn a metacognitive ability in a self-supervised manner. Then, MetaMind is shown to general-ize the metacognitive ability from first-person to third-person through analogical reasoning. Thus, in multi-agent systems, each agent with Meta-Mind can actively reason about goals and beliefs of other agents from limited, observable behav-ior trajectories in a zero-shot manner, and then adapt to emergent collective intention without an explicit communication mechanism. Extended simulation results on diverse multi-agent tasks demonstrate that MetaMind can achieve superior task performance and outperform baselines in few-shot multi-agent generalization. 
+
+# 1. Introduction 
+
+World models endow intelligent agents with the human-like ability to jointly understand environment dynamics, pre-dict future trajectories, and plan actions over an extended horizon (Ding et al., 2024; Hafner et al., 2025; Prasanna et al., 2024; Wang et al., 2025c). Particularly, by abstract-ing low-level, high-dimensional sensory data into compact state representations in a latent space, world models enable 
+
+> 1
+
+Department of Electrical and Computer Engineering, Virginia Tech, USA 2Department of Computer Science, Virginia Tech, USA. Correspondence to: Lingyi Wang <lingyiwang@vt.edu>. 
+
+Preprint. March 3, 2026. 
+
+sample-efficient imagination and long-horizon reasoning through internal simulation rather than direct interactions with the environment (Vafa et al., 2024; Sun et al., 2024). These properties facilitate generalization ability, counterfac-tual reasoning, and long-term planning (Yang et al., 2025; Wang et al., 2025d). Recent advances have demonstrated that world models can capture the underlying dynamics of complex domains, including visual control, open-world ex-ploration, and physical reasoning by only learning from images or videos (Assran et al., 2025; Samsami et al., 2024; Wang et al., 2025c). These advances enable a transition from reactive policies to model-based planning, thus providing a foundation for more general-purpose intelligence. Despite the past success in single-agent systems, existing world models (Zhang et al., 2025c; 2024b; Nomura et al., 2025) cannot support strategic planning in multi-agent sys-tems due to non-stationary dynamics with adaptive behav-iors, heterogeneous goals, and partial observations. Existing multi-agent world models can be divided into two categories. The first one is centralized training with decentralized ex-ecution (CTDE) models (Zhang et al., 2024b) that rely on centralized representation aggregation to capture inter-agent dependencies during training. However, such a global con-text is unavailable under decentralized execution, which makes it hard to reuse the learned world model as an efficient test-time planner for long-horizon imagination. The second one is communication-based decentralized models (Nomura et al., 2025) that reduce partial observability via message exchange. However, messages are not directly available in counterfactual imagination and must be simulated, which increases inference cost and can exacerbate rollout drift. Hence, to enable world models for joint understanding, pre-diction, and long-horizon planning in multi-agent systems, we must overcome key challenges: • Understanding : In multi-agent environments, the evo-lution of observations is shaped by coupled interactions among multiple decision-makers, where each agent si-multaneously acts on and reacts to the others. The same observation change can be consistent with dif-ferent multi-agent explanations, thus making it fun-damentally ambiguous to determine causal effects of each agent. Moreover, agents may have distinct goals, observe asymmetric information and follow heteroge-1 
+
+> arXiv:2603.00808v1 [cs.AI] 28 Feb 2026 MetaMind: General and Cognitive World Models in Multi-Agent Systems by Meta-Theory of Mind
+> Figure 1. The proposed general and cognitive MetaMind in multi-agent systems.
+
+neous policies (Zhang et al., 2024a), thus producing non-stationary, interdependent behavior that violates the independence assumptions commonly used in stan-dard world models. Hence, a major challenge is to understand agent-indexed, factorized beliefs that dis-entangle the latent goals and beliefs of each participant while preserving their interaction structures. Such be-liefs must attribute causal responsibility across agents through inverse inference rather than compressing ev-erything in sensory data. In short, understanding re-quires structured, transferable abstractions that sepa-rate “who acts,” “with which goal,” and “under which case,” rather than a single-perspective dynamics model. • Prediction : Prediction in multi-agent systems is inter-active, where each agent’s future states are conditioned not only on the environment, but also on behavior of others under heterogeneous policies. This can lead to closed-loop distribution shift, long-horizon error compounding, and severe causal confounding when modeling trajectories from the perspective of a sin-gle agent. Such effects cannot be reliably handled by standard supervised dynamics predictors developed for single-agent world models. Hence, reliable predic-tion by world models in multi-agent systems requires cognitive inference over latent goals and beliefs, and modeling updates of other agents over multiple steps. • Planning : Planning is fundamentally strategic over joint action and belief spaces of multiple adaptive decision-makers. Rather than optimizing under a fixed environment, an agent must anticipate how others will interpret its behavior and adjust their responses for op-timal planning. This suggests higher-order reasoning about goals and beliefs, e.g., “I know that you know that I know”, and more importantly, for maintaining and updating collective beliefs over latent goals, private beliefs, and shared environment state as the interaction unfolds. Hence, it is challenging to achieve online long-horizon planning. To address these challenges, the world model at any given agent must treat other agents not as part of an unstructured background dynamics, but as intentional entities , whose behavior is driven by goals and beliefs, and therefore ad-mits causal, explainable principles as shown in Figure 1(a). The theory-of-mind (ToM) provides this perspective by ex-plicitly inferring others’ beliefs and goals, thus forming a foundation for joint understanding, prediction, and planning in multi-agent systems (Mao et al., 2024). However, exist-ing ToM-based approaches (Shum et al., 2019; Westby & Riedl, 2023; Li et al., 2024) typically rely on centralized or supervised training with specific partners and tasks, and learn a fixed perspective and structure of multi-agent inter-actions, which limits the generalization and cannot capture goal-conditioned causal mechanisms. The main contribution of this paper is MetaMind , a gen-eral, cognitive world model that learns from an ego agent’s experience and generalizes to multi-agent systems in a zero-shot manner. At the core of MetaMind, we propose a self-supervised Meta-ToM framework that leverages only observable behavioral trajectories, without relying on ex-plicit communication. Meta-ToM enables MetaMind to: (a) perform self-reflection by inversely inferring beliefs and goals to ensure inference-consistency, and turn passive dy-namics modeling into goal-directed causal modeling for disentangled understanding, (b) generalize the inverse infer-ence ability to unseen agents through analogical reasoning, which we name “ metacognition ability ”, for more reliable, explicit multi-agent trajectory predictions, and (c) learn collective beliefs for long-term, adaptive planning. These features provide a decentralized learning approach without symbolic communication systems or centralized context. Extended simulations across SMAC tasks show that Meta-Mind achieves 54% higher win rate than exsiting decentral-2MetaMind: General and Cognitive World Models in Multi-Agent Systems by Meta-Theory of Mind 
+
+ized multi-agent world models under limited training steps, and a 2.4-fold improvement in few-shot generalization than exsiting centralized multi-agent world models. 
+
+# 2. Related Works 
+
+2.1. World Models in Multi-Agent Systems 
+
+Recent advances in multi-agent systems have increasingly explored the use of world models to improve sample effi-ciency, generalization, and planning. Some works, such as COMBO (Zhang et al., 2024a) and MABL (Venugopal et al., 2023), introduce compositional or hierarchical struc-tures to separate shared dynamics from agent-specific be-havior for better representation learning. DIMA (Loo et al., 2025) and DCT (Zhang et al., 2024b) adopt generative modeling frameworks, including diffusion processes and transformer architectures, to capture the complex, high-dimensional interactions among agents. GAWM (Shi et al., 2025b) proposes centralized attention modules to address observation inconsistencies in partially observable environ-ments, while GRAD (Liu et al., 2024) incorporates sym-bolic reasoning layers to enhance decision interpretability. DCWMC (Nomura et al., 2025) infers multi-agent states with a shared symbolic communication system. However, these approaches often rely on centralized supervision, task-specific structures, or passive inference, and lack general-ization and scalability, thus, they cannot enable joint under-standing, prediction, and planning as a human-like intelli-gence in scalable and heterogeneous multi-agent systems. 
+
+2.2. Theory of Mind 
+
+ToM (Baker et al., 2011; Rabinowitz et al., 2018; Jara-Ettinger, 2019) endows agents with the ability to infer others’ latent mental states, including goals and beliefs. Early works (Oguntola et al., 2023; Zhang et al., 2025d) framed ToM as supervised behavior prediction or inverse planning over latent rewards and policies. Building on this foundation, ToM approaches have been applied in inverse reinforcement learning (IRL) Ng et al. (2000); Wu et al. (2023); Gelpí et al. (2025), intent-aware multi-agent reinforcement learn-ing (MARL) (Qi & Zhu, 2018; Wang et al., 2022), and human reward learning (Tian et al., 2021), to enhance repre-sentation learning and improve coordination by integrating inferred goals or agent-level cognition. To increase gen-erality and reduce reliance on prior knowledge, AutoToM (Zhang et al., 2025d) and MUMA-ToM (Shi et al., 2025a) adopt self-supervised and multimodal inference strategies with robustness and adaptability across agents. Hypothet-ical minds (Cross et al., 2025) and LLM-ToM (Li et al., 2023) use large language models for explicit hypothesis generation and mental state attribution in complex social reasoning. However, most of these works require supervised or centralized multi-agent training and are sensitive to strate-gic behavior under partial observability (Rabinowitz et al., 2018). They also need priors in the multi-agent structure, e.g., the number, roles, and topology of agents, thus, they cannot zero-shot generalize to new partners, group sizes, or interaction graphs (Zhang et al., 2025a). Moreovber, to the best of our knowledge, explicit ToM-style inference has not yet been used in world models for model-based planning. 
+
+# 3. Preliminaries 
+
+3.1. Temporal Difference-Based World Model 
+
+While the proposed Meta-ToM framework can apply to a broad range of world models, we use single-agent TD-MPC2, i.e., a temporal-difference (TD)-based learning ap-proach with model predictive control (MPC), as a concrete framework to construct MetaMind for multi-agent systems. Given observation ot of the agent in single-agent settings, the TD-based world model (Hansen et al., 2024) is given by Belief Encoder: bt = Bφ(ot, g)
+
+Forward Dynamics: ˜bt+1 = Dφ(bt, at, g)
+
+Reward Predictor: ˜rt = Rφ(bt, at, g)
+
+Terminal Value: ˜qt = Qφ(bt, at, g)
+
+(1) where g is a learnable goal vector, bt is goal-oriented belief by Bφ, at is an action from MPC, ˜bt is the predicted belief by Dφ, ˜rt is the predicted reward by Rφ at step t, and Qφ
+
+estimates the discounted return with the parameter φ. We define a multi-step prediction loss: 
+
+L0(φ) = Eτ
+
+h TX
+
+> t=0
+
+ςt  ∥D φ (bt, at, g)−sg( Bφ(ot+1 , g)) ∥2
+
+| {z }
+
+> Imagination Loss
+
++ ℑ(˜ rt, r t) + ℑ(˜ qt, q t)
+
+| {z }
+
+> Reward and Value Loss
+
+i
+
+, (2) where ς ∈ (0 , 1) is the time weighting, τ =
+
+{ot, at, r t, ot+1 } is a sampled actual trajectory, sg( ·)
+
+is the stop-gradient operation, and qt = rt +
+
+γQ ϖ (˜bt+1 , π φ(˜bt+1 , g)) is the TD target at step t with a factor γ ∈ (0 , 1] and multi-Q exponential moving average (EMA) with parameters ϖ. To ensure scale-invariant learn-ing and stable multi-goal learning, TD-MPC2 formulates the reward and value prediction as discrete regression in log-transformed space, where ℑ(·) is soft cross-entropy (More details can be seen in Appendix A.1 and A.2). 
+
+3.2. Model Predictive Control 
+
+We perform MPC in the differentiable belief space induced by Dφ as the planner of the world model. At each step, we optimize a Gaussian proposal N (μ, σ 2) over candidate action sequences at:t+ ¯H = {at, at+1 , · · · , at+ ¯H } to max-imize the expected cumulative return over horizon ¯H:
+
+{μ∗, σ ∗} = arg max  
+
+> μ,σ
+
+Eat:t+ ¯H
+
+
+
+> ¯H−1
+
+X
+
+> h=0
+
+γhR
+
+˜bt+h, at+h, g
+
+
+
++γ ¯H Q
+
+˜bt+ ¯H , at+ ¯H , g
+
+i 
+
+. (3) 3MetaMind: General and Cognitive World Models in Multi-Agent Systems by Meta-Theory of Mind 
+
+After iterative optimization, the first action at is executed in the environment, while subsequent steps are warm-started by using πφ(bt, g) as initial mean μ0.
+
+# 4. Proposed MetaMind with Meta-ToM 
+
+As shown in Figure 1, MetaMind comprises two compo-nents: a goal-conditioned world model component for for-ward prediction and planning, and a Meta-ToM component for inverse inference. In this section, we will present the design of a novel, self-supervised Meta-ToM component for world models in multi-agent systems. 
+
+Inverse Inference. In multi-agent systems, an agent can-not rely solely on its own observations, as they are partial and their evolution is causally coupled through multi-agent interactions, while other agents’ goals and beliefs remain hidden. To understand and learn the psychological princi-ples with causal structures underlying behavior, as shown in Figure 1(a), we can perform inverse inference of latent 
+
+mental states , including both beliefs and goals, from ex-ternally observable behavioral trajectories. Let Ψθ be the inverse goal predictor and Ωθ be the inverse belief predic-tor with parameters θ. Then, the estimated goal and belief can be, respectively, obtained by ˆgt = Ψ θ (a<t , ˆgt−1) and 
+
+ˆbt = Ω θ (at, ˆgk). We optimize Ψθ and Ωθ by minimizing the loss of consistency of inverse reasoning: 
+
+Linv (θ) = Eτ
+
+h TX
+
+> k=1
+
+∥Ψθ (a<k , ˆgk−1) − g∥2
+
++ ∥Ωθ (ak, sg(ˆ gk)) − bt∥2i
+
+,
+
+(4) where sg( ·) is the stop-gradient operator. As illustrated in Figure 1(b), the inverse inference models Ψθ and Ωθ ground Meta-ToM by understanding potential mental states from its own behavioral trajectories, i.e., thinking “ Why and when I did these actions? ” in a self-supervised manner. 
+
+Self-Reflection. Since inverse inference from behavior is generally non-identifiable, i.e., multiple latent explanations for the same behavior, which can lead to ambiguous men-tal states. Hence, we introduce an explicit self-reflection by cycle-consistency to make the inverse inference behav-iorally identifiable. Particularly, the agent verifies whether its predicted beliefs and goals can regenerate original behav-ioral trajectories, i.e., “ whether I will take the same action at the inferred belief and goal. ”, as illustrated in Figure 1(b). Given a behavioral trajectory a0: T , the latent mental states 
+
+ˆbt, ˆgt from the inverse models are passed to the forward pol-icy model πφ and reconstruct actions with ˆat = πφ(ˆbt, ˆgt).Hence, the belief-action cycle-consistency loss by minimiz-ing the discrepancy between the predicted actions ˆat and original actions a0: T is given by: 
+
+Lref (θ) = Eτ
+
+h TX
+
+> k=1
+
+πφ(ˆbT −k, ˆgT −k) − aT −k 
+
+> 2
+
+i
+
+. (5) The cycle consistency objective (5) ensures that inferred mental states are not only plausible but also behaviorally sufficient. This reflective loop plays a dual role that serves both as a self-improvement signal for Ψθ and Ωθ , and as a diagnostic tool for identifying mismatches among beliefs, goals, and actions, thus stabilizing inverse reasoning. 
+
+Analogical Inference. Unlike the internal, inaccessible beliefs and goals of each agent, actions are universally recognized, externally observable and protocol-agnostic across heterogeneous agents (Fudenberg & Levine, 1998; Baker et al., 2009; 2017). Hence, the Meta-ToM frame-work endows the agent with an analogical inference abil-ity, which zero-shot generalizes the cognitive ability from first-person reasoning to third-person inference, i.e., from thinking “Why and when did I perform these actions” to thinking “Why and when they did these actions”. Particu-larly, the learned inverse models (Ψ iθ , Ωiθ ) of agent i from self-behavioral trajectories can be used for mental state estimation of other agents. Given an observable action tra-jectory {a(i,j ) 
+
+> t
+
+} of agent j, agent i can actively estimate the goals and beliefs of agent j, respectively, by analogical inference: 
+
+ˆg(i,j ) 
+
+> t
+
+:= Ψ iθ
+
+
+
+a(i,j ) 
+
+> t
+
+, ˆg(i,j )
+
+> t−1
+
+
+
+, ˆb(i,j ) 
+
+> t
+
+:= Ω iθ
+
+
+
+a(i,j ) 
+
+> t
+
+, ˆg(i,j )
+
+> t
+
+
+
+.
+
+(6) In this way, the Meta-ToM enables explicit multi-agent modeling. Based on estimated ˆg(i,j ) 
+
+> t
+
+and ˆb(i,j ) 
+
+> t
+
+from Meta-ToM, agent i predicts beliefs and actions of agent 
+
+j with the forward models, respectively, by ˜b(i,j ) 
+
+> t+1
+
+=
+
+Dφ(ˆb(i,j ) 
+
+> t
+
+, a(i,j ) 
+
+> t
+
+, ˆg(i,j ) 
+
+> t
+
+) and ˜a(i,j ) 
+
+> t+1
+
+= πφ(ˆb(i,j ) 
+
+> t
+
+, ˆg(i,j ) 
+
+> t
+
+) for reliable imagination rollouts without centralized informa-tion in multi-agent systems. 
+
+Self-Supervised Collective Beliefs. In multi-agent envi-ronments, an ego agent must plan under uncertainty about others’ latent beliefs and goals. We therefore construct a 
+
+collective belief that aggregates inferred mental states in a permutation-invariant and goal-conditioned manner, produc-ing a compact interaction-aware latent representation. This representation summarizes who is around, what they likely intend, and how they may respond , thus enabling scalable long-horizon planning. Let Eiϱ(·) be a belief fusion module of agent i for collective beliefs with parameters ϱ. Given the actual belief bit+1 of agent i, we optimize Eϱ(·) by a self-supervised objective: 
+
+Lcol (ϱ) = Eiϱ({˜b(i,j ) 
+
+> t+1
+
+, ˆg(i,j ) 
+
+> t
+
+}) − sg( bit+1 ) 22. (7) The loss function in (7) provides a more accurate imagina-tion of multi-agent interactions and enables emergent group awareness, thus enabling long-term planning without ex-plicit communication or prior information. Moreover, any permutation-invariant module for belief fusion. Here, we apply the transformer-based aggregation approach (Zhang 4MetaMind: General and Cognitive World Models in Multi-Agent Systems by Meta-Theory of Mind 
+
+et al., 2024b), as shown in Appendix A.3 . The training details of the proposed MetaMind with a Meta-ToM frame-work is summarized in Appendix B. 
+
+# 5. Goal Identification by Meta-ToM 
+
+In this section, we prove goal identification , i.e., distinct goals induce distinguishable behavioral trajectories, for the effectiveness of the proposed Meta-ToM. In particular, goal identification guarantees that minimizing the behavioral residual leads to accurate estimations of goals. Moreover, the representation-equivalence class is the invariant shared across agents. While the set of internal representations may vary, the set of possible tasks T is fixed. Formally, let Γ be the group of representation transformations mapping het-erogeneous encodings gj to the same task κ ∈ T . Goal identification is therefore proven at the task-equivalence level: for any two distinct tasks κ1, κ2 with encodings g1,
+
+g2, respectively, the induced behavioral distributions must be distinguishable, i.e., p(at:t+H | g1)̸ = p(at:t+H | g2),
+
+while encodings within the same equivalence class [g] are treated as indistinguishable, and identification guarantees task-level intentions rather than agent-specific internal rep-resentations. We omit the subscript parameters θ, φ, and the agent index i for brevity in the next discussions. 
+
+Definition 1 (Behavioral TD residual) . Given an observa-tion horizon H ≥ 2 and a behavioral trajectory a0: H−1 =(a0, . . . , aH−1). For any candidate goal g ∈ G, we have bt(g) := Ω( at, g), ˜bt+1 (g) := D bt(g), at, g, and 
+
+˜at+1 (g) := π ˜bt+1 (g), g. Equivalently, let Fg (a) := 
+
+π D(Ω( a, g), a, g), g, and then ˜at+1 (g) = Fg (at). The one-step TD residual and the stacked long-horizon residual are, respectively, defined by 
+
+ϕt(g) := at+1 − ˜at+1 (g) = at+1 − Fg (at),
+
+ΦH (g) := ϕ0(g); ϕ1(g); . . . ; ϕH−2(g). (8) 
+
+We use dH (g) := ∥ΦH (g)∥2 as the behavioral cognition loss for goal identification. Since B, Ω and π are continu-ously differentiable, ΦH (g) is differentiable in goal g.
+
+Definition 2 (Residual margin for discrete goal identifi-cation) . Let C = {g1, . . . , gK } ⊂ G be a discrete code-book that records learned goal representations {gk}, and let the true goal be g∗ = gk∗
+
+∈ C . Given ΦH (g) and 
+
+dH (g) := ∥ΦH (g)∥2, the residual margin of C at horizon 
+
+H is 
+
+¯γH (C; g∗) := min  
+
+> k̸=k∗
+
+ ∥ΦH (gk) − ΦH (g∗)∥2
+
+. (9) 
+
+Theorem 1 (Goal identification) . Let observable behavior trajectory aj 
+
+> 0: H−1
+
+be generated by πj and Dj under the true goal g∗. Assume π(b, g) is ξπ -Lipschitz in b and D(·, aj , g)
+
+is ξD -Lipschitz in b. The per-step mismatches are given by ∆bjt := Ω( at, g∗) − bjt , ∆Dt(b) := D(b, at, g∗) −Dj (b, at, g∗), and ∆πt+1 := πj (bjt+1 , g∗) − π(bjt+1 , g∗).The behavioral-mismatch energy is: 
+
+δact := 
+
+> H−2
+
+X
+
+> t=0
+
+
+
+∥∆πt+1 ∥ + ξπ ∥εt∥
+
+2
+
+!1/2
+
+, (10) 
+
+where εt := ∥∆Dt(bjt )∥ + ξD ∥∆bjt ∥. If 
+
+δact < ¯γH (C; g∗)/2, then the nearest-neighbor 
+
+ˆk = arg min k ∥ΦH (gk)∥2 returns ˆg = gˆk = g∗.Proof. Please see Appendix C.1. 
+
+Lemma 1 (Local linear margin via Lipschitz Jacobian) .
+
+Assume JΦ is LJ -Lipschitz in g on a neighborhood of g∗
+
+and every gk lies in the locality ball ∥gk − gk∗
+
+∥ ≤ ϕ⋆ with 
+
+ϕ⋆ := σmin 
+
+ JΦ(g∗)/L J and ρmin := min k̸ =ℓ ∥gk − gℓ∥,where σmin is the smallest singular value. Then, for each 
+
+k̸ = k∗,
+
+∥ΦH (gk)∥2 ≥ 12 σmin 
+
+ JΦ(g∗) ∥gk − gk∗
+
+∥,
+
+⇒ γH (C; g∗) ≥ 12 σmin 
+
+ JΦ(g∗) ρmin .
+
+(11) 
+
+Proof. Please see Appendix C.2. 
+
+Theorem 2 (Sufficient horizon size for goal identification) .
+
+If there exist m and β > 0 such that for every window 
+
+[k, k + m − 1] ⊆ [0 , H − 2] , discrete-time sliding-window persistence of excitation is 
+
+> k+m−1
+
+X
+
+> t=k
+
+ ∂ϕ t
+
+∂g (g∗)
+
+⊤ ∂ϕ t
+
+∂g (g∗)
+
+
+
+⪰ β I dg . (12) 
+
+Then, with codebook separation ρmin > 0, the sufficient horizon size H for robust goal identification is: 
+
+H ≥ 1 + m
+
+L + 1 
+
+
+
+, L := 
+
+ 4 δact 
+
+ρmin 
+
+√β
+
+2
+
+. (13) 
+
+Proof. Please see Appendix C.3. 
+
+Remark 1. Theorems 1-2 and Lemma 1 are applicable to both homogeneous agents with the same network pa-rameters, and heterogeneous agents with different network parameters or structures. 
+
+Theorem 1 converts Meta-ToM from a heuristic to a prin-cipled method by proving goal identification. In particu-lar, Theorem 1 introduces a behavioral-mismatch energy 
+
+δact and proves correctness whenever a simple criterion holds, ¯γH > 2 δact . It justifies the self-reflection and cycle-consistency objective since they reduce dH (g∗) and enlarge the effective margin. Lemma 1 links smoothness and code-book separation to finite-sample separability, and reveals 5MetaMind: General and Cognitive World Models in Multi-Agent Systems by Meta-Theory of Mind  
+
+> Figure 2. Performance comparison on 8 SMAC tasks under limited environment steps. The win rates are averaged over 100 test episodes.
+
+that increasing σmin (JΦ(g∗)) or ρmin enlarges the margin and improves robustness to estimation errors. A sufficient horizon size for goal identification is proved in Theorem 2, which reveals larger behavioral mismatch δact requires longer observation, and more informative trajectories by larger β reduce the required horizon. Theorem 2 shows 
+
+when inverse inference should succeed with finite trajecto-ries and provides guidance for choosing the trajectory chunk length used by Meta-ToM in practice. In a nutshell, Theo-rems 1-2 and Lemma 1 explain why inverse inference by Meta-ToM is effective, when zero-shot analogical inference will succeed, and how to ensure closed-loop reliability in multi-agent settings. 
+
+# 6. Experiments 
+
+6.1. Experimental Settings 
+
+We evaluate all methods across StarCraft Multi-Agent Chal-lenge (SMAC) tasks, which requires coordination under partial observability with decentralized execution. Follow-ing common practice, we use a diverse set of maps covering both homogeneous and heterogeneous team compositions. Unless otherwise specified, an episode terminates when the combat ends or when the environment reaches its default time limit. We compare MetaMind against representative multi-agent world model methods, and CTDE multi-agent reinforcement learning baselines. In particular, the baselines include MARIE (Zhang et al., 2024b) as CTDE world mod-els, DCWMC (Nomura et al., 2025) as decentralized world models, and MAPPO (Yu et al., 2022) and MBVD (Xu et al., 2022) as CTDE reinforcement learning (RL) base-lines. All methods are trained with the same environment interaction budget and evaluated under the same protocol. Experiments are run on an NVIDIA GeForce RTX 4090 GPU with 24 GB VRAM. Detailed model architectures, hyperparameters, and task-specific settings are provided in Appendix D. 
+
+6.2. Task Performance 
+
+Figure 2 shows the convergence performance of differ-ent methods across 8 SMAC tasks versus limited environ-ment steps, and Table 1 lists the task performance across 13 SMAC tasks within limited environment steps. We observe that MetaMind achieves better convergence and win rates within limited environment steps. As shown in Figure 2, MetaMind reaches 80% win rate within 200K steps on 3s_vs_5z, whereas MARIE and DCWMC can only reach 75% and 52% win rate, respectively. This is because that MetaMind enables explicit, decentralized team-mate mental-state inference for a multi-agent model-based planner, which reduces the effective non-stationarity from reactive agents, thereby improving sample efficiency and reliable rollouts for long-horizon planning. This advantage becomes most salient on heterogeneous, strategy-intensive maps where successful play requires complex anticipatory coordination rather than simple reactive control. From Ta-ble 1, in 3s_vs_4z , 3s_vs_5z , and corridor tasks, MAPPO and MBVD cannot achieve non-trivial coordina-tion, whereas MetaMind achieves 77.3 ±9.3%, 80.4 ±7.3%, and 76.8 ±14.2%, respectively. Compared to MARIE and DCWMC, MetaMind achieves up to 11.0% improvement in terms of win rate on 3s_vs_5z . Overall, by explicitly inferring latent mental states and aggregating them into a permutation-invariant interaction-aware collective belief for model-based planning, MetaMind achieves faster conver-gence and superior win rates, particularly in heterogeneous tasks requiring robust long-horizon coordination under par-tial observability. 6MetaMind: General and Cognitive World Models in Multi-Agent Systems by Meta-Theory of Mind 
+
+Table 1. Performance comparison of win rate (Mean ± Std.) across 13 SMAC maps for different methods, averaged over 100 random seeds after 200k environment steps of training. The corridor task is trained for 400K steps, the 3s_vs_5z and 2c_vs_64zg tasks are trained for 200K steps, and all remaining tasks are trained for 100K steps. Map Type Multi-Agent World Model Methods Multi-Agent RL Methods MetaMind (Ours )DCWMC (Nomura et al., 2025) MARIE (Zhang et al., 2024b) MAPPO (Yu et al., 2022) MBVD (Xu et al., 2022) Decentralized Decentralized CTDE CTDE CTDE 2m_vs_1z Homog. 91.7 ± 6.2 75.1 ± 10.3 93.1 ± 3.3 84.6 ± 8.1 38.2 ± 19.1 2s_vs_1sc 93.2 ± 5.4 80.4 ± 9.2 96.1 ± 7.5 93.1 ± 6.1 16.1 ± 14.2 3m 95.5 ± 3.1 72.1 ± 10.7 96.2 ± 1.1 82.3 ± 11.9 72.1 ± 8.6 8m 89.1 ± 7.7 70.5 ± 12.8 84.1 ± 7.2 69.4 ± 17.8 71.2 ± 11.2 3s_vs_3z 95.1 ± 2.1 63.4 ± 9.0 97.3 ± 1.9 6.8 ± 3.2 1.0 ± 0.5 3s_vs_4z 77.3 ± 9.3 41.3 ± 17.2 71.2 ± 8.5 0.0 ± 0.0 0.0 ± 0.0 3s_vs_5z 80.4 ± 7.3 46.1 ± 12.3 72.4 ± 13.2 0.0 ± 0.0 0.0 ± 0.0 2c_vs_64zg 29.8 ± 11.2 9.5 ± 4.5 23.5 ± 15.1 5.2 ± 10.3 0.0 ± 0.0 baneling 92.7 ± 5.1 54.7 ± 18.9 91.8 ± 6.8 31.3 ± 19.4 11.3 ± 13.2 corridor 76.8 ± 14.2 41.2 ± 15.7 72.5 ± 16.1 0.0 ± 0.0 0.0 ± 0.0 2s3z Heterog. 84.6 ± 6.7 54.8 ± 11.3 82.3 ± 8.5 31.2 ± 14.2 42.7 ± 8.1 1c3s5z 87.6 ± 8.3 58.6 ± 29.2 85.0 ± 9.4 18.4 ± 11.0 60.9 ± 11.4 MMM 85.7 ± 3.6 68.1 ± 10.3 83.2 ± 7.1 11.2 ± 3.5 10.5 ± 7.1 
+
+Figure 3. Performance comparison of win rate (Mean ± Std.) on 8 SMAC tasks versus different imagination horizon length. 
+
+6.3. Impact of Imagination Horizon 
+
+Figure 3 studies how the imagination horizon affects multi-agent performance, with horizon size H ∈ { 5, 10 , 15 , 20 }.DCWMC predicts only the next-step information and there-fore is not affected by varying H. From Figure 3, a longer imagination horizon generally leads to higher win rates for MetaMind and MARIE, when H increases from 5 to 15. This improvement is significant for coordination-intensive tasks that require anticipating delayed tactical outcomes, where short-horizon rollouts tend to be short-sighted. When 
+
+H reaches 20, the benefit becomes smaller, which is caused by compounding model errors and increased uncertainty in long-horizon imagined trajectories. MetaMind reaches the best win rates for H ≥ 10 and shows a smaller performance reduction at H=20 than MARIE on long-horizon coordi-nation tasks. For example, on 2c_vs_64zg , MetaMind achieves 43.0 % at H=15 , which outperforms MARIE by 4.6 %, and achieves reliable performance when the horizon increases to H=20 . Figure 3 suggests that the proposed meta-ToM and collective belief modeling can stabilize plan-ning under partial observability when the imagination hori-zon becomes longer. Based on these results, all remaining experiments use H=15 as the default horizon, which pro-vides a balance between lookahead and rollout reliability. 7MetaMind: General and Cognitive World Models in Multi-Agent Systems by Meta-Theory of Mind   
+
+> Figure 4. Performance comparison of win rate in few-shot multi-agent generalization on 8 SMAC tasks under limited environment steps.
+> Figure 5. The scalability of a multi-map (MM) MetaMind to per-form and cooperate over 13 SMAC maps, and the average horizon for goal identification of MT and single-map (SM) MetaMinds.
+
+6.4. Multi-Agent Generalization 
+
+In Figure 4, we evaluate multi-agent generalization with few environment interactions under teammate distribution shift. In particular, for each SMAC map, we first train a population of world models for agents. During testing, we form evaluation teams by randomly replacing one agent in a converged team with a world model drawn from this population, while keeping the remaining agents fixed. This creates a distribution shift in observable behaviors and coor-dination conventions without changing the environmental dynamics. This protocol aims to measure (a) teammate generalization, i.e., robustness to partner-policy changes; (b) coordination robustness, i.e., the ability to maintain ef-fective collaboration when implicit coordination protocols differ; and (c) compositional generalization, i.e., whether agents trained under different runs can be composed into a functioning team. We propose a few-shot learning approach for MetaMind to fine-tune inverse inference, as given in Appendix A.4. As shown in Figure 4, MetaMind exhibits stronger gener-alization under controlled partner-policy replacement. It achieves an average median win rate of 62.7% across 8 SMAC maps, whereas MARIE reaches only 25.9%. More-over, MetaMind is robust in the lower tail, achieving a win rate of 59.4% at the 25th percentile versus 23.0% by MARIE. Compared to MARIE, MetaMind achieves an average 2.4-fold improvement in few-shot generalization. This indi-cates MetaMind has far fewer catastrophic coordination failures when implicit conventions shift. This is because: (a) analogical inference maps observed actions to latent goal/belief, thereby reducing reliance on a single co-adapted protocol, such as the emergent communication systems in DCWMC; (b) self-reflection regularizes inverse inference to-ward behaviorally identifiable explanations, thereby improv-ing transfer to unseen partner policies; and (c) collective-belief aggregation absorbs local partner changes into an interaction-aware belief. Moreover, it is observed that the replacement of teammate breaks the sender-receiver code-book alignment of DCWMC, so messages become unin-terpretable, thereby causing the communication channel failures and collapsed coordination performance. 
+
+6.5. Scalability 
+
+Figure 5 shows that MetaMind scales with both model ca-pacity and task diversity. As the parameter budget increases from 1M to 200M, the normalized win rate improves from 0.21 to 0.55. It indicates that larger models effectively translate additional capacity into better multi-task coordi-nation rather than being bottlenecked by negative transfer. Moreover, the average inference cost of goal identification for MM MetaMind is 12.3, compared to 5.3 for SM Meta-8MetaMind: General and Cognitive World Models in Multi-Agent Systems by Meta-Theory of Mind 
+
+Mind. This indicates that even under multi-map training, MetaMind can still accurately infer others’ goals/beliefs and remain reliable across diverse maps with coordination. Such robust intent identification provides a stable basis for part-ner prediction and planning, which in turn supports strong cooperative performance as model capacity grows. 
+
+# 7. Conclusion 
+
+In this paper, we have proposed MetaMind , a generalized cognitive world model with Meta-ToM for multi-agent sys-tems, which learns from an ego agent’s experience and gen-eralizes to interactive environments in a zero-shot manner. We have developed Meta-ToM as a self-supervised inverse-inference paradigm that treats other agents as intentional entities and actively reasons latent beliefs and goals from be-havioral trajectories. Meta-ToM combines self-reflection to learn goal-conditioned causal mechanisms, enables analog-ical inference to generalize mental-state estimation across agents, and constructs permutation-invariant collective be-liefs for long-horizon planning under strategic adaptation. Moreover, we have provided theoretical guarantees for goal identification from behaviors, thereby offering principled conditions on separability and horizon length for robust in-verse inference. Extended simulations across SMAC tasks show that MetaMind achieves 54% higher win rate than exsiting decentralized multi-agent world models under lim-ited training steps, and a 2.4-fold improvement in few-shot generalization than exsiting centralized multi-agent world models. 
+
+# References 
+
+Assran, M., Bardes, A., Fan, D., Garrido, Q., Howes, R., Muckley, M., Rizvi, A., Roberts, C., Sinha, K., Zholus, A., et al. V-jepa 2: Self-supervised video models enable understanding, prediction and planning. arXiv preprint arXiv:2506.09985 , 2025. Baker, C., Saxe, R., Tenenbaum, J., and et al. Bayesian theory of mind: Modeling joint belief-desire attribution. In Proceedings of the annual meeting of the cognitive science society , volume 33, 2011. Baker, C. L., Saxe, R., and Tenenbaum, J. B. Action under-standing as inverse planning. Cognition , 113(3):329–349, 2009. Baker, C. L., Jara-Ettinger, J., Saxe, R., and Tenenbaum, J. B. Rational quantitative attribution of beliefs, desires and percepts in human mentalizing. Nature Human Be-haviour , 1(4):0064, 2017. Cross, L., Xiang, V., Bhatia, A., Yamins, D. L., and Haber, N. Hypothetical minds: Scaffolding theory of mind for multi-agent tasks with large language models. In Interna-tional Conference on Learning Representations , 2025. Deihim, A., Alonso, E., and Apostolopoulou, D. Trans-former world model for sample efficient multi-agent re-inforcement learning. arXiv preprint arXiv:2506.18537 ,2025. Ding, J., Zhang, Y., Shang, Y., Zhang, Y., Zong, Z., Feng, J., Yuan, Y., Su, H., Li, N., Sukiennik, N., et al. Understand-ing world or predicting future? a comprehensive survey of world models. ACM Computing Surveys , 2024. Fudenberg, D. and Levine, D. K. The theory of learning in games , volume 2. MIT press, 1998. Gelpí, R. A., Xue, E., Cunningham, W. A., and et al. Towards machine theory of mind with large language model-augmented inverse planning. arXiv preprint arXiv:2507.03682 , 2025. Hafner, D., Pasukonis, J., Ba, J., et al. Mastering diverse control tasks through world models. Nature , 640:647– 653, 2025. Hansen, N., Su, H., and Wang, X. Td-mpc2: Scalable, robust world models for continuous control. In Interna-tional Conference on Learning Representations , 2024. Hu, M., Xia, B., Wu, Y., Yu, A., Zou, Y., Chen, Q., Wang, S., Jin, J., Li, K., Jiao, W., et al. Agent2world: Learning to generate symbolic world models via adaptive multi-agent feedback. arXiv preprint arXiv:2512.22336 , 2025. Huang, D., Wang, J., Li, Y., Xia, C., Zhang, T., and Zhang, K. Pigdreamer: Privileged information guided world models for safe partially observable reinforcement learn-ing. arXiv preprint arXiv:2508.02159 , 2025. Jara-Ettinger, J. Theory of mind as inverse reinforcement learning. Current Opinion in Behavioral Sciences , 29: 105–110, 2019. Kang, L., Song, X., Zhou, H., Qin, Y., Yang, J., Liu, X., Torr, P., Bai, L., and Yin, Z. Viki-r: Coordinating embodied multi-agent cooperation via reinforcement learning. arXiv preprint arXiv:2506.09049 , 2025. Lee, M. S., Admoni, H., and Simmons, R. Reasoning about counterfactuals to improve human inverse reinforcement learning. In 2022 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , pp. 9140–9147. IEEE, 2022. Li, H., Chong, Y. Q., Stepputtis, S., Campbell, J., Hughes, D., Lewis, M., and Sycara, K. Theory of mind for multi-agent collaboration via large language models. arXiv preprint arXiv:2310.10701 , 2023. 9MetaMind: General and Cognitive World Models in Multi-Agent Systems by Meta-Theory of Mind 
+
+Li, X., Zhang, T., Liu, C., Meng, L., and Xu, B. Long short-term reasoning network with theory of mind for efficient multi-agent cooperation. In 2024 International Joint Conference on Neural Networks (IJCNN) , pp. 1–8. IEEE, 2024. Li, X., Chen, S., Zhang, J., et al. Puzzle it out: Local-to-global world model for offline multi-agent reinforcement learning. arXiv preprint arXiv:2601.07463 , 2026. Liu, Z., Yang, X., Sun, S., Qian, L., Wan, L., Chen, X., and Lan, X. Grounded answers for multi-agent decision-making problem through generative world model. Ad-vances in Neural Information Processing Systems , 37: 46622–46652, 2024. Loo, Y., Trivedi, A., and Meghjani, M. Efficient generation of diverse cooperative agents with world models. arXiv preprint arXiv:2506.07450 , 2025. Mao, Y., Liu, S., Ni, Q., Lin, X., and He, L. A review on machine theory of mind. IEEE Transactions on Com-putational Social Systems , 11(6):7114–7132, 2024. doi: 10.1109/TCSS.2024.3416707. Moreno, P., Hughes, E., McKee, K. R., Pires, B. A., and Weber, T. Neural recursive belief states in multi-agent reinforcement learning. arXiv preprint arXiv:2102.02274 ,2021. Ng, A. Y., Russell, S., et al. Algorithms for inverse reinforce-ment learning. In International Conference on Machine Learning , volume 1, pp. 2, 2000. Nomura, K., Aoki, T., Taniguchi, T., and Horii, T. Decen-tralized collective world model for emergent communica-tion and coordination. arXiv preprint arXiv:2504.03353 ,2025. Oguntola, I., Campbell, J., Stepputtis, S., and Sycara, K. Theory of mind as intrinsic motivation for multi-agent reinforcement learning. arXiv preprint arXiv:2307.01158 ,2023. Prasanna, S., Farid, K., Rajan, R., and Biedenkapp, A. Dreaming of many worlds: Learning contextual world models aids zero-shot generalization. arXiv preprint arXiv:2403.10967 , 2024. Qi, S. and Zhu, S.-C. Intent-aware multi-agent reinforce-ment learning. In 2018 IEEE international conference on robotics and automation (ICRA) , pp. 7533–7540. IEEE, 2018. Rabinowitz, N., Perbet, F., Song, F., Zhang, C., Eslami, S. A., and Botvinick, M. Machine theory of mind. In 
+
+International conference on machine learning , pp. 4218– 4227. PMLR, 2018. Samsami, M. R., Zholus, A., Rajendran, J., and Chandar, S. Mastering memory tasks with world models. Interna-tional Conference on Learning Representations , 2024. Shi, H., Ye, S., Fang, X., Jin, C., Isik, L., Kuo, Y.-L., and Shu, T. Muma-tom: Multi-modal multi-agent theory of mind. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 39, pp. 1510–1519, 2025a. Shi, Z., Liu, M., Zhang, S., Zheng, R., Dong, S., and Wei, P. Gawm: Global-aware world model for multi-agent rein-forcement learning. In arXiv preprint arXiv:2501.10116 ,2025b. Shum, M., Kleiman-Weiner, M., Littman, M. L., and Tenen-baum, J. B. Theory of minds: Understanding behavior in groups through inverse planning. In Proceedings of the AAAI conference on artificial intelligence , volume 33, pp. 6163–6170, 2019. Sun, R., Zang, H., Li, X., and Islam, R. Learning latent dynamic robust representations for world models. arXiv preprint arXiv:2405.06263 , 2024. Tian, R., Tomizuka, M., and Sun, L. Learning human re-wards by inferring their latent intelligence levels in multi-agent games: A theory-of-mind approach with applica-tion to driving data. In 2021 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , pp. 4560–4567. IEEE, 2021. Vafa, K., Chen, J. Y., Rambachan, A., Kleinberg, J., and Mullainathan, S. Evaluating the world model implicit in a generative model. Advances in Neural Information Processing Systems , 37:26941–26975, 2024. Venugopal, A., Milani, S., Fang, F., and Ravindran, B. Mabl: Bi-level latent-variable world model for sample-efficient multi-agent reinforcement learning. arXiv preprint arXiv:2304.06011 , 2023. Wang, C., Rahman, A., Cui, J., Sung, Y., and Stone, P. Rotate: Regret-driven open-ended training for ad hoc teamwork. arXiv preprint arXiv:2505.23686 , 2025a. Wang, J. X., Kurth-Nelson, Z., Kumaran, D., Tirumala, D., Soyer, H., Leibo, J. Z., Hassabis, D., and Botvinick, M. Prefrontal cortex as a meta-reinforcement learning system. Nature neuroscience , 21(6):860–868, 2018. Wang, L., Shelim, R., Saad, W., and Ramakrishnan, N. Dual-mind world models: A general framework for learning in dynamic wireless networks. arXiv preprint arXiv:2510.24546 , 2025b. Wang, L., Shelim, R., Saad, W., and Ramakrishnan, N. World model-based learning for long-term age of informa-tion minimization in vehicular networks. arXiv preprint arXiv:2505.01712 , 2025c. 10 MetaMind: General and Cognitive World Models in Multi-Agent Systems by Meta-Theory of Mind 
+
+Wang, Q., Yang, J., Wang, Y., Jin, X., Zeng, W., and Yang, X. Making offline rl online: Collaborative world models for offline visual reinforcement learning. Advances in Neural Information Processing Systems , 37:97203–97230, 2024. Wang, Q., Zhang, Z., Xie, B., Jin, X., Wang, Y., Wang, S., Zheng, L., Yang, X., and Zeng, W. Disentangled world models: Learning to transfer semantic knowledge from distracting videos for reinforcement learning. arXiv preprint arXiv:2503.08751 , 2025d. Wang, Y., fangwei zhong, Xu, J., and Wang, Y. Tom2c: Target-oriented multi-agent communication and coopera-tion with theory of mind. In International Conference on Learning Representations , 2022. Wang, Z. and Meger, D. Leveraging world model disentan-glement in value-based multi-agent reinforcement learn-ing. In 2025 International Joint Conference on Neural Networks (IJCNN) , pp. 1–10. IEEE, 2025. Westby, S. and Riedl, C. Collective intelligence in human-ai teams: A bayesian theory of mind approach. In Proceed-ings of the AAAI Conference on Artificial Intelligence ,volume 37, pp. 6119–6127, 2023. Wu, H., Sequeira, P., and Pynadath, D. V. Multiagent in-verse reinforcement learning via theory of mind reasoning. 
+
+arXiv preprint arXiv:2302.10238 , 2023. Wu, S. A., Wang, R. E., Evans, J. A., Tenenbaum, J. B., Parkes, D. C., and Kleiman-Weiner, M. Too many cooks: Coordinating multi-agent collaboration through inverse planning. In Proceedings of the annual meeting of the cognitive science society , volume 42, 2020. Xu, Z., Zhang, B., Zhan, Y., Baiia, Y., Fan, G., et al. Min-gling foresight with imagination: Model-based coopera-tive multi-agent reinforcement learning. Advances in Neu-ral Information Processing Systems , 35:11327–11340, 2022. Yang, Y., Mei, J., Ma, Y., Du, S., Chen, W., Qian, Y., Feng, Y., and Liu, Y. Driving in the occupancy world: Vision-centric 4d occupancy forecasting and planning via world models for autonomous driving. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 39, pp. 9327–9335, 2025. Yu, C., Velu, A., Vinitsky, E., Gao, J., Wang, Y., Bayen, A., and Wu, Y. The surprising effectiveness of ppo in cooper-ative multi-agent games. Advances in neural information processing systems , 35:24611–24624, 2022. Zhang, C., Ouyang, Z., Lee, K., Agarwal, N., Houli-han, S. D., Vosoughi, S., and Lo, S.-Y. Overcoming multi-step complexity in multimodal theory-of-mind rea-soning: A scalable bayesian planner. arXiv preprint arXiv:2506.01301 , 2025a. Zhang, H., Wang, Z., Lyu, Q., Zhang, Z., Chen, S., Shu, T., Dariush, B., Lee, K., Du, Y., and Gan, C. Combo: compositional world models for embodied multi-agent cooperation. arXiv preprint arXiv:2404.10775 , 2024a. Zhang, X., Chan, H., Ye, D., Cai, Y., and Zhao, M. Ad hoc teamwork via offline goal-based decision transformers. In 
+
+International Conference on Machine Learning , 2025b. Zhang, Y., Bai, C., Zhao, B., Yan, J., Li, X., and Li, X. Decentralized transformers with centralized aggregation are sample-efficient multi-agent world models. arXiv preprint arXiv:2406.15836 , 2024b. Zhang, Y., Li, X., Ye, J., Qiu, S., Qu, D., Li, X., Zhang, C., and Bai, C. Revisiting multi-agent world modeling from a diffusion-inspired perspective. arXiv preprint arXiv:2505.20922 , 2025c. Zhang, Z., Jin, C., Jia, M. Y., and Shu, T. Autotom: Automated bayesian inverse planning and model dis-covery for open-ended theory of mind. arXiv preprint arXiv:2502.15676 , 2025d. Zhao, Z., Zhao, Z., Xu, K., Fu, Y., Chai, J., Zhu, Y., and Zhao, D. Learning and planning multi-agent tasks via an moe-based world model. In The Thirty-ninth Annual Conference on Neural Information Processing Systems ,2025. Zhou, G., Pan, H., LeCun, Y., and Pinto, L. Dino-wm: World models on pre-trained visual features enable zero-shot planning. arXiv preprint arXiv:2411.04983 , 2024. 11 MetaMind: General and Cognitive World Models in Multi-Agent Systems by Meta-Theory of Mind 
+
+Contents of Appendix A Implementation Details 13 
+
+A.1 Multi-Q Network with EMA . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 13 A.2 Discrete Regression Objective in Log-Space. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 13 A.3 Aggregation Approaches for Collective Belief . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 13 A.4 Few-Shot Learning for Inverse Belief Inference . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14 
+
+B Algorithms 16 C Proof 17 
+
+C.1 Proof of Theorem 1: Goal Identification . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 17 C.2 Proof of Lemma 1: Local Linear Margin . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 18 C.3 Proof of Theorem 2: Sufficient Horizon Size for Goal Identification . . . . . . . . . . . . . . . . . . . . 19 
+
+D Hyperparameters 21 
+
+D.1 Environment Setting . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 21 D.2 Model Setting . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 22 
+
+E Further Discussion 23 
+
+E.1 Effectiveness . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 23 E.2 Limitations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 23 E.3 Future Work . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 23 12 MetaMind: General and Cognitive World Models in Multi-Agent Systems by Meta-Theory of Mind 
+
+# A. Implementation Details 
+
+A.1. Multi-Q Network with EMA 
+
+The use of a multi-Q Network with an exponential moving average (EMA) provides more conservative and stable value targets, which can effectively reduce overestimation bias and variance during temporal-difference learning (Hansen et al., 2024). We maintain an ensemble of NQ parallel Q-functions {Qϖ(i) }NQ
+
+> i=1
+
+, each with parameters ϖ(i) and EMA target copy 
+
+¯ϖ(i). The EMA targets are updated with momentum μ ∈ (0 , 1) :
+
+¯ϖ(i) ← μ ¯ϖ(i) + (1 − μ) ϖ(i), i = 1 , . . . , N Q. (14) At training step t, we form a conservative TD target by uniformly sampling a subset Mt ⊂ { 1, . . . , N Q} with |M t| = 2 ,evaluating the EMA targets, and taking the minimum: 
+
+qt = rt + λ γ min 
+
+> j∈M t
+
+Q ¯ϖ(j)
+
+˜bt+1 , π ϖ
+
+˜bt+1 , g
+
+ 
+
+, (15) where λ ∈ (0 , 1] is a constant factor, γ ∈ (0 , 1) is the discount, and ˜bt+1 is the latent belief state predicted from (bt, at, g)
+
+by the model in the main body. The policy prior is ˜at+1 = πϖ (bt, g). This stochastic subsampling-and-minimization yields a conservative bootstrap that mitigates overestimation while remaining computationally efficient. By using the TD target qt
+
+from (15), the per-network value loss is 
+
+LQ
+
+
+
+ϖ(i)
+
+= Eτ
+
+" TX
+
+> t=0
+
+ζt ℑ
+
+
+
+s(i) 
+
+> t
+
+, q t
+
+#
+
+, i = 1 , . . . , N Q, (16) where ζ ∈ (0 , 1] is the temporal weighting factor, τ = {ot, at, r t, ot+1 } is a sampled trajectory, and s(i) 
+
+> t
+
+are the logits produced by the i-th Q head at (bt, at, g).
+
+A.2. Discrete Regression Objective in Log-Space. 
+
+Following the main body, both reward and value are trained via discrete regression (Hansen et al., 2024) in a log-transformed space using a soft cross-entropy ℑ(·) to ensure scale-invariant, multi-goal learning. Concretely, let the value head of the i-th Q-network output logits s(i) 
+
+> t
+
+∈ RK over fixed log-space bins {bk}Kk=1 . Let σ(·) denote the softmax and let w(y) ∈ ∆K−1
+
+be a soft target distribution induced by the scalar y, i.e., by linear interpolation between neighboring bins in log space. Then, the process can be given by: 
+
+ℑ(s, y ) = −
+
+> K
+
+X
+
+> k=1
+
+wk(y) log σ(s)k, ˜y(s) = 
+
+> K
+
+X
+
+> k=1
+
+σ(s)k bk, (17) where ˜y(s) is the differentiable expectation used for reporting or for auxiliary terms in the prediction loss (2). 
+
+A.3. Aggregation Approaches for Collective Belief 
+
+We aggregate the unordered neighbor set by 
+
+X(0) = {x(i,j ) 
+
+> t
+
+: j ∈ N (i)}, x(i,j ) 
+
+> t
+
+= ˜b(i,j ) 
+
+> t+1
+
+; ˆ g(i,j )
+
+> t
+
+, (18) by using L permutation-invariant self-attention layers followed by an order-invariant pooling. For each element x ∈ X(ℓ)
+
+and self-attention layer ℓ = 0 , . . . , L − 1, linear projections are defined by 
+
+Qℓ(x) = xW (ℓ) 
+
+> Q
+
+, Kℓ(x) = xW (ℓ) 
+
+> K
+
+, Vℓ(x) = xW (ℓ) 
+
+> V
+
+, (19) where W (ℓ) 
+
+> Q
+
+, W (ℓ) 
+
+> K
+
+, and W (ℓ) 
+
+> V
+
+are parameters. The attention output for x is 
+
+Attn ℓ(x, X (ℓ)) = X
+
+> y∈X(ℓ)
+
+αℓ(x, y) Vℓ(y), αℓ(x, y) = exp  Qℓ(x)Kℓ(y)⊤/√dk
+
+P 
+
+> z∈X(ℓ)
+
+exp  Qℓ(x)Kℓ(z)⊤/√dk
+
+ , (20) 13 MetaMind: General and Cognitive World Models in Multi-Agent Systems by Meta-Theory of Mind 
+
+where dK represents the dimension of the key and query. Apply an output projection and a pointwise two-layer forward update: 
+
+˜x = Attn ℓ(x, X (ℓ)) W (ℓ) 
+
+> O
+
+, h = σ  ˜xW (ℓ)1 + b(ℓ)1
+
+W (ℓ)2 + b(ℓ)2 , (21) with weights W (ℓ) 
+
+> O
+
+, W (ℓ)1 , W (ℓ)2 , biases b(ℓ)1 ,b(ℓ)2 , and nonlinearity σ(·). Set 
+
+X(ℓ+1) = {h : x ∈ X(ℓ)}. (22) Since attention weights and summations range over the entire set, this layer is permutation-invariant with respect to the ordering of X(ℓ). From the final set X(L), scalar scores and pooling weights are computed, respectively, by 
+
+s(x) = xw s + cs, βij = exp  s(x(i,j ) 
+
+> t
+
+)P  
+
+> k∈N (i)
+
+exp  s(x(i,k ) 
+
+> t
+
+) , (23) where ws ∈ Rd and cs ∈ R. The neighbor features are aggregated through a linear map 
+
+u(x) = σ(xWu + bu), zi = X 
+
+> j∈N (i)
+
+βij u x(i,j )
+
+> t
+
+, (24) with parameters Wu and bu. Finally, the collective belief is projected by the pooled vector: 
+
+Eiϱ
+
+ {x(i,j ) 
+
+> t
+
+} = σ
+
+
+
+[x(i,i ) 
+
+> t
+
+; zi] Wo + bo
+
+
+
+, (25) where parameters Wo and bo. By construction, the aggregation (25) is invariant to neighbor indices. All weights and biases above are part of ϱ.
+
+A.4. Few-Shot Learning for Inverse Belief Inference 
+
+Figure 6. Few-shot learning for inverse belief inference by a self-supervised method in multi-agent systems. 
+
+We propose a self-supervised, few-shot adaptation approach, with a similar architecture to joint-embedding predictive architecture proposed in (Assran et al., 2025), that personalizes the inverse belief encoder of agent i to any new partner j
+
+by using only short behavioral trajectories {a(i,j ) 
+
+> t
+
+} and without supervised labels or explicit communication, as shown in Figure 6. Particularly, the student inverse encoder Ωiθ maps the current action to a latent belief ˆb(i,j ) 
+
+> t
+
+= Ω iθ
+
+ a(i,j ) 
+
+> t
+
+, g(i,j )
+
+> t
+
+,as given in (6), which is fed into a frozen predictor Diφ to generate a one-step belief prediction: 
+
+˜b(i,j ) 
+
+> t+1
+
+= Diφ
+
+ ˆb(i,j ) 
+
+> t
+
+, a(i,j ) 
+
+> t
+
+ˆg(i,j )
+
+> t
+
+, with sg  Diφ
+
+ . (26) 14 MetaMind: General and Cognitive World Models in Multi-Agent Systems by Meta-Theory of Mind 
+
+Learning is driven by an action-space temporal consistency objective, i.e., L2 regression to the next observed action: 
+
+L(i,j ) 
+
+> inv-belief
+
+= X
+
+> t
+
+Diφ
+
+ Ωiθ (a(i,j ) 
+
+> t
+
+, ˆg(i,j ) 
+
+> t
+
+) − ¯Ωiθ (a(i,j ) 
+
+> t+1
+
+, ˆg(i,j ) 
+
+> t+1
+
+) 22. (27) where we maintain an EMA target encoder ¯Ωi as the teacher encoder to stabilize few-shot updates and prevent representation drift as ¯Ωi ← τ ¯Ωi + (1 − τ ) Ω iθ , τ ∈ [0 , 1) . (28) 15 MetaMind: General and Cognitive World Models in Multi-Agent Systems by Meta-Theory of Mind 
+
+# B. Algorithms 
+
+The training process of the proposed MetaMind involves two stages. At Stage One, the MetaMind of each agent is trained in the single-agent settings to learn the classical world model-based forward inference model and Meta-ToM-based inverse inference model. At Stage Two, MetaMind of each agent generalizes to multi-agent settings in a zero-shot and scalable manner, where Meta-ToM can be directly used to infer others’ internal mental states by analogical reasoning, and learn collective beliefs in a self-supervised manner. The training details of Stage One and Stage Two can be summarized as shown in Algorithm 2 and Algorithm 3. Since the MPC-based planner is typical and reused in Algorithms 2 and 3, we present it separately as Algorithm 1. 
+
+Algorithm 1 A MPC-Based Planner. Compute bt = Bφ (ot, g) and policy prior ˜at = πφ (bt, g).Initialize ( μt, σt) from previous solution or ˜at.Sample candidate actions sequence 
+
+n
+
+a(v)
+
+> t:t+H
+
+oJj=1 
+
+∼ N (μt, diag( σ2 
+
+> t
+
+)) .
+
+for Iteration u → U do for Candidate sequence v → V do 
+
+Imagine trajectories ˜b(v) 
+
+> t+1: t+H
+
+= Dφ(bt, a(v) 
+
+> t:t+H
+
+, g).Estimate R(v) = Eat:t+H
+
+hPH−1 
+
+> h=0
+
+γhRφ
+
+˜b(v)
+
+> t+h
+
+, a(v)
+
+> t+h
+
+, g
+
+
+
++ γH Qφ
+
+˜b(v) 
+
+> t+H
+
+, a(v) 
+
+> t+H
+
+, g
+
+i 
+
+.
+
+end for 
+
+Update ( μt, σt) to maximize {R(v)}
+
+end for Output: The optimized action a∗ 
+
+> t
+
+∼ N (μ∗ 
+
+> t
+
+, σ ∗ 
+
+> t
+
+).
+
+Algorithm 2 Self-Supervised Meta-ToM Training in Single-Agent Settings. Set hyper-parameters N , B, C, L, H, U , V , and η.Initialize dataset D with S seed episodes. Initialize model parameters φ, θ and ϱ for forward, inverse and aggregation model, respectively. 
+
+for Training step n → N do for Collect interval c → C do 
+
+// Forward Model Training Sample B Sequences {(ot, at, r t, g)}k+Lt=k ∼ D .Compute bt = Bφ (ot, g).Predict ˜bt = Dφ (bt, at, g), ˜r = Rφ(bt, at, g), and ˜q = Qφ(bt, at, g).Update the forward model φ ← φ − ηφ∇φLpred (φ).// Inverse Model Training Recover ˆgt = Ψ θ (a<t , ˆgt−1) and ˆbt = Ω θ (at, ˆgk).Update the inverse model θ ← θ − ηθ ∇θ Linv (θ).
+
+end for 
+
+// Real Environment Interaction & Data Collection Start a environment with a random goal g by env.reset () .
+
+for Time step t → T do 
+
+// MPC Decision Making Obtain the optimal action a∗ 
+
+> t
+
+from Algorithm 3. Collect real data rt, ot+1 ← env.step (a∗ 
+
+> t
+
+, g).
+
+end for 
+
+Add experience to dataset D ← D ∪ { (ot, at, r t, g)}Tt=1 .
+
+end for 
+
+16 MetaMind: General and Cognitive World Models in Multi-Agent Systems by Meta-Theory of Mind 
+
+Algorithm 3 MetaMind in Multi-Agent Settings. Set hyper-parameters N , B, C, L, H, U , V , and η.Initialize dataset D with S seed episodes. Initialize model parameters φ, θ and ϱ for forward, inverse and aggregation model, respectively. 
+
+for Training step n → N do for Collect interval c → C do 
+
+// Forward Model Sample B Sequences {(ot, at, r t, g)}k+Lt=k ∼ D .Compute bt = Bφ (ot, g).Predict ˜bt = Dφ (bt, at, g), ˜r = Rφ(bt, at, g), and ˜q = Qφ(bt, at, g).// Inverse Model Recover ˆgt = Ψ θ (a<t , ˆgt−1) and ˆbt = Ω θ (at, ˆgk).// Collective Belief Training (Agent i)Form collective belief by Eiϱ({˜b(i,j ) 
+
+> t+1
+
+, ˆg(i,j ) 
+
+> t
+
+})
+
+Update the aggregation model ϱ ← ϱ − ηϱ∇ϱLcol (ϱ).
+
+end for 
+
+// Real Environment Interaction & Data Collection Start a environment with a random goal g by env.reset () .
+
+for Time step t → T do 
+
+// MPC Decision Making (Agent i)Obtain imagined multi-agent trajectories by Eiϱ({˜b(i,j ) 
+
+> t+1
+
+, ˆg(i,j ) 
+
+> t
+
+})
+
+Obtain the optimal action a∗ 
+
+> t
+
+from Algorithm 1. Collect real data rt, ot+1 ← env.step (a∗ 
+
+> t
+
+, g).
+
+end for 
+
+Add experience to dataset D ← D ∪ { (ot, at, r t, g)}Tt=1 .
+
+end for 
+
+# C. Proof 
+
+C.1. Proof of Theorem 1: Goal Identification 
+
+Proof. We first prove dH (g∗) < d H (gk) for all k̸ = k∗. Based on Definition 1, for any g, we have the behavior-only TD predictor and residual as ˆbt(g) := Ω( at, g), ˜bt+1 (g) := D(ˆbt(g), at, g), (29) and 
+
+˜at+1 (g) := π(˜bt+1 (g), g), ϕt(g) := at+1 − ˜at+1 (g), (30) and stack 
+
+ΦH (g) := [ ϕ0(g); . . . ; ϕH−2(g)] . (31) As defined in (30) at g∗, we have 
+
+ϕt(g∗) = at+1 − π D(Ω( at, g∗), at, g∗), g∗. (32) Given at+1 = πj (bjt+1 , g∗) and bjt+1 = Dj (bjt , at, g∗), ϕt(g∗) can be written as 
+
+ϕt(g∗) = πj (bjt+1 , g∗) − π(bjt+1 , g∗)
+
+| {z }
+
+> ∆πt+1
+
++ π Dj (bjt , at, g∗), g∗ − π D(Ω( at, g∗), at, g∗), g∗
+
+= ∆ πt+1 +
+
+
+
+π(Dj (bjt , at, g∗), g∗) − π(D(bjt , at, g∗), g∗)
+
+
+
+−
+
+
+
+π(D(Ω( at, g∗), at, g∗), g∗) − π(D(bjt , at, g∗), g∗)
+
+
+
+. (33) Since the per-step mismatches are given by ∆bjt := Ω( at, g∗) − bjt , ∆Dt(b) := D(b, at, g∗) − D j (b, at, g∗), and 
+
+∆πt+1 := πj (bjt+1 , g∗) − π(bjt+1 , g∗), the last item in (33) equals π(D(bjt + ∆ bjt , at, g∗), g∗) − π(D(bjt , at, g∗), g∗),17 MetaMind: General and Cognitive World Models in Multi-Agent Systems by Meta-Theory of Mind 
+
+hence 
+
+ϕt(g∗) = ∆ πt+1 +
+
+
+
+π(Dj (bjt , at, g∗), g∗) − π(D(bjt , at, g∗), g∗)
+
+
+
+−
+
+
+
+π(D(bjt + ∆ bjt , at, g∗), g∗) − π(D(bjt , at, g∗), g∗)
+
+
+
+. (34) (34) provides an exact identity. By the ξπ -Lipschitzness of π(·, g∗) in b,
+
+π(Dj (bjt , at, g∗), g∗) − π(D(bjt , at, g∗), g∗) ≤ ξπ ∥D j (bjt , at, g∗) − D (bjt , at, g∗)∥
+
+= ξπ ∥∆Dt(bjt )∥.
+
+(35) By using ξπ again and then using the ξD -Lipschitzness of D(·, at, g∗) in b,
+
+π(D(bjt + ∆ bjt , at, g∗), g∗) − π(D(bjt , at, g∗), g∗) ≤ ξπ ∥D (bjt + ∆ bjt , at, g∗) − D (bjt , at, g∗)∥≤ ξπ ξD ∥∆bjt ∥. (36) Take norms in (34) and apply the triangle inequality together with (35)-(36), then 
+
+∥ϕt(g∗)∥ ≤ ∥∆πt+1 ∥
+
+| {z }
+
+> policy mismatch
+
++ ξπ
+
+  ∥∆Dt(bjt )∥
+
+| {z }
+
+> dynamics mismatch
+
++ ξD ∥∆bjt ∥
+
+| {z } 
+
+> belief mismatch
+
+ := αt. (37) Therefore, we can obtain 
+
+dH (g∗) = 
+
+> H−2
+
+X
+
+> t=0
+
+∥ϕt(g∗)∥2 ≤
+
+> H−2
+
+X
+
+> t=0
+
+α2 
+
+> t
+
+= δ 2act ⇒ dH (g∗) ≤ δact . (38) Given the empirical residual gap ¯γH (C; g∗) := min k̸ =k∗ ∥ΦH (gk) − ΦH (g∗)∥2 defined in Definition 2, γH (C; g∗) := min k̸ =k∗ ∥ΦH (gk)∥2 and dH (g∗) ≤ δact given in (38), for any k̸ = k∗, we have 
+
+¯γH (C; g∗) ≥ γH (C; g∗) − dH (g∗) ≥ γH (C; g∗) − δact . (39) Hence, under δact < γ/ 2,
+
+¯γH (C; g∗) ≥ γH (C; g∗) − δact > γ H (C; g∗)/2 > 0. (40) Therefore for every k̸ = k∗,
+
+dH (gk) ≥ dH (g∗) + ¯ γH (C; g∗) > d H (g∗), (41) thus, g∗ is the unique minimizer of k 7 → dH (gk), and the nearest-neighbor estimator returns ˆg = g∗. Theorem 1 is proved. 
+
+C.2. Proof of Lemma 1: Local Linear Margin 
+
+Proof. Fix k̸ = k∗ and set ∆k := gk − gk∗
+
+. For each coordinate ΦH , by the fundamental theorem of calculus, ΦH (gk) −
+
+ΦH (gk∗
+
+) = R 10 ∇ΦH (gk∗
+
++ s∆k)⊤∆k ds . Stacking all coordinates yields 
+
+ΦH (gk) − ΦH (gk∗
+
+) = 
+
+ Z 10
+
+JΦ(gk∗
+
++ s∆k) ds 
+
+
+
+∆k =: Javg (gk∗
+
+, gk) ∆ k. (42) Since ΦH (gk∗
+
+) = 0 , we have ΦH (gk) = Javg ∆k.Assume JΦ is LJ -Lipschitz near g∗. Then 
+
+Javg − JΦ(g∗) =
+
+Z 10
+
+ JΦ(gk∗
+
++ s∆k) − JΦ(g∗) ds 
+
+≤
+
+Z 10
+
+JΦ(gk∗
+
++ s∆k) − JΦ(g∗) ds 
+
+≤
+
+Z 10
+
+LJ s∥∆k∥ ds = LJ
+
+2 ∥∆k∥. (43) 18 MetaMind: General and Cognitive World Models in Multi-Agent Systems by Meta-Theory of Mind 
+
+Applying the Weyl’s perturbation inequality, i.e., for any matrices A, B , σmin (A + B) ≥ σmin (A) − ∥ B∥, to A = JΦ(g∗)
+
+and B = Javg − JΦ(g∗), we have 
+
+σmin (Javg ) ≥ σmin (JΦ(g∗)) − ∥ Javg − JΦ(g∗)∥ (43) 
+
+≥ σmin (JΦ(g∗)) − LJ
+
+2 ∥∆k∥. (44) If ∥∆k∥ ≤ ϕ⋆ := σmin (JΦ(g∗)) /L J , then 
+
+σmin (Javg ) ≥ 12 σmin (JΦ(g∗)) . (45) By using ∥Ax ∥ ≥ σmin (A)∥x∥ and (42), we have 
+
+dH (gk) = ∥Javg ∆k∥ ≥ σmin (Javg ) ∥∆k∥ ≥ 12 σmin (JΦ(g∗)) ∥gk − gk∗
+
+∥, (46) and (46) follows by minimizing over k̸ = k∗. Lemma 1 is proved. 
+
+C.3. Proof of Theorem 2: Sufficient Horizon Size for Goal Identification 
+
+Proof. We have the persistence-of-excitation defined in (12) as 
+
+> k+m−1
+
+X
+
+> t=k
+
+ ∂ϕ t
+
+∂g (g∗)
+
+⊤ ∂ϕ t
+
+∂g (g∗)
+
+
+
+⪰ β I dg , (47) at the true goal g∗ and we have 
+
+Gt(g∗) := ∂ϕt
+
+∂g (g∗), WH (g∗) := 
+
+> H−2
+
+X
+
+> t=0
+
+Gt(g∗)⊤Gt(g∗). (48) Partition the index set {0, 1, . . . , H − 2} into q :=  H−1
+
+> m
+
+ disjoint windows Ii = {(i − 1) m, . . . , im − 1} for i = 1 , . . . , q .By (12), for each window, we have X
+
+> t∈I i
+
+G⊤ 
+
+> t
+
+Gt ⪰ βI dg . (49) Then, adding these positive semi-definite inequalities over i = 1 , . . . , q obtains 
+
+WH (g∗) = 
+
+> H−2
+
+X
+
+> t=0
+
+G⊤ 
+
+> t
+
+Gt =
+
+> q
+
+X
+
+> i=1
+
+X
+
+> t∈I i
+
+G⊤ 
+
+> t
+
+Gt ⪰
+
+> q
+
+X
+
+> i=1
+
+βI dg = q β I dg . (50) By the Rayleigh-Ritz characterization, we have 
+
+λmin 
+
+ WH (g∗) = min  
+
+> ∥z∥=1
+
+z⊤WH (g∗)z (50) 
+
+≥ min  
+
+> ∥z∥=1
+
+z⊤(qβI )z = qβ =
+
+j H − 1
+
+m
+
+k
+
+β. (51) Let JΦ(g∗) be the stacked Jacobian. By taking the singular value decomposition JΦ = U ΣV ⊤, then we have WH =
+
+J⊤ 
+
+> Φ
+
+JΦ = V Σ2V ⊤, and every eigenvalue of WH equals a squared singular value of JΦ. Hence, we have 
+
+σmin 
+
+ JΦ(g∗) =
+
+q
+
+λmin 
+
+ WH (g∗). (52) By the local constructive margin inequality (46), for each k̸ = k∗,
+
+dH (gk) ≥ 12 σmin 
+
+ JΦ(g∗) ∥gk − gk∗
+
+∥. (53) Let ρmin := min k̸ =ℓ ∥gk − gℓ∥. Taking the minimum over k̸ = k∗, we have 
+
+γH (C; g∗) := min   
+
+> k̸=k∗
+
+∥ΦH (gk)∥ ≥ 12 σmin 
+
+ JΦ(g∗) ρmin . (54) 19 MetaMind: General and Cognitive World Models in Multi-Agent Systems by Meta-Theory of Mind 
+
+Now substitute (52) into (54), and then apply (51), we have 
+
+γH (C; g∗) ≥ 12 ρmin 
+
+q
+
+λmin 
+
+ WH (g∗) ≥ 12 ρmin 
+
+rj H − 1
+
+m
+
+k
+
+β. (55) Hence, a sufficient condition is given by 
+
+δact < 14 ρmin 
+
+rj H − 1
+
+m
+
+k
+
+β ⇐⇒ 
+
+j H − 1
+
+m
+
+k
+
+>
+
+ 4 δact 
+
+ρmin 
+
+√β
+
+2
+
+= T. (56) To ensure the strict inequality on the left, it is enough to require 
+
+j H − 1
+
+m
+
+k
+
+≥ T  + 1 , (57) because ⌊T ⌋ + 1 > T for all real T . Since ⌊x⌋ ≥ n iff x ≥ n for integer n, the above is equivalent to 
+
+H − 1
+
+m ≥ T  + 1 ⇐⇒ H ≥ 1 + m
+
+T  + 1 
+
+
+
+. (58) Under this condition, we have δact < ¯γH (C; g∗)/2, so by Theorem 1, the nearest-neighbor rule recovers the true goal. Corollary 2 is proved. 
+
+Remark 2. If T / ∈ N, the simpler bound H ≥ 1 + m⌈T ⌉ already ensures ⌊ H−1 
+
+> m
+
+⌋ ≥ ⌈ T ⌉ > T . When T ∈ N, an extra window, replacing ⌈T ⌉ by T + 1 , is needed to guarantee strict inequality. 
+
+20 MetaMind: General and Cognitive World Models in Multi-Agent Systems by Meta-Theory of Mind 
+
+# D. Hyperparameters 
+
+D.1. Environment Setting  
+
+> Table 2. Environment Setting for MARIE (Goal Definitions)
+
+Env Scenario #Agents Goal Setting 
+
+SMAC (Easy) 1c3s5z 9 Type: Heterogeneous Roles: C ×1, S ×3, Z ×5Goals: G=3 
+
+2m_vs_1z 2 Type: Homogeneous Roles: M ×2Goals: G=1 
+
+2s_vs_1sc 2 Type: Homogeneous Roles: S ×2Goals: G=1 
+
+2s3z 5 Type: Heterogeneous Roles: S ×2, Z ×3Goals: G=2 
+
+3m 3 Type: Homogeneous Roles: M ×3Goals: G=1 
+
+3s_vs_3z 6 Type: Homogeneous Roles: S ×3Goals: shared G=1 
+
+3s_vs_4z 7 Type: Homogeneous Roles: S ×3Goals: G=1 
+
+8m 8 Type: Homogeneous Roles: M ×8Goals: G=1 
+
+MMM 10 Type: Heterogeneous Roles: Md ×1, Mr ×2, Ma ×7Goals: G=3 
+
+SMAC (Hard) 3s_vs_5z 8 Type: Homogeneous Roles: S ×3Goals: G=1 
+
+2c_vs_64zg 2 Type: Homogeneous Roles: C ×2Goals: G=1 
+
+SMAC (SuperHard) corridor 6 Type: Homogeneous Roles: Z ×6Goals: G=1      
+
+> Role abbreviations: C=Colossus, S=Stalker, Z=Zealot, M=Marine, Md=Medivac, Mr=Marauder, Ma=Marine. Gdenotes the number of goal categories. The total number of goals is ¯G= 17
+
+21 MetaMind: General and Cognitive World Models in Multi-Agent Systems by Meta-Theory of Mind 
+
+D.2. Model Setting 
+
+The hyperparameters of models are presented in TABLE 3.  
+
+> Table 3. Hyperparameter Settings
+
+Parameter Symbol Value Shared Parameters 
+
+Replay memory size — 1e6 Batch size B 50 Sequence length L 64 Seed episode S 5Training episodes N 1e3 Collect Interval C 100 Max episode length — 500 Exploration noise — 0.3 Imagination horizon H 30 Gradient clipping — 100 
+
+Planning (MPC) 
+
+Iterations — 40 Encoder dim — 256 MLP dim — 512 Latent state dim — 512 Task embedding dim — 96 Activation — LayerNorm + Mish Q-functions — 5Learning rate — 3 × 10 −4
+
+Encoder LR — 1 × 10 −4
+
+Gradient clip — 20 
+
+Inverse Inference (Meta-ToM) Module 
+
+Goal latent dim dg 128 Belief latent dim db 128 Hidden dim (MLP) — 256 Number of layers — 2Activation — ReLU Normalization — LayerNorm Dropout — 0.1 Inverse loss weight λinv 0.5 Reflection loss weight λref 0.1 Optimizer — Adam Learning rate ηinv 1 × 10 −4
+
+EMA teacher momentum τ 0.995 
+
+VQ-VAE Tokenizer (MARIE) Encoder/Decoder layers — 3Hidden size — 512 Activation — GELU Codebook size |Z| 512 Tokens per observation K 16 Code dimension — 128 Commitment loss coef. β 10.0 Codebook update — EMA Tokenizer batch size Btok 256 Tokenizer learning rate ηtok 3e-4 Tokenizer optimizer — AdamW 22 MetaMind: General and Cognitive World Models in Multi-Agent Systems by Meta-Theory of Mind 
+
+# E. Further Discussion 
+
+E.1. Effectiveness 
+
+The proposed MetaMind demonstrates effectiveness since: 
+
+Meta-ToM Mechanism. By introducing a self-supervised Meta-ToM mechanism, each agent develops a bidirectional inference loop between beliefs and actions, which turns passive trajectory modeling into active, goal-oriented reasoning based on causal behavioral principles. 
+
+Self-Reflection. The self-reflection reduces the ambiguity inherent in inverse inference and provides a principled means for bounding estimation error, as formally established through the identification analysis. 
+
+Meta-Cognition. By generalizing introspective inference from single-agent trajectories to other agents by analogical reasoning, MetaMind exhibits a form of meta-cognition that enables zero-shot adaptability in heterogeneous multi-agent environments. A self-supervised approach can be used for learning accurate inverse belief inference and learning collective beliefs in multi-agent systems. These elements enable MetaMind to support reliable prediction and long-horizon planning without centralized supervised learning or explicit communication. 
+
+E.2. Limitations 
+
+Despite the promising results of the proposed MetaMind, several limitations remain. 
+
+Limited Communication. MetaMind depends on observable neighbor trajectories. When task-relevant partners are partially or fully unobservable, e.g., occlusion, misrecognition, sensing dropout, inverse and reflective inference become underconstrained. This degrades belief-goal estimation  ˜b(i,j ) 
+
+> t+1
+
+, ˆg(i,j )
+
+> t
+
+ and cannot accurately form collective aggregation 
+
+Eiϱ(·). Consequently, prediction and planning reliability cannot be ensured under persistent partial observability of the task-related partners. 
+
+Goals Difference. The framework assumes a shared task structure across agents despite heterogeneous policies and representations. In adversarial or weakly cooperative settings, particularly with a large or evolving set of unknown goals, this assumption may be violated. Such violations compromise goal identifiability and limit zero-shot generalization beyond the known goal codebook. 
+
+Practical Applications. Current evaluations are simulation-centric. Real embodied multi-agent deployments introduce additional uncertainties (sensor noise, delays, non-ideal dynamics), resource constraints, safety requirements, and nonsta-tionary conditions. These factors may reduce the fidelity of reflective inference and collective belief formation relative to controlled benchmarks. 
+
+E.3. Future Work 
+
+Several promising directions arise from these limitations: 
+
+Mixed-Communication Mechanism. A feasible solution is to extend MetaMind with a mixed-communication mechanism 
+
+that flexibly combines implicit inference from trajectories with lightweight explicit signals when behavioral observations are insufficient. Specifically, (a) when neighbors are fully observable, agents rely on Meta-ToM inference as before; (b) under occlusion, recognition failure, or sparse observations, agents trigger minimal communication channels, such as compressed latent codes or uncertainty flags, to exchange partial beliefs without requiring full symbolic protocols; and (c) attention-based gating can adaptively decide when and with whom to communicate, balancing efficiency and robustness. This hybrid design preserves MetaMind’s decentralized nature while extending its applicability to partially observable multi-agent environments, enabling reliable coordination even in the presence of hidden or transient partners. 
+
+Robust Goal Modeling. A key direction is to relax the shared-task assumption and pursue open-set goal identification, where agents must infer and act under previously unseen goals and a potentially large goal space. Concretely, we aim to (a) 23 MetaMind: General and Cognitive World Models in Multi-Agent Systems by Meta-Theory of Mind 
+
+learn compositional and disentangled goal representations that support systematic generalization beyond the goal codebook, (b) incorporate uncertainty-aware inference, e.g., calibrated posteriors or confidence scores, to detect goal novelty and trigger few-shot adaptation, and (c) develop meta-learning and continual discovery procedures that grow the goal repertoire online while preserving past competencies. 
+
+Practical Applications. A promising direction is to validate MetaMind in real-world embodied multi-agent systems, where uncertainty, partial observability, and physical constraints are unavoidable. One feasible pathway is to first deploy MetaMind in controlled robotic platforms, such as multi-robot navigation or cooperative manipulation, where ground-truth sensing allows systematic benchmarking. Next, incorporating domain adaptation and sim-to-real transfer techniques can mitigate the gap between simulated and physical environments, ensuring that the reflective inference and goal identifiability mechanisms remain robust under sensor noise and actuation delays. Finally, integration with human-AI collaborative settings, such as assistive robotics or mixed-reality coordination tasks, can test the scalability of MetaMind under heterogeneous partners and real-time decision requirements. This progressive pipeline provides a practical route to extend the framework beyond simulation and toward embodied intelligence in open-world applications. 24

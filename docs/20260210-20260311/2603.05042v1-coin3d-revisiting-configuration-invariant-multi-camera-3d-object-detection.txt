@@ -1,0 +1,747 @@
+Title: CoIn3D: Revisiting Configuration-Invariant Multi-Camera 3D Object Detection
+
+URL Source: https://arxiv.org/pdf/2603.05042v1
+
+Published Time: Fri, 06 Mar 2026 01:55:23 GMT
+
+Number of Pages: 17
+
+Markdown Content:
+# CoIn3D : Revisiting Configuration-Invariant Multi-Camera 3D Object Detection 
+
+## Zhaonian Kuang 1,2 ∗ Rui Ding 1 Haotian Wang 2 Xinhu Zheng 2 † Meng Yang 1 † Gang Hua 31 National Key Laboratory of Human-Machine Hybrid Augmented Intelligence, Institute of Artificial Intelligence and Robotics, Xi’an Jiaotong University  
+
+> 2
+
+## Intelligent Transportation Thrust of the Systems Hub, HKUST(GZ) 3 Amazon Alexa AI 
+
+## Abstract 
+
+Multi-camera 3D object detection (MC3D) has attracted in-creasing attention with the growing deployment of multi-sensor physical agents, such as robots and autonomous vehicles. However, MC3D models still struggle to gener-alize to unseen platforms with new multi-camera configu-rations. Current solutions simply employ a meta-camera for unified representation but lack comprehensive consid-eration. In this paper, we revisit this issue and identify that the devil lies in spatial prior discrepancies across source and target configurations, including different in-trinsics, extrinsics, and array layouts. To address this, we propose CoIn3D , a generalizable MC3D framework that enables strong transferability from source configura-tions to unseen target ones. CoIn3D explicitly incorpo-rates all identified spatial priors into both feature embed-ding and image observation through spatial-aware feature modulation (SFM) and camera-aware data augmentation (CDA) , respectively. SFM enriches feature space by inte-grating four spatial representations, such as focal length, ground depth, ground gradient, and Pl¨ ucker coordinate. CDA improves observation diversity under various con-figurations via a training-free dynamic novel-view image synthesis scheme. Extensive experiments demonstrate that CoIn3D achieves strong cross-configuration performance on landmark datasets such as NuScenes, Waymo, and Lyft, under three dominant MC3D paradigms represented by BEVDepth, BEVFormer, and PETR. 
+
+## 1. Introduction 
+
+Driven by the demand for reliable target object localization, multi-camera 3D object detection (MC3D) [10, 20, 23– 25, 41, 46] has gained increasing attention in recent years. MC3D has been widely adopted in physical agents such as    
+
+> Codes are available here .
+> ∗Work done while visiting HKUST(GZ).
+> †Corresponding Authors.
+
+Training Inference   
+
+> with camera configuration A with camera configurations A,B,C,…
+> Camera-aware
+> Data Augmentation
+> Spatial-aware
+> Feature Modulation MC3D Schemes
+
+Nuscenes →Waymo Generalization 
+
+> w/o ours
+> w ours
+> NDS *
+> Bottom-Up BEV Scheme
+> (BEVDepth-R50 )
+> Top-Down BEV Scheme
+> (BEVFormer-tiny )
+> Sparse Queries Scheme
+> (PETR-vov-small)
+> 0.178
+> 0.513
+> 0.069
+> 0.379
+> 0.066
+> 0.309
+
+Figure 1. CoIn3D effectively enables model transferability from source configuration A to unseen target configurations B, C, ..., covering variations in intrinsics, extrinsics, and array layouts. Our framework can be applied to three dominant MC3D paradigms, represented by BEVDepth [20], BEVFormer [23], and PETR [25]. 
+
+autonomous vehicles [4, 19] and robots [5]. Compared with explicit LiDAR-based counterparts [9, 13, 18, 21, 26, 49], vision-based methods rely on multi-camera configurations, including intrinsics, extrinsics, and array layouts, to implic-itly perceive spatial structures from image observations. Although current MC3D methods employ camera con-figurations to help connect image observations and spa-tial perception, their focus primarily lies in seeking vi-sion invariance for unified image representation rather than achieving camera invariance for cross-configuration appli-cations. In this paper, we present that the latter also plays a crucial role in MC3D model generalization. Specifically, the configuration gap makes MC3D models perform poorly when tested on unseen configurations, lead-ing to inflexibility and high costs in real-world deployment. A platform with a new configuration requires recollecting and reannotating data to retrain a specialized model. To tackle the generalization problem caused by the con-
+
+> arXiv:2603.05042v1 [cs.CV] 5 Mar 2026
+
+figuration gap, some previous works [22, 47, 51] directly warp images into meta-camera. Specifically, they resize and crop the image to align focal length and field-of-view (FoV), and then warp image based on spherical [47] or cylindrical [22] 3D space assumption to align extrinsics and arrays. However, warping input image causes resolution re-duction and 3D scene structure distortion. Some other works [3, 29, 40] treat all cameras as pos-sessing a virtual meta-focal and rescale the predicted depth during training and testing. PD-BEV [29] and UDGA-BEV [3] further constrain feature and depth consistency for bet-ter generalization. In addition, [17] introduces object bot-tom ground depth to address camera height gaps. However, these methods do not fully and explicitly consider camera configurations, and they cannot be applied to all MC3D paradigms due to their depth-based design. This paper comprehensively revisits the impact of con-figurations on MC3D generalization. We identify that the devil lies in the spatial prior discrepancies across source and target configurations. First, regarding intrinsics, different focal lengths cause object pixel size ambiguity and different FoVs lead to different scene perspective. Second, regarding extrinsic, different camera mounting positions and orienta-tions alter ground plane geometries and observed scene ge-ometries. Both of these two factors affect model’s spatial understanding. Lastly, different array layouts cause differ-ent camera numbers and overlap region, which affect the pattern of multi-camera correlation and feature fusion. To address this, we propose CoIn3D, a generalizable MC3D framework that enables effective transferability from source configurations to unseen target configurations. CoIn3D explicitly incorporates identified spatial priors into both feature embedding and image observation through spatial-aware feature modulation (SFM) and camera-aware data augmentation (CDA), respectively. Our SFM enriches the feature space by explicitly inte-grating four spatial representations. Specifically, we intro-duce four over-complete pixel-level spatial embeddings that formulate camera configurations. Among them, the inverse focal map formulates focal length, the ground depth and gradient maps jointly formulate ground geometry, and the Pl¨ ucker raymap provides a holistic representation of cam-era configurations. We first obtain focal-invariant features by multiplying the inverse focal map with image features. Then, we con-catenate the ground depth, gradient, and Pl¨ ucker raymap into a mixture prior map. The mixture prior map is en-coded into a spatial feature embedding and added to the focal-invariant feature to obtain spatial-embedded feature. We further concatenate four raw prior maps into the spatial-embedded feature to obtain spatial-aware feature. This spatial-aware feature can be used by all MC3D schemes. Our CDA introduces a cost-efficient, training-free novel-view image synthesis scheme based on 3D Gaussian splat-ting (3DGS) to further enhance the generalization of MC3D. Specifically, we reconstruct ego-centric texture point clouds for each annotated data frame and transform them into a 3D Gaussian representation using predefined parameters. By randomly sampling cameras with diverse configurations, these Gaussians can be dynamically ren-dered into novel-view images for training. Our framework can be widely applied to all dominant MC3D paradigms, including bottom-up BEV, top-down BEV, and sparse queries schemes, for which we choose three representative base models: BEVDepth [20], BEV-Former [23], and PETR [25], respectively. Our framework is evaluated across three real-world land-mark datasets with different camera configurations, includ-ing Nuscenes [1], Waymo [35], and Lyft [7]. Experi-ments show that our scheme achieves significant gains on all paradigms under different cross-dataset settings as shown in Fig. 1. In addition, our scheme achieves state-of-the-art (SOTA) performance in all settings based on BEVDepth. The main contributions can be summarized as follows: • We revisit the influence of multi-camera configurations, and identify that the devil lies in spatial prior discrepan-cies across source and target configurations. • We propose SFM to enrich feature by explicitly integrat-ing four spatial representations, including focal length, ground depth, ground gradient, and Pl¨ ucker coordinate. • We propose CDA, a cost-efficient, training-free novel-view image synthesis scheme based on 3D Gaussian splatting, to dynamically render augmented training im-ages with diverse configurations. • Our framework consistently achieves significant gains on all MC3D paradigms under different cross-dataset set-tings and achieves SOTA based on BEVDepth. 
+
+## 2. Related Work 
+
+2.1. Multi-Camera 3D Object Detection 
+
+Current MC3D models fall into three paradigms. 
+
+Bottom-up BEV schemes [10, 11, 20, 31, 34, 48] splat the image features into BEV feature, and then objects are detected on the BEV feature. Among them, BEVDepth [20] and BEVDet4D [10] are two representative schemes, which consider LiDAR depth supervision and temporal fusion. 
+
+Top-down BEV schemes , represented by BEVFormer [23, 46], update BEV query features by applying spa-tial cross-attention with image features and temporal self-attention with adjacent BEV features. Then, the detection results will be decoded on BEV features. 
+
+Sparse queries schemes [24, 25, 30, 39, 41] encode 3D scenes into sparse representations. Among them, PETR [25] injects 3D position embeddings into image features and StreamPETR [39] explores long sequence modeling. These MC3D paradigms have their own advantages. While BEV feature-based schemes can provide dense scene Mixture Input 
+
+Camera-aware Data Augmentation Spatial-aware Feature Modulation              
+
+> ego-centric Gaussians raw camera images
+> Focal
+> Augmentation
+> Cameras
+> Sampling
+> 3DGS
+> Renderer
+> 𝐀𞐀𝐀 ,𝐀𨐀 ,𝐀𨐀 ,𝐀𨐀 ,𝐀𨐀 ,𝐀𨐀 ,𝐀𨐀
+> sampleing
+> ...
+> ...
+> Inputs
+> 𝐀 ,3+9,𝐀 ,𝐀
+
+Backbone 
+
+&
+
+Neck                            
+
+> Features
+> 𝐀 ,𝐀 ,𝐀 ′,𝐀 ′
+> Inverse Focal Map
+> 𝐀 ,1,𝐀 ′,𝐀 ′
+> Pl ücker RayMap
+> 𝐀 ,6,𝐀 ′,𝐀 ′
+> Ground Depth Map
+> 𝐀 ,1,𝐀 ′,𝐀 ′
+> Ground Gradient Map
+> 𝐀 ,1,𝐀 ′,𝐀 ′
+> C
+> Projector
+> Focal-Invariant
+> Features
+> 𝐀 ,𝐀 ,𝐀 ′,𝐀 ′
+> Spatial-Aware
+> Features
+> 𝐀 ,𝐀 +9,𝐀 ′,𝐀 ′
+> All Maps
+> 𝐀 ,9,𝐀 ′,𝐀 ′
+> C
+> Bottom-Up BEV Scheme
+> (BEVDepth )
+> Top-Down BEV Scheme
+> (BEVFormer )
+> Sparse Queries Scheme
+> (PETR)
+
+Generalize to new cameras 
+
+> C
+
+Figure 2. Illustration of our CoIn3D framework for generalizable MC3D across multi-camera configurations. During training, we apply the camera-aware data augmentation (CDA) to generate N images with randomly sampled camera configurations, followed by spatial-aware feature modulation (SFM). SFM modulates activations using an inverse focal map to obtain focal-invariant features, then projects prior maps (ground depth, gradient map, and Pl¨ ucker raymap) to create spatial embeddings, which are added to the focal-invariant features. These maps are concatenated with image input and features to provide raw priors. Finally, the spatial-aware features can be easily integrated into MC3D for downstream tasks. During inference, we use raw images and apply spatial-aware modulation to generalize to new camera configurations. Our framework is applicable to dominant MC3D paradigms, including bottom-up BEV, top-down BEV, and sparse-queries. 
+
+representation for holistic 3D understanding, sparse queries offer lower computational costs. In this paper, we seek a unified framework to improve the generalization of all these dominant paradigms across camera configurations. 
+
+2.2. Camera Configuration Generalization 
+
+To tackle the generalization problem caused by the configu-ration gap, on one hand, some works try to adjust the image input [22, 47, 51], and on the other hand, some works try to adjust the predicted target [3, 17, 29, 40]. 
+
+For image input adjustment , [22, 47, 51] resize and crop the image to align focal length and FoV. To adjust the extrinsic gap, [47] and [22] warp image based on spherical and cylindrical space assumption, respectively. However, resizing image will cause image shape misalignment and cannot take advantage of batch acceleration. Resizing long-focal images to short focal lengths will result in a loss of resolution. Cropping image will loss texture information. Warping images based on spherical or cylindrical space as-sumption will destroy the 3D scene structure. 
+
+For prediction adjustment , DG-BEV, PD-BEV and UDGA-BEV [3, 29, 40] treat all cameras as having an iden-tical virtual focal length in both the training and testing data, and rescale the virtual depth to real depth according to the ratio between virtual and real focal lengths. PD-BEV further constrains feature consistency between image features and BEV feature, while UDGA-BEV further con-strains depth and photometric consistency between differ-ent cameras to enhance the generalization of models. [17] introduces the ground depth of the object bottom center to help model overcome camera height gap. However, these methods do not fully and explicitly consider camera con-figurations. Furthermore, these methods cannot apply to all MC3D paradigms due to their depth-based design. In this paper, we comprehensively revisit the influence of multi-camera configurations on MC3D and then propose CoIn3D to uniformly mitigate the camera configuration gap. Our scheme can be applied to all MC3D paradigms. 
+
+2.3. 3D Gaussian splatting 
+
+Novel view synthesis [15] can augment images under dif-ferent configurations, showing the potential to achieve configuration-invariant MC3D. 3DGS [14] has a fast ren-dering speed and makes dynamic augmentation possible. However, current 3DGS schemes [6, 12, 28, 43, 45] have high training costs. Unlike previous works, we propose a cost-efficient, training-free ego-centric Gaussian construc-tion pipeline tailored for MC3D data augmentation. 
+
+## 3. Revisit cameras configuration in MC3D 
+
+3.1. MC3D task 
+
+MC3D takes N surrounding camera images I =
+
+{i1, i 2, ..., i N } ∈ RN ×3×H×W as input. Each camera has Aggregated RoI Feature                       
+
+> 𝐀 =1𝐀 =𝐀
+> network
+> Same depth
+> Different activation
+> Same depth
+> Same activation
+> 1
+> 𝐀 2
+> isodepth line
+> (a) (b)
+> (c)
+> front_left front front_right back_right back back_left
+> depth= 𝐀 0
+> depth= 𝐀 1
+> depth= 𝐀 2
+> ℎ=𝐀
+> ℎ=𝐀 +1
+> ℎ=𝐀 −1
+
+Figure 3. Illustration of the spatial discrepancies under differ-ent camera configurations: (a) focal-ambiguity for a same object; (b) ground depth and depth increasing rate under different camera heights; (c) the scene structure (1st row), depth distribution (2nd row), and Pl¨ ucker raymap (3rd row) for surround-view cameras. 
+
+an intrinsic matrix K ∈ R3×3 and an extrinsic matrix 
+
+T = [ R; t|0, 1] ∈ R4×4, which can transform points from the camera system to the ego system. Taking all these as input, MC3D aims to localize and categorize objects in 3D ego space. MC3D needs to predict position (x, y, z ), size 
+
+(l, w, h ), orientation θ, and category of each object. 
+
+3.2. Intrinsic revisiting 
+
+Different cameras has different focal length and field-of-view (FoV). For focal length, as shown in Fig. 3(a), the same object under different focal plane has different sizes, which hinders the model’s consistent depth understanding. For FoV, different FoVs corresponds to different scene per-spective geometries. For example, given a camera height 
+
+Hcam , the initial ground depth zi on image bottom is de-termined by the FoV angle α: zi = Hcam    
+
+> tan( α
+> 2)
+
+. This prior can help model understand scene structure. 
+
+3.3. Extrinsic revisiting 
+
+Different camera mounting positions and orientations re-sults in varying extrinsics and spatial priors. First, ground plane can provide a strong prior for MC3D. We assume the ground plane is flat, so we can use N non-collinear points ( N ≥ 3) pe ∈ RN ×4 on the ground to define a plane in ego space. The ground plane equation 
+
+Ax + By + Cz + D = 0 in each camera space can be lidar sequences                
+
+> ...
+> 4D annotation
+> ...
+> TSDF Intergration
+> background mesh object meshes
+> watertight fix
+> Compose Meshes
+> Render Depth
+> camera
+> blind area
+> sampled object &
+> camera blind area points
+> assets textured points
+> Texture Retrieval
+> Calibs
+> image-depth sequences
+> ...
+> 2D->ego 3D
+> ego-centric (𝐀 ,𝐀 ,𝐀 ,𝐀 ,𝐀 ,𝐀 )points
+> Predefine Gaussian Params
+> 𝐀 =𝐀 𝐀 𝐀 ;𝐀𧀀𝐀𧐀𝐀𣠀𝐀 =1;isotropy color
+> ego-centric Gaussians
+> Step 1: Meshes Reconstruction
+> Step 2: Depth Rendering
+> Step 3: Assets Texulization
+> Step 4: Gaussians Construction
+> Complete
+> surround-view images
+> surround-view depths
+
+Figure 4. Illustration of the training-free ego-centric Gaussians construction pipeline. We transform reconstructed texture point clouds into Gaussian representations using predefined parameters. 
+
+solved by Least Squares from points pc = T−1pe. For an image with intrinsic parameters fu, f v , c u, c u, if we assume that a pixel (u, v ) with depth z(u, v ) is on the ground, then the depth can be solved by: 
+
+z(u, v ) = − DAX + BY + C (1) where X = u−cu 
+
+> f u
+
+and Y = v−cv 
+
+> fv
+
+.Different camera mounting heights also lead to varying perspective effects. As shown in Fig.3(b), if we observe the ground in the image from near to far, we will find that, higher camera mounting height has slower ground depth increase rate, while lower height causes a faster increase. Training on one specific camera height will cause overfit-ting to this rate change behavior. Finally, different camera orientations result in different observed scene geometry. As shown in Fig. 3(c), each cam-era captures different depth distribution and scene struc-tures, which should be considered as priors. 
+
+3.4. Array revisiting 
+
+Different platforms will adopt camera arrays with different numbers of cameras and cameras layouts, resulting in dif-ferent surround-view structures. As shown in Fig. 3(c), each surround-view image can be seen as a fragment of the omnidirectional image of the scene. Therefore, the scene structure is continuous across different images. Moreover, different layouts result in different overlap regions. These two factors should be considered by MC3D during multi-camera correlation and feature fusion. 
+
+## 4. Methodology 
+
+We identify that discrepancies in intrinsics, extrinsics, and array layouts are the key challenge for cross-configuration generalization. To address this, we propose CoIn3D, a framework for generalizing MC3D across configurations. The framework is shown in Fig. 2. During training, taking raw images and ego-centric Gaussians as input, we first apply camera-aware data augmentation(CDA) to dy-namically generate images with diverse camera configura-tions. After applying CDA, the augmented images Iim ∈
+
+R3×H×W are fed into the backbone and neck to extract fea-tures Fim ∈ RC×H′×W ′
+
+. We then apply spatial-aware fea-ture modulation to enrich the image feature by embedding four spatial prior maps formulating configurations. Finally, the modulated spatial-aware feature can be integrated into any MC3D paradigm for downstream tasks. During infer-ence, the model only takes raw images as input and applies SFM to generalize to new camera configurations. 
+
+4.1. Spatial-aware feature modulation 
+
+In this section, we introduce how we modulate the raw im-age features to obtain spatial-aware features. 
+
+4.1.1. Inverse focal map 
+
+We first address focal ambiguity by assuming that features with different focal lengths should have similar activations. Larger focal lengths can be seen as upsampled versions of smaller ones, leading to different aggregated RoI feature ac-tivations for the same object, which causes ambiguity. To eliminate the ambiguity, we propose using the square of the focal length to normalize the feature activation, which is based on the observation that a k-fold difference in focal length leads to a k2-fold difference in pixel size for the same object. Specifically, for a raw image feature Fim with focal length f , we use the inverse of the square focal map MIF ∈
+
+R1×H′×W ′
+
+to normalize as follows: 
+
+MIF = 1 ∗ 1
+
+f 2
+
+F1 
+
+> im
+
+= MIF ⊙ Fim 
+
+(2) 
+
+4.1.2. Ground depth and gradient map 
+
+After addressing the focal gap, we consider the ground prior under different camera configurations. The ground depth map MGD ∈ R1×H′×W ′
+
+can be generated by Eq. 1 and provides a straightforward scene spatial prior. We further propose the ground gradient map. It is based on the observation that, under different camera mounting heights, the ground depth increase rating from near to far will be quite different as shown in Fig. 3 and results in different perspective effects. To formulate, we introduce ground gradient map MGG ∈ R1×H×W , which can be de-rived from MGD through cross-row difference: MGG =
+
+MGD [: , : −1, :] − MGD [: , 1 : , :] . However, the numerical values of the results are small and vary rapidly, which is un-favorable for network training. To make the numerical value suitable for network, we apply a log-inverse transformation to get the final ground gradient map: 
+
+MGG = log ( 1
+
+MGD [: , : −1, :] − MGD [: , 1 : , :] + 1)  (3) 
+
+4.1.3. Pl ¨ ucker raymap 
+
+To further enriching the spatial representation, we intro-duce the Pl¨ ucker raymap inspired by [32, 50]. The Pl¨ ucker raymap describes the direction and moment of a cluster of rays emitted from the optical center of camera to each pixel. Specifically, for a camera with an intrinsic matrix K ∈
+
+R3×3 and extrinsic matrix, which describes the transforma-tion from camera to ego T = [ R, t; 0, 1] ∈ R4×4, we can construct the Pl¨ ucker raymap as follows. For a pixel, de-noted its homogeneous coordinates as p = [ u, v, 1] T , its ray direction d ∈ R3 in ego and ray moment related to the camera origin m ∈ R3 can be computed as follows: 
+
+d = RK −1pm = t × d (4) where d together with m construct the Pl¨ ucker coordinate 
+
+r = ( d, m) ∈ R6 of each pixel in the Pl¨ ucker raymap 
+
+MP R ∈ R6×H′×W ′
+
+.The Pl¨ ucker raymap has several beneficial properties. First, it formulates camera’s FoV, rotation, and translation in the ego system. Second, it continuously formulates the pixel position among multi-camera images which can uti-lized for camera correlation and feature fusion. 
+
+4.1.4. Spatial embedding module 
+
+The ground depth map, gradient map and Pl¨ ucker raymap together provide an over-complete representation that de-scribes camera configurations. To embed these prior maps into the feature, similar to positional embeddings in trans-formers [36], we first concatenate all these prior maps channel-wise. Then we use a shallow projector to project it to higher-level feature space to obtain spatial embedding. Finally, we add spatial embedding to the image feature. This process can be described as follows: 
+
+F2 
+
+> im
+
+= F1 
+
+> im
+
++ projector (cat (MGD , MGG , MP R ))  (5) In our implementation, the projector has a simple archi-tecture with a 3 × 3 convolution and a ReLU activation layer. Finally, all prior maps are concatenated with the mod-ulated feature F3 
+
+> im
+
+= cat (MIF , MGD , MGG , MP R , F2
+
+> im
+
+)
+
+and image input to provide raw prior information. The spatial-aware feature F3 
+
+> im
+
+can be used by all kinds of MC3D schemes to decode the 3D detection results. 4.2. Camera-aware data augmentation 
+
+Data augmentation is important for enhancing the general-ization of MC3D. However, basic augmentations like flip-ping and photometric distortion cannot augment the cam-era configuration. To address it, we propose a training-free 3DGS scheme to construct the ego-centric Gaussians for dynamic data augmentation in a cost-efficient manner. 
+
+4.2.1. Training-free 3DGS construction 
+
+Specifically, the training-free 3DGS construction pipeline can be divided into four steps, as shown in Fig. 4. First, we use 4D annotations to decompose LiDAR sequences into background and objects. Next, we use TSDF integration [37] to reconstruct the background mesh and object meshes. Moreover, we fix the object meshes to watertight surface. Second, for each annotated timestamp in the sequence, we compose the background mesh and objects meshes ac-cording to calibration and annotations. Next, we render the composed meshes to depth [33] for each camera. These mesh-rendered depths have an advantage that their metric is naturally precise and they can ensure surround-view con-sistency. These merits are well-suited for MC3D data aug-mentation. Finally, we apply depth completion [38] to fill in holes without meshes and get dense depths. Third, we reconstruct auxiliary assets, including the tex-ture point model of objects and camera blind area. These assets help complete the unseen parts beyond raw imag-ing. Specifically, we first sample points from object meshes and camera blind area. Then we warp and retrieve textures through depth matching across images in the sequence. Fourth, we construct the ego-centric Gaussians for each annotated data frame. We first project RGB-D images to ego space to obtain texture point cloud. Then, we append the texture assets. Finally, we set the covariance matrix of Gaussian as Σ = ˆ rI3, which means that each Gaussian has no rotation and has a fixed predefined radius. The opacity of each Gaussian is set to 1. We set an isotropy color for each Gaussian, which meaning that we use the raw (r, g, b )
+
+color, the center of Gaussian is determined by the (x, y, z )
+
+coordinates of the point clouds. In other words, our scheme can be seen as a point-rendering scheme but we transform point cloud into Gaussian representation to take advantage of the fast rendering speed of 3DGS. The ego-centric Gaus-sians can be rendered at about 450 fps. We provide more details about this pipeline in the supplementary material. 
+
+4.2.2. Data augmentation 
+
+We will apply our data augmentation to both the ego-centric Gaussians and raw image inputs. These data will be dynam-ically augmented during training. Specifically, for ego-centric Gaussians, we randomly sample new camera configurations to render novel-view im-ages. For raw images, we randomly resize them according to the principal point and adjust the focal length. 
+
+## 5. Experiment 
+
+We conduct comprehensive experiments across multiple landmark datasets based on different MC3D paradigms. 
+
+5.1. Experiment Setup 
+
+Datasets. We conduct experiments across three landmark datasets, including Nuscenes [1], Waymo [35], and Lyft [7]. These datasets are collected with quite different camera configurations, making them challenging for evaluating the generalization ability of MC3D across configurations. Our model is trained on one dataset and tested on the others for each experiment. Detailed dataset information is provided in the supplementary material. 
+
+Evaluation Metrics. Following previous work [3, 29, 40], we adopt the metric NDS ∗ that aggregates mean Average Precision (mAP), mean Average Translation Error (mATE), mean Average Scale Error (mASE), and mean Average Ori-entation Error (mAOE): 
+
+NDS ∗ = 16 [3 mAP + X
+
+> mTP ∈TP
+
+(1 − min (1 , mTP ))]  (6) Following previous work [3], we consider the unified category “car” for generalization experiment. Moreover, the “car”, “truck”, “construction vehicle”, “bus” and “trailer” in Nuscenes will all be considered as “car”, except for the Lyft → Nuscenes evaluation. We only validate results in the range [−50 m, 50 m] during training and validation. 
+
+Implementation Details. We adopt BEVDepth-R50 [20], BEVFormer-tiny [23] and PETR-vov [25] as base models to represent the three MC3D paradigms, respectively. We train the model on 4 RTX 4090 GPUs. The image width will be downsampled to 704 for BEVDepth and 800 for BEV-Former and PETR. The image height will be downsampled by the same ratio as the width. More implementation details are shown in the supplementary material. 
+
+5.2. Main Results 
+
+5.2.1. Results based on BEVDepth 
+
+Tab. 1 verifies the effectiveness of our scheme on bottom-up BEV framework (e.g., BEVDepth-R50). Our scheme sig-nificantly enhances the generalization of BEVDepth across datasets with different camera configurations compared to the base model. Moreover, our scheme achieves SOTA per-formance compared to current methods. Specifically, directly transfer BEVDepth to new con-figuration leads to poor performance. Especially in Nuscenes →Waymo and Waymo →Nuscenes, the mAP drops to nearly 0 because these two datasets have a huge camera configuration gap. With our framework, the gen-eralization performance NDS ∗ gap is bridged from 0.178 to 0.513, 0.296 to 0.534, 0.133 to 0.481, and 0.213 to 0.452 for Nuscenes →Waymo, Nuscenes →Lyft, Waymo →Nuscenes and Lyft →Nuscenes settings, respectively. Table 1. Comparison of our scheme with existing methods based on BEVDepth. “Nuscenes → Waymo” refers to train on Nuscenes and test on Waymo with different configurations, and similarly for the other datasets. “Direct Transfer” refers to directly use BEVDepth to test on target dataset without any adaptation. “Oracle” refers to training and testing on target dataset, serving as an upper bound for performance. 
+
+Setting Nuscenes → Waymo Waymo → Nuscenes Method mAP ↑ mATE ↓ mASE ↓ mAOE ↓ NDS* ↑ mAP ↑ mATE ↓ mASE ↓ mAOE ↓ NDS* ↑
+
+Oracle 0.552 0.528 0.148 0.085 0.649 0.475 0.577 0.177 0.147 0.587 Direct Transfer 0.040 1.303 0.265 0.790 0.178 0.032 1.305 0.768 0.532 0.133 CAM-Convs[8] 0.045 1.301 0.253 0.773 0.185 0.038 1.308 0.316 0.506 0.215 Single-DGOD[44] 0.034 1.305 0.262 0.855 0.164 0.014 1.000 1.000 1.000 0.007 DG-BEV[40] 0.297 0.822 0.216 0.372 0.415 0.303 0.689 0.218 0.171 0.472 UDGA-BEV[3] 0.349 0.754 0.289 0.250 0.459 0.326 0.684 0.263 0.168 0.477 
+
+Ours 0.381 0.687 0.220 0.155 0.513 0.349 0.727 0.257 0.179 0.481 
+
+Setting Nuscenes → Lyft Lyft → Nuscenes Method mAP ↑ mATE ↓ mASE ↓ mAOE ↓ NDS* ↑ mAP ↑ mATE ↓ mASE ↓ mAOE ↓ NDS* ↑
+
+Oracle 0.602 0.471 0.152 0.078 0.684 0.475 0.577 0.177 0.147 0.587 Direct Transfer 0.112 0.997 0.176 0.389 0.296 0.102 1.143 0.239 0.789 0.213 CAM-Convs 0.145 0.999 0.173 0.368 0.316 0.098 1.198 0.209 1.064 0.181 Single-DGOD 0.159 0.949 0.174 0.358 0.332 0.105 1.166 0.222 0.905 0.198 DG-BEV 0.287 0.771 0.170 0.302 0.437 0.268 0.764 0.205 0.591 0.374 PD-BEV[29] 0.304 0.709 0.169 0.289 0.458 0.263 0.746 0.186 0.790 0.344 UDGA-BEV 0.324 0.709 0.162 0.180 0.487 0.281 0.759 0.183 0.377 0.421 
+
+Ours 0.375 0.660 0.161 0.101 0.534 0.303 0.647 0.176 0.377 0.452 
+
+> Table 2. Generalization experiment of our scheme based on BEVFormer and PETR. Our framework can apply to both top-down BEV and sparse queries schemes, represented by BEVFormer and PETR respectively. Notably, most previous methods do not support these two paradigms. N, L, W, and DT represent Nuscenes, Lyft, Waymo, and Direct Transfer, respectively.
+
+Setting Method BEVFormer PETR mAP ↑ mATE ↓ mASE ↓ mAOE ↓ NDS* ↑ mAP ↑ mATE ↓ mASE ↓ mAOE ↓ NDS* ↑
+
+N → LDT 0.149 1.031 0.755 1.241 0.115 0.013 1.240 0.761 1.484 0.046 PD-BEV 0.208 / / / 0.355 0.032 / / / 0.091 
+
+Ours 0.237 0.850 0.191 0.407 0.377 0.332 0.880 0.170 0.210 0.456 
+
+N → W DT 0.054 1.146 0.747 1.606 0.069 0.048 1.191 0.748 1.543 0.066 
+
+Ours 0.249 0.872 0.239 0.365 0.379 0.200 1.141 0.242 0.505 0.309 
+
+Further, we compare the performance with current meth-ods: CAM-Convs [8], Single-DGOD [44], DG-BEV [40], PD-BEV [29] and UDGA-BEV [3]. CAM-Convs and Single-DGOD are applied in depth prediction and 2D ob-ject detection. DG-BEV, PD-BEV and UDGA-BEV are three current SOTA schemes. We observe that, CAM-Convs and Single-DGOD have little effect because they did not consider the camera configuration problem in MC3D. DG-BEV, PD-BEV, and UDGA-BEV make great progress by considering the focal ambiguity, feature consistency and depth consistency. In this paper, by fully and explicitly considering cam-era configuration, we surpass all previous methods and achieve SOTA performance. Specifically, we surpass UDGA-BEV, the SOTA scheme, by 0.054, 0.047, 0.004 and 0.031NDS ∗ under Nuscenes →Waymo, Nuscenes →Lyft, Waymo →Nuscenes and Lyft →Nuscenes settings. 
+
+5.2.2. Results based on BEVFormer and PETR 
+
+Tab. 2 verifies that our model-agnostic design enables appli-cation on both top-down BEV (e.g., BEVFormer-tiny) and sparse query-based frameworks (e.g., PETR-vov), which were not supported by most previous methods. Notably, PD-BEV did not mention the versions of BEVFormer and PETR used, so we choose the smallest versions for these two base models. Overall, our framework is a unified solu-tion for all MC3D paradigms. Table 3. Main ablation of our two modules CDA and SFM. CA refers the Camera-Aware SE module designed by BEVDepth. 
+
+Module mAP ↑ mATE ↓ mAOE ↓ NDS* ↑
+
+CDA SFM CA 
+
+✓ 0.040 1.303 0.790 0.178 
+
+✓ ✓ 0.190 1.021 0.255 0.347 
+
+✓ ✓ ✓ 0.381 0.706 0.168 0.504 
+
+✓ 0.215 0.887 0.312 0.358 
+
+✓ 0.041 1.310 0.513 0.224 
+
+✓ ✓ 0.381 0.687 0.155 0.513 
+
+5.3. Ablation Studies 
+
+In this section, we study the effect of the two modules, SFM and CDA, in our scheme through BEVDepth. All experi-ments are conducted on Nuscenes →Waymo setting because we consider that they have the largest configuration gap. 
+
+5.3.1. Main Ablations 
+
+Tab. 3 demonstrates the effectiveness of the proposed SFM and CDA. CA represents the camera-aware SE-module de-signed by BEVDepth, which can embed camera configura-tion in a simple way. The results show that our SFM can work without CDA, as it explicitly formulates the camera configuration. Applying CDA alone is ineffective due to the discrepancies of configurations that has not been pro-cessed. Combining SFM and CDA can promote NDS ∗ from 0.178 to 0.513 and surpass CA and CDA by 0.166. This means that, on one hand, our framework can greatly im-prove the generalization performance across configurations, on the other hand, SFM provides a more effective way to formulate configuration. In addition, combining CA with our scheme leads to degraded performance because CA dis-turbs the features we modulate. Therefore, we discard CA. 
+
+5.3.2. Ablation on SFM 
+
+Tab. 4 demonstrates the effectiveness of all four spatial pri-ors in our scheme based on CDA, including the inverse fo-cal map (IF), ground depth map (GD), ground gradient map (GG), and Pl¨ ucker raymap (PR). First, using IF alone improves NDS ∗ by 0.238, showing that inverse focal modulation effectively mitigates focal am-biguity by normalizing feature activation. Second, adding GD brings a 0.036 gain, as the explicit ground depth prior helps the model leverage the crucial ground-plane prior. Third, adding GG also brings an additional 0.008 gain, in-dicating that over-complete ground-related priors enhance spatial features. Finally, adding PR further brings a 0.007 gain, demonstrating its ability to encode pixel-level spatial priors for camera configuration. 
+
+5.3.3. Ablation on CDA 
+
+To analyze the effect of each augmentation, we apply focal augmentation (F-Aug) and our novel view synthesis aug-
+
+> Table 4. Ablation on our SFM based on CDA. IF, GD, GG, and PR represent the inverse focal map, ground depth map, ground gradient map, and Pl¨ ucker raymap, respectively.
+
+Spatial Priors mAP ↑ mATE ↓ mAOE ↓ NDS* ↑
+
+IF GD GG PR 0.041 1.310 0.513 0.224 
+
+✓ 0.332 0.811 0.176 0.462 
+
+✓ ✓ 0.365 0.696 0.182 0.498 
+
+✓ ✓ ✓ 0.375 0.684 0.177 0.506 
+
+✓ ✓ ✓ ✓ 0.381 0.687 0.155 0.513 
+
+> Table 5. Ablation on our CDA based on SFM. F-Aug and NVS-Aug represent focal augmentation and novel view synthesis aug-mentation, respectively.
+
+Augmentation mAP ↑ mATE ↓ mAOE ↓ NDS* ↑
+
+F-Aug NVS-Aug 0.215 0.887 0.312 0.358 
+
+✓ 0.314 0.990 0.192 0.418 
+
+✓ ✓ 0.381 0.687 0.155 0.513 
+
+mentation (NVS-Aug) based on SFM, as shown in Tab. 5. Specifically, F-Aug improves NDS ∗ by 0.060, indicating that SFM benefits from augmentation. Moreover, NVS-Aug boosts NDS* by 0.095, showing that the effect of focal aug-mentation on raw images is limited, while NVS-Aug better enhances generalization by augmenting training data with diverse configurations. 
+
+## 6. Conclusion 
+
+In this paper, we revisit how different camera configura-tions affect the generalization of multi-camera 3D object detection, and we identify that the devil lies in spatial prior discrepancies across source and target configurations. To address this, we propose CoIn3D, a generalizable MC3D framework that enables strong transferability from source configurations to unseen target ones. Extensive experiments across three landmark datasets with different camera config-urations show that our framework is effective for dominant MC3D paradigms. We hope that this work can bring insight for industrial applications to facilitate deployment. In the future, we will explore improving the generalization perfor-mance of MC3D across different semantic distributions. 
+
+## Acknowledgments 
+
+This work was supported by the New Generation Artifi-cial Intelligence-National Science and Technology Major Project under Grant 2025ZD0124203, NSFC under Grants 62373298 and U24A20252. References 
+
+[1] Holger Caesar, Varun Bankiti, Alex H Lang, Sourabh Vora, Venice Erin Liong, Qiang Xu, Anush Krishnan, Yu Pan, Gi-ancarlo Baldan, and Oscar Beijbom. nuscenes: A multi-modal dataset for autonomous driving. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 11621–11631, 2020. 2, 6, 1 [2] Chenjie Cao, Qiaole Dong, and Yanwei Fu. Zits++: Im-age inpainting by improving the incremental transformer on structural priors. IEEE transactions on pattern analysis and machine intelligence , 45(10):12667–12684, 2023. 1 [3] Gyusam Chang, Jiwon Lee, Donghyun Kim, Jinkyu Kim, Dongwook Lee, Daehyun Ji, Sujin Jang, and Sangpil Kim. Unified domain generalization and adaptation for multi-view 3d object detection. Advances in Neural Information Pro-cessing Systems , 37:58498–58524, 2024. 2, 3, 6, 7, 4 [4] Li Chen, Penghao Wu, Kashyap Chitta, Bernhard Jaeger, An-dreas Geiger, and Hongyang Li. End-to-end autonomous driving: Challenges and frontiers. IEEE Transactions on Pat-tern Analysis and Machine Intelligence , 2024. 1 [5] Weinan Chen, Wenzheng Chi, Sehua Ji, Hanjing Ye, Jie Liu, Yunjie Jia, Jiajie Yu, and Jiyu Cheng. A survey of autonomous robots and multi-robot navigation: Perception, planning and collaboration. Biomimetic Intelligence and Robotics , page 100203, 2024. 1 [6] Ziyu Chen, Jiawei Yang, Jiahui Huang, Riccardo de Lutio, Janick Martinez Esturo, Boris Ivanovic, Or Litany, Zan Go-jcic, Sanja Fidler, Marco Pavone, et al. Omnire: Omni ur-ban scene reconstruction. arXiv preprint arXiv:2408.16760 ,2024. 3 [7] Christy, Maggie, NikiNikatos, Phil Culliton, Vinay Shet, and Vladimir Iglovikov. Lyft 3d object detection for autonomous vehicles. https : / / kaggle . com / competitions / 3d - object - detection - for -autonomous-vehicles , 2019. Kaggle. 2, 6, 1 [8] Jose M Facil, Benjamin Ummenhofer, Huizhong Zhou, Luis Montesano, Thomas Brox, and Javier Civera. Cam-convs: Camera-aware multi-scale convolutions for single-view depth. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 11826– 11835, 2019. 7 [9] Lue Fan, Yuxue Yang, Feng Wang, Naiyan Wang, and Zhaoxiang Zhang. Super sparse 3d object detection. IEEE transactions on pattern analysis and machine intelligence ,45(10):12490–12505, 2023. 1 [10] Junjie Huang and Guan Huang. Bevdet4d: Exploit tempo-ral cues in multi-camera 3d object detection. arXiv preprint arXiv:2203.17054 , 2022. 1, 2 [11] Junjie Huang, Guan Huang, Zheng Zhu, Yun Ye, and Dalong Du. Bevdet: High-performance multi-camera 3d object de-tection in bird-eye-view. arXiv preprint arXiv:2112.11790 ,2021. 2 [12] Lihan Jiang, Yucheng Mao, Linning Xu, Tao Lu, Kerui Ren, Yichen Jin, Xudong Xu, Mulin Yu, Jiangmiao Pang, Feng Zhao, et al. Anysplat: Feed-forward 3d gaussian splatting from unconstrained views. arXiv preprint arXiv:2505.23716 ,2025. 3 [13] Xin Jin, Haisheng Su, Kai Liu, Cong Ma, Wei Wu, Fei Hui, and Junchi Yan. Unimamba: Unified spatial-channel rep-resentation learning with group-efficient mamba for lidar-based 3d object detection. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 1407– 1417, 2025. 1 [14] Bernhard Kerbl, Georgios Kopanas, Thomas Leimk¨ uhler, and George Drettakis. 3d gaussian splatting for real-time radiance field rendering. ACM Trans. Graph. , 42(4):139–1, 2023. 3 [15] Tzofi Klinghoffer, Jonah Philion, Wenzheng Chen, Or Litany, Zan Gojcic, Jungseock Joo, Ramesh Raskar, Sanja Fidler, and Jose M Alvarez. Towards viewpoint robust-ness in bird’s eye view segmentation. In Proceedings of the IEEE/CVF International Conference on Computer Vision ,pages 8515–8524, 2023. 3 [16] Zhaonian Kuang, Rui Ding, Meng Yang, Xinhu Zheng, and Gang Hua. Object-scene-camera decomposition and recom-position for data-efficient monocular 3d object detection. 
+
+arXiv preprint arXiv:2602.20627 , 2026. 1 [17] Abhinav Kumar, Yuliang Guo, Zhihao Zhang, Xinyu Huang, Liu Ren, and Xiaoming Liu. Charm3r: Towards unseen cam-era height robust monocular 3d detector. In Proceedings of the IEEE/CVF International Conference on Computer Vi-sion , pages 8777–8788, 2025. 2, 3 [18] Alex H Lang, Sourabh Vora, Holger Caesar, Lubing Zhou, Jiong Yang, and Oscar Beijbom. Pointpillars: Fast encoders for object detection from point clouds. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 12697–12705, 2019. 1 [19] Hongyang Li, Chonghao Sima, Jifeng Dai, Wenhai Wang, Lewei Lu, Huijie Wang, Jia Zeng, Zhiqi Li, Jiazhi Yang, Hanming Deng, et al. Delving into the devils of bird’s-eye-view perception: A review, evaluation and recipe. IEEE Transactions on Pattern Analysis and Machine Intelligence ,46(4):2151–2170, 2023. 1 [20] Yinhao Li, Zheng Ge, Guanyi Yu, Jinrong Yang, Zengran Wang, Yukang Shi, Jianjian Sun, and Zeming Li. Bevdepth: Acquisition of reliable depth for multi-view 3d object detec-tion. In Proceedings of the AAAI conference on artificial intelligence , pages 1477–1485, 2023. 1, 2, 6, 4, 5 [21] Yingyan Li, Lue Fan, Yang Liu, Zehao Huang, Yuntao Chen, Naiyan Wang, and Zhaoxiang Zhang. Fully sparse fusion for 3d object detection. IEEE Transactions on Pattern Analysis and Machine Intelligence , 46(11):7217–7231, 2024. 1 [22] Ye Li, Wenzhao Zheng, Xiaonan Huang, and Kurt Keutzer. Unidrive: Towards universal driving perception across cam-era configurations. arXiv preprint arXiv:2410.13864 , 2024. 2, 3 [23] Zhiqi Li, Wenhai Wang, Hongyang Li, Enze Xie, Chong-hao Sima, Tong Lu, Qiao Yu, and Jifeng Dai. Bevformer: learning bird’s-eye-view representation from lidar-camera via spatiotemporal transformers. IEEE Transactions on Pat-tern Analysis and Machine Intelligence , 2024. 1, 2, 6 [24] Haisong Liu, Yao Teng, Tao Lu, Haiguang Wang, and Limin Wang. Sparsebev: High-performance sparse 3d ob-ject detection from multi-camera videos. In Proceedings of the IEEE/CVF international conference on computer vision ,pages 18580–18590, 2023. 2 [25] Yingfei Liu, Tiancai Wang, Xiangyu Zhang, and Jian Sun. Petr: Position embedding transformation for multi-view 3d object detection. In European conference on computer vi-sion , pages 531–548. Springer, 2022. 1, 2, 6 [26] Zhijian Liu, Haotian Tang, Alexander Amini, Xinyu Yang, Huizi Mao, Daniela Rus, and Song Han. Bevfusion: Multi-task multi-sensor fusion with unified bird’s-eye view repre-sentation. arXiv preprint arXiv:2205.13542 , 2022. 1 [27] Hao Lu, Jiaqi Tang, Xinli Xu, Xu Cao, Yunpeng Zhang, Guoqing Wang, Dalong Du, Hao Chen, and Yingcong Chen. Scaling multi-camera 3d object detection through weak-to-strong eliciting. arXiv preprint arXiv:2404.06700 , 2024. 3 [28] Hao Lu, Tianshuo Xu, Wenzhao Zheng, Yunpeng Zhang, Wei Zhan, Dalong Du, Masayoshi Tomizuka, Kurt Keutzer, and Yingcong Chen. Drivingrecon: Large 4d gaussian re-construction model for autonomous driving. arXiv preprint arXiv:2412.09043 , 2024. 3 [29] Hao Lu, Yunpeng Zhang, Guoqing Wang, Qing Lian, Da-long Du, and Ying-Cong Chen. Towards generalizable multi-camera 3d object detection via perspective rendering. In Pro-ceedings of the AAAI Conference on Artificial Intelligence ,pages 5811–5819, 2025. 2, 3, 6, 7 [30] Jinhyung Park, Chenfeng Xu, Shijia Yang, Kurt Keutzer, Kris Kitani, Masayoshi Tomizuka, and Wei Zhan. Time will tell: New outlooks and a baseline for temporal multi-view 3d object detection. arXiv preprint arXiv:2210.02443 , 2022. 2 [31] Jonah Philion and Sanja Fidler. Lift, splat, shoot: Encoding images from arbitrary camera rigs by implicitly unprojecting to 3d. In European conference on computer vision , pages 194–210. Springer, 2020. 2 [32] Julius Pl¨ ucker. Analytisch-geometrische Entwicklungen . GD Baedeker, 1828. 5 [33] Nikhila Ravi, Jeremy Reizenstein, David Novotny, Tay-lor Gordon, Wan-Yen Lo, Justin Johnson, and Georgia Gkioxari. Accelerating 3d deep learning with pytorch3d. 
+
+arXiv preprint arXiv:2007.08501 , 2020. 6, 1 [34] Thomas Roddick, Alex Kendall, and Roberto Cipolla. Ortho-graphic feature transform for monocular 3d object detection. 
+
+arXiv preprint arXiv:1811.08188 , 2018. 2 [35] Pei Sun, Henrik Kretzschmar, Xerxes Dotiwalla, Aurelien Chouard, Vijaysai Patnaik, Paul Tsui, James Guo, Yin Zhou, Yuning Chai, Benjamin Caine, et al. Scalability in perception for autonomous driving: Waymo open dataset. In Proceed-ings of the IEEE/CVF conference on computer vision and pattern recognition , pages 2446–2454, 2020. 2, 6, 1 [36] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszko-reit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. Attention is all you need. Advances in neural information processing systems , 30, 2017. 5 [37] Ignacio Vizzo, Tiziano Guadagnino, Jens Behley, and Cyrill Stachniss. Vdbfusion: Flexible and efficient tsdf integration of range sensor data. Sensors , 22(3):1296, 2022. 6, 1 [38] Haotian Wang, Meng Yang, Xinhu Zheng, and Gang Hua. Scale propagation network for generalizable depth comple-tion. IEEE Transactions on Pattern Analysis and Machine Intelligence , 2024. 6, 1 [39] Shihao Wang, Yingfei Liu, Tiancai Wang, Ying Li, and Xi-angyu Zhang. Exploring object-centric temporal modeling for efficient multi-view 3d object detection. In Proceedings of the IEEE/CVF international conference on computer vi-sion , pages 3621–3631, 2023. 2 [40] Shuo Wang, Xinhai Zhao, Hai-Ming Xu, Zehui Chen, Dameng Yu, Jiahao Chang, Zhen Yang, and Feng Zhao. To-wards domain generalization for multi-view 3d object detec-tion in bird-eye-view. In Proceedings of the IEEE/CVF con-ference on computer vision and pattern recognition , pages 13333–13342, 2023. 2, 3, 6, 7 [41] Yue Wang, Vitor Campagnolo Guizilini, Tianyuan Zhang, Yilun Wang, Hang Zhao, and Justin Solomon. Detr3d: 3d object detection from multi-view images via 3d-to-2d queries. In Conference on robot learning , pages 180–191. PMLR, 2022. 1, 2 [42] Chengrui Wei, Meng Yang, Lei He, and Nanning Zheng. Fs-depth: Focal-and-scale depth estimation from a single image in unseen indoor scene. IEEE Transactions on Circuits and Systems for Video Technology , 34(11):10604–10617, 2024. 4[43] Dongxu Wei, Zhiqi Li, and Peidong Liu. Omni-scene: Omni-gaussian representation for ego-centric sparse-view scene re-construction. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 22317–22327, 2025. 3[44] Aming Wu and Cheng Deng. Single-domain generalized ob-ject detection in urban scene via cyclic-disentangled self-distillation. In Proceedings of the IEEE/CVF Conference on computer vision and pattern recognition , pages 847–856, 2022. 7 [45] Yunzhi Yan, Haotong Lin, Chenxu Zhou, Weijie Wang, Haiyang Sun, Kun Zhan, Xianpeng Lang, Xiaowei Zhou, and Sida Peng. Street gaussians: Modeling dynamic urban scenes with gaussian splatting. In European Conference on Computer Vision , pages 156–173. Springer, 2024. 3 [46] Chenyu Yang, Yuntao Chen, Hao Tian, Chenxin Tao, Xizhou Zhu, Zhaoxiang Zhang, Gao Huang, Hongyang Li, Yu Qiao, Lewei Lu, et al. Bevformer v2: Adapting modern im-age backbones to bird’s-eye-view recognition via perspective supervision. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 17830– 17839, 2023. 1, 2 [47] Fan Yang, Hui Chen, Yuwei He, Sicheng Zhao, Chenghao Zhang, Kai Ni, and Guiguang Ding. Geometry-guided do-main generalization for monocular 3d object detection. In 
+
+Proceedings of the AAAI Conference on Artificial Intelli-gence , pages 6467–6476, 2024. 2, 3 [48] Lei Yang, Tao Tang, Jun Li, Kun Yuan, Kai Wu, Peng Chen, Li Wang, Yi Huang, Lei Li, Xinyu Zhang, et al. Bevheight++: Toward robust visual centric 3d object detec-tion. IEEE Transactions on Pattern Analysis and Machine Intelligence , 2025. 2 [49] Tianwei Yin, Xingyi Zhou, and Philipp Krahenbuhl. Center-based 3d object detection and tracking. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 11784–11793, 2021. 1 [50] Jason Y Zhang, Amy Lin, Moneish Kumar, Tzu-Hsuan Yang, Deva Ramanan, and Shubham Tulsiani. Cameras as rays: Pose estimation via ray diffusion. arXiv preprint arXiv:2402.14817 , 2024. 5 [51] Liangtao Zheng, Yicheng Liu, Yue Wang, and Hang Zhao. Cross-dataset sensor alignment: Making visual 3d object detector generalizable. In Conference on Robot Learning ,pages 1903–1929. PMLR, 2023. 2, 3 CoIn3D : Revisiting Configuration-Invariant Multi-Camera 3D Object Detection 
+
+# Supplementary Material 
+
+## 7. Dataset Details 
+
+The camera configuration details of Nuscene [1], Lyft [7], and Waymo [35] are shown in Tab. 6. The three dataset have distinct discrepancies in camera configuration, including in-trinsics, extrinsics, and array layouts. Given camera intrin-sics (fu, f v , c u, c v ) and image size (w, h ), the horizontal filed-of-view(FoV) F oV hori and vertical FoV F oV vert are calculated as follows: 
+
+F oV hori = 2 arctan( cu
+
+fu
+
+)
+
+F oV vert = 2 arctan( h − cv
+
+fv
+
+)
+
+(7) To be noted that, for the three datasets, the ego origin are located at the center of the rear axle projected to the ground. 
+
+## 8. Implementation Details 
+
+We show more implementation details about prior maps, data augmentation, model training, and ego-centric Gaus-sians construction in this section. 
+
+8.1. Prior Maps 
+
+For the prior maps, we normalize them by a constant fac-tor to ensure numerical stability. Specifically, focal length, ground depth, and ground gradient are divided by 500, 25, and 2 respectively. 
+
+8.2. Data augmentation 
+
+For the data augmentation, denote the raw focal length, camera translation, and camera rotation as 
+
+f, t x, t y , t z , r x, r y , r z , the augmentation policy for each item are f ∼ U (f ∗ 0.7, f ∗ 1.4) , tx ∼ U (tx − 0.2, t x + 0 .2) ,
+
+ty ∼ U (ty − 0.2, t y + 0 .2) , tz ∼ U ∈ (1 .5, 2.2) , rx ∼ U ∈ 
+
+(−2, 2) , ry ∼ U ∈ (−2, 2) , rz ∼ U ∈ (rz − 20 , r z + 20) .We randomly select raw image or ego-centric Gaussians for training with probability 0.5. 
+
+8.3. Model Training 
+
+For Waymo, consider the high annotation rate (10 Hz vs. 2Hz for Nuscenes) , we select each 4 th frame in all se-quences for training. We will not downsample data during testing. During training and testing, we apply timestamp alignment for each camera in Nuscenes and Lyft follow by Waymo [35]. All experiments on main text are trained for 24 epochs. 
+
+8.4. Ego-centric Gaussian Construction 
+
+The detailed ego-centric Gaussian construction pipeline is shown in Fig. 5. Specifically, the training-free 3DGS can divided into four steps as shown. First, for each data sequence, we use 4D annotations to decompose raw LiDAR sequences into background LiDAR sequences and object LiDAR se-quences. Specifically, for each object LiDAR slice, we ap-ply mirror flip to compensate the occluded part. Next, we use TSDF integration [37] to reconstruct background mesh and object meshes from background LiDAR sequences and object LiDAR sequences. Moreover, we will fix the object meshes to watertight surface. Second, for each annotated timestamp in the sequence, we first transform objects meshes from local system to global system according to the annotation. We then com-pose background mesh and objects meshes. Next, we use camera intrinsic and extrinsic to render the composed meshes to multi-view depth [33]. These mesh-rendered depths have advantage that its metric is naturally precise and it can ensure multi-view consistent. These merits are well-suit for our data augmentation. Finally, considerate that some hole will existed in the mesh depths, we apply depth completion [38] to get dense depths. Third, we reconstruct some auxiliary assets includ-ing texture objects points model and under-camera points model. These assets can help complete the unseen part be-yond raw camera imaging. For example, the unseen under-camera area will affect the novel-view synthesis when we adjust the camera mounting height lower, the unseen object area will affect the NVS when we adjust the camera mount-ing height higher. To handle this, we first down-sample points from object meshes to get object points model, and we will sample points under camera blind area which can be determined by the initial ground depth mentioned at Sec.3.2 . After constructing points model, we apply texture re-trieval for each point by warping them to different images and depths of the sequences. Once the projected depth and the corresponding image depth match under a error thresh-old, we will allocate the corresponding color to the point. Finally, we can get the textured points model for next step. Fourth, we construct the ego-view Gaussians for each data frame at each annotated timestamp. First, we use cam-era intrinsic and extrinsic to project RGB-D images to ego space to get (r, g, b, x, y, z ) point cloud. We use Zits++ [2] to inpaint the foreground RGB, and we use ground and background depth to inpaint the foreground depth[16]. Then, we concatenate the textured object points and under-camera points to the scene point cloud. Finally, we set co-2D->ego3D 
+
+Step 1: Meshes Reconstruction Step 2: Depth Rendering Step 3: Asset Texturize Step 4: Gaussian Construction  
+
+> lidar sequences 4D annotation
+
+... ... 
+
+Extract  
+
+> background
+> lidar sequences mirror
+> flip
+> object
+> lidar sequences
+> TSDF Intergration
+> background
+> mesh
+> object meshes
+> watertight fix
+> background
+> mesh
+> objects meshes
+> +
+> annotation@ 𝐀 𝐀
+
+Compose Meshes@ 𝐀 𝐀   
+
+> 𝐀 𝐀 𝐀 𝐀 𝐀 𝐀
+> 𝐀 𝐀 𝐀 𝐀 𝐀 𝐀 𝐀
+> 𝐀 𝐀 𝐀
+
+Render Mesh Depths 
+
+Depth Completion 
+
+Points Sampling  
+
+> object meshes camera blind area
+
+Texture Retrieval 
+
+> calibs
+> image-depth sequences
+
+...                   
+
+> points
+> (𝐀 ,𝐀 ,𝐀 )
+> textured points (𝐀 ,𝐀 ,𝐀 ,𝐀 ,𝐀 ,𝐀 )
+> RGB-D Images @𝐀 𝐀
+> Inpainted RGB-D Images @𝐀 𝐀
+> object points camera blind area points
+> textured camera
+> blind area points
+> textured
+> object points
+> ego-centric (𝐀 ,𝐀 ,𝐀 ,𝐀 ,𝐀 ,𝐀 )points
+
+Predefine Gaussian Params       
+
+> 𝐀 =𝐀 𝐀 𝐀 ;𝐀𧀀𝐀𧐀𝐀𝐀𝐀 =1;isotropy color
+
+Figure 5. The detailed ego-centric Gaussian construction pipeline. Table 6. The details of camera configurations of Nuscenes, Lyft, and Waymo. Camera flags F, FL, FR, B, BL, BR, SL, SR represent front, front left, front right, back, back left, back right, side left, and side right, respectively. Nuscenes and Lyft possess F, FL, FR, B, BL, and BR. Waymo possesses F, FL, FR, SL, and SR. Consider that camera installed pitch ( ty ) and roll ( tx) angle is generally set to 0, we only show the yaw angle ( tz ). 
+
+Datasets Nuscenes Lyft(fleet 1) Lyft(fleet 2) Waymo image resolution (w, h ) (1600,900) (1224,1024) (1920,1080) (1920,1280)(F,FL,FR) (1920,886)(SL,SR) focal length 1250(F,FL,FR,BL,BR) 880 1100 2050 800(B) horizontal FoV (°) 65(F,FL,FR,BL,BR) 70 80 50 90(B) vertical FoV (°) 40(F,FL,FR,BL,BR) 60 50 35 60(B) cam numbers 6 6 6 5camera translation 
+
+(tx, t y , t z ) (m) F 1.7, 0, 1.5 1.5, 0, 1.7 1.5, 0, 1.65 1.55, 0, 2.1 FL 1.55, 0.5, 1.5 1.3, 0.3, 1.7 1.3, 0.3, 1.65 1.5, 0.1, 2.1 FR 1.55, -0.5, 1.5 1.3, -0.3, 1.7 1.3, -0.3, 1.65 1.5, -0.1, 2.1 B 0, 0, 1.5 0.8, 0, 1.65 0.8, 0, 1.65 BL/SL 1.0, 0.5, 1.55 1.0, 0.3, 1.65 1.0, 0.3, 1.65 1.4, 0.1, 2.1 BR/SR 1.0, -0.5, 1.55 1.0, -0.3, 1.65 1.0, -0.3, 1.65 1.4, -0.1, 2.1 cam rotation (rz ) (°) F 0 0 0 0FL 55 60 60 45 FR -55 -60 -60 -45 B 180 180 180 BL/SL 110 120 120 90 BR/SR -110 -120 -120 -90 variance matrix of gaussian as Σ = ˆ rI3, which means that each Gaussians have no rotation and have a fixed prede-fined radius. The opacity of each gaussian is set to 1. We set isotropy color for each Gaussians which means that we Table 7. Results of Nuscenes+Waymo+Lyft joint training (Mix), reported on 3 classes(car, pedestrian, two-wheel object). ScaleBEV [27] are reported on BEVDet, others are reported on BEVDepth. Oracle means training on the single source dataset. 
+
+Setting Method All Car Pedestrian Two-wheel mAP NDS* mAP NDS* mAP NDS* mAP NDS* Mix → Nuscenes Oracle 0.255 0.335 0.385 0.508 0.205 0.247 0.175 0.249 Direct Mix 0.267 0.350 0.411 0.537 0.213 0.258 0.176 0.255 ScaleBEV 0.293 0.358 0.447 0.540 0.246 0.275 0.185 0.258 
+
+CoIn3D 0.358 0.441 0.542 0.693 0.321 0.360 0.211 0.270 
+
+Mix → Lyft Oracle 0.290 0.390 0.408 0.530 0.114 0.199 0.349 0.440 Direct Mix 0.312 0.406 0.473 0.581 0.126 0.201 0.338 0.436 ScaleBEV 0.333 0.422 0.505 0.603 0.140 0.212 0.355 0.453 
+
+CoIn3D 0.455 0.532 0.644 0.718 0.236 0.323 0.486 0.556 
+
+Mix → Waymo Oracle 0.298 0.376 0.426 0.536 0.334 0.328 0.135 0.265 Direct Mix 0.306 0.373 0.432 0.536 0.342 0.332 0.144 0.250 ScaleBEV 0.326 0.384 0.466 0.549 0.355 0.341 0.157 0.261 
+
+CoIn3D 0.381 0.463 0.559 0.647 0.392 0.363 0.192 0.381 
+
+> Table 8. Comparison of CoIn3D and two input-adjustment meth-ods: Cross-dataset sensor alignment (CDSA) [51] and Unidrive [22].
+
+Setting mAP NDS* 
+
+CDSA N → L 0.224 0.372 UniDrive N → L 0.264 0.440 
+
+CoIn3D N → L 0.375 0.534 
+
+CDSA N → W 0.116 0.259 UniDrive N → W 0.144 0.298 
+
+CoIn3D N → W 0.384 0.513 
+
+use the raw (r, g, b ) color, the center of Gaussians are de-termined by the (x, y, z ) of point clouds. In other words, our scheme can be seen as a point-rendering scheme but we transform point cloud into Gaussians representation to take advantage of the fast rendering speed of 3DGS. For the Gaussians radius ˆr, we set foreground objects Gaussians radius as 0.0025. As for the background, con-sider that small radius for ground Gaussians will cause hole in image after novel view synthesis, we linearly de-crease the ˆr from ground plane to sky according to their 
+
+z. Specifically, ˆr of background Gaussians with z at range from (0 m, 10 m) will be linearly mapped to range from 
+
+(0 .02 , 0.001) .
+
+## 9. More Experiment Results 
+
+9.1. Multi-Dataset Joint Training 
+
+To evaluate the scaling-up ability of CoIn3D, we conduct joint training using Nuscenes, Waymo, and Lyft. Tab. 7shows that, simply mixing multiple datasets for joint train-
+
+> Table 9. Results of Nuscenes-val re-rendered in Waymo Cfg.
+
+Setting mAP NDS* 
+
+Oracle 0.436 0.554 DT 0.126 0.342 
+
+CoIn3D 0.401 0.524 
+
+> Table 10. Results of sequences with significant road slope in W-val (W’). Results are reported on BEVDepth with CoIn3D.
+
+Setting mAP NDS* 
+
+N → W′
+
+0.516 0.602 W → W′
+
+0.638 0.702 ing cannot scale up the performance, because there is a large camera configuration gap between different datasets. CoIn3D can bring significant improvement by bridging the configuration gap. 
+
+9.2. More Baseline Comparisions 
+
+Tab. 8 shows a comparison of two input-adjustment meth-ods: Cross-dataset sensor alignment [51] and UniDrive [22]. The results show that they struggle to handle large configuration gaps, especially in N → W, because warping inputs destroys the scene geometry structure. 
+
+9.3. Domain-controlled Cfg Generalization 
+
+To control the dataset domain and strengthen the claim (configuration gap) of CoIn3D. We re-render Nuscenes into Nuscenes configuration (N-in-N) and Waymo configuration (N-in-W) using our training-free 3D Gaussians construction Table 11. Source dataset performance comparison. 
+
+Dataset Method mAP ↑ NDS ∗↑
+
+Nuscenes BEVDepth [20] 0.475 0.587 UDGA-BEV [3] 0.497 0.603 Ours 0.529 0.630 
+
+Lyft BEVDepth 0.602 0.684 UDGA-BEV 0.630 0.702 
+
+Ours 0.624 0.699 Waymo BEVDepth 0.552 0.649 UDGA-BEV 0.547 0.656 
+
+Ours 0.538 0.630 pipeline. In this way, we can alleviate the semantic gap and other configuration-irrelevant gaps. We then use N-in-N and N-in-W for training, respectively, and evaluate on N-in-W view. Tab. 9 shows that CoIn3D almost bridges the NDS* gap to unseen W-Cfg oracle. 
+
+9.4. Ground Corner Cases Evaluation 
+
+To evaluate the robustness of CoIn3D on corner cases un-der ground plane assumption, we evaluate CoIn3D on 6 se-quences with the largest slope (16-22m elevation motion, selected using the 3-σ principle) in W-val. Tab. 10 shows that CoIn3D still works well in roads with significant slope. Specifically, CoIn3D trained on either N or W perform well on these scene, even better than the overall performance. This indicates that: (1) ground prior embedding is robust because we do not constrain the ground to fixed depth like UniDrive, but embed it in a learnable way; (2) Further per-sequence analysis reveals that sequences with poor perfor-mance are characterized by low light and poor object vis-ibility, which affect both N → W′
+
+and W → W′
+
+, and are configuration-irrelevant. 
+
+9.5. Source Performance 
+
+Tab. 11 shows the results on source dataset after applying our framework. Our framework improve the performance on Nuscenes and Lyft. Regarding to Waymo, the perfor-mance drop is mainly attributed to our downsampled train-ing strategy. 
+
+9.6. More ablations 
+
+In this section, we show more ablation experiments regrad-ing to priors map and embedding projector. These ex-periments are also conduct on BEVDepth by training on Nuscenes and testing on Waymo, but trained for 6 epochs. Tab. 12 shown more experiments about the spatial pri-ors, all experiments are based on CDA applied. Specif-ically, “FSDepth” denotes using a focal embedding pro-posed by [42], “SFM@(InvF)” denotes using our inverse 
+
+> Table 12. More ablation results regrading to priors.
+
+Method mAP ↑ NDS ∗↑
+
+FSDepth [42] 0.223 0.374 SFM@(InvF) 0.260 0.404 SFM@(InvF,GD) 0.274 0.425 SFM@(InvF,PR) 0.272 0.429 Cat@(ALL) 0.247 0.391 
+
+SFM@(ALL) 0.320 0.463  
+
+> Table 13. More ablation results regrading to embedding projec-tors.
+
+Method mAP ↑ NDS ∗↑
+
+conv1 0.282 0.430 conv1+conv1 0.307 0.454 conv3+conv3 0.297 0.448 conv3 0.320 0.463 
+
+focal map to modulate feature, “SFM@(InvF,GD)” and “SFM@(InvF,PR)” denote using ground depth and plucker raymap additionally based on focal-invariant feature ob-tained. “Cat@(ALL)” denotes only concatenate the prior maps without any modulation. “SFM@(ALL)” denotes our final framework. The experiment yielded several conclusions. First, us-ing inverse focal map to modulate feature is a better solu-tion compare to FSDepth [42] in MC3D. Second, based on focal-invariant feature obtained, solely apply ground depth map or Pl¨ ucker raymap both benefit the generalization, in view of the former offer explicit ground prior and the latter holistically formulate camera configurations. Third, solely concatenate prior maps without any modulation shown in-sufficient effectiveness, although explicit prior information is provided, the model is hard to understand these prior without designed modulation mechanism. Tab. 13 shows more experiments about the projector structure. Specifically, “conv K” and “conv K + conv K” denote using one K × K convolution and two consecutive 
+
+K × K to project raw priors into spatial embeddings. Re-sults show that, “conv3” is the better choice. Compare to “conv1”, it provide a large receptive field to fuse the neigh-bor priors, compare to “conv3+conv3”, the shallow struc-ture ensures that it does not overfit. 
+
+## 10. Qualitatively Results 
+
+In this section, we show the qualitatively results about the reconstructed ego-centric textured point clouds and the ren-dered novel-view images. Moreover, we will also show the detection results with and without using our framework. Fig. 6, Fig. 7, and Fig. 8 show the novel view training front left front front right back right back back left 
+
+> raw
+> image
+> NVS
+> raw
+> NVS
+> full overlap
+> NVS
+> height+ 1m
+> NVS
+> height-1m
+
+Figure 6. Qualitatively visualization of novel view images of Nuscenes. front left front front right back right back back left 
+
+> raw
+> image
+> NVS
+> raw
+> NVS
+> full overlap
+> NVS
+> height+ 1m
+> NVS
+> height-1m
+
+Figure 7. Qualitatively visualization of novel view images of Lyft. 
+
+images of Nuscenes, Lyft, and Waymo render from the ego-centric Gaussians reconstructed by our training-free Gaus-sians Construction scheme. We select four setting to com-pare. “NVS raw” denote render image under the raw cam-era. Under “NVS full overlap”, we set the horizontal FoV of all cameras as 120°, and we set each two neighbor camera with 60° yaw rotation to construct a full overlap array lay-out. Under “NVS height+1m”, we rise the mounting height of each camera by 1m. Under “NVS height-1m”, we lower the mounting height of each camera by 1m. These figure show that our low-cost training-free ego-centric 3D Gaus-sians Construction have acceptable photometric reconstruc-tion quality. To be noted that, the reconstruction geometry is naturally precise. Fig. 9 visualize the 3D detection results on the reconstructed textured point cloud under three cross-configuration testing settings. Fig. 9 shows that, use raw base model BEVDepth [20] to inference on data with new camera configuration results in terrible performance. After applying our CoIn3D, the cross-configuration generaliza-tion performance of model can be greatly enhanced. Then model can effectively and precisely detect 3D objects under front left front front right side left side right 
+
+> raw
+> image
+> NVS
+> raw
+> NVS
+> full overlap
+> NVS
+> height+ 1m
+> NVS
+> height-1m
+
+Figure 8. Qualitatively visualization of novel view images of Waymo. Nuscenes →Waymo Waymo →Nuscenes Nuscenes →Lyft 
+
+> Direct
+> Transfer
+> With
+> CoIn3D
+
+Figure 9. Qualitatively visualization of prediction results under 3d textured point cloud. Red boxes denote the ground truth boxes and green boxes denote the predicted boxes. The upper row shows results by directly using raw BEVDepth to inference on target configuration. The bottom row shows results by applying our CoIn3D. 
+
+new camera configuration.

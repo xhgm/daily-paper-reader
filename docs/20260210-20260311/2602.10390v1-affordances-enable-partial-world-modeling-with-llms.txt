@@ -1,0 +1,1154 @@
+Title: Affordances Enable Partial World Modeling with LLMs
+
+URL Source: https://arxiv.org/pdf/2602.10390v1
+
+Published Time: Thu, 12 Feb 2026 01:18:50 GMT
+
+Number of Pages: 18
+
+Markdown Content:
+# Affordances Enable Partial World Modeling with LLMs 
+
+Khimya Khetarpal 1 Gheorghe Comanici 1 Jonathan Richens 1 Jeremy Shar 1 Fei Xia 1 2 Laurent Orseau 1
+
+Aleksandra Faust 1 Doina Precup 1
+
+## Abstract 
+
+Full models of the world require complex knowl-edge of immense detail. While pre-trained large models have been hypothesized to contain similar knowledge due to extensive pre-training on vast amounts of internet scale data, using them directly in a search procedure is inefficient and inaccu-rate. Conversely, partial models focus on mak-ing high quality predictions for a subset of state and actions: those linked through affordances that achieve user intents (Khetarpal et al., 2020). Can we posit large models as partial world mod-els? We provide a formal answer to this ques-tion, proving that agents achieving task-agnostic, language-conditioned intents necessarily possess predictive partial-world models informed by af-fordances. In the multi-task setting, we introduce distribution-robust affordances and show that par-tial models can be extracted to significantly im-prove search efficiency. Empirical evaluations in tabletop robotics tasks demonstrate that our affordance-aware partial models reduce the search branching factor and achieve higher rewards com-pared to full world models. 
+
+## 1. Introduction 
+
+A key challenge in artificial intelligence (AI) research is to build agents that can generalize across tasks. Multi-task re-inforcement learning addresses this by leveraging the shared underlying structure across a distribution of tasks. Agents that can generalize across a variety of such sub-tasks have the potential to solve complex, long horizon, tasks. Similar to humans, it is desirable that AI agents are able to represent world knowledge and understand the dynamics of the world. Model-based reinforcement learning (MBRL) (Sutton & Barto, 2018) offers a family of approaches that build a tran-sition dynamics model of the environment (i.e. the MDP’s transition function), referred to as a world model, which can  
+
+> 1Google Deepmind 2Work done at Google Deepmind. Corre-spondence to: Khimya Khetarpal <khimya@google.com>.
+> Preprint. February 12, 2026.
+
+then be used for planning. While traditional MBRL often relies on interacting with simulators (online) (Kakade, 2003) or static datasets (offline), recent work suggests that learn-ing abstract models across tasks can significantly enhance performance (Hafner et al., 2024). With the advent of the large models, whose representations are trained on internet-scale knowledge data, it has been hy-pothesized that knowledge of the kind provided by a world model, e.g. environment transition dynamics, is already available (Yang et al., 2023b; Bruce et al., 2024; Xi et al., 2025). However, work on leveraging such full models in MBRL is in its early stages (Hao et al., 2023; Benechehab et al., 2024; Xi et al., 2025). Some of the hurdles for apply-ing LLMs to MBRL include the mismatch in observation format between RL agents and LLMs (e.g. in a robotics context, proprioception vs text), the expense in querying LLMs (which can make their use in traditional RL planners, such as Monte Carlo Tree Search prohibitive) and especially the inaccuracies of LLM prediction, including hallucina-tions (which get exacerbated when used in an RL context, because they can derail the policy optimization). Conversely, partial models (Talvitie & Singh, 2009) focus on making high quality predictions for a subset of state and actions. To exploit this property, we here study the process of leveraging LLMs as a partial world model. A partial model can guide an RL agent, but its performance as well as inference cost are not a bottleneck, because the LLM is queried only under circumstances where it can provide useful information, which can also be “debugged" by the RL agent itself. Specifically, we use the LLM to guide an affor-dance model for search and planning. Affordances (Gibson, 1977) arise at the interface of the agent and the environment and represent action possibilities . For AI agents, affor-dances facilitate adaptive control (Fikes et al., 1972; Korf, 1983; Drescher, 1991), but the agent’s understanding of which states afford which actions also allows it to learn partial world models (Talvitie & Singh, 2009), which only apply in limited circumstances and/or only predict relevant parts of the state. For example, an agent might only model temporally extended transitions that complete certain in-tents (Khetarpal et al., 2021). In this work, we study the effect of inducing such partial world models by leveraging LLMs as both affordances and generative world models. 1
+
+> arXiv:2602.10390v1 [cs.LG] 11 Feb 2026 Affordances Enable Partial World Modeling with LLMs
+
+Prior work (Abel et al., 2014; Khetarpal et al., 2021; 2020) has explored affordance-aware partial world models pri-marily in the context of a single task which is limiting for generalization in the multi-task setting. To address this, we extend the formalism of intents and affordances to a multi-task setting which accounts for the agent, the envi-ronment, and distribution of tasks. See Fig. 1 where we present a conceptual framework of affordances in the multi-task setting, that considers the distinction between intents internal to an agent embodiment versus the intents specific to tasks presented in conjunction with the environment. The delineation between task-specific and task-agnostic intents (i.e. anchored on agent dynamics) in our framework allows for building affordances that consider both the agent em-bodiment and the physical workspace i.e. the environment resulting in generalized notion of affordances. Similar delin-eation of task-agnostic and task-specific has been studied by other works (Shin et al., 2023; Flesch et al., 2022), where the commonality is that task-agnostic intents are tied to un-supervised reward-free signal (Zhang et al., 2020; Burda et al., 2018), while task-specific intents are closely tied to the context (Sodhani et al., 2021). In this paper, we bridge the gap between LLM knowledge and robotic planning by proving that agents capable of achieving task-agnostic, language-conditioned intents neces-sarily possess predictive partial-world models (Theorem 1). We show that these models, informed by distribution-robust affordances, enable provably efficient search by focusing only on relevant state-action transitions (Theorem 2). We demonstrate how to extract these models in multi-task table-top robotics by applying a generalized notion of affordances to agent-environment interaction. Our key contributions are: 1. A multi-task affordance framework that delin-eates agent-embodied (task-agnostic) intents from environment-driven (task-specific) intents, enabling robust generalization across a distribution of tasks (Sec. 3). 2. Theoretical proofs establishing that (a) achieving a set of language-conditioned intents implies the existence of an underlying partial world model, and (b) using such models significantly improves search efficiency in long-horizon planning (Theorem 1, Theorem 2; Sec. 4). 3. Empirical validation in tabletop robotics demonstrat-ing that leveraging LLMs as both affordance filters and generative world models reduces the search branching factor and achieves higher rewards compared to full world models (Sec. 5). 
+
+## 2. Preliminaries 
+
+Problem Setting. We consider table-top robotics tasks 
+
+T 1, T 2, . . . T N drawn from a distribution of related tasks i.e. 
+
+T i ∼ Dist (T ), where each task T i = ⟨S , A, r i, P i, γ ⟩ can be viewed as a Markov Decision Process (MDP), comprised of a set of states S, a set of actions A, transition dynamics model P i(s′|s, a ) ∼ Dist (P) and reward function ri(s) ∼
+
+Dist (R), with a fixed distribution of initial states. Robotic tasks typically use fine-grained primitive actions e.g. joint angles of a robot arm, resulting in a complex action space. Therefore, it is common in practice to work with abstract actions (i.e., controllers or options) o ∈ O consisting of predefined low level policies for achieving short term goals, e.g. pick up an orange block and place it at location x, y .The coordinates associated with block locations depend on the bounds of the physical workspace of the robot gripper. For a task T i, the dynamics models in this paper focuses on 
+
+P i(s′|s, o ), that is, the state s′ after execution of the abstract action (or option) o is completed starting at state s ∈ S .Equivalently we will use P i(τ |s, o )) for full trajectories (i.e. all state-actions from the start to the end of an abstract action execution). 
+
+Model-based Reinforcement Learning (MBRL) usually considers models of the environment that approximate the true model ri, P i. The focus is typically on models that can produce samples of future states. An approximate model 
+
+ˆM : ⟨ˆr, ˆP ⟩1 can be leveraged to approximate the optimal policy of the corresponding approximate MDP ˆM through a planning or search process. Starting at any state s, the model can be used to generate ‘rollouts‘ or trajectories modeled with ⟨ˆr, ˆP ⟩ and these are used to provide value estimates for action choices (s, o ) starting at s. The corresponding policy would then select the action with the highest value estimate. Traditionally, world models have been learned from data; during planning, in the setting of a generative model, the model is called repeatedly to generate samples of next states from given states and actions, with the number of calls referred to as the sample complexity .
+
+Partial Models. Learning an accurate model can be quite difficult, requiring a lot of data. Moreover, the model does not need to be accurate everywhere, as long as it is accu-rate in relevant places, and/or it provides useful information for identifying good actions. A useful approach is to build 
+
+partial models (Talvitie & Singh, 2009), which only make predictions for specific parts of the state-action space. Par-tial models come in two flavors: predicting only the outcome of a subset of state-action pairs, or making predictions only about certain parts of the state space. 
+
+Affordances. Building on work from Khetarpal et al. (2021), we consider partial models of the world that make predictions about the consequences of abstract actions in a given state ˆP (s′|s, o ) for which we leverage the notions of 
+
+intents and affordances .  
+
+> 1For simplicity, in this paper we only model transition dy-namics ˆPand assume the reward function is known through the simulator.
+
+2Affordances Enable Partial World Modeling with LLMs Environment   
+
+> Search/Planning
+> 𝞹 (o | s)
+> Distribution of Tasks
+> Robot Embodiment
+> (Agent) Task-Agnostic-Intents
+> Physical Workspace
+> (Environment) Task-Specific-Intents
+> Affordance Model P(s’|s,o)
+> Task-Agnostic Intents
+> Partial World Model
+> State
+> World Model
+> Distribution Robust Affordances
+> Agent
+> Task-Specific Affordances
+
+Figure 1. Generalizing the concept of affordances to a multi-task setting is achieved by categorizing agent intents as task-agnostic—grounded in the agent’s embodiment, such as a robot’s ability to pick or place objects—and task-specific, which depend on the environment and task distribution. By considering the three primary axes of agent, environment, and task distribution, the interplay between these intents facilitates the emergence of affordances at the boundary of the agent-environment interaction. This framework induces partial world models that effectively generalize across tasks, resulting in provably efficient planning. 
+
+Definition 1 (Temporally Extended Intent Io (Khetarpal et al., 2021)): A temporally extended intent of abstract action o ∈ O , Io : S → Dist (Γ) specifies for each state 
+
+s, a probability distribution over the space of trajectories 
+
+Γ, describing the intended result of executing o in s. The associated intent model (i.e. the intended probability of a trajectory τ when option o is executed from state s) is denoted by PI (τ |s, o ) = Io(s, τ ).
+
+Definition 2 (Degree of intent satisfiability ζ): A tem-porally extended intent Io is satisfied to degree ζ iff 
+
+d(PI (τ |s, o ), P truth (τ |s, o )) ≤ ζ, ∀(s, o, τ )2, where d is a user-specified metric between probability distributions and 
+
+τ denotes the trajectory starting in state s and following the abstract action o. A set of intents I has satisfiability ζ iff all its elements have satisfiability ζ.
+
+Definition 1 describes what an agent expects to happen when it executes an abstract action (e.g. 
+
+pick-up-orange-block ). Rather than defining a sin-gle success state, the intent is a distribution over entire trajectories, allowing variability into how a task might be completed. This view is essential in evaluating whether abstract actions are afforded. An intent is "satisfied" (Def-inition 2)) only when the realized outcome is sufficiently "close" to the true distribution (i.e. true agent-environment specification). 
+
+Definition 3 (ζ-affordance (Khetarpal et al., 2021)): Given a set of temporally extended intents I = S 
+
+> o∈O
+
+Io, a ζ-affordance set is a subset AF I ⊆ S × O , such that 
+
+d(PI (τ |s, o ), P truth (τ |s, o )) ≤ ζ, ∀(s, o ) ∈ AF I .
+
+An affordance is equivalent to a selection of state-action pairs that are likely to achieve corresponding intents (Def-inition 1). For example, the robot hand is right next to the block; if it runs the pick-up-block action, 
+
+> 2
+
+In the context of multi-task setting, Ptruth is the true distribu-tion associated to a specific task Ptruth (·| Ti).
+
+the block ends up in the gripper, the intent is met and 
+
+pick-up-block is an affordance. The robot hand is across the room; if it runs the pick-up-block action, it grabs thin air. The intent (block in hand) is not met, hence 
+
+pick-up-block is not an affordance. Large Language Models (LLMs) are trained to learn a distri-bution of the next tokens conditioned on the contexts from the training data. Interestingly, language generation has been well studied as a sequential decision-making problem and language modeling can indeed be understood as an in-stance of imitation learning (Arora et al., 2022). LLMs have the potential to do well on various reasoning prob-lems (Valmeekam et al., 2022), albeit using reasoning traces generated in an autoregressive manner. They have also been hypothesized to encode knowledge akin to world mod-els (Hao et al., 2023), due to extensive pre-training on vast amounts of human data. In the following section, we leverage LLMs as approximate dynamics world models 
+
+ˆP (s′|s, o ), to predict future states given start state s and an abstract action o. Experimental work will be reported on table top tasks and we assume access to low-level policies for a set of abstract actions. This is departure from prior work (Khetarpal et al., 2020; 2021), where the impact of using affordances to learn partial models was studied in toy domains with hand-designed programs that specified intent-completion functions and learned tabula rasa . The latter is unfeasible in table-top domains, making it an interesting setting for LLMs as partial models in search and planning. 
+
+## 3. Generalized Affordance Framework 
+
+We extend the theoretical framework of affor-dances (Khetarpal et al., 2020) from single-task to multi-task RL. Our approach, illustrated in Fig. 1, centers on three primary axes: the agent defined by the robot embodiment e.g. a robot arm gripper, the environment 
+
+defined by the bounds of the robot’s physical workspace e.g. a table top, and the distribution of tasks . In this setting, 3Affordances Enable Partial World Modeling with LLMs 
+
+sequential decision making tasks are sampled from this distribution T i ∼ T comprising a set of tasks related to each other. Once defined, the distribution is used for plan-ning and evaluation. While affordances are fundamentally a function of both the agent and the environment (Chemero, 2003; Gibson, 1977), this dependency becomes uniquely pronounced in multi-task scenarios, as detailed in the following sections. 
+
+Intents. Formally, we characterize the set of all intents 
+
+I = Iagn ∪ I task in two classes; 1) task-agnostic intents 
+
+Iagn , which are based on an agent’s internal dynamics, e.g. a robot embodiment, whereas, 2) task-specific intents 
+
+Itask captures the set of intents that the environment or the physical workspace poses, depending on the task presented to the agent. Task-agnostic intents are the robot’s basic skills (what it can physically do), and Task-specific intents are specific desiderata in specific context (what it is trying to achieve right now). Task-agnostic intents can be achieved simply because of how the robot is built (its embodiment) and what is physically in front of it. These intents are general because they do not depend on what the specific task is. When the robot sees a red block, the pick up red block 
+
+intent is task-agnostic. It does not matter if the robot’s job today is to build a tower, clean the table, or sort by color. As long as the red block is visible and nothing is on top of it, the robot can pick it up. Task-specific intents depend heavily on the high-level task with a certain reward specification. These actions are usually complex combinations that lead to a high reward but are only afforded (possible/valid) in very specific situations. If a the robot is tasked to 
+
+stack-blocks-while-holding-red-block ,and there is a blue block on the table, 
+
+stack red block on top of blue block intent is task-specific. This action is only meaningful if the current task is build-a-stack . If the task changed to 
+
+put-all-blocks-in-a-box , stacking them might be useless or even wrong.       
+
+> (a) Task Agnostic Intent (b) Task Specific Intent
+> Figure 2. Characterizing intents as task-agnostic and task-specific in the context of multi-task setting . For an agent embod-iment, a task agnostic intent is satisfied to a degree ζacross the entire task distribution as shown on the left, whereas, a task spe-cific intent doesn’t have the same coverage of satisfiability across the task-distribution as its specific to certain tasks only.
+
+Affordances for Multi-Task Setting. We now characterize the set of state-options pairs, namely affordances, that facil-itate the completion of task-agnostic or task-specific intents. Prior research (Khetarpal et al., 2021) has typically ignored the case where we’d need to work with affordances across multiple tasks selected from a fixed distribution. Ideally, affordances would allow the agent to transfer knowl-edge between tasks with shared underlying structure. We extend here the definition to a probabilistic statement regard-ing the satisfiability of particular intents, grounded directly in the sampling distribution for the given tasks. This al-lows us to distinguish between distribution-robust agent affordances , which remain achievable with high probability across diverse task configurations (e.g., grasping an unob-structed block), and task-specific affordances , which may only be satisfied in restricted scenario. For example, in the table-top domain, achieving the intent of grasping a block that has nothing on top should be possible with high probability, consistently across tasks (Fig. 2a), regardless of the block configuration present or desired. However, placing a block inside another one may only be possible in a small number of situations in which there are hollow blocks around of appropriate sizes (Fig. 2b). Intuitively, knowledge that is shared across the distribution facilitates transfer to improve learning speed, whereas task-specific knowledge ensures the agent can maximize value for the current objective. Formally, 
+
+Definition 4 (Distribution-Robust Agent Affordances): 
+
+Given a distribution of tasks Dist (T ), a set of temporally extended intents I = S 
+
+> o∈O
+
+Io, and constants ζ, δ ∈ (0 , 1) ,a ζ-affordance set AF I (see Def. 3) is δ-robust to distribu-tion Dist (T ) iff the probability that the affordance does not satisfy the intent Io to a degree ζ in task T ∼ Dist (T ) is bounded by δ. That is, ∀s, o ∈ AF I
+
+P
+
+
+
+d(PI (τ |s, o, T ), P truth (τ |s, o, T )) ≥ ζ
+
+T ∼ Dist (T )
+
+
+
+≤ δ . 
+
+(1) To illustrate, we refer the reader to Fig. 2, which depicts a task agnostic intent that satisfies Def. 4 grounded in the distribution of tasks, and an intent which doesn’t meet the desired criteria resulting in a task-specific intent. Building on the multi-task affordance formalism, we re-alize generalized framework depicted in Fig. 1, where an agent accesses an imperfect abstract world dynamics model 
+
+P (s′|s, o ). Unlike naive full world models that inefficiently predict over the entire state-action space—often leading to inaccurate Monte-Carlo planning results (Sec. 5.1)—we induce a partial world model to restrict predictions to a relevant subset. We input the current state and a set of 
+
+k pre-defined intents I into an affordance model to yield distribution-robust affordances AF I (Def 4). These affor-dances constrain the world model’s predictions, substan-4Affordances Enable Partial World Modeling with LLMs 
+
+tially reducing the search branching factor and improv-ing action-value estimates for the policy π. While the distribution-robust affordances are relevant across tasks, the agent is implicitly informed of task-specific intents via the reward signal during the subsequent environment interaction.   
+
+> Figure 3. Improvements in affordance model accuracy results in better performance of the search policy. Given a fixed budget for search, a perfect world model, any errors in affordance predic-tion translates to catastrophic failures in the search policy.
+
+Illustration. To demonstrate the utility of the generalized affordance framework, we evaluate the pipeline shown in Fig. 1 on a 3-block stacking task using a simulated robot arm. By employing a perfect world model (the simulator) along-side programmatic affordances derived from task-agnostic intents, we examine how varying the accuracy of affordable actions affects search efficacy. As shown in Fig. 3, higher af-fordance model accuracy directly correlates with improved search policy performance (green star). Conversely, mis-specified affordances lead to catastrophic failures regardless of the world model’s fidelity, particularly under constrained search budgets (red star). This highlights that since af-fordances emerge at the boundary of agent-environment interaction, grounding the agent’s affordance beliefs in an adaptive fashion is critical for robust planning. 
+
+## 4. Theoretical Analysis 
+
+We now provide a theoretical analysis of the multi-task af-fordance framework. In Sec. 4.1, we establish that achieving a set of intents implies the existence of an underlying partial world model through Theorem 1. In Sec. 4.2, we study the efficiency in search enabled by partial world models. We show that at a small price, adapting the model enjoys the potential exponential speedup of the partial model, while being robust to missing intents from the full model. 
+
+4.1. Distribution-Robust Agent Intents induce Partial World Models 
+
+To facilitate the theoretical analysis of our generalized framework, we specialize the class of sequential tasks un-der consideration. We follow the standard formalism for expressing sequential tasks using linear temporal logic, with a focus on three simple types of tasks: i) actions , taking an (abstract) action O = o, ii) outcomes , achieving a de-sired outcome from an action, denoted X(s ∈ g) where 
+
+g ⊆ S , iii) goals , reaching a goal state F (s ∈ g). Here 
+
+X(s ∈ g) requires the desired state(s) s to be reached as an immediate outcome of the previous (abstract) action 
+
+O = o, and F (s ∈ g) requires only that the goal state is reached at some point in the future. For example, stack blocks in r / g / b order, F (S ∈ grgb ). To denote tasks comprising of sequences of these primitives we use angular brackets e.g. T i = ⟨o, X (s), . . . ⟩. See Section B.1 for de-tails. For the purposes of our analysis, we define depth-n tasks (Nangue Tasse et al., 2020). 
+
+Definition 5 (Depth-n tasks): Given a set of abstract actions O and states S, we consider the set of depth-n
+
+tasks T (n) to be the set of tasks T i that can be solved by achieving a sequence of at most n actions, outcomes, or goals e.g. T i = ⟨oi, 0, . . . , o i,m ⟩ where m ≤ n.
+
+Assumption 1. The MDP with transition function P (s′ |
+
+o, s ) is communicating (i.e. there exists a policy that gets you from any one state to any other state in a finite number of steps with non-zero probability) (Bartlett & Tewari, 2012), and there exists a state s such that at least two actions are afforded to the agent. 
+
+To ground this formulation in planning, an agent is said to be a competent planner when it can achieve high depth-n tasks with a high probability. Formally, the optimal planner for depth-n tasks satisfies, 
+
+π∗(o | s, T ) = arg max 
+
+> π
+
+Pπ (τ |= T | s), ∀ s ∈ S , T ∈ T (n),
+
+where Pπ (τ |= T | s) is the probability that the trajectory generated by π from initial state s corresponds to achieving the task T . We can then define an agent’s distribution-robust competence for tasks in line with Def. 4, by choosing the distance metric d(I o(s, τ | T ), P (τ | π, s, T )) to be the dif-ference in probability mass over trajectories that satisfy the task T i ∈ T for the agent, and the corresponding probabil-ity mass for the optimal agent with the same affordance set. We also choose Dist (T ) to be an arbitrary task distribution that includes T (n), and assume there is some upper bound δ
+
+on the probability that the agent violates the ζ-regret bound for any given task T i ∼ T (n) independent of the agent’s performance on any other task T j ∼ T (n).
+
+Definition 6 ((n, ζ, δ )-optimal agent): Given affordances 
+
+AF I (Def. 4), an (n, ζ, δ )-optimal agent is such that 
+
+P (R(πi, T i) ≥ ζ | T i ∼ T (n)) ≤ δ. 
+
+where, πi is the policy of the agent for a depth-n task 
+
+T i ∼ T (n) and 
+
+R(π, T i) := max 
+
+> π′
+
+Pπ′ (τ |= T i) − Pπ (τ |= T i).
+
+5Affordances Enable Partial World Modeling with LLMs 
+
+We can interpret R(π, T i) as the agent’s expected regret for task T i, where the reward function is +1 if the agent achieves the task and 0 otherwise. Therefore, a (n, ζ, δ )-optimal agent describes an agent that is a competent planner to depth n, where the probability the agent violates a ζ-regret bound for any depth-n task is bounded by some δ.
+
+Theorem 1 (Distribution-Robust Affordances induce Par-tial World Models) . Let π be the policy of a determinis-tic (n, ζ, δ )-optimal agent (Def. 6), in an environment sat-isfying Assumption 1. π encodes a partial world model 
+
+ˆPpar (s′ | o, s ), and the worst case error for this world model is bounded by, 
+
+P ( ˆPpar (s′ | o, s ) − P (s′ | o, s )| ≥ ϕ + ϵ) ≤ ρn ϵ 
+
+1 − ρ ,
+
+∀(s, o ) ∈ AF I , where 
+
+ϕ = 12
+
+s
+
+(1 + ζ)
+
+n (1 − ζ) , ρ = 2 pδ(1 − δ) , and ϵ > 0.
+
+Proof is in Appendix B.1. Theorem 1 implies that there is a characteristic scale for the error in the partial world model we can recover from the agent’s policy, given by 
+
+ϕ, which scales with O(n−1/2), but increases rapidly for higher intent mis-specification i.e. ζ close to 1 (where the regret bound becomes very weak). For δ < 1/2 the proba-bility that the error is ϵ larger than the characteristic error 
+
+ϕ decays exponentially in ϵ, with an exponent given by n.From this we conclude that for agents that perform well on a task distribution involving planning over its afforded actions to high depth (n), the agent’s policy encodes an ac-curate partial world model with respect to those afforded actions. Specifically, we can recover a partial world model from the agent’s policy that deviates from the true transition probabilities with an error that decays exponentially. 
+
+4.2. Partial World Models Enable Provably Efficient Search 
+
+We are interested in understanding the increase in search efficiency when using a partial world model Ppar as opposed to a full model Pfull . When sampling from Pfull , the agent considers all n = |O| possible actions, which translates to 
+
+n = |I| intents. Alternatively, sampling from Ppar is based on a predefined set of k task-agnostic and -specific intents from I, all independently achievable and satisfied to degree 
+
+ζ (Def. 1) across a distribution of tasks (Def. 4). In other words, Ppar has access to k = |I par | intents ( Ipar ⊆ I ). 
+
+Assumption 2. The size of the set of task-agnostic agent intents Ipar is finite and much smaller than the number of all possible abstract actions n = |O| to be considered at any state in the search process: k ≪ n.
+
+The appeal of a partial model is due to the potential gi-gantic exponential speedup that can be obtained by greatly reducing the branching factor of complex combinatorial en-vironments: suppose a task can only be solved in the full model by a single specific sequence of L abstract actions, thus having an expected time to success of nL. If this task can also be solved with the k intents of the partial model, the latter would take kL steps to success in expectation. Using Assumption 2, the speed up from the partial model can be so large as to make the intractable task tractable. However, the pre-specified intents might not be perfectly aligned, or worse, if the partial model misses any necessary 
+
+intent to solve any task, the expected number of trials to solve every task by the partial model N par is infinite. To protect against this, we define a corrected partial model 
+
+Pcor which assigns a small probability εcor to account for missing intents from the full model: for each intent Ij ,
+
+Pcor (Ij | εcor )= (1 − εcor ) 1
+
+k JIj ∈ I par K + εcor 
+
+1
+
+n − k JIj /∈ I par K .
+
+Note that setting εcor = 0 recovers the partial model, while 
+
+εcor = ( n − k)/n recovers the full model. Moreover, we develop an adaptive model Pada (see Section B.2) that au-tomatically competes with the optimal εcor for each task , at the cost of a small O(L) factor: 
+
+Theorem 2 (Provably Efficient Search with a Partial Model) .
+
+The expected number of samples necessary for the adaptive corrected partial model to solve every task is at most a factor O(L) of the best corrected model for each task: 
+
+N ada ≤ e(2 L + 3) X
+
+> i≤|T |
+
+1max εcor ∈[0 ,1] Pcor (success i|εcor )
+
+where L is the length of the sampled sequences of intents. 
+
+Proof is in Section B.2. The intuition here is that at the price of a small factor (2 L + 3) e, the adaptive corrected model enjoys the potential exponential speedup of the partial model, while being robust to missing intents from the model. 
+
+## 5. Empirical Illustration: LLM as Partial World Model for Efficient Planning 
+
+To illustrate the concepts empirically, we consider an agent with access to a world dynamics model P (s′|s, o ) repre-sented by a pre-trained text-only large model. 3 Our ap-proach concretizes the general framework depicted in Fig. 1 by leveraging LLMs both for affordances and for world modeling (See Appendix Fig. 5). To bypass the need for manual intent-completion programs and expensive data collection, we leverage an LLM as an affordance model 
+
+> 3We note that our approach is generally applicable to any large model e.g. VLM’s can also be used.
+
+6Affordances Enable Partial World Modeling with LLMs 
+
+Table 1. Inducing a partial model via affordances is more efficient in search, albeit at the cost of induced bias due to affordances in the block arrangement task. Partial models are able to get to the reward in fewer search simulations as compared to a full world model, which does not get to any reward in limited budget of 4 simulations. Results are averaged across 4 independent seeds. Knowledge of affordances as shown here with the oracle baseline results in both, reduced number of MC simulations, and much fewer LLM calls.                                        
+
+> [3 blocks] Method Model MC-Search Score Simulations LLM Calls Steps to Completion
+> Full Model w/ Few Shot Examples PLLM (s′|s, o )0.0>440 .0>10
+> Partial Model (Ours) PAFF-LLM (s′|s, o )3.75 2.75 43 .25 5
+> Partial Model w/ Oracle Affordances POracle-AFF-LLM (s′|s, o )5.02.515 .75 2
+> [5 blocks] Method Model MC-Search Score Simulations LLM Calls Steps to Completion
+> Full Model w/ Few Shot Examples PLLM (s′|s, o )0.087 >440 >10
+> Partial Model (Ours) PAFF-LLM (s′|s, o )0.2239 2.215 40 5
+
+faffordances (st, m ). Given a natural language state repre-sentation st, the LLM generates m affordable actions. These correspond to distribution-robust affordances and induce a partial world model Ppar , denoted as PAf f −LLM (s′|s, o )
+
+in this section. We empirically study; [Q1.] Can LLMs as affordance-aware partial world models lead to improved efficiency in search? (Sec.5.1), and [Q2.] Can we leverage distribution-robust agent affordances to induce useful partial world models across related tasks? (Sec.5.2) We consider a simulated tabletop for long-horizon manipulation tasks using the py-bullet simulator. We investigate block-rearrangement tasks with 3, 5, and 7 blocks to test the agent’s performance as difficulty increases. For each configuration, the agent is tasked with satisfying the high-level task description 
+
+move_blocks_close_to_each_other .
+
+5.1. LMs as partial world models can substantially improve the sample search efficiency 
+
+Given only the high-level language instruction, the task requires multi-step reasoning and planning. We first con-sider the 3-block configuration. We compare three methods, namely 1. Full World Model w/ Few Shot Examples: a pre-trained LLM as a generative world model PLLM (s′|s, o )
+
+prompted with the state s, action a, and few-shot (4 shots) examples to predict the future state s′,2. Partial Model (Ours) : is an induced partial model, where given a state s, first a pre-trained LLM repre-senting faffordances (st, m ) generates m affordable ac-tions, inducing a partial world model PAFF-LLM (s′|s, o )
+
+prompted with only state s, o ∈ AF I , and few-shot (4 shots) examples to predict the future state s′, and 3. Partial Model with oracle affordances : considers our method with programmatically generated ground truth affordances to illustrate the bias induced from pre-specified intents. Based on robot embodiment of a gripper arm task agnostic intents Iagn are specified as natural language description, with the idea of capturing invariance across tasks, resulting in AF I . For e.g. “a block is movable only if that color is present in the current state and when nothing is on top of it.” We show more examples of these prompts in Appendix A.2. We use a simple implementation of Monte-Carlo (MC) sam-pling to build a policy from a world model (Fig. 4). We use the true reward model on each node (i.e. tasks are defined on states). From a real environment state, we expand a search tree using a model. We run 4 simulations, and each simulation expands a new un-visited node (using a random policy over untried actions). Random policy rollouts extend trajectories to at most 10 states (depth), seeking states with reward +10. We assess the likelihood that the model finds rewarding states (i.e. MC average reward ) averaged over multiple independent seeds. Whether modelled successful trajectories match trajectories in real test environment. (i.e. 
+
+online policy evaluation ). When using a partial model, the MC tree is only expanded on affordable actions. In doing so, the search tree focuses modelling resources on trajectories that match predefined task-agnostic intents. R = +10 R = 0 R = 0  
+
+> R = +10 R = 0 R = 0
+
+Figure 4. Monte-Carlo sampling with a partial model considers expanding the tree is only on affordances. However, search with a full model would expand all possible state-action pairs. 
+
+For the 3-blocks tabletop task configuration, we observe in Table 1 that inducing a partial model via affordances 
+
+PAFF-LLM is more efficient in search, albeit at the cost of induced bias due to affordances. Not knowing the pre-cise affordances requires marginally more LLM calls in the than using the perfect knowledge of affordances i.e. 
+
+POracle-AFF-LLM . The number of MC simulations it takes with each method is lower when using a partial model (2.75) 7Affordances Enable Partial World Modeling with LLMs 
+
+Table 2. Distribution-robust agent affordances are robust to related tasks. We report the 1. avg leaf-node Score , 2. avg tree score 
+
+reflecting the quality of the search tree on average across all nodes, 3. avg accumulated reward reflecting the average accumulated reward by running MC-search as open loop policy on states that the model imagined, and 4. Online Policy Evaluation reflects cumulative reward during online policy evaluation for search policy. Search guided with affordance-aware partial models constructs an overall better quality of tree, and results in a better policy for online RL as compared to the full model. Results are averaged across 4 independent seeds with standard deviation in the brackets.                            
+
+> Method Model Avg Leaf-Node Score Avg Tree Score Avg Accumulated Reward Online Policy Evaluation
+> num blocks = 5
+> Full Model with few-shot examples. PLLM (s′|s, o )0.089( ±0.04) 0.089( ±0.04) 0.65( ±1.26) 0.7895( ±0.25)
+> Partial Model (Ours) PAFF-LLM (s′|s, o )0.235( ±0.087) 0.2314( ±0.086) 0.9212( ±0.709) 1.56( ±0.45)
+> num blocks = 7
+> Full Model with few-shot examples. PLLM (s′|s, o )−0.01134( ±0.057) −0.01134( ±0.057) −0.1869( ±0.51) −0.836( ±0.1059)
+> Partial Model (Ours) PAFF-LLM (s′|s, o )0.0180( ±0.12) 0.020( ±0.12) 0.386( ±0.57) 0.2141( ±0.617)
+
+as compared to a full model PLLM (which exhausts the bud-get of > 4 simulations and never reaches a rewarding state with MC Score of 0.0). Besides, our approach also results in a better performing MC policy assessed with online eval-uation in the test environment where it takes 5 steps to task completion on an average as compared to using a full world model (which exhausts the steps to task completion budget of > 10 steps and does not complete the task across all runs). 
+
+Key Insight I: Inducing a partial world model via affordances is more efficient in search, albeit at the cost of induced bias due to affordances (See Table 1). 
+
+5.2. Distribution-robust agent affordances facilitate partial models that improve planning across tasks 
+
+Next, we ask if we can leverage distribution robust agent affordances to induce useful partial world models across related tasks? We study this by increasing the difficulty of the blocks environment with more blocks to be manip-ulated and arranged on the tabletop that requires longer horizon for planning exacerbating the need to guide search as the branching factor increases. We keep the Iagn (see Sec. 3) consistent from previous configuration of 3 blocks in both LLM as the affordance model alongside the full world model PLLM (s′|s, o ), and the partial world model 
+
+PAFF-LLM (s′|s, o ). We report in Table. 2 that with increasing difficulty in task configuration, our approach considerably reduces the branching factor resulting in fewer mcts sim-ulations needed, and higher average accumulated reward during planning. 
+
+Key Insight II: Partial-models informed by distribution-robust agent affordances capture under-lying invariance across tasks resulting in generaliza-tion of search efficiency (See Table 2). 
+
+## 6. Related Work 
+
+Generative models as world models constitute a broad re-search area. Recent works consider pre-training large-scale world models (Yang et al., 2023a). While this is appealing, it is computationally expensive, requiring large amounts of data, compute, resulting in a non-trivial process to pre-train a world model. Moreover, in the presence of large scale knowledge representation in LMs, collecting data online from scratch is non-trivial, simply due to the challenges presented by such approach i.e. sample efficiency or depen-dence on visiting each transition tuple sufficient number of times (e.g. in count-based method). Bruce et al. (2024) proposed to learn a generative interactive model analogous to a simulator, trained on 200k hours of video data, inferring the latent actions between each frame a with the latent action model to predict the next frame. Our approach is complimentary as it can be leveraged to induce a partial model to make predictions on only affordable la-tent actions, thereby reducing hallucinations of unrealistic futures as highlighted in their limitations. Closest to our work, Hao et al. (2023)[RAP] also utilize plug-and-play with LLMs although their focus both in do-mains ( such as blocksworld which considers a PDDL spec-ification of the planning problem) and research question ( such as planning efficacy with full models) is different. For example, their focus in on Math like reasoning tasks, such as GSM8k which are typically i.i.d. in nature. On the contrary, our work is focused on sequential-decision making problems such as long-horizon table top tasks with online on-policy RL. We argue that RAP can be viewed analogous to a full model, as it is limiting the action space by sampling a fixed number of actions as opposed to using generalized affordances. Our approach is complimentary to their work by leveraging distribution-robust affordances that induce partial world models. More recent work (Benechehab et al., 2024) explores using LLM as a transition model, but due to high inference cost, explores a dynamics model as a function of the states alone as opposed to state-action pairs. We note however, that they 8Affordances Enable Partial World Modeling with LLMs 
+
+are not focused on online search and planning, but instead in an offline RL setting. Furthermore, the central focus of our work is the generalized affordance framework which extends prior work (Khetarpal et al., 2021; 2020) from a single task to multi-task perspective. 
+
+## 7. Discussion 
+
+This work generalized the concept of affordances to multi-task setting by delineating task-agnostic and task-specific intents. This perspective explains when and why certain affordances specific to an agent embodiment generalize across tasks, and when they might be task-specific. Our theoretical analysis established that tow findings. First, we identified that agents achieving task-agnostic intents must encode a predictive partial model of the world informed by distribution-robust affordances for a certain task distribution. Second, we showed that while near-perfect partial models enable improved search efficiency, an adaptive corrective model enjoys the potential exponential speed up of the par-tial model, yet being robust to missing intents from the full model. Broadly, our work suggests that while naively us-ing LLMs as world models for planning and search can be highly inefficient, posing them as partial models through in-tents and affordances offers tremendous potential in guiding the search especially in a large action space. Future work requires overcoming the limited nature of specifying task-agnostic intents in the form of prompt en-gineering. One approach that is much more promising in this direction considers program synthesis for intent-completion (Cherif et al., 2025) identifying affordances from trajectories, resulting in coded partial models of the world that can be reused in more complex sequential task set-tings. Another promising direction requires the formalism of affordances to account for dynamic agent morphologies, which is scope for future work. Further, we anticipate more benefits from adapting the agent’s latent representation of the pre-trained world model in light of online experiential data (Silver & Sutton, 2025). 
+
+## Impact Statement 
+
+This work studies how affordances enable partial world mod-els with LLMs. By explicitly modeling the limits of posing LLMs as full world models, our approach aims to find more efficient ways to search for RL agents. We presented work whose goal is to advance the field of Machine Learning. There are many potential societal consequences of our work, none which we feel must be specifically highlighted here. 
+
+## Acknowledgements 
+
+The authors are grateful to David Abel for his thorough and constructive feedback on a draft of this paper, and to Anna Koop and Benjamin Van Roy for their insightful reviews of an earlier version. 
+
+## References 
+
+Abel, D., Barth-Maron, G., MacGlashan, J., and Tellex, S. Toward affordance-aware planning. In First Work-shop on Affordances: Affordances in Vision for Cognitive Robotics , 2014. Arora, K., El Asri, L., Bahuleyan, H., and Cheung, J. C. K. Why exposure bias matters: An imitation learning per-spective of error accumulation in language generation. In 
+
+Findings of the Association for Computational Linguis-tics: ACL 2022 , pp. 700–710, 2022. Bartlett, P. L. and Tewari, A. Regal: A regularization based algorithm for reinforcement learning in weakly commu-nicating mdps. arXiv preprint arXiv:1205.2661 , 2012. Benechehab, A., Hili, Y. A. E., Odonnat, A., Zekri, O., Thomas, A., Paolo, G., Filippone, M., Redko, I., and Kégl, B. Zero-shot model-based reinforcement learning using large language models. arXiv preprint arXiv:2410.11711 ,2024. Bruce, J., Dennis, M. D., Edwards, A., Parker-Holder, J., Shi, Y., Hughes, E., Lai, M., Mavalankar, A., Steiger-wald, R., Apps, C., et al. Genie: Generative interactive environments. In Forty-first International Conference on Machine Learning , 2024. Burda, Y., Edwards, H., Pathak, D., Storkey, A., Darrell, T., and Efros, A. A. Large-scale study of curiosity-driven learning. arXiv preprint arXiv:1808.04355 , 2018. Chemero, A. An outline of a theory of affordances. Ecolog-ical psychology , 15(2):181–195, 2003. Cherif, L., Kondrup, F., Venuto, D., Anand, A., Precup, D., and Khetarpal, K. Cracking the code of action: a genera-tive approach to affordances for reinforcement learning. 
+
+arXiv preprint arXiv:2504.17282 , 2025. Drescher, G. L. Made-up Minds: A Constructivist Approach to Artificial Intelligence . MIT Press, Cambridge, MA, USA, 1991. Fikes, R. E., Hart, P. E., and Nilsson, N. J. Learning and executing generalized robot plans. Artificial Intelligence ,1972. Flesch, T., Juechems, K., Dumbalska, T., Saxe, A., and Summerfield, C. Orthogonal representations for robust 9Affordances Enable Partial World Modeling with LLMs 
+
+context-dependent task performance in brains and neural networks. Neuron , 110(7):1258–1270, 2022. Gibson, J. J. The theory of affordances. Hilldale, USA , 1 (2), 1977. Hafner, D., Pasukonis, J., Ba, J., and Lillicrap, T. Master-ing diverse domains through world models, 2024. URL 
+
+https://arxiv.org/abs/2301.04104 .Hao, S., Gu, Y., Ma, H., Hong, J. J., Wang, Z., Wang, D. Z., and Hu, Z. Reasoning with language model is planning with world model. arXiv preprint arXiv:2305.14992 ,2023. Kakade, S. M. On the sample complexity of reinforcement learning . University of London, University College Lon-don (United Kingdom), 2003. Khetarpal, K., Ahmed, Z., Comanici, G., Abel, D., and Precup, D. What can i do here? a theory of affordances in reinforcement learning. In International Conference on Machine Learning , pp. 5243–5253. PMLR, 2020. Khetarpal, K., Ahmed, Z., Comanici, G., and Precup, D. Temporally abstract partial models. Advances in Neural Information Processing Systems , 34:1979–1991, 2021. Korf, R. E. Learning to Solve Problems by Searching for Macro-operators . PhD thesis, Carnegie Mellon Univer-sity, Pittsburgh, PA, USA, 1983. Nangue Tasse, G., James, S., and Rosman, B. A boolean task algebra for reinforcement learning. Advances in Neural Information Processing Systems , 33:9497–9507, 2020. Pnueli, A. The temporal logic of programs. In 18th an-nual symposium on foundations of computer science (sfcs 1977) , pp. 46–57. ieee, 1977. Richens, J., Abel, D., Bellot, A., and Everitt, T. Gen-eral agents need world models. arXiv preprint arXiv:2506.01622 , 2025. Shin, K., Kwak, H., Kim, W., Jeong, J., Jung, S., Kim, K.-M., Ha, J.-W., and Lee, S.-W. Pivotal role of lan-guage modeling in recommender systems: Enriching task-specific and task-agnostic representation learning, 2023. URL https://arxiv.org/abs/2212.03760 .Silver, D. and Sutton, R. S. Welcome to the era of experi-ence. incompleteideas.net , 2025. Sodhani, S., Zhang, A., and Pineau, J. Multi-task reinforce-ment learning with context-based representations. In 
+
+International conference on machine learning , pp. 9767– 9779. PMLR, 2021. Sutton, R. S. and Barto, A. G. Reinforcement learning: An introduction . MIT press, 2018. Talvitie, E. and Singh, S. P. Simple local models for complex dynamical systems. In Advances in Neural Information Processing Systems , pp. 1617–1624, 2009. Valmeekam, K., Olmo, A., Sreedharan, S., and Kambham-pati, S. Large language models still can’t plan (a bench-mark for llms on planning and reasoning about change). In NeurIPS 2022 Foundation Models for Decision Mak-ing Workshop , 2022. Xi, Z., Chen, W., Guo, X., He, W., Ding, Y., Hong, B., Zhang, M., Wang, J., Jin, S., Zhou, E., et al. The rise and potential of large language model based agents: A survey. 
+
+Science China Information Sciences , 68(2):121101, 2025. Yang, M., Du, Y., Ghasemipour, K., Tompson, J., Schuur-mans, D., and Abbeel, P. Learning interactive real-world simulators. arXiv preprint arXiv:2310.06114 , 2023a. Yang, S., Nachum, O., Du, Y., Wei, J., Abbeel, P., and Schuurmans, D. Foundation models for decision making: Problems, methods, and opportunities. arXiv preprint arXiv:2303.04129 , 2023b. Zhang, X., Ma, Y., and Singla, A. Task-agnostic explo-ration in reinforcement learning. Advances in Neural Information Processing Systems , 33:11734–11743, 2020. 10 Affordances Enable Partial World Modeling with LLMs 
+
+## Appendix A. Additional Empirical Details 
+
+A.1. Details of the Approach Prompt    
+
+> Few-shot examples
+> P(s’|s,o)
+> Affordance Model faffordances (s,m)
+> Task-Agnostic Intents
+> LLM as a Generative World Model PLLM (s’|s,o)
+> Evaluator
+> MCTS/Planning
+> Few-shot examples
+> State
+> 𝞹 (o | s)
+> Full World Model
+> Partial World Model
+> PAFF-LLM (s’|s,o)
+> Distribution of Tasks
+> Robot Embodiment
+> (Agent) Task-Agnostic-Intents
+> Physical Workspace
+> (Environment) Task-Specific-Intents
+> Affordances emerge at the boundary of agent-environment interaction
+
+Figure 5. Our Approach leverages LLMs as partial world models using affordances as depicted here. Affordance-informed partial models are then used to guide MCTS in table top robotics task. We posit LLMs as-is to be generative world models, which we refer to as full world models. Partial Models are induced via affordances generated by LLMs using task-agnostic intents specified in the prompt. 
+
+A.2. Task-Agnostic Intents used in Table 1, Table 2 
+
+1. A block is movable only if that color is present in the current state and when nothing is on top of it. 2. A block placement on x,y coordinates which has an existing block is valid if it exactly matches the coordinates of the existing block in the current state AND if the block color is present in the current state. 3. A block placement on x,y coordinates which has an existing block is valid if it has sufficient overlap with the coordinates of the existing block in the current state AND if the block color is present in the current state. 4. A block placement on x,y coordinates is valid if no other block is present in those coordinates. 
+
+## B. Theoretical Derivations 
+
+B.1. Proof of Theorem 1. Setup. As we are interested in recovering an agent’s partial model across a fixed distribution of tasks i.e. T i ∼ Dist (T ), we consider the tasks which share a common underlying environment. I.e. the transition function is fixed, while the reward function across tasks (and potentially the discount factor) varies. Henceforth, we interchangeably use ‘goals’ or ‘rewards’ in place of ‘tasks’. We consider tasks composed of primitive sub-tasks of the following form, • Actions . The agent takes some desired abstract action o ∈ O .• Outcomes . The last abstract action O = o taken by the agent terminates in some desired state(s) g ⊆ S , denoted 
+
+X(s ∈ g). This can be thought of as the simplest temporally extended intents 1 • Goals . The agent steers the environment into some desired state s ∈ S using the actions afforded to it, over any number of time steps, denoted F (s ∈ g).Here F is the Eventually operator and X is the Next operator defined in linear temporal logic (LTL) (Pnueli, 1977). Abusing notation, T also denotes the LTL expression corresponding to the abstract task T , which evaluates to True if the agent-environment trajectory τ which achives (satisfies) the task specification (denoted τ |= T ) and False otherwise. We are interested in agents that are capable of solving tasks with non-trivial complexity, i.e. consisting of multiple sub-tasks to be performed in a specified order. We denote these sequences of sub-tasks T1, T 2, . . . , T n (Definition 5) using angled brackets ⟨T1, T 2, . . . , T n⟩, to denote the LTL expression that evaluates to true if T1 is satisfied, and then T2, and so on. See (Richens et al., 2025) for the construction of these LTL expressions. 11 Affordances Enable Partial World Modeling with LLMs 
+
+Example. The task ‘move the red block from x to y’ can be expressed as ⟨(O = o), X (s ∈ g)⟩ where o is the abstract action ‘move block (red) from position (x) to position (y)’, and g is the set of environment states where the red block is in position y. Note the sequential nature of this task, which required not only taking the abstract action, but to achieve the desired outcome. This is to account for imperfect affordances, whereby the abstract action O = o may not terminate in the desired state. 
+
+Example. With the aforementioned task, we may want to relax the requirements on the agent, so that it can re-attempt the task if it fails to move the red block to the desired position. E.g. it could pick up the wrong block, or due to imperfect sensorimotor control fail to place the block in the desired location. This may require chaining together different actions depending on outcomes (e.g. if the red block is placed in y′ applying the action ‘move the red block from (y’) to (y)’). This is now a purely outcome-based goal, which the agent can achieve by any valid sequence of actions without a time horizon constraint, and so we can represent it as T = ⟨F (s ∈ g)⟩ where g is all states where a red block is in position y.We also allow for tasks with some ambiguity in how they are solved. For example, there can be multiple goal states whereby reaching any one of them would satisfy the overall task. More generally, there can be multiple sub-tasks—themselves sequential tasks—which are sufficient to achieve the overall task. We can construct specifications for these composite tasks by taking the Boolean OR over sequential tasks T = T1 ∨ T2.
+
+Example. The task of providing dinner could be achieved by (order a delivery THEN collect the delivery) OR (buy groceries THEN prepare a meal THEN serve the meal). This can be expressed as T = T1 ∨ T2 where T1 = ⟨(O =
+
+order delivery ), X (S = delivery collected )⟩ and T2 = ⟨(O = buy groceries ]) , X (S = meal prepared )⟩.Each of these abstract actions must be afforded to the agent, e.g. an agent that has no phone or internet access will not be afforded the abstract action ‘order a delivery’. The tasks we consider consist of sequences of abstract actions, with the task depth n being the maximum number of sub-tasks the agent would have to complete to achieve the overall task (Definition 5). Intuitively, tasks with a higher depth n are more complex as they require a larger number of sub-tasks to be completed, and hence require more planning. For example, if we consider an explicitly model-based agent, tasks with a high depth require more accurate world models compared to e.g. myopic tasks ( n = 1 ), due to compounding errors. Therefore to establish that an agent has an implicit world model, we must assume it is competent at tasks of non-trivial depth n (Definition 6). This is a relaxation of the assumptions on the agent in (Richens et al., 2025) as we do not assume the agent satisfies a strict regret bound for all tasks, but only on average over the task distribution, and relax the regret bound to a soft bound where the agent can violate ζ with some probability. As in (Richens et al., 2025) we also make the simplifying assumptions that the agent follows a deterministic policy. Turning to the environment, Assumption 1 is a standard assumption in MDPs. 
+
+Theorem 1 (Distribution-Robust Affordances induce Partial World Models) . Let π be the policy of a deterministic (n, ζ, δ )-optimal agent (Def. 6), in an environment satisfying Assumption 1. π encodes a partial world model ˆPpar (s′ | o, s ), and the worst case error for this world model is bounded by, 
+
+P ( ˆPpar (s′ | o, s ) − P (s′ | o, s )| ≥ ϕ + ϵ) ≤ ρn ϵ 
+
+1 − ρ ,
+
+∀(s, o ) ∈ AF I , where 
+
+ϕ = 12
+
+s
+
+(1 + ζ)
+
+n (1 − ζ) , ρ = 2 pδ(1 − δ) , and ϵ > 0.
+
+Proof. We use the approach in Sec. 3 to return an estimate ˆP (s′ | o, s ) given π(o | h). Following the proof of Theorem 1 in (Richens et al., 2025), we define the following tasks. Let (s, o ) ∈ AF I→ and let To1 (k, n ) denote task which is a disjunction over all tasks W
+
+> r≤k
+
+W 
+
+> i∈nCr
+
+φ(r, i ) where 
+
+φi(r, n ) := ⟨T0, T 1, T 2, . . . T 1, T ′
+
+> 2
+
+| {z } 
+
+> ntimes
+
+⟩ (2) where the agent i) takes action O = o1 in the first time step ( T0 = ( O = o1)), then transitions eventually to S = s and takes action 
+
+O = a, ( T1 = F (( S = s, O = o1)) ), 12 Affordances Enable Partial World Modeling with LLMs 
+
+ii) transitions next to a goal state which is either S = s′, ( T2 = X(S = s′)) or S̸ = s′, ( T ′ 
+
+> 2
+
+= X(S̸ = s′)), iii) returns eventually to S = s and takes action O = o1, ( T1), and repeats the cycle ii)-iii) a total of n times, with the transition T2 = X(S′ = s) occurring r times and the transition T ′ 
+
+> 2
+
+= X(S̸ = s′) occurring n − r times. I.e. To1 (k, n ) requires the agent to take abstract action O = o1 in state S = s a total of n times, and at most k of these actions should terminate in the state S = s′. Note that n here is the number of times the agent takes O = o in S = s, but the goal depth is 2n + 1 .Consider the task To2 (k, n ) that is identical to To1 (k, n ) except that to achieve the goal the agent must i) initially take action 
+
+O = o2 instead of O = o1 and ii) must terminate in S = s at least k + 1 times. Note we can construct the task To1,o 2 (k, n ) = To1 (k, n ) ∨ To2 (k, n ) for any pair of abstract action o1, o 2 ∈ AF I→ (˜ s) such that o1̸ = o2 (where by assumption at least two such actions exist). As To1 (k, n ) and To2 (k, n ) are mutually exclusive we have, 
+
+P (τ |= To1,o 2 (k, n ) | π, s 0) = P (τ |= To1 (k, n ) | π, s 0) + P (τ |= To2 (k, n ) | π, s 0) (3) and for any π only one of the terms on the right hand side is non-zero. Hence to determine the optimal policy we can evaluate max π P (τ |= To1 (k, n ) | π, s 0) and max π P (τ |= To1 (k, n ) | π, s 0). First we consider the case where δ = 0 (the agent satisfies a strict regret bound for all Ti ∼ Dist (T )). As π is deterministic by assumption, let O = o be the agent’s action at t = 0 . If the agent chooses O = o1 then only To1 (k, n ) can be satisfied and likewise for O = o2, and any other action choice achieves the task with probability 0. 
+
+To1 (k, n ) = W
+
+> r≤k
+
+W 
+
+> i∈nCr
+
+φi(r, n ) and all φi(r, n ), φ j (r′, n ) are mutually exclusive, i.e. for r̸ = r′ or i̸ = j, τ |=
+
+φi(r, n ) = ⇒ τ̸ |= φj (r′, n ) and vice versa, and hence, 
+
+P (τ |= To1 (k, n ) | π, s 0) = X
+
+> rnCr
+
+X
+
+> i=1
+
+P (τ |= φi(r, n ) | π, s 0) (4) and by Lemma 6 in (Richens et al., 2025) the maximum probability that this goal can be satisfied is given by, 
+
+max  
+
+> π
+
+P (τ |= To1 (k, n ) | π, s 0) = 
+
+> k
+
+X
+
+> r=0
+
+Pn(X = r) = Pn(X ≤ k) (5) where 
+
+Pn(X = r) := n!(n − r)! r! Pss ′ (a)r (1 − Pss ′ (a)) n−r (6) is the binomial probability mass function and Pn(X ≤ k) is the cumulative distribution function. Likewise if the agent chooses the initial action o2 (pursuing To2 (k, n )), it can achieve this task with maximum probability, 
+
+max  
+
+> π
+
+P (τ |= To2 (k, n ) | π, s 0) = 
+
+> n
+
+X
+
+> r=k+1
+
+Pn(X = k) = Pn(X > k ) (7) If the initial action is neither o1 nor o2 then the agent achieves task To1,o 2 (k, n ) with probability zero. Therefore, for an agent satisfying a ζ regret bound the optimal agent’s policy π(o | s0; To1,o 2 (k, n )) witnesses the following inequalities, depending on its choice of abstract action o1 or o2,
+
+O = o1 =⇒ Pn(X ≤ k) ≥ Pn(X > k ) − ζ (8) 
+
+O = o2 =⇒ Pn(X > k ) ≥ Pn(X ≤ k) − ζ (9) 
+
+O̸ ∈ { o1, o 2} =⇒ max {Pn(X ≤ k), P n(X > k )} ≤ ζ (10) For ζ < 1/2 we can ignore (10) as Pn(X > k ) = 1 − Pn(X ≤ k) so one of these terms must be larger than ζ.For ease of notation we denote Pss ′ (a) = p. The median of the binomial distribution X = m is an integer 0 ≤ m ≤ n that satisfies np − 1 ≤ m ≤ np + 1 . For ζ = 0 we can exactly determine the median by varying k and finding the unique value for which k∗ such that Pn(X > k ∗ − 1) ≥ Pn(X ≤ k∗ − 1) and Pn(X ≤ k∗) ≥ Pn(X > k ∗), yielding k∗ = m.13 Affordances Enable Partial World Modeling with LLMs 
+
+For ζ > 0 we can no longer determine the median with certainty, but can bound its value. Using P (X > k ) = 1 −P (X ≤ k)
+
+and P (X > k − 1) = P (X ≥ k), and (8) and (9) yields, 
+
+O = o1 =⇒ Pn(X ≤ k) ≥ 1 − ζ
+
+2 (11) 
+
+O = o2 =⇒ Pn(X ≥ k) ≥ 1 − ζ
+
+2 (12) (13) Let k = m− be the largest value of k for which O = o1, and k = m+ be the smallest value of k such that O = o2. The true median m must lie between these values. These yield the tightest bounds, 
+
+O = o1 =⇒ Pn(X ≤ m−) ≥ 1 − ζ
+
+2 (14) 
+
+O = o2 =⇒ Pn(X ≥ m+) ≥ 1 − ζ
+
+2 (15) Applying the upper tail Chebyshev inequality Pn(X ≥ μ + tσ ) ≤ 1/(1 + t2) with m+ = μ + tσ to (15) and using μ = np ,
+
+σ2 = np (1 − p) yields, 
+
+m+ − μ ≤ σ
+
+s
+
+1 + ζ
+
+1 − ζ (16) and likewise for the lower tail Chebyshev bound applied to (14) we recover, 
+
+μ − m− ≤ σ
+
+s
+
+1 + ζ
+
+1 − ζ (17) For δ = 0 these bounds would allow us to recover bounds on μ (and hence p) as done in (Richens et al., 2025), as the lowest value of k such that the agent’s policy returns O = o2 for task To1,o 2 (k, n ) must lie between m− and m+, yiedling in a bounded error estimate for the median. However, for δ > 0 by Definition 6 for any given task Ti there is a probability of at most δ that the agent’s policy violates the ζ regret bound, and so the agent may return O = o2 for k < m − or O = o1 for 
+
+k > m +, albeit with probability at most δ.Let f (k, n ) ∈ { 0, 1} ∀ k ∈ 1, . . . , n be an indicator variable for the action returned by the agent’s policy for task To1,o 2 (k, n ),where for a given k, n we have O = o1 → f (k, n ) = 0 and O = o2 → f (k, n ) = 1 . To estimate the median we fit a step function F (ˆk) which predicts F (k) = 0 ∀ k ≤ ˆk else F (k) = 1 . The error of this model at reproducing f (k) is, 
+
+E(ˆk, n ) = 
+
+> ˆk
+
+X
+
+> k=1
+
+f (k) + 
+
+> n
+
+X
+
+> k=ˆk+1
+
+(1 − f (k)) (18) We will take ˆk := arg min error (ˆk, n ) to be our estimate of the median, and derive an upper bound on the expected error 
+
+|ˆk − m|. Our aim is to determine a probabilistic lower bound on the value of ˆk. Hence, we can consider the case where we set f (k ≥ m−) = 1 , as this can only reduce the value of ˆk. For all k < m −, we can only have f (k) = 1 if the agent’s policy violates the ζ regret bound, which by Definition 6 occurs for each such k independently with a probability at most 
+
+δ. Therefore we can set P (f (k) = 1) = δ for all k < m −, as this is maximizing the probability of f (k) = 1 for k < m −
+
+which reduces the value of ˆk. In this case the ˆk is given by (18) but replacing n with m−.Let y(k) = 2 f (k) − 1, yielding E[Y (k)] = 1 − 2δ. Let E(0) be the error for the model that predicts f (k) = 1 for all k. We can express the error E(k) = E(k, m −) as a telescoping sum, 14 Affordances Enable Partial World Modeling with LLMs 
+
+E(k) = E(0) + 
+
+> m−
+
+X
+
+> i=1
+
+(E(k) − E(k − 1)) (19) 
+
+= E(0) + 
+
+> m−
+
+X
+
+> i=1
+
+Yi (20) Let S(k) = Pm− 
+
+> i=1
+
+Yi be a random walk with drift μ = E[Yi] = 1 − 2δ. As E(0) is a constant offset, ˆk =arg min 0≤k≤m− E(k) = arg min 0≤k≤m− S(k), and so minimizing E(k) is equivalent to minimizing S(k). We can therefore derive a worst case probabilistic lower bound on ˆk by deriving a similar bound for the minimum of the ran-dom walk Sk. We desire a bound on the event A = {ˆk ≤ m− − ∆} where ∆ > 0. A implies a weaker condition 
+
+B = {min 0≤k≤m−−∆ Sk ≤ Sm− }, therefore if we bound the probability of B we upper bound the probability of A. Using 
+
+P (B) = P (min 0≤k≤m−−∆[Sk ≤ Sm− ]) = P (max 0≤k≤m−−∆[( Sm− − Sk) ≥ 0]) . For Sm− − Sk = Pm− 
+
+> i=k+1
+
+Yi and 
+
+Yi are iid, this is equal to a sum over m− − k iid Bernoulli variables, and the number of terms in the sum ranges from 
+
+m− (for k = 0 ) to ∆. We can therefore replace this sum with Wl := Plj=1 Y ′ 
+
+> j
+
+with l ranging from ∆ to m−, yielding 
+
+P (B) = P (max ∆≤l≤m− [Wl ≥ 0]) = P (Sm−
+
+> l=∆
+
+[Wl ≥ 0]) . Applying the union bound gives P (B) ≤ Pm− 
+
+> l=∆
+
+P (Wl ≥ 0) .Next, we can upper bound P (Wl ≥ 0) using the Chernoff bound to give, 
+
+P (Wl ≥ 0) ≤ inf  
+
+> s> 0
+
+E[esW l ] = inf  
+
+> s
+
+E[es lP
+
+> i=1
+> Yi
+
+] = inf  
+
+> s
+
+E[esY ]l (21) Using E[esY ] = (1 − δ)e−s + δe s and minimizing w.r.t s gives, 
+
+P (Wl ≥ 0) ≤
+
+
+
+2pδ(1 − δ)
+
+l
+
+(22) for δ < 1/2. Finally, we can determine a probabilistic upper bound, 
+
+P (ˆk ≤ m− − ∆) ≤
+
+> m−
+
+X
+
+> l=∆
+
+P (Wl ≥ 0) ≤
+
+> m−
+
+X
+
+> l=∆
+
+
+
+2pδ(1 − δ)
+
+l
+
+(23) Letting ρ := 2 pδ(1 − δ) the sum over this geometric series gives, 
+
+P (ˆk ≤ m− − ∆) ≤ ρ∆ 1 − ρm−−∆
+
+1 − ρ
+
+!
+
+≤ ρ∆
+
+1 − ρ (24) We can repeat these steps for deriving an upper bound to ˆk as a deviation from m+, and (by symmetry) arrive at 
+
+P (ˆk ≥ m+ + ∆) ≤ ρ∆
+
+1 − ρ (25) Finally, using the (identical) upper bounds for m± given by (16) we recover, 
+
+P (|ˆk − np | ≥ σ
+
+s
+
+1 + ζ
+
+1 − ζ + ∆) ≤ ρ∆
+
+1 − ρ (26) Finally, using ˆp = ˆk/n as our estimate for p, and σ = pnp (1 − p) yields a probabilistic error bounds, 15 Affordances Enable Partial World Modeling with LLMs 
+
+P (|ˆp − p| ≥ ϕ + ϵ) ≤ ρn ϵ 
+
+1 − ρ (27) where 
+
+ϕ =
+
+s
+
+p(1 − p)(1 + ζ)
+
+n(1 − ζ) (28) and where we have defined ϵ := ∆ /n , and ϵ ∈ [0 , 1] . Finally, we relax the bound using p(1 − p) ≤ 1/4 to give a simpler expression. 
+
+B.2. Adaptive Corrected Model and Proof of Theorem 2. 
+
+Let us consider a single task Ti. We use a Las Vegas algorithm (Monte Carlo with restarts until success) over sequences of intents of length L. If the terminating reward is received before or when all L intents are fully performed, the task terminates with success, otherwise the sequence has failed and another sequence is sampled until success. In a sampled sequence (a trial), each intent is sampled uniformly and independently of the past. That is, the probability of any intent Ij for the full model is Pfull (Ij ) = 1 /n . For the partial model it is Ppar (Ij ) = 1 /k if Ij ∈ I par , 0 otherwise. Hence, each sequence has a probability n−L to be sampled for the full model, and k−L for the partial model. For any single trial, the success probability for the full model is 
+
+Pfull (success i)= X
+
+> I1...I L∈I L
+
+P (success i | I1 . . . I L)Pfull (I1 . . . I L)= X
+
+> I1...I L∈I L
+
+P (success i | I1 . . . I L)Pfull (I1) × · · · × Pfull (IL)= n−L X
+
+> I1...I L∈I L
+
+P (success i | I1 . . . I L)
+
+and it is well known that the expected number N full  
+
+> i
+
+of trials before success on task Ti is 
+
+N full  
+
+> i
+
+= 1
+
+Pfull (success i) = nL
+
+P 
+
+> I1...I L∈I L
+
+P (success i | I1 . . . I L)
+
+The expected number of trials necessary to solve every task is 
+
+N full = X
+
+> i≤|T |
+
+N full  
+
+> i
+
+= nL X
+
+> i≤|T |
+
+1
+
+P 
+
+> I1...I L∈I L
+
+P (success i | I1 . . . I L)
+
+We assume that every task can be solved in finite time by the full model. Similarly, for the partial model the expected number N par of trials to solve every task is 
+
+N par = kL X
+
+> i≤|T |
+
+1
+
+P 
+
+> I1...I L∈I L
+> par
+
+P (success i | I1 . . . I L)
+
+Since in general k ≪ n, if the intents of the partial model have a good enough coverage to solve all tasks, the potential speedup of (n/k )L compared to the full model can be gigantic. But if the partial model misses any necessary intent to solve any task, N par is infinite. Even with all the necessary intents to ensure that each task can be solved, it may still miss 
+
+important intents that could help to solve tasks much faster. To avoid this, we define a corrected partial model which assigns a small probability to use missing intents from the full model: For each intent Ij ,
+
+Pcor (Ij | εcor ) = (1 − εcor ) 1
+
+k JIj ∈ I par K + εcor 
+
+1
+
+n − k JIj /∈ I par K
+
+16 Affordances Enable Partial World Modeling with LLMs 
+
+Observe that setting εcor = 0 recovers the partial model, while εcor = ( n − k)/n recovers the full model. Therefore, for a fixed εcor , and for a given sequence of intents J = I1 . . . I L, the probability of success of the corrected model for task Ti, where mJ ≤ L of the intents come exclusively from the full model ( mJ is the number of ‘mistakes’), is 
+
+Pcor (success i|εcor ) = X
+
+> J=I1...I L∈I L
+
+P (success i | J) Y 
+
+> Ij∈J
+
+Pcor (Ij | εcor )= X
+
+> J∈I L
+
+P (success i | J)
+
+ 1 − εcor 
+
+k
+
+L−mJ  εcor 
+
+n − k
+
+mJ
+
+.
+
+But how do we set εcor ? We can at least define the optimal εcor ∗ 
+
+> i
+
+for each task i:
+
+εcor ∗ 
+
+> i
+
+= arg max 
+
+> εcor ∈[0 ,1]
+
+Pcor (success i | εcor ) ,
+
+but in general εcor ∗ 
+
+> i
+
+is not known. So we construct an adaptive corrected model that is competitive within a factor (2 L + 3) e
+
+with the optimal εcor ∗ 
+
+> i
+
+for each task i: Before sampling a sequence of L intents, we sample m ∈ { 0, . . . , 2L + 2) } with uniform probability P (m) = 1 /(2 L + 3) , and we set εcor = m/ (2 L + 2) . The probability of an intent (given m) for this adaptive model is 
+
+Pada (Ij | m) = Pcor 
+
+
+
+Ij | εcor = m
+
+2L + 2 
+
+
+
+.
+
+For a given sequence of intents J = I1 . . . I L, the probability of success of the adaptive model for task Ti is 
+
+Pada (success i) = X
+
+> J=I1...I L∈I L
+> 2L+2
+
+X
+
+> m=0
+
+12L + 3 P (success i | J) Y 
+
+> Ij∈J
+
+Pcor 
+
+
+
+Ij | εcor = m
+
+2L + 2 
+
+
+
+(29) 
+
+= 12L + 3 
+
+X
+
+> J∈I L
+> 2L+2
+
+X
+
+> m=0
+
+P (success i | J)
+
+ 1 − εcor 
+
+k
+
+L−mJ  εcor 
+
+n − k
+
+mJ
+
+, εcor = m
+
+2L + 2 . (30) 
+
+Lemma 1. For each task i ≤ |T | , there exists an m ∈ { 0.. 2L + 2 } such that for every sequence J ∈ I L,
+
+Y 
+
+> Ij∈J
+
+Pcor (Ij | εcor = εcor ∗ 
+
+> i
+
+) ≤ e × Y 
+
+> Ij∈J
+
+Pcor 
+
+
+
+Ij | εcor = m
+
+2L + 2 
+
+
+
+.
+
+Proof. Rename ε∗ = εcor ∗ 
+
+> i
+
+and ε = m/ (2 L + 2) . Then 
+
+X 
+
+> Ij∈J
+
+ln Pcor (Ij | εcor = εcor ∗ 
+
+> i
+
+)
+
+Pcor 
+
+
+
+Ij | εcor = m
+
+> 2L+2
+
+ = ( L − mJ ) ln 1 − ε∗
+
+1 − ε + mJ ln ε∗
+
+ε .
+
+Case ε∗ ≤ 1/2. Choose m = min {m ∈ { 0.. 2L + 2 } : m 
+
+> 2L+2
+
+≥ ε∗}, that is m = ⌈(2 L + 2) ε∗⌉. Then, first, ε =
+
+m/ (2 L + 2) ≥ ε∗ by definition of m and thus ε∗/ε ≤ 1. Second, 
+
+ε = ⌈(2 L + 2) ε∗⌉
+
+2L + 2 ≤ ε∗ + 12L + 2 ,
+
+and thus, 
+
+1 − ε∗
+
+1 − ε ≤ 1 − ε∗
+
+1 − ε∗ − 1/(2 L + 2) = 1 + 1/(2 L + 2) 1 − ε∗ − 1/(2 L + 2) = 1 + 1(1 − ε∗)(2 L + 2) − 1 ≤ 1 + 1
+
+L ,
+
+where we used ε∗ ≤ 1/2 on the last inequality. Therefore, for every sequence J ∈ I L, using ln(1 + x) ≤ x,
+
+X 
+
+> Ij∈J
+
+ln Pcor (Ij | εcor = εcor ∗ 
+
+> i
+
+)
+
+Pcor 
+
+
+
+Ij | εcor = m
+
+> 2L+2
+
+ ≤ (L − mJ ) ln 
+
+
+
+1 + 1
+
+L
+
+
+
++ mJ ln 1 ≤ 1 .
+
+Exponentiating finishes the proof for this case. 
+
+Case ε∗ > 1/2. Similar as Case ε∗ ≤ 1/2 but choosing instead m = max {m ∈ { 0.. 2L + 2 } : 1 − m 
+
+> 2L+2
+
+≥ 1 − ε∗}.17 Affordances Enable Partial World Modeling with LLMs 
+
+Theorem 2 (Provably Efficient Search with a Partial Model) . The expected number of samples necessary for the adaptive corrected partial model to solve every task is at most a factor O(L) of the best corrected model for each task: 
+
+N ada ≤ e(2 L + 3) X
+
+> i≤|T |
+
+1max εcor ∈[0 ,1] Pcor (success i|εcor )
+
+where L is the length of the sampled sequences of intents. Proof. Applying Lemma 1 to Equation (29), and dropping all m ∈ { 0.. 2L + 2 } from the sum except the one satisfying Lemma 1 we obtain that 
+
+Pada (success i) ≥ 1
+
+e(2 L + 3) 
+
+X
+
+> J∈I L
+
+P (success i | J)
+
+ 1 − εcor ∗
+
+> i
+
+k
+
+L−mJ  εcor ∗
+
+> i
+
+n − k
+
+mJ
+
+= 1
+
+e(2 L + 3) max 
+
+> εcor ∈[0 ,1]
+
+X
+
+> J∈I L
+
+P (success i | J)
+
+ 1 − εcor 
+
+k
+
+L−mJ  εcor 
+
+n − k
+
+mJ
+
+= 1
+
+e(2 L + 3) max  
+
+> εcor ∈[0 ,1]
+
+Pcor (success i | εcor ) ,
+
+where the last line is by definition of εcor ∗ 
+
+> i
+
+. The result follows by considering the expected time to success for task i and summing over all tasks. 18

@@ -1,0 +1,818 @@
+Title: WARM-CAT: : Warm-Started Test-Time Comprehensive Knowledge Accumulation for Compositional Zero-Shot Learning
+
+URL Source: https://arxiv.org/pdf/2602.23114v1
+
+Published Time: Fri, 27 Feb 2026 02:24:15 GMT
+
+Number of Pages: 16
+
+Markdown Content:
+1
+
+# WARM-CAT : Warm-Started Test-Time Comprehensive Knowledge Accumulation for Compositional Zero-Shot Learning 
+
+Xudong Yan, Songhe Feng, Jiaxin Wang, Xin Su, Yi Jin 
+
+Abstract —Compositional Zero-Shot Learning (CZSL) aims to recognize novel attribute-object compositions based on the knowledge learned from seen ones. Existing methods suffer from performance degradation caused by the distribution shift of label space at test time, which stems from the inclusion of unseen compositions recombined from attributes and objects. To overcome the challenge, we propose a novel approach that accumulates comprehensive knowledge in both textual and vi-sual modalities from unsupervised data to update multimodal prototypes at test time. Building on this, we further design an adaptive update weight to control the degree of prototype adjustment, enabling the model to flexibly adapt to distribution shift during testing. Moreover, a dynamic priority queue is introduced that stores high-confidence images to acquire visual prototypes from historical images for inference. Since the model tends to favor compositions already stored in the queue during testing, we warm-start the queue by initializing it with training images for visual prototypes of seen compositions and generating unseen visual prototypes using the mapping learned between seen and unseen textual prototypes. Considering the semantic consistency of multimodal knowledge, we align textual and visual prototypes by multimodal collaborative representation learning. To provide a more reliable evaluation for CZSL, we introduce a new benchmark dataset, C-Fashion, and refine the widely used but noisy MIT-States dataset. Extensive experiments indicate that our approach achieves state-of-the-art performance on four benchmark datasets under both closed-world and open-world settings. The source code and datasets are available at https://github.com/xud-yan/WARM-CAT. 
+
+Index Terms —Compositional zero-shot learning, composition-ality, test-time adaptation, label space shift. 
+
+I. I NTRODUCTION 
+
+# COMBINING existing concepts to understand and recog-nize novel compositions embodies a fundamental aspect of human intelligence [1]–[3]. Even for compositions that have never been encountered, such as wilted sunflower 
+
+or ivory wolf , humans can effortlessly infer their appear-ance by recombining known attributes and objects drawn from prior experience. This capability reflects the broader principle of compositionality and generalization, through which a lim-ited set of primitives ( i.e., attributes and objects) supports an expansive range of conceptual compositions [4]–[6]. Motivated 
+
+Xudong Yan, Songhe Feng, Jiaxin Wang, Xin Su, and Yi Jin are with the School of Computer Science and Technology, Beijing Jiaotong University, Beijing 100044, China (e-mail: xud yan@bjtu.edu.cn; shfeng@bjtu.edu.cn; jiax-wang@bjtu.edu.cn; xinsue@bjtu.edu.cn; yjin@bjtu.edu.cn) Manuscript received December 19, 2025; Corresponding author: Songhe Feng. Test Image   
+
+> Wrong Prediction
+> Distribution
+> Textual
+> Prototypes
+> Visual
+> Prototypes Visual
+> Encoder
+> Inference Based on
+> Multimodal Prototypes  Right Prediction
+> Distribution
+> Test Image
+> Visual
+> Encoder
+> Text
+> Encoder
+> ...
+> old cat
+> huge dog
+> young cat
+> ...
+> Text
+> Encoder
+> old cat
+> huge dog
+> young cat
+> ...
+> Seen
+> Unseen
+> Priority Queue
+> ...
+> huge dog old cat young cat
+> old dog
+> ...
+> red pear
+
+⊗a photo of 
+
+> a photo of
+> M
+
+Fig. 1. At test time , existing methods ( top ) fail to adapt using test images, resulting in biased prediction distributions due to label space shift. By contrast, WARM-CAT ( bottom ) progressively accumulates multimodal knowledge from unsupervised test data, enabling effective adaptation to address this challenge. 
+
+by this core aspect of human intelligence, Compositional Zero-Shot Learning (CZSL) has emerged to learn representations of attributes and objects from seen attribute-object pairs and leverage the knowledge to recognize unseen compositions [7]– [11]. Beyond its conceptual appeal, CZSL addresses a practical challenge in visual recognition: categories defined as holistic units scale poorly under combinatorial growth, while attributes and objects recur across contexts and can be reused in a com-positional manner [7]. By modeling this structure explicitly, CZSL alleviates the dependence on exhaustive annotations and improves robustness under increasingly novel attribute–object configurations. Traditional CZSL approaches can be broadly divided into two main streams based on whether attribute–object pairs are disentangled in the visual space. One main stream aims at learning representations of compositions by aligning im-ages and textual labels in a shared space, and predicting compositions with the lowest distance [12]–[14]. The other stream concentrates on disentangling visual representations of compositions and predicting individual primitives separately to reduce composition learning into primitive learning since both seen and unseen compositions inherently share the same attributes and objects [15]–[17]. Recently, benefiting from 
+
+0000–0000/00$00.00 © 2021 IEEE 
+
+> arXiv:2602.23114v1 [cs.CV] 26 Feb 2026 2
+
+the impressive multimodal representational abilities of large pre-trained vision-language models (VLMs) like CLIP [18], there have been further significant advancements in CZSL [19]–[21]. These methods employ the prompt tuning tech-nique [22], i.e., replacing the hard prompt like ” a photo of [attribute] [object] ” with learnable soft prompt tokens to align images and textual composition labels, thereby fine-tuning VLMs to better suit the CZSL task. While these pioneering methods have achieved significant progress, they fail to address the performance degradation due to the distribution shift of label space at test time. Specifically, models are assigned to identify unseen attribute-object com-positions that are absent during training. This pattern leads to a mismatch between the learned and actual test-time label distribution, bringing about inaccurate predictions and poor generalization. The key reason why the above issue has yet to be effectively addressed lies in the fact that the model parameters and class prototypes are frozen after training, preventing the model from leveraging the test data to adapt towards the new distribution. However, in more real-world scenarios, an outstanding intelligent system should continuously accumulate knowledge and thus overcome distribution changes after deployment by utilizing the unlabeled data provided through user interactions during the testing phase. In CZSL, the following three as-pects should be taken into consideration when using test-time unsupervised data to adjust the model: (1) Accumulation. 
+
+The process of observing test-time images can be regarded as a form of knowledge accumulation, rather than a complete adaptation to unseen compositions at the cost of forgetting knowledge of seen compositions learned during training [23], [24]. (2) Knowledge Comprehensiveness. Existing methods treat compositions encoded by the text encoder of VLMs as textual-modal prototypes, and predict compositions by com-puting similarity between the visual features of images and prototypes. However, they overlook the potential of utilizing visual information from the historical images encountered at test time. (3) Efficiency. Considering the practical scenario of interaction with users, the method should be time-efficient with low latency [24], [25]. To this end, we propose a Warm-st AR ted test-ti Me
+
+Comprehensive knowledge Accumula Tion ( WARM-CAT ) ap-proach for CZSL, a novel framework that leverages multi-modal knowledge of unlabeled data at test time to overcome label distribution shift, as illustrated in Fig. 1. During the test phase, we keep the textual-modal prototypes frozen and pro-gressively learn a Knowledge Accumulation Module (KAM) for prototype adjustment to bridge the label distribution gap with the continual influx of test samples. Subsequently, we determine the extent to which KAM updates the prototypes by employing a designed adaptive update weight strategy, based on similarities between the image and the prototypes. To take full advantage of the visual knowledge from previously seen images, WARM-CAT maintains a dynamic priority queue to store high-confidence images for each class. Since the model tends to predict compositions that already exist in the priority queue during testing, we warm-start the queue by initializing it with training images of seen compositions. Then, we propose to apply the mapping relationship learned between seen and unseen textual prototypes to the visual prototypes of seen compositions to generate virtual visual prototypes for unseen compositions. Building on this, visual-modal prototypes are constructed from the images stored in the queue and are dynamically updated–similarly to the textual counterpart–by visual KAM with higher-confidence images enqueued. As testing progresses, the textual and visual prototypes are up-dated by the entropy minimization objective [26], [27], and are jointly used to facilitate composition recognition under the new label distribution. In addition, given the inherent semantic interdependence between multimodal knowledge, we align textual and visual prototypes by multimodal collaborative representation learning. For evaluating CZSL, the fashion domain epitomizes the need for compositional reasoning, as novel styles arise from compositions of clothing categories and fine-grained visual attributes such as color, material, and pattern. However, suit-able benchmarks for this domain remain conspicuously absent, despite its central role in online shopping and recommen-dation systems. To fill this gap, we construct C-Fashion, a compositional reasoning dataset built upon FashionIQ [28]. In addition, since the widely used MIT-States [29] suffers from substantial noise, with about 70% of its labels being incorrect [9], [30], [31], we clean and refine this dataset for fairer evaluation. We further propose evaluation metrics tailored to long-tailed distributions in CZSL and conduct a systematic analysis of existing methods under this setting. Extensive experiments on four benchmark datasets ( i.e., UT-Zappos [32], our newly proposed C-Fashion, C-GQA [12], and the refined MIT-States ∗) demonstrate that our WARM-CAT outperforms the state-of-the-art by significant margins in both closed-world and open-world settings (Sec. III-A). In summary, the contributions of our work are five-fold:  
+
+> •
+
+We propose WARM-CAT, a novel framework that accumu-lates multimodal knowledge and updates prototypes from unlabeled data at test time to bridge the label distribution shift. To the best of our knowledge, we are the first to leverage unsupervised data at test time to improve model performance in CZSL.  
+
+> •
+
+WARM-CAT adopts a priority queue that stores historical high-confidence images to calculate visual prototypes and adaptively updates multimodal prototypes by knowledge accumulation modules.  
+
+> •
+
+We propose a new benchmark dataset C-Fashion for com-positional reasoning in fashion domain, and refine the noisy dataset MIT-States.  
+
+> •
+
+We introduce novel evaluation metrics to assess CZSL under long-tailed distributions and present a systematic analysis of existing methods.  
+
+> •
+
+Extensive experiments conducted on four benchmark datasets demonstrate that our WARM-CAT achieves state-of-the-art performance in both closed-world and open-world settings. This paper significantly extends our preliminary work [33] published in NeurIPS 2025 in many aspects. In this extended version, several substantial improvements are concluded here: 3
+
+1) We warm-start the priority queue by initializing it with images of seen compositions, and by generating virtual unseen visual prototypes through the mapping relationship learned between seen and unseen textual prototypes, thereby prevent-ing the model from being biased towards the compositions of historical images. 2) We propose a new benchmark dataset C-Fashion, filling the gap of CZSL task lacking fashion domain benchmark. 3) A refined version of MIT-States is provided by relabeling the images, resulting in a more reliable benchmark for CZSL evaluation. 4) We introduce new evaluation metrics designed for assessing CZSL under long-tailed distributions and provide a comprehensive analysis of current baseline methods. These extensions enhances the model’s stability, ensures fairer comparisons, and enables more comprehensive experiments and in-depth analysis. II. R ELATED WORK 
+
+Compositional Zero-Shot Learning (CZSL). CZSL re-quires the model to recognize unseen compositions with the attribute and object knowledge learned from seen composi-tions. Prior works can be broadly categorized according to whether attribute–object pairs are disentangled in the visual space. On the one hand, composition-based approaches model the intrinsic interactions between attributes and objects without separating their visual contributions [7], [8], [12]–[14], [34]. These methods typically embed images and textual compo-sitions into a shared space. AttOp [34] encodes attribute-induced transformations of objects and imposes constraints such as inverse consistency, commutativity, and antonym re-lations. SymNet [10] enforces symmetry by jointly using a disentangling and a coupling module, allowing it to apply and remove attributes in a consistent manner. Graph-based approaches further build relational structures among prim-itives and compositions, leveraging graph neural networks to propagate information from seen to unseen nodes [12], [13], [35]. On the other hand, vision-disentangling approaches explicitly learn primitive-level visual representations to reduce composition learning into primitive learning since both seen and unseen compositions inherently share the same attributes and objects [15], [36]–[40]. These methods align attribute and object embeddings in separate visual spaces before re-combining them. Representative directions include conditional attribute modeling based on object identity [38], attention-based control of primitive interactions [17], [41], triplet-based learning using informative image triplets [16], [31], [37], and domain-invariance constraints applied to embeddings or gradients [30], [42]. Rather than learning image-composition association from scratch, recent approaches have increasingly shifted focus to exploiting the multimodal representational capacity of VLMs ( e.g., CLIP [18]) for CZSL [19]–[21], [43], [44]. Troika [21] exploits multi-path paradigm and cross-modal traction modules to jointly model attributes, objects, and compositions. CDS-CZSL [44] leverages context-based diversity-driven specificity learning to prioritize specific at-tributes with richer information. ClusPro [45] learns multiple clustering-based prototypes for each attribute primitive, dy-namically discovering and updating them via within-primitive clustering. PLO [46] employs a pre-trained LLM to generate progressive visual cues and uses them to guide CLIP through a step-by-step visual analysis, enabling a progressively hier-archical understanding of compositions. Although significant progress has been achieved, these methods freeze model parameters and prototypes after training, preventing them from leveraging test-time data for further improvement. 
+
+Vision-Language Model (VLM). VLMs, such as CLIP [18] and ALIGN [47], are pre-trained on large-scale web image-text datasets and have demonstrated remarkable capability in learning joint representations that align visual and textual modalities. This cross-modal alignment enables VLMs to perform a wide range of downstream tasks, including image classification, retrieval, object detection, and compositional reasoning. For example, CLIP [18] leverages a contrastive learning objective to associate images with their corresponding text descriptions, achieving general zero-shot performance without task-specific supervision. To repurpose the pre-trained multimodal knowledge of VLMs for downstream tasks, fine-tuning paradigms are proposed that are parameter-efficient and task-adaptive. On the textual side, prompt tuning has emerged as an effective strategy, where manually crafted prompts are replaced with learnable soft tokens while keeping the text encoder frozen [22], [48]. This technique significantly reduces the number of trainable parameters and allows the model to adapt to new tasks without overfitting. CoOp [22] introduces prompt learning under few-shot settings, elimi-nating the reliance on hand-crafted prompts. CoCoOp [48] further extends this idea by conditioning the prompts on instance-specific features, which enhances generalization to unseen classes. On the visual side, adapter tuning has become a popular approach, wherein lightweight trainable modules, such as residual adapters, bottleneck MLPs, or attention-based adapters, are inserted into the visual backbone while keeping the majority of parameters frozen [49]–[52]. This allows efficient adaptation to downstream tasks without full fine-tuning of the backbone. AdapterFormer [53] augments each Transformer block in the visual encoder with a parallel adapter, fusing the outputs via element-wise addition, which improves task-specific performance while maintaining the pre-trained representation quality. TaskRes [49] integrates residual adapters into ResNet-based visual encoders for task-specific tuning. MVP-CLIP [52] proposes multi-view visual adapters to capture complementary visual information for complex tasks. In this work, following CoOp [22] and AdapterFormer [53], we fine-tune CLIP using training data to obtain a simple yet effective base model for subsequent testing. 
+
+Online Test-time Adaptation (OTTA). OTTA refers to a practical technique where a trained model continually adapts itself by exploiting a stream of unsupervised test data–each test sample is used exactly once, and the model is required to retain and leverage the knowledge gained from earlier test images to improve its performance on later ones in an online manner [26], [54]–[57]. Tent [26] proposes to optimize batch normal-ization layer by minimizing prediction entropy on test data. CoTTA [54] is the first work to decrease the accumulation error and avoid catastrophic forgetting through using averaged pseudo-labels and retaining the knowledge of the original 4LayerNorm    
+
+> Multi-Head
+> Attention
+> LayerNorm
+> MLP
+> Down
+> Down
+> Up
+> Up
+> ReLU
+> ReLU
+> Text
+> Encoder
+> Visual
+> Encoder
+> Contrastive
+> Learning
+> Adapter Fine-Tuning
+> old
+> young
+> huge
+> ...
+> ...
+> cat
+> cat
+> dog
+> a photo of ...
+> Training Images
+> ℒtr
+> A
+> Fig. 2. Prompt tuning of the text encoder and adapter tuning of the visual encoder during training.
+
+model to enhance long-term adaptation. SAR [55] enhances generalization ability in OTTA by eliminating partially noisy samples with high gradients and promoting the convergence of model weights to a flat minimum. ViDA [56] introduces a homeostatic knowledge allotment strategy to fuse low-rank and high-rank features, and thus improves distinct domain representations. Recently, activating the zero-shot capability of VLMs at test time to mitigate domain shift in downstream tasks has increasingly attracted significant research attention [27], [58]–[62]. For instance, TDA [58] proposes a training-free dynamic adapter that uses a lightweight key-value cache and progressive pseudo-label refinement without backpropa-gation. DynaPrompt [63] adaptively selects and optimizes the relevant prompts for each test data built on an online prompt buffer. TPS [62] proposes a straightforward and efficient prototype shifting approach that adjusts per-class prototypes within the embedding space. Notably, OTTA mainly focuses on addressing distribution shifts in the feature domain while we aim to resolve the challenge of label distribution shift caused by unseen compositions recombined from attributes and objects in CZSL. Similar to OTTA, CZSL does not have access to any data of unseen compositions during training. III. M ETHOD 
+
+A. Task Formulation 
+
+In this section, we provide a formal description of the CZSL task. Given an attribute set A and an object set O, the composition set can be defined by the Cartesian product of A
+
+and O, i.e., C = A×O. And the seen and unseen composition set Cs and Cu are two disjoint subsets of C, i.e., Cs∩Cu = ∅.During the training phase, the model learns from a seen training set Dtr = {(x, c )|x ∈ X , c ∈ Cs}, where X is the image space, and c is the composition label of image x. In the closed-world setting [8], the test composition set Cte is defined as the union of Cs and Cu, i.e., Cte = Cs ∪ Cu, where only the presupposed known composition space is considered. For the open-world setting [11], the test composition set expands to all possible attribute-object pairs, i.e., Cte = C.
+
+B. Training Phase 
+
+As a preparatory step, we train a simple CLIP-based model by adjusting only its visual and text encoders on the training set, which serves as the foundation for subsequent testing. 
+
+Textual Representation Extraction. CLIP treats each attribute-object composition label as a prompt-based tex-tual input, i.e., ” a photo of [attribute] [object] ”, which is subsequently encoded via the text encoder ψ. Given a composition c = (a, o ), we create a learnable prompt 
+
+Pc = [ p1, . . . , pl, wa, wo], where p1: l represents the learn-able prompt tokens. wa and wo are the learnable word tokens of a and o within the attribute and object vocabularies, respec-tively. Therefore, the textual representation of composition c
+
+is obtained, i.e., f tc = ψ(Pc).
+
+Visual Representation Extraction. Given an input image 
+
+x ∈ RH×W ×3, we feed it into the CLIP visual encoder ϕ and employ the output [CLS] token as its visual representation, 
+
+i.e., f v = ϕ(x). Based on AdapterFormer [53], a set of learnable adapters is injected into the visual encoder of CLIP, while keeping the initial parameters frozen. As shown in Fig. 2, given the input embedding e of each layer, the adapter is formulated as: 
+
+A(e) = Wup (ReLU (Wdown e)) , (1) where Wdown and Wup are learnable linear layers employed for down-sampling and up-sampling, respectively. For each layer, the final output is obtained by adding the adapter output to the original output through a residual connection. 
+
+Training Objective. Given the textual and visual represen-tations, we compute the probability p(c|x) and use the cross-entropy loss to align them: 
+
+Ltr = − log p(c | x),p(c | x) = exp(cos( f v , f tc )/τ )
+
+P 
+
+> c′∈Cs
+
+exp(cos( f v , f tc′ )/τ ) , (2) where τ denotes the temperature parameter of pre-trained CLIP and cos( ·, ·) is used to compute cosine similarity. After the training phase, a simple yet effective base model is obtained by only tuning prompt and adapters within CLIP, without introducing any additional complex modules to accel-erate inference. 
+
+C. WARM-CAT at Test Time 
+
+As the major novelty, we introduce WARM-CAT to over-come the challenge of label distribution shift by employing unsupervised data at test time, as shown in Fig. 3. Specifically, textual and visual composition prototypes are obtained by CLIP-encoded textual labels and a dynamic priority queue of historical images, respectively. These multimodal proto-types are then updated by Knowledge Accumulation Modules (KAMs) and adaptive update weights, with the objective of minimizing prediction entropy at test time. 
+
+Textual Prototype Construction. In line with CLIP’s principles, we treat the embeddings of both seen and unseen composition labels–encoded by the text encoder of the base model after training–as the textual-modal prototypes, i.e., 
+
+t = [ tc1 , tc2 , . . . , tc|Cte | ]⊤ ∈ R|Cte |× d.5在此处键入公式。 Test Image 
+
+(a) 𝐀 MCRL   
+
+> Loss Function
+> Visual
+> Encoder
+> Text
+> Encoder
+> · (-θ)Sigmoid
+> Updated Prototype
+> 𝐀
+> 𝐀
+> fv
+> Enqueue
+
+(b) 𝐀 PE   
+
+> AUW
+> Input and Encode
+> AUW
+> a photo of
+> +
+> old cat
+> huge dog
+> young cat
+> ...  young cat
+> fv
+> 𝐀
+> 𝐀
+> ...  ...
+> ...  ...
+> Contrastive Learning
+
+# ⊗
+
+# ⊗
+
+# ⊗   
+
+> Seen
+> Unseen
+> Priority Queue
+> ...
+> huge dog old cat young cat
+> old dog
+> ...
+> red pear
+> M
+> Adaptive Update Weights
+> Add Trainable Frozen
+> Entropy Minimization
+> 𝐀 𝐀
+> Fig. 3. The overall architecture of our proposed WARM-CAT at test time. The model accumulates multimodal knowledge to update prototypes to overcome the label distribution shift.
+
+Visual Prototype Construction. Inspired by TDA [58] and DPE [59], complementary to the text modality, we recognize that prior visual knowledge–captured from historical test im-ages–can be leveraged to further enhance the discriminative capability of CLIP. Therefore, a dynamic priority queue is designed to selectively preserve K (K = 3 ) high-confidence images, which enables WARM-CAT to retain representative and reliable exemplars throughout the test phase. Specifically, for each seen and unseen composition c, we maintain a”confidence-feature ” queue, i.e., qc = [( hi, f vi )] Ki=1 , where 
+
+f vi ∈ Rd is the visual feature of the image xi in the queue and hi ∈ R is its prediction entropy as confidence: 
+
+H(xi) = − X
+
+> c∈Cte
+
+p(c|xi, ˜t) log p(c|xi, ˜t) ,p(c|xi, ˜t) = exp(cos( f vi , ˜tc)/τ )
+
+P 
+
+> c′∈Cte
+
+exp(cos( f vi , ˜tc′ )/τ ) ,
+
+(3) where ˜t is the updated textual prototypes (defined below in Eq. 8). The lower prediction entropy means higher confidence, and the samples in the queue are sorted by their confidence, 
+
+i.e., hci ≤ hc
+
+> (>i )
+
+. Based on the priority queue, the visual-modal prototype for each composition is computed by averaging the visual features, i.e., vc = 1
+
+> K
+
+PKi=1 f vi . Subsequently, the vi-sual prototypes are denoted as v = [ vc1 , vc2 , . . . , vc|Cte | ]⊤ ∈
+
+R|Cte |× d.
+
+Priority Queue Warm-Start. If the priority queue is initially empty, the model tends to predict compositions that have already been stored during testing. Therefore, we offline warm-start the queue by initializing it once after training using visual features. Specifically, for each seen composition 
+
+cs ∈ Cs, we extract the visual features of its training images f v and compute their prediction entropy h. The top-K elements [( hi, f vi )] Ki=1 with the lowest prediction entropy are stored for initialization of the priority queue corresponding to their label. For unseen compositions, the training images are missing, so their visual prototypes cannot be directly obtained at first. However, we assume that the semantic relationships among compositions should ideally remain consistent across both visual and textual spaces [18], [64]. Therefore, virtual visual prototypes are generated for unseen compositions by applying the mapping learned between seen and unseen textual prototypes to the visual prototypes of seen compositions in Fig. 4. Specifically, for seen and unseen textual prototypes 
+
+ts ∈ R|Cs|× d and tu ∈ R|Cu|× d, the mapping relationship is obtained in a training-free manner: 
+
+M = Softmax (cos( ts, tu)/τ M ) ∈ R|Cs|×| Cu| , (4) where τM is the temperature parameter, and M denotes the cosine-similarity-based mapping matrix that transfers semantic information from seen compositions to unseen ones. The mapping matrix can be applied to seen visual prototypes 
+
+vs ∈ R|Cs|× d to obtain unseen visual prototypes: 
+
+vu = M T vs ∈ R|Cu|× d . (5) The generated visual prototypes for unseen compositions are inserted as visual features into the priority queue with an extreme value taken as the prediction entropy. 
+
+Priority Queue Update. For an incoming image x, we first calculate its visual feature f v and the prediction en-tropy h, and obtain its pseudo-label cp by assigning the composition with the highest predicted probability, i.e., cp =arg max c∈Cte p(c|x, ˜t). If the queue for cp is not full, the pair (h, f v ) is directly inserted into the queue. If the queue is full, only if the new image has a prediction entropy lower than the highest element in the queue, the highest one is replaced with (h, f v ); otherwise, the queue remains unchanged. 6a photo of  
+
+> old cat
+> huge dog
+> young cat
+> ...
+> a photo of
+> old dog
+> huge cat
+> young dog
+> ...
+
+softmax 
+
+> Textual
+> Prototypes
+> Visual
+> Prototypes
+> ...
+
+Seen Unseen 
+
+> ...
+> ...
+> ...
+> ...
+
+similarities 
+
+M 
+
+> Fig. 4. Learning the mapping relationship between seen and unseen textual prototypes ( top ) and applying it to seen visual prototypes to obtain unseen visual prototypes ( bottom ).
+
+Knowledge Accumulation Module (KAM). We aim to continuously acquire information about the new distribution from test samples, while avoiding both catastrophic forgetting of existing knowledge and excessive increases in inference latency. To this end, we introduce learnable KAMs instead of directly modifying the parameters of the base model, and employ adaptive update weights to control the extent to which the KAMs adjust the prototypes. Specifically, for multimodal prototypes t and v, multimodal KAMs consist of two sets of learnable parameters, which are initialized to zero: 
+
+∆t = [∆ tc1 , ∆tc2 , . . . , ∆tc|Cte | ]⊤ ∈ R|Cte |× d ,
+
+∆v = [∆ vc1 , ∆vc2 , . . . , ∆vc|Cte | ]⊤ ∈ R|Cte |× d . (6) 
+
+Adaptive Update Weight. Taking textual prototypes as an example, we demonstrate the process by which the prototypes are updated with a newly arrived image x. Specifically, the cosine similarity is computed between the visual feature f v
+
+of the image and each original prototype tc, based on which the adaptive update weight is calculated as follows: 
+
+wc = σ(−θ · sc) , sc = cos( f v , tc) , (7) where σ denotes the Sigmoid activation function and θ is the hyperparameter that controls the degree of update. Therefore, the updated textual prototypes can be denoted as follows: 
+
+˜t = [˜ tc1 , ˜tc2 , . . . , ˜tc|Cte | ]⊤ , ˜tc = tc + wc∆tc
+
+|| tc + wc∆tc|| . (8) Accordingly, we can obtain the updated visual prototypes 
+
+˜v. This adaptive weighting mechanism enables more con-trolled update of the prototypes, thereby avoiding treating all compositions equally regardless of familiarity. Intuitively, when the test image closely matches the original prototype, it is likely associated with a seen composition, and thus excessive adjustments should be avoided. Conversely, a large discrepancy between the test image and the prototype suggests a potentially unseen composition, permitting stronger update to improve adaptability. 
+
+Prediction Entropy Minimization. Following Tip-Adapter [65], the final prediction for the input image is determined as follows: 
+
+p(c|x, ˜t, ˜v) = exp ( f v · ˜tc + αA(f v , ˜vc)) 
+
+P 
+
+> c′∈Cte
+
+exp ( f v · ˜tc′ + αA(f v , ˜vc′ )) ,
+
+A(f v , ˜vc) = exp ( −β(1 − f v · ˜vc)) ,
+
+(9) where α and β are hyperparameters controlling multimodal balance and modulating visual-modal sharpness, respectively. At test time, minimizing prediction entropy serves as an unsupervised learning signal that encourages the model to produce more confident predictions in the target label space, thereby enhancing generalization. By reducing uncertainty, the model progressively adjusts to better aligning with the test distribution, which includes unseen compositions. The loss for multimodal prediction entropy is formulated as follows: 
+
+LP E = − P 
+
+> c∈Cte
+
+p(c|x, ˜tc, ˜vc) log p(c|x, ˜tc, ˜vc). (10) 
+
+Multimodal Collaborative Representation Learning. 
+
+Considering the intrinsic semantic interdependence between multimodal knowledge, we align the textual and visual proto-types by employing multimodal collaborative representation learning. This strategy effectively facilitates the integration of both modalities, thereby enhancing the representation of both textual and visual information in a unified framework. Specifically, contrastive learning is exploited to bring the visual and textual prototypes corresponding to the same com-position closer while pushing apart non-corresponding ones, as formulated below: 
+
+LM CRL = − 12|Cte |
+
+X
+
+> c∈Cte
+
+log exp (cos(˜ tc, ˜vc)/τ )
+
+P 
+
+> c′∈Cte
+
+exp (cos(˜ tc, ˜vc′ )/τ )+ log exp (cos(˜ tc, ˜vc)/τ )
+
+P 
+
+> c′∈Cte
+
+exp (cos(˜ tc′ , ˜vc)/τ )
+
+!
+
+.
+
+(11) 
+
+Testing Pipeline Overview. Upon receiving a test image, we first extract its visual feature and compute the prediction entropy with the original textual prototypes. We then deter-mine whether to update the priority queue of its pseudo-composition label based on the entropy. After performing multi-modal prototype refinement by KAMs and adaptive update weights, the final inference prediction for this image is obtained. To reduce latency, the backpropagation update of KAMs is deferred until after the inference step by minimizing the total loss of multimodal prediction entropy and multimodal collaborative representation learning as follows: 
+
+LW ARM −CAT = LP E + λLM CRL , (12) where λ is the weighting coefficient of LM CRL .IV. E XPERIMENT 
+
+A. C-Fashion Benchmark Dataset Construction 
+
+The fashion domain inherently relies on compositional reasoning over clothing categories and fine-grained visual attributes, but tailored benchmarks for this setting are still missing despite its practical significance in online shopping 7
+
+> TABLE I SUMMARY STATISTICS OF THE FOUR DATASETS USED IN OUR EXPERIMENTS .
+
+Dataset Composition Train Validation Test 
+
+|A| |O| |A × O| |Cs| |X | |Cs| |Cu| |X | |Cs| |Cu| |X | 
+
+UT-Zappos [32] 16 12 192 83 22998 15 15 3214 18 18 2914 C-Fashion 76 28 2128 350 19018 60 59 5221 60 58 5466 C-GQA [12] 413 674 278362 5592 26920 1252 1040 7280 888 923 5098 MIT-States ∗ 141 266 37506 1074 9851 200 186 2085 201 184 2143 User P rompt:  
+
+> You are an expert fashion annotator. \n
+> Task Description: Analyze the given image carefully and identify
+> the clothing item shown.\n
+> Your task is to produce two concise labels (one object category
+> and one attribute word) describing only the clothing itself:\n
+> 1. object: the main clothing category (e.g., not limited to T-shirt,
+> dress, sweater, et al.).\n
+> 2. attribute: only one single word or short phrase that best
+> captures the most visually distinctive property of the clothing.\n
+> Attributes can, but are not limited to, be considered from the
+> following perspectives: Color, Material, Style, et al.\n
+> Ignore everything unrelated to the clothing item itself (e.g.,
+> background, brand, gender, pose).\n
+> Output Format: Return the result strictly in two word format, no
+> explanations or extra text: 'OBJECT ATTRIBUTE'.
+> Answer :
+> shirt plaid
+> Conversation with MLLM
+> Fig. 5. Image annotation generated by MLLM for C-Fashion benchmark dataset.
+
+and recommendation systems. Therefore, we introduce a new benchmark dataset C-Fashion to fill the gap that CZSL lacks fashion domain benchmark. C-Fashion is proposed based on the original FashionIQ [28], a widely used benchmark for interactive and attribute-based image retrieval. Based on the original FashionIQ images, we performed a new round of annotation and filtration for compositional reasoning. 
+
+Annotation and Filtering. As shown in Fig. 5, the images and prompt texts are first provided to InternVL-3-8b [66] to generate initial annotations. Since MLLM-based labeling is not error-free, the subsequent filtering step is required. The correction and filtering procedures are carried out sequentially as follows: 1) images containing garbled text or irrelevant characters are removed; 2) case, characters and related formats are standardized according to the CZSL dataset conventions; 3) objects, attributes and compositions with only few associated images are discarded, as extremely sparse categories hinder reliable training and lead to unstable evaluation; 4) images exhibiting low similarity to their assigned labels are filtered out; 5) for compositions with an excessive number of images, a subset is randomly discarded. 
+
+Data Split. To construct the training, validation, and test partitions, we first reorganize the dataset into seen and unseen composition splits. Given all images annotated with compo-sitional labels, seen and unseen compositions are sampled at a ratio of 3:1, while ensuring that the seen compositions contain about five times as many images as the unseen ones. To guarantee that the model observes the full primitives during training, the set of seen compositions is further expanded so that the training split covers all objects and all attributes. For seen compositions, we allocate three-quarters of them to the training set, and divide the remaining ones equally into validation and test subsets. For unseen compositions, whose images are not allowed to appear in training, we split their images evenly between the validation and test sets, thus enabling a fair assessment of generalization to novel compo-sitions. This protocol ensures both comprehensive semantic coverage during training and a clean separation between seen and unseen compositions during evaluation. As a result, the training split comprises 350 composition pairs with 19k images covering 76 objects and 28 attributes. The validation split includes 60 seen and 59 unseen pairs totaling 5k images, while the test split contains 60 seen and 58 unseen pairs with 5k images. 
+
+B. MIT-States Benchmark Dataset Refinement 
+
+MIT-States [29] contains diverse real-world objects and attributes collected by early image search engine technology. However, given the substantial noise in MIT-States, with approximately 70% of the labels being incorrect [9], [30], [31], we conduct a systematic refinement of the dataset following the same protocol used for constructing C-Fashion and propose MIT-States ∗. Consequently, the training split contains 1,074 composition pairs and 10k images spanning 266 objects and 141 attributes. The validation split comprises 201 seen and 184 unseen pairs with a total of 2k images, whereas the test split includes 200 seen and 186 unseen pairs, also amounting to 2k images. Compared with the original dataset, the refined version contains a larger set of compositions, implying a broader search space. Despite providing fewer training images, models achieve better performance on the new version, indicating that the refined dataset is less noisy and of higher quality. 
+
+C. Experiment Setup 
+
+Datasets. Our proposed WARM-CAT is evaluated on four challenging datasets: UT-Zappos [32], our newly proposed C-Fashion, C-GQA [12], and the refined MIT-States ∗. UT-Zappos is a fine-grained fashion dataset consisting of dif-ferent shoes ( e.g., heels , sandals ) with their material (e.g., leather , satin ). For the low-noise dataset C-Fashion, the objects are mainly various kinds of clothing (e.g., dress , blouse ), while the attributes are their prop-erties( e.g., black , sleeveless ). C-GQA [12] is a large-8                                                                                                                                                                                                                     
+
+> TABLE II CLOSED -WORLD RESULTS ON UT-Z APPOS , C-F ASHION , C-GQA, AND MIT-S TATES ∗. T HE BEST RESULTS ARE DISPLAYED IN BOLDFACE ,AND THE SECOND -BEST RESULTS ARE UNDERLINED . T HE FOUR INDICATORS ARE EXPLAINED IN METRICS (S EC . IV-C). Methods UT-Zappos C-Fashion C-GQA MIT-States ∗
+> AUC HM Seen Unseen AUC HM Seen Unseen AUC HM Seen Unseen AUC HM Seen Unseen CLIP [18] (ICML’21 )5.0 15.6 15.8 49.1 11.8 25.7 27.0 59.4 1.4 8.6 7.5 25.0 19.6 36.6 35.3 64.2 CoOp [22] (IJCV’22 )18.8 34.6 52.1 49.3 39.1 53.7 67.7 64.6 4.4 17.1 20.5 26.8 24.7 40.5 39.2 72.0 CSP [19] (ICLR’23 )33.0 46.6 64.2 66.2 39.4 54.9 66.0 65.7 6.2 20.5 28.8 26.8 27.6 44.2 44.3 70.3 DFSP [20] (CVPR’23 )36.0 47.2 66.7 71.7 44.0 58.2 69.0 70.2 10.5 27.1 38.2 32.0 31.4 46.7 46.2 75.8 Troika [21] (CVPR’24 )41.7 54.6 66.8 73.8 47.5 59.3 74.3 72.8 12.4 29.4 41.0 35.7 36.3 50.6 49.7 80.2 PLID [43] (ECCV’24 )38.7 52.4 67.3 68.8 43.0 54.8 76.3 64.3 11.0 27.9 38.8 33.0 31.5 47.8 45.6 76.1 RAPR [67] (AAAI’24 )44.5 56.5 69.4 72.8 39.7 53.1 64.8 66.8 14.4 32.0 45.6 36.0 34.2 49.2 47.9 78.8 IMAX [68] (TPAMI’25 )40.6 54.2 69.3 70.7 40.5 55.7 64.5 67.7 12.8 29.8 39.7 35.8 36.7 52.0 49.3 82.1
+> ClusPro [45] (ICLR’25 )46.6 58.5 70.7 76.0 47.9 59.5 73.5 74.6 14.9 32.8 44.3 37.8 36.8 52.0 50.2 80.1 TOMCAT [33] (NeurIPS’25 )48.3 60.2 74.5 72.8 48.0 59.7 74.3 72.9 16.0 34.0 45.3 40.1 39.2 52.7 55.0 79.7
+> WARM-CAT (Ours) 52.9 64.3 78.4 73.9 51.5 63.6 76.6 72.5 16.9 35.4 45.6 41.5 39.4 52.8 54.1 80.8
+
+scale dataset composed of in-the-wild images with more gen-eral compositions ( e.g., marble countertop , striped pillow ). MIT-States ∗ is a comprehensive dataset that cap-tures a wide spectrum of real-world objects and their associ-ated attributes. Table I reports the common data splits of the four datasets. UT-Zappos [32] contains 16 attributes and 12 objects for 29,126 images, and it is split into 83 seen and 15/18 unseen compositions for training and validation/testing, respectively. C-Fashion contains 29,705 images, with 76 at-tributes and 28 objects. It includes 350 seen compositions and 59/58 (validation/test) unseen compositions. C-GQA [12] is a natural image dataset which contains 39,298 images, with 413 attributes and 764 objects. It includes 5,592 seen compositions and 1,040/923 (validation/test) unseen compositions. MIT-States ∗ contains 14079 images, with 141 attributes and 266 objects. It comprises 1,074 seen compositions and 184/186 (validation/test) unseen compositions. 
+
+Metrics. Following the evaluation protocol of previous works [8], [11], [19], a bias term from −∞ to +∞ is introduced to trade off the prediction logits between seen and unseen compositions. A positive bias value indicates improved prediction accuracy on unseen compositions, whereas a neg-ative value suggests that the model is inclined toward seen compositions. By varying the bias term, we can draw a curve by taking the classification accuracy of seen compositions as the x-axis and that of the unseen compositions as the 
+
+y-axis. To assess the overall performance on both seen and unseen compositions, we calculate the Area Under the Curve (AUC ) and identify the point that yields the highest Harmonic Mean ( HM ) of the two accuracies. We also report the best 
+
+Seen and Unseen accuracies obtained by setting the bias to 
+
+−∞ and +∞, respectively. In the open-world setting, a post-training feasibility calibration is applied to filter out infeasible compositions within a vast search space [11]. 
+
+Implementation Details. We implement the base model with CLIP ViT-L/14 architecture in the training phase and WARM-CAT at test time in PyTorch [69] framework. The trainable prompt of CLIP ViT-L/14 in the training phase is initialized by ” a photo of ”. The learning rate of WARM-CAT is set to 5e-6, 5e-6, 1e-5, 1e-5 for UT-Zappos, C-Fashion, C-GQA, and MIT-States ∗, respectively. The number of images in priority queue K is 3 across all four datasets. For the hyperparameters that control cross-modal weighting and refine the sharpness of the visual modality ( α, β ), we set them to (1, 15), (0.0625, 2.5), (0.5, 5), (1, 3.75), respectively. θ is set to 1, 3, 3, 1.5, and λ is set to 3.5, 1.25, 2.75, 2.5 for the respective datasets. The source code and datasets are also released at this website to provide all implementation details and thus facilitate reproducibility. 
+
+Baselines. We compare our WARM-CAT with recent and prominent CLIP-based approaches on the four benchmarks, including CLIP [18], CoOp [22], CSP [19], DFSP [20], Troika [21], PLID [43], RAPR [67], IMAX [68], ClusPro [45], and TOMCAT [33]. CLIP [18] maps images and text into a shared embedding space via contrastive learning so that matching image-text pairs are close together. CoOp [22] learns continuous context vectors as prompts for CLIP, adapting it to CZSL task with the training set of each dataset. DFSP [20] builds soft prompts for attributes and objects separately and fuses them with image features via a cross-modal decomposed fusion module. RAPR [67] uses retrieved primitive concepts to enrich representations for better unseen composition recog-nition. Troika [21] employs a multi-path prompt architecture plus a cross-modal traction module to jointly model primitives and their compositions. PLID [43] prompts a large language model to generate a language-informed distribution over class compositions. IMAX [68] embeds attributes and objects in a complex space (with real and imaginary parts) so that phase information captures their dependencies. ClusPro [45] mines multiple clustering-based prototypes for each primitive in embedding space. TOMCAT [33] overcomes distribution shift of label space caused by unseen compositions through accumulating multimodal knowledge at test time. 
+
+D. Main Results 
+
+Closed-world Results. We report the closed-world results of our proposed WARM-CAT and baselines in Table II. For UT-Zappos [32], our method surpasses other models by a substantial margin in general. WARM-CAT boosts AUC, HM, and Seen from 48.3%, 60.2%, and 74.5% of our previous version TOMCAT to the new state-of-the-art performance of 52.9%, 64.3%, and 78.4% with 4.6%, 4.1%, and 3.9% improvement, respectively. However, WARM-CAT underper-forms ClusPro [45] on the Seen metric because its disen-9
+
+TABLE III OPEN -WORLD RESULTS ON UT-Z APPOS , C-F ASHION , C-GQA, AND MIT-S TATES ∗ . I N THE OPEN -WORLD SETTING , A POST -TRAINING FEASIBILITY CALIBRATION IS EMPLOYED TO ELIMINATE IMPLAUSIBLE COMPOSITIONS FROM THE EXPANDED SEARCH SPACE [11]. Methods UT-Zappos C-Fashion C-GQA MIT-States ∗                                                                                                                                                                                                         
+
+> AUC HM Seen Unseen AUC HM Seen Unseen AUC HM Seen Unseen AUC HM Seen Unseen CLIP [18] (ICML’21 )2.2 11.2 15.7 20.6 6.1 18.9 26.9 14.5 0.3 4.0 7.5 4.6 3.4 13.6 35.1 12.4 CoOp [22] (IJCV’22 )13.2 28.9 52.1 31.5 25.4 42.2 67.5 43.0 0.7 5.5 21.0 4.6 3.2 13.0 39.3 9.7 CSP [19] (ICLR’23 )22.7 38.9 64.1 44.1 27.7 44.3 66.0 47.0 1.2 6.9 28.7 5.2 6.2 19.2 44.4 18.5 DFSP [20] (CVPR’23 )30.3 44.0 66.8 60.0 30.7 47.1 69.2 50.1 2.4 10.4 38.3 7.2 9.8 25.5 46.4 26.0 Troika [21] (CVPR’24 )33.0 47.8 66.4 61.2 33.7 48.7 68.4 56.5 2.7 10.9 40.8 7.9 11.6 27.8 49.6 28.4 PLID [43] (ECCV’24 )30.8 46.6 67.6 55.5 28.4 45.6 76.7 41.3 2.5 10.6 39.1 7.5 5.9 17.6 45.1 15.3 RAPR [67] (AAAI’24 )33.3 47.9 69.4 59.4 27.3 43.8 64.9 47.3 4.4 14.6 45.5 11.2 7.7 21.7 47.8 18.4 IMAX [68] (TPAMI’25 )32.3 47.5 68.4 57.3 28.6 45.6 65.3 48.1 2.6 11.2 38.7 7.9 13.9 30.8 49.7 34.2 ClusPro [45] (ICLR’25 )39.5 54.1 71.0 66.2 34.7 50.2 69.3 57.0 3.0 11.6 41.6 8.3 14.2 31.2 50.2 34.0 TOMCAT (NeurIPS’25 )43.7 57.9 74.1 65.8 39.5 54.8 74.2 58.4 4.2 14.2 45.1 10.6 15.2 30.7 52.6 35.2
+> WARM-CAT (Ours) 46.5 59.7 78.3 65.9 39.9 55.2 74.2 58.9 4.0 13.7 43.3 9.7 16.2 32.2 53.8 35.9
+
+TABLE IV ABALTION STUDY OF OUR PROPOSED MODULES ON UT-Z APPOS , C-F ASHION , AND C-GQA. AUW IS ADAPTIVE UPDATE WEIGHTS . PQI FOR 
+
+SEEN /U NSEEN COMP . MEANS PRIORITY QUEUE INITIALIZATION FOR SEEN /UNSEEN COMPOSITIONS .Module UT-Zappos C-Fashion C-GQA Priority Queue Textual KAM Visual KAM AUW PQI for Seen Comp. PQI for Unseen Comp. AUC HM Seen Unseen AUC HM Seen Unseen AUC HM Seen Unseen 43.6 55.5 68.7 74.3 49.6 62.3 71.5 74.7 15.4 33.4 44.3 39.7                                                                                                    
+
+> ✓43.3 55.7 68.6 74.1 49.3 62.1 71.5 74.4 15.4 33.2 44.5 39.7
+> ✓45.2 58.1 74.3 68.8 51.4 63.2 79.0 70.6 15.5 33.5 44.5 39.8
+> ✓✓43.4 55.7 68.5 74.1 49.3 62.1 71.5 74.4 14.3 31.6 44.9 36.9
+> ✓✓✓46.3 58.5 76.3 68.2 51.1 62.6 78.3 71.6 15.6 33.6 45.6 39.0
+> ✓✓✓✓48.1 59.7 74.3 72.9 51.2 63.2 76.1 73.9 15.8 33.7 45.5 39.3
+> ✓✓✓✓✓51.1 62.1 78.8 72.1 51.1 63.4 74.8 73.5 15.8 34.0 45.3 39.7
+> ✓✓✓✓✓✓52.9 64.3 78.4 73.9 51.5 63.6 76.6 72.5 16.9 35.4 45.6 41.5
+
+tanglement strategy partially distorts the semantics of seen compositions to emulate unseen ones. Although WARM-CAT trails by 2.1% on Unseen, it surpasses ClusPro [45] on Seen by a remarkable 7.7%. For the newly proposed benchmark dataset C-Fashion, WARM-CAT achieves 51.5%, 63.6%, and 76.6% on the metrics of AUC, HM, and Seen, providing 3.5%, 3.9%, and 2.3% improvement on our previous TOMCAT. For C-GQA [12], our method performs significantly better than baselines regarding all metrics. Compared to TOMCAT, the new version WARM-CAT increases the four metrics from 16.0%, 34.0%, 45.3%, and 40.1% to 16.9%, 35.4%, 45.6%, and 41.5%, achieving 0.9%, 1.4%, 0.3%, and 1.4% improvement, respectively. For the refined MIT-States ∗, the improved experimental results in AUC (39.4%) and HM (52.8%) demonstrate the superiority of our method. WARM-CAT achieves state-of-the-art performance in the closed-world setting, demonstrating that our proposed method enables the model to adapt to the distribution shift of label space caused by unseen compositions during testing. In addition, WARM-CAT outperforms our previous version TOMCAT, demonstrating that we warm-start the visual priority queue in a principled manner, mitigating the model’s bias toward compositions of previously observed images during testing. 
+
+Open-world Results. The open-world results are shown in Table III. For UT-Zappos [32], our approach achieves notable overall gains over existing models. Compared with the earlier TOMCAT variant, WARM-CAT elevates AUC, HM, and Seen from 43.7%, 57.9%, and 74.1% to 46.5%, 59.7%, and 78.3%, yielding improvement of 2.8%, 1.8%, and 4.2%, respectively. For C-Fashion, WARM-CAT attains AUC, HM, and Uneen scores of 39.9%, 55.2%, and 58.9%, corresponding to gains of 0.4%, 0.4%, and 0.5% over the previous TOMCAT results of 39.5%, 54.8%, and 58.4%. On MIT-States ∗, WARM-CAT reaches AUC, HM, Seen, and Unseen scores of 16.2%, 32.2%, 53.8% and 35.9%. These results mark clear improvements over the earlier TOMCAT, which recorded 15.2%, 30.7%, 52.6%, and 35.2% on the respective metrics, reflecting gains of 1.0%, 1.5%, 1.2%, and 0.7%. However, WARM-CAT performs worse than RAPR [67] across all metrics. This is primarily because C-GQA dataset involves a large intrinsic compositional search space, and it is further expanded under the open-world setting, which amplifies the difficulty of reliable pseudo-label assign-ment and exacerbates error accumulation during inference. 
+
+E. Ablation Study 
+
+In this section, we conduct ablation studies to assess the contribution of each component in WARM-CAT on UT-Zappos, C-Fashion, and C-GQA in the closed-world setting. 
+
+Effectiveness of Main Modules. As the most significant contribution of our work, we first accumulate visual and textual knowledge at test time for CZSL with the proposed modules in Table IV. Specifically, compared with the base model, incorporating the priority queue and the subsequent vi-sual KAM results in performance degradation across the three datasets. This is because the visual prototypes are updated by pseudo-labeled samples and visual KAM with insufficient semantic guidance of original textual prototypes, which can introduce noisy and biased visual update. In other words, in 10                                                                        
+
+> TABLE V ABLATION STUDY OF OUR DESIGNED LOSS ON UT-Z APPOS , C-F ASHION ,AND C-GQA.
+> Loss UT-Zappos C-Fashion C-GQA
+> LP E LM CRL AUC HM Seen Unseen AUC HM Seen Unseen AUC HM Seen Unseen 43.6 55.5 68.7 74.3 49.6 62.3 71.5 74.7 15.4 33.4 44.3 39.7
+> ✓45.1 58.1 71.7 71.9 50.4 62.9 74.0 73.5 16.2 34.0 45.6 40.4
+> ✓36.4 52.1 57.3 70.9 43.8 57.4 68.5 70.5 11.9 28.4 35.0 40.8
+> ✓✓52.9 64.3 78.4 73.9 51.5 63.6 76.6 72.5 16.9 35.4 45.6 41.5
+> TABLE VI INFLUENCE OF TEST ORDER ON UT-Z APPOS , C-F ASHION ,AND C-GQA. SD DENOTES STANDARD DEVIATION .
+
+Test Order UT-Zappos C-Fashion C-GQA AUC HM AUC HM AUC HM Order 1 52.9 64.3 51.5 63.6 16.9 35.4 Order 2 52.0 63.7 50.9 63.6 16.5 35.2 Order 3 51.7 63.3 51.8 63.7 16.4 35.0 Mean 52.2 63.8 51.4 63.6 16.6 35.2 SD 0.6 0.5 0.5 0.1 0.3 0.2 TABLE VII ABLATION STUDY OF PREDICTION PROBABILITY DURING INFERENCE ON                             
+
+> UT-Z APPOS , C-F ASHION ,AND C-GQA. Prediction Probability UT-Zappos C-Fashion C-GQA AUC HM AUC HM AUC HM Text-Only 52.5 64.1 50.9 63.5 16.8 35.3 Visual-Only 12.1 27.1 9.1 25.9 2.4 13.7 Multimodal 52.9 64.3 51.5 63.6 16.9 35.4
+
+the absence of textual KAM and adaptive update weights (AUW), visually driven accumulation may cause prototype drift, especially under label-space shift, leading to suboptimal adaptation. Adding only the textual KAM allows refinement of the textual prototypes under the entropy minimization objective, making them more confident and discriminative, which helps the model better distinguish compositions. When both visual and textual KAMs are applied, the model benefits from complementary multimodal refinement. Visual KAM continuously calibrates the distribution of visual prototypes based on incoming test samples, while textual KAM captures the evolving semantic structure of the label space, leading to the most accurate and robust prototypes and achieving the best overall performance. The improvement brought by AUW can be attributed to determining the extent of prototype update based on the similarity, avoiding indiscriminately assigning equal treatment to all compositions regardless of their fa-miliarity. In this version, we leverage training images and the mapping between seen and unseen textual prototypes to initialize visual prototypes of seen and unseen compositions, respectively. Initializing only for the seen compositions helps mitigate the model’s bias toward previously observed com-positions, leading to the performance improvement. However, this setting still causes the model to favor predictions on seen compositions. When prototypes of unseen compositions are also initialized, the model achieves the optimal performance.    
+
+> TABLE VIII INFLUENCE OF INITIALIZATION STRATEGIES OF KAM S ON UT-Z APPOS ,C-F ASHION AND C-GQA.
+
+Initialization UT-Zappos C-Fashion C-GQA AUC HM AUC HM AUC HM Uniform Random 43.5 56.1 49.7 62.7 15.6 34.0 Normal Random 51.1 62.3 49.2 62.7 16.3 35.0 Random Walking 51.2 63.3 50.6 63.3 16.9 35.3 All Zeros 52.9 64.3 51.5 63.6 16.9 35.4                                    
+
+> TABLE IX INFLUENCE OF DIFFERENT TEST -TIME METHODS BASED ON BASE MODEL ON UT-Z APPOS , C-F ASHION ,AND C-GQA. Method UT-Zappos C-Fashion C-GQA AUC HM AUC HM AUC HM Online-TPS [62] 44.6 57.3 49.3 61.4 14.8 32.7 TDA [58] 41.6 54.6 47.7 60.3 14.4 32.0 DPE [59] 43.3 56.0 49.3 62.1 15.3 33.5
+> WARM-CAT (Ours) 52.9 64.3 51.5 63.6 16.9 35.4
+
+Effectiveness of Each Loss. As reported in Table V, incor-porating LP E into the base model yields a clear performance gain, demonstrating that the prediction entropy loss effectively guides the model to adapt to the shifted label distribution by encouraging the model to produce confident predictions with less uncertainty. In contrast, adopting only the constraint term 
+
+LM CRL tends to indiscriminately enforce the alignment of multimodal prototypes by merely minimizing their distances, while neglecting discriminative structure and distributional uncertainty. This overly rigid regularization can introduce suboptimal prototype configurations and consequently impair overall performance. By jointly optimizing LP E and LM CRL ,WARM-CAT strikes a favorable balance between adaptive uncertainty minimization and structured prototype alignment, leading to the best results among all variants and thereby validating the effectiveness of our algorithmic design. 
+
+Influence of Test Order. As shown in Table VI, WARM-CAT exhibits strong robustness to different test sample or-ders. The performance variations across three random orders remain minimal on all three datasets, confirming that the proposed test-time knowledge accumulation pipeline is stable and suffers from little sensitivity to data sequencing. This fur-ther validates the effectiveness of the priority-based memory mechanism, together with reasonable warm-start strategy, in maintaining consistent adaptation behavior under dynamic test conditions. 11 
+
+TABLE X ABLATION STUDY OF FINE -TUNING CLIP ON THE TRAINING SET OF 
+
+UT-Z APPOS , C-F ASHION , AND C-GQA, RESPECTIVELY .Dataset training tuning AUC HM Seen Unseen UT-Zappos ✗ 3.3 11.6 10.6 52.3 
+
+✓ 52.9 64.3 78.4 73.9 
+
+C-Fashion ✗ 11.1 25.3 26.0 61.1 
+
+✓ 51.5 63.6 76.6 72.5 
+
+C-GQA ✗ 1.7 8.9 7.9 25.9 
+
+✓ 16.9 35.4 45.6 41.5 
+
+TABLE XI ABLATION STUDY OF TEST -TIME TUNING OF CLIP [18], CSP [19], AND THE BASE MODEL ON UT-Z APPOS AND C-GQA. Method test-time tuning UT-Zappos C-GQA AUC HM AUC HM CLIP [18] ✗ 5.0 15.6 1.4 8.6 
+
+✓ 3.3 11.6 1.7 8.9 
+
+CSP [19] ✗ 33.0 46.6 6.2 20.5 
+
+✓ 40.3 55.4 7.3 22.8 
+
+Base Model ✗ 43.6 55.5 15.4 33.4 
+
+✓ 52.9 64.3 16.9 35.4 63.0      
+
+> 63.2
+> 63.4
+> 63.6
+> 63.8
+> 64.0
+> 64.2
+> 64.4
+> 52.3
+> 52.4
+> 52.5
+> 52.6
+> 52.7
+> 52.8
+> 52.9
+> 0.125 0.25 0.5 11.5 2
+> HM
+> AUC
+
+α
+
+> AUC
+> HM
+> (a) UT-Zappos 62.4
+> 62.6
+> 62.8
+> 63.0
+> 63.2
+> 63.4
+> 63.6
+> 50.0
+> 50.2
+> 50.4
+> 50.6
+> 50.8
+> 51.0
+> 51.2
+> 51.4
+> 51.6
+> 0
+> 0.0625
+> 0.125
+> 0.25
+> 0.5
+> 1
+> 1.5
+> 2
+> HM
+> AUC
+
+α      
+
+> AUC
+> HM (b) C-Fashion 34.4
+> 34.6
+> 34.8
+> 35.0
+> 35.2
+> 35.4
+> 16.40
+> 16.45
+> 16.50
+> 16.55
+> 16.60
+> 16.65
+> 16.70
+> 16.75
+> 0.25 0.5 0.75 11.25 1.5
+> HM
+> AUC
+
+α 
+
+> AUC
+> HM (c) C-GQA
+
+Fig. 6. Influence of multimodal balance factor α on UT-Zappos, C-Fashion, and C-GQA. 63.2      
+
+> 63.4
+> 63.6
+> 63.8
+> 64.0
+> 64.2
+> 64.4
+> 52.0
+> 52.2
+> 52.4
+> 52.6
+> 52.8
+> 53.0
+> 0.5 11.5 22.5 3
+> HM
+> AUC
+
+θ      
+
+> AUC
+> HM
+> (a) UT-Zappos 63.30
+> 63.35
+> 63.40
+> 63.45
+> 63.50
+> 63.55
+> 63.60
+> 50.6
+> 50.8
+> 51.0
+> 51.2
+> 51.4
+> 51.6
+> 0.5 11.25 1.5 22.5 3
+> HM
+> AUC
+
+θ      
+
+> AUC
+> HM (b) C-Fashion 35.0
+> 35.1
+> 35.2
+> 35.3
+> 35.4
+> 35.5
+> 16.60
+> 16.66
+> 16.72
+> 16.78
+> 16.84
+> 16.90
+> 16.96
+> 0.5 11.5 22.5 3
+> HM
+> AUC
+
+θ 
+
+> AUC
+> HM (c) C-GQA
+
+Fig. 7. Influence of the update control factor in AUW θ on UT-Zappos, C-Fashion, and C-GQA. 
+
+Effectiveness of Prediction Probability During Inference. 
+
+Table VII shows the influence of the prototype source used to derive prediction probabilities during inference. Using textual-only or visual-only prototypes leads to clear performance degradation across all datasets, indicating that relying on a single modality provides incomplete or biased semantic supervision. Specifically, textual prototypes lack instance-level visual details, while visual prototypes are susceptible to noise accumulated from pseudo-labels and feature domain shift. In contrast, incorporating both textual and visual prototypes consistently achieves the best performance, demonstrating that both textual and visual prototypes provide complementary cues for more robust and accurate predictions. 
+
+Influence of Initialization Strategies of KAMs. Table VIII investigates the influence of different KAM initialization strategies. Random initializations, including uniform, normal, and random-walk schemes, tend to introduce substantial noise at the beginning of test, which disrupts the originally well-structured prototypes learned during training and can cause partial damage of previously acquired knowledge. In contrast, initializing KAM with all zeros avoids injecting artificial perturbations at the test onset, allowing the model to preserve its trained representations while gradually refining prototypes through reliable test-time evidence, leading to more stable and superior results. 
+
+Effectiveness of Tuning During Training and Test. As shown in Table X, we ablate the trainable prompts and visual adapters during the training phase on the three datasets. 12 
+
+TABLE XII LONG -TAILED RESULTS ON C-F ASHION AND MIT-S TATES ∗ .Methods C-Fashion MIT-States ∗                                                                                                                                                  
+
+> Head Acc ↑Body Acc ↑Tail Acc ↑All Acc ↑All Std ↓Head Acc ↑Body Acc ↑Tail Acc ↑All Acc ↑All Std ↓
+> CLIP [18] (ICML’21 )24.7 25.5 23.9 24.8 26.1 30.4 36.8 40.1 35.9 35.9 CoOp [22] (IJCV’22 )35.2 27.6 27.4 29.8 31.8 33.4 41.8 42.4 39.5 36.5 CSP [19] (ICLR’23 )34.2 25.3 21.7 26.9 30.2 39.5 38.1 32.8 36.9 34.3 DFSP [20] (CVPR’23 )35.3 27.0 27.9 29.7 31.3 39.5 38.5 37.1 38.4 34.2 Troika [21] (CVPR’24 )36.1 30.0 35.8 33.6 33.1 44.8 43.9 41.7 43.5 34.8 PLID [43] (ECCV’24 )29.0 28.5 25.8 27.8 31.3 42.7 32.5 28.6 34.3 32.2 RAPR [67] (AAAI’24 )27.7 25.9 23.7 25.8 26.9 42.4 34.6 34.6 37.0 33.5 IMAX [68] (TPAMI’25 )34.9 30.7 31.7 32.3 33.2 43.0 39.6 39.9 40.7 33.0 ClusPro [45] (ICLR’25 )38.4 33.6 37.3 36.2 31.7 42.7 40.1 39.1 50.5 32.8 TOMCAT [33] (NeurIPS’25 )39.9 33.8 36.6 36.5 33.8 47.1 42.0 42.8 43.8 35.0
+> WARM-CAT 40.1 38.7 40.4 39.6 25.3 48.1 44.7 47.9 46.2 31.0 0500 1000 1500 2000 2500
+> Test Size
+> 0.42
+> 0.44
+> 0.46
+> 0.48
+> 0.50
+> Cumulative Accuracy
+> Base Model WARM-CAT
+> (a) UT-Zappos 01000 2000 3000 4000 5000
+> Test Size
+> 0.415
+> 0.420
+> 0.425
+> 0.430
+> 0.435
+> Cumulative Accuracy
+> Base Model WARM-CAT (b) C-Fashion 01000 2000 3000 4000 5000
+> Test Size
+> 0.200
+> 0.225
+> 0.250
+> 0.275
+> 0.300
+> 0.325
+> 0.350
+> Cumulative Accuracy
+> Base Model WARM-CAT (c) C-GQA
+
+Fig. 8. Cumulative classification accuracy with increasing test sample size on three datasets. 
+
+Consistent improvements are observed across all datasets when adopting the fine-tuned CLIP, which indicates that pre-training alone does not sufficiently endow CLIP with com-positional reasoning capability. In other words, adapting the representation learned by CLIP to the CZSL task with training set is critical for equipping the model with attribute–object compatibility and enabling more discriminative compositional cues. In addition, we conduct the ablation study of test-time tuning framework based on CLIP [18], CSP [19], and the base model in Table XI, and compare different test-time methods in Table IX. Since CLIP has not been tuned on the CZSL training set, its initial prototypes lack reliable compositional priors, causing test-time accumulation to reinforce noisy pseudo-labels and amplify erroneous knowledge, thereby leading to performance degradation. In contrast, both CSP and the base model are trained with explicit compositional data, yielding more accurate and structure-aware prototypes when equipped with test-time WARM-CAT compared with their non-test-time-tuning counterparts. Moreover, WARM-CAT outperforms other test-time methods, which shows knowledge accumula-tion continuously refines class representations with informative test samples, enabling consistent performance gains. 
+
+Impact of Multimodal Balance Factor α. The hyper-parameter α controls the relative contributions of visual and textual predictions during inference. As shown in Fig. 6, the performance exhibits a non-monotonic trend with respect to α,peaking at an intermediate value. When α is small, the fused predictions rely excessively on the textual modality and focus less on visual evidence, which constrains discriminability for visually ambiguous compositions and limits the complemen-tary exploitation of cross-modal cues. Conversely, a large α
+
+overemphasizes visual cues and weakens semantic guidance from textual prototypes, making predictions more vulnerable to visual noise and prototype misalignment. Proper calibration of α enables a balanced integration of multimodal information, thereby facilitating robust compositional inference. 
+
+Impact of Update Control Factor in AUW θ. It is observed in Fig. 7 that as the value of θ increases, the performance first improves and then degrades in general. This behavior indicates a trade-off between stability and plasticity in prototype update. When θ is small, the update strength is overly conservative, leading to insufficient update of the prototypes to test images that exhibit large appearance varia-tions, thereby limiting the model’s ability to effectively absorb informative knowledge of new distribution. In contrast, an excessively large θ induces aggressive prototype update, which makes the accumulation vulnerable to noisy pseudo-labels and causes over-adaptation, causing performance deterioration. 
+
+F. Qualitative Analysis 
+
+In this section, we conduct a qualitative analysis of WARM-CAT on the four datasets in the closed-world setting. 
+
+Long-Tailed Distribution Analysis in CZSL. The long-tailed distribution phenomenon is a fundamental challenge in classification tasks [70], [71], and this holds equally in compositional recognition [72], [73]. While previous works analyze the existence of a long-tailed prior among composi-tional classes in CZSL [73], it does not propose explicit class-level metrics for quantifying long-tailed effects nor report 13 C-Fashion                                                                                                            
+
+> Ground Truth: camouflage hat navy polo-shirt yellow T-shirt floral dress plaid hoodie
+> Base Model: camouflage hat navy polo-shirt yellow T-shirt floral dress plaid hoodie
+> Ours: camouflage hat navy polo-shirt yellow T-shirt floral dress plaid hoodie
+> Ground Truth: white cake blue water bare tree round clock baseball helmet
+> Base Model: white cake blue water bare tree round clock baseball helmet
+> Ours: white cake blue water bare tree round clock baseball helmet
+> Ground Truth: floral dress blue shirt embroidered blouse navy polo-shirt orange polo-shirt
+> Base Model: patterned dress short shirt embroidered shirt navy T-shirt long-sleeve hoodie
+> Ours: floral dress blue shirt embroidered blouse navy polo-shirt orange polo-shirt
+> Ground Truth: blue carpet concrete ground white table floral curtain wood guitar
+> Base Model: red carpet dirty ground white ground white window blue backpack
+> Ours: blue carpet concrete ground white table floral curtain wood guitar
+> Ground Truth: sleeveless dress colorful dress solid T-shirt colorful dress colorful vest
+> Base Model: sleeveless dress colorful dress green T-shirt floral dress red vest
+> Ours: solid dress floral dress green T-shirt flowy dress sleeveless dress
+> Ground Truth: white sheep brown dirt tall chair black picture gray refrigerator
+> Base Model: white sheep brown dirt black lamp wet sand glass door
+> Ours: gray sheep baseball mound wood chair wet sand old refrigerator
+
+C-GQA 
+
+Fig. 9. Successful and failure cases on C-Fashion and C-GQA. The predictions of images from WARM-CAT (Ours) with the base model are reported. The successful and failure results are marked in green and red, respectively. cabbage chicken fish fries meat noodles shrimp Visual Prototypes cabbage chicken fish fries meat noodles shrimp Textual Prototypes 0.13 0.16 0.15 0.12 0.15 0.16 0.12 0.14 0.26 0.19 0.14 0.21 0.16 0.14 0.13 0.20 0.25 0.13 0.17 0.16 0.13 0.13 0.16 0.16 0.13 0.15 0.17 0.12 0.14 0.22 0.18 0.14 0.23 0.18 0.14 0.12 0.15 0.15 0.12 0.13 0.22 0.12 0.13 0.19 0.18 0.13 0.15 0.17 0.13 
+
+> Similarity Matrix of Multimodal Prototypes
+> 0.12 0.14 0.16 0.18 0.20 0.22 0.24
+
+(a) Test starting point. cabbage chicken fish fries meat noodles shrimp Visual Prototypes cabbage chicken fish fries meat noodles shrimp Textual Prototypes 0.23 0.16 0.16 0.12 0.15 0.17 0.14 0.16 0.27 0.19 0.13 0.20 0.15 0.16 0.15 0.20 0.25 0.13 0.18 0.16 0.16 0.15 0.16 0.16 0.14 0.16 0.17 0.15 0.16 0.21 0.18 0.13 0.23 0.16 0.16 0.16 0.15 0.16 0.13 0.13 0.24 0.15 0.15 0.19 0.18 0.13 0.16 0.17 0.19  
+
+> Similarity Matrix of Multimodal Prototypes
+> 0.14 0.16 0.18 0.20 0.22 0.24 0.26
+
+(b) Test end point. 
+
+Fig. 10. Comparison of multimodal prototype similarity at the test onset and endpoint on C-GQA. All unseen compositions consisting of the attribute cooked 
+
+and its corresponding objects ( e.g., noodles , shrimp ...) are selected. 
+
+corresponding empirical analysis. In our work, we address this gap by ordering all test classes by their image counts and partitioning them into three disjoint Head , Body , and Tail 
+
+groups in a 3 : 4 : 3 ratio. We report per-group class-averaged accuracy( Acc ) of the three groups and All classes, as well as the Standard Deviation ( SD ) of All classes of our method and the baselines. This stratified reporting sheds light on how recognition performance varies across the distributional spectrum from frequent to rare compositional classes. As shown in Table XII, we experimentally evaluate the mainstream methods and analyze their performance on C-Fashion and MIT-States ∗ under long-tailed distributions. Ex-isting approaches demonstrate varying degrees of sensitivity to the long-tailed distribution, generally favoring head com-positions while underperforming on rare tail classes. In com-parison, WARM-CAT achieves more balanced performance across head, body, and tail compositions, resulting in both higher overall accuracy and reduced class-wise deviation. Specifically, on C-Fashion, WARM-CAT boosts TOMCAT in tail accuracy from 36.6% to 40.4% (+3.8%), raises overall accuracy from 36.5% to 39.6% (+3.1%), and substantially reduces performance deviation from 33.8% to 25.3% (–8.5%). Similarly, on MIT-States ∗, WARM-CAT increases tail accu-racy from 42.8% to 47.9% (+5.1%), improves all accuracy from 43.8% to 46.2% (+2.4%), and lowers the all standard deviation from 35.0% to 31.0% (–4.0%). This suggests that our method provides a more stable and equitable recognition capability across the full long-tailed compositional spectrum. This behavior can be attributed to the fact that all exist-ing models, including TOMCAT [33], rely solely on textual prototypes as the only matching source at the test onset. Since these textual prototypes are learned exclusively from seen compositions during training, their semantic representa-tions are inherently biased toward frequent head categories. Although TOMCAT incrementally enriches visual prototypes by accumulating knowledge from test images, the long-tailed 14 
+
+distribution causes most test samples to come from head classes, leading to the lack of visual cues of rare tail categories and, consequently, poorly constructed visual representations in the tail regime. In contrast, WARM-CAT warm-starts visual prototypes for all classes by leveraging both seen compositions and the learned mapping relationships, providing a more complete and balanced starting point for prototype adaptation. This design effectively alleviates the issue of tail prototype deficiency and enables more stable knowledge acquisition across long-tail categories, thereby accounting for the substan-tial improvements observed on tail classes and the reduced variance reported in Table XII. 
+
+Cumulative Classification Accuracy Analysis. Fig. 8 il-lustrates how cumulative accuracy evolves throughout the test stream. At the beginning, WARM-CAT outperforms the base model due to the effective warm-start strategy of the visual priority queue, which provides stronger visual information before test starts. As testing progresses, the performance tra-jectories of the two models diverge markedly. Specifically, the base model performs worse than WARM-CAT under the label distribution shift. The widening gap indicates that WARM-CAT continuously absorbs useful information from the test stream and incrementally refines its prototypes, leading to progressively improved predictions. 
+
+Case Study. In Fig. 9, we report the successful and fail-ure predictions of images from our WARM-CAT and the base model on C-Fashion and C-GQA. It is observed that both models perform well on simple test images, such as a 
+
+yellow T-shirt or a white cake . However, WARM-CAT demonstrates superior performance on more challenging images that require reasoning about attribute prominence. For instance, in an image of an orange polo-shirt , the base model predicts the attribute as long-sleeve , whereas the more salient attribute is clearly the color orange . Similarly, for an image of a white table , the base model con-fuses the brown ground with the white table , while WARM-CAT gives the correct prediction. This improvement can be attributed to WARM-CAT’s test-time comprehensive knowledge accumulation mechanism, which dynamically up-dates multimodal prototypes by aggregating high-confidence visual evidence and semantic information. Nevertheless, some failure cases. For an image of a colorful dress , WARM-CAT predicts the attribute floral , which is present but not the dominant attribute. Additionally, due to label noise, the label of the image of a white sheep should be gray , but our model still predicts correctly. 
+
+Analysis of Multimodal Prototype Evolution. Figure 10 illustrates the pairwise cosine similarities between multimodal prototypes for randomly selected compositions that include the attribute cooked alongside their associated objects. From the beginning to the end of testing, the diagonal entries in the similarity matrix become noticeably larger, indicating that WARM-CAT progressively strengthens the alignment between visual and textual modalities. At the same time, off-diagonal elements also increase, which can be attributed to the fact that all cooked food compositions naturally form a seman-tically coherent cluster. The higher similarities among these off-diagonal pairs demonstrate that WARM-CAT effectively captures and preserves the shared semantic structure of related compositions, enabling better discrimination ability. V. C ONCLUSION 
+
+In this work, we consider the issue of label distribution shift in CZSL, which arises from novel compositions recomposed from attributes and objects. Therefore, we propose WARM-CAT to accumulate comprehensive knowledge of visual and textual modalities from unsupervised data at test time to overcome the challenge. Specifically, we update textual and visual prototypes by multimodal knowledge accumulation modules, and use adaptive update weights to control the degree. Meanwhile, a priority queue is leveraged that stores historical images to obtain the visual knowledge. We warm-start it with images of seen compositions and generate virtual visual prototypes for unseen compositions by leveraging the learned mapping from textual prototypes, thereby mitigating the model’s bias toward historically observed compositions. To enable a more comprehensive evaluation of CZSL, we introduce the C-Fashion dataset and refine the MIT-States dataset. Extensive experiments, including results under long-tailed distribution, demonstrate the superiority of our WARM-CAT in both closed-world and open-world settings. ACKNOWLEDGMENTS 
+
+This work was supported by the Fundamental Research Funds for the Central Universities (No. 2025JBZX059), the Beijing Natural Science Foundation (No.4242046) and the Natural Science Foundation of Hebei Province (No. F2025105018). REFERENCES [1] G. Frege, “Sense and reference,” The Philosophical Review , vol. 57, no. 3, pp. 209–230, 1948. [2] L. Gabora and K. Kitto, Concept Combination and the Origins of Complex Cognition . Springer Netherlands, 2013, pp. 361–381. [3] B. M. Lake, T. D. Ullman, J. B. Tenenbaum, and S. J. Gershman, “Building machines that learn and think like people,” Behavioral and Brain Sciences , vol. 40, p. e253, 2017. [4] Y. Atzmon, J. Berant, V. Kezami, A. Globerson, and G. Chechik, “Learning to generalize to new compositions in image understanding,”                         
+
+> arXiv preprint arXiv:1608.07639 , 2016. [5] M. N. Hebart, C. Y. Zheng, F. Pereira, and C. I. Baker, “Revealing the multidimensional mental representations of natural objects underlying human similarity judgements,” Nature Human Behaviour , vol. 4, no. 11, pp. 1173–1185, 2020. [6] I. Higgins, D. Amos, D. Pfau, S. Racaniere, L. Matthey, D. Rezende, and A. Lerchner, “Towards a definition of disentangled representations,”
+> arXiv preprint arXiv:1812.02230 , 2018. [7] I. Misra, A. Gupta, and M. Hebert, “From red wine to red tomato: Composition with context,” in Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition , 2017, pp. 1160–1169. [8] S. Purushwalkam, M. Nickel, A. Gupta, and M. Ranzato, “Task-driven modular networks for zero-shot compositional learning,” in Proceedings of the IEEE/CVF International Conference on Computer Vision , 2019, pp. 3592–3601. [9] Y. Atzmon, F. Kreuk, U. Shalit, and G. Chechik, “A causal view of compositional zero-shot recognition,” in Advances in Neural Information Processing Systems , vol. 33, 2020, pp. 1462–1473. [10] Y.-L. Li, Y. Xu, X. Mao, and C. Lu, “Symmetry and group in attribute-object compositions,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2020, pp. 11 313–11 322. [11] M. Mancini, M. F. Naeem, Y. Xian, and Z. Akata, “Open world compositional zero-shot learning,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2021, pp. 5222–5230. 15
+
+[12] M. F. Naeem, Y. Xian, F. Tombari, and Z. Akata, “Learning graph embeddings for compositional zero-shot learning,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2021, pp. 953–962. [13] M. Mancini, M. F. Naeem, Y. Xian, and Z. Akata, “Learning graph embeddings for open world compositional zero-shot learning,” IEEE Transactions on Pattern Analysis and Machine Intelligence , vol. 46, no. 3, pp. 1545–1560, 2022. [14] M. G. Z. A. Khan, M. F. Naeem, L. Van Gool, A. Pagani, D. Stricker, and M. Z. Afzal, “Learning attention propagation for compositional zero-shot learning,” in Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision , 2023, pp. 3828–3837. [15] F. Ruis, G. Burghouts, and D. Bucur, “Independent prototype propaga-tion for zero-shot compositionality,” in Advances in Neural Information Processing Systems , vol. 34, 2021, pp. 10 641–10 653. [16] X. Li, X. Yang, K. Wei, C. Deng, and M. Yang, “Siamese contrastive embedding network for compositional zero-shot learning,” in Proceed-ings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2022, pp. 9326–9335. [17] S. Hao, K. Han, and K.-Y. K. Wong, “Learning attention as disentangler for compositional zero-shot learning,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2023, pp. 15 315–15 324. [18] A. Radford, J. W. Kim, C. Hallacy, A. Ramesh, G. Goh, S. Agarwal, G. Sastry, A. Askell, P. Mishkin, J. Clark, G. Krueger, and I. Sutskever, “Learning transferable visual models from natural language supervi-sion,” in Proceedings of the International Conference on Machine Learning , vol. 139, 2021, pp. 8748–8763. [19] N. V. Nayak, P. Yu, and S. H. Bach, “Learning to compose soft prompts for compositional zero-shot learning,” in Proceedings of the International Conference on Learning Representations , 2023. [20] X. Lu, S. Guo, Z. Liu, and J. Guo, “Decomposed soft prompt guided fu-sion enhancing for compositional zero-shot learning,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2023, pp. 23 560–23 569. [21] S. Huang, B. Gong, Y. Feng, M. Zhang, Y. Lv, and D. Wang, “Troika: Multi-path cross-modal traction for compositional zero-shot learning,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2024, pp. 24 005–24 014. [22] K. Zhou, J. Yang, C. C. Loy, and Z. Liu, “Conditional prompt learning for vision-language models,” in Proceedings of the IEEE/CVF Confer-ence on Computer Vision and Pattern Recognition , 2022, pp. 16 816– 16 825. [23] J. Kirkpatrick, R. Pascanu, N. Rabinowitz, J. Veness, G. Desjardins, A. A. Rusu, K. Milan, J. Quan, T. Ramalho, A. Grabska-Barwinska 
+
+et al. , “Overcoming catastrophic forgetting in neural networks,” Pro-ceedings of the National Academy of Sciences , vol. 114, no. 13, pp. 3521–3526, 2017. [24] S. Niu, J. Wu, Y. Zhang, Y. Chen, S. Zheng, P. Zhao, and M. Tan, “Ef-ficient test-time model adaptation without forgetting,” in International Conference on Machine Learning , vol. 162, 2022, pp. 16 888–16 905. [25] Y. Li, X. Xu, Y. Su, and K. Jia, “On the robustness of open-world test-time training: Self-training with dynamic prototype expansion,” in 
+
+Proceedings of the IEEE/CVF International Conference on Computer Vision , 2023, pp. 11 836–11 846. [26] D. Wang, E. Shelhamer, S. Liu, B. Olshausen, and T. Darrell, “tent: fully test-time adaptation by entropy minimization,” in Proceedings of the International Conference on Learning Representations , 2021. [27] M. Shu, W. Nie, D.-A. Huang, Z. Yu, T. Goldstein, A. Anandkumar, and C. Xiao, “Test-time prompt tuning for zero-shot generalization in vision-language models,” Advances in Neural Information Processing Systems , vol. 35, pp. 14 274–14 289, 2022. [28] H. Wu, Y. Gao, X. Guo, Z. Al-Halah, S. Rennie, K. Grauman, and R. Feris, “Fashion iq: A new dataset towards retrieving images by natural language feedback,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2021, pp. 11 307–11 317. [29] P. Isola, J. J. Lim, and E. H. Adelson, “Discovering states and transfor-mations in image collections,” in Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition , 2015, pp. 1383–1391. [30] T. Zhang, K. Liang, R. Du, X. Sun, Z. Ma, and J. Guo, “Learning invariant visual representations for compositional zero-shot learning,” in 
+
+Proceedings of the European Conference on Computer Vision , 2022, pp. 339–355. [31] X. Yan, S. Feng, Y. Zhang, J. Yang, Y. Lin, and H. Fei, “Leveraging mllm embeddings and attribute smoothing for compositional zero-shot learning,” in Proceedings of the International Joint Conference on Artificial Intelligence , 2025, pp. 2179–2187. [32] A. Yu and K. Grauman, “Fine-grained visual comparisons with local learning,” in Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition , 2014, pp. 192–199. [33] X. Yan and S. Feng, “Tomcat: Test-time comprehensive knowledge accumulation for compositional zero-shot learning,” in Advances in Neural Information Processing Systems , 2025. [34] T. Nagarajan and K. Grauman, “Attributes as operators: Factorizing unseen attribute-object compositions,” in Proceedings of the European Conference on Computer Vision , 2018, pp. 169–185. [35] M. U. Anwaar, Z. Pan, and M. Kleinsteuber, “On leveraging variational graph embeddings for open world compositional zero-shot learning,” in 
+
+Proceedings of the ACM International Conference on Multimedia , 2022, pp. 4645–4654. [36] Y.-L. Li, Y. Xu, X. Xu, X. Mao, and C. Lu, “Learning single/multi-attribute of object with symmetry and group,” IEEE Transactions on Pattern Analysis and Machine Intelligence , vol. 44, no. 12, pp. 9043– 9055, 2022. [37] N. Saini, K. Pham, and A. Shrivastava, “Disentangling visual embed-dings for attributes and objects,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2022, pp. 13 658–13 667. [38] Q. Wang, L. Liu, C. Jing, H. Chen, G. Liang, P. Wang, and C. Shen, “Learning conditional attributes for compositional zero-shot learning,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2023, pp. 11 197–11 206. [39] Z. Liu, Y. Li, L. Yao, X. Chang, W. Fang, X. Wu, and A. E. Saddik, “Simple primitives with feasibility- and contextuality-dependence for open-world compositional zero-shot learning,” IEEE Transactions on Pattern Analysis and Machine Intelligence , vol. 46, no. 1, pp. 543–560, 2024. [40] Y. Zhang, S. Feng, and J. Yuan, “Continual compositional zero-shot learning,” in Proceedings of the International Joint Conference on Artificial Intelligence , 2024, pp. 1724–1732. [41] Z. Xu, G. Wang, Y. Wong, and M. S. Kankanhalli, “Relation-aware compositional zero-shot learning for attribute-object pair recognition,” 
+
+IEEE Transactions on Multimedia , vol. 24, p. 3652–3664, 2022. [42] T. Zhang, K. Liang, R. Du, W. Chen, and Z. Ma, “Disentangling before composing: Learning invariant disentangled features for compositional zero-shot learning,” IEEE Transactions on Pattern Analysis and Machine Intelligence , vol. 47, no. 2, pp. 1132–1147, 2025. [43] W. Bao, L. Chen, H. Huang, and Y. Kong, “Prompting language-informed distribution for compositional zero-shot learning,” in Proceed-ings of the European Conference on Computer Vision , 2024, pp. 107– 123. [44] Y. Li, Z. Liu, H. Chen, and L. Yao, “Context-based and diversity-driven specificity in compositional zero-shot learning,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2024, pp. 17 037–17 046. [45] H. Qu, J. Wei, X. Shu, and W. Wang, “Learning clustering-based prototypes for compositional zero-shot learning,” in Proceedings of the International Conference on Learning Representations , 2025. [46] L. Li, G. Chen, Z. Wang, J. Xiao, and L. Chen, “Compositional zero-shot learning via progressive language-based observations,” in Proceedings of the ACM International Conference on Multimedia , 2025, pp. 3827– 3836. [47] C. Jia, Y. Yang, Y. Xia, Y.-T. Chen, Z. Parekh, H. Pham, Q. Le, Y.-H. Sung, Z. Li, and T. Duerig, “Scaling up visual and vision-language representation learning with noisy text supervision,” in Proceedings of the International Conference on Machine Learning , 2021, pp. 4904– 4916. [48] K. Zhou, J. Yang, C. C. Loy, and Z. Liu, “Conditional prompt learning for vision-language models,” in Proceedings of the IEEE/CVF confer-ence on computer vision and pattern recognition , 2022, pp. 16 816– 16 825. [49] T. Yu, Z. Lu, X. Jin, Z. Chen, and X. Wang, “Task residual for tuning vision-language models,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2023, pp. 10 899–10 909. [50] S. Chowdhury, S. Nag, and D. Manocha, “Apollo: Unified adapter and prompt learning for vision language models,” in Proceedings of the Conference on Empirical Methods in Natural Language Processing ,2023, pp. 10 173–10 187. [51] P. Gao, S. Geng, R. Zhang, T. Ma, R. Fang, Y. Zhang, H. Li, and Y. Qiao, “Clip-adapter: Better vision-language models with feature adapters,” 
+
+International Journal of Computer Vision , vol. 132, no. 2, pp. 581–595, 2024. [52] H. Qu, R. Yan, X. Shu, H. Gao, P. Huang, and G.-S. Xie, “Mvp-shot: Multi-velocity progressive-alignment framework for few-shot action 16 
+
+recognition,” IEEE Transactions on Multimedia , vol. 27, pp. 6593–6605, 2025. [53] S. Chen, C. Ge, Z. Tong, J. Wang, Y. Song, J. Wang, and P. Luo, “Adaptformer: Adapting vision transformers for scalable visual recogni-tion,” Advances in Neural Information Processing Systems , vol. 35, pp. 16 664–16 678, 2022. [54] Q. Wang, O. Fink, L. Van Gool, and D. Dai, “Continual test-time domain adaptation,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2022, pp. 7201–7211. [55] S. Niu, J. Wu, Y. Zhang, Z. Wen, Y. Chen, P. Zhao, and M. Tan, “Towards stable test-time adaptation in dynamic wild world,” in Proceedings of the International Conference on Learning Representations , 2023. [56] J. Liu, S. Yang, P. Jia, R. Zhang, M. Lu, Y. Guo, W. Xue, and S. Zhang, “Vida: Homeostatic visual domain adapter for continual test time adaptation,” in Proceedings of the International Conference on Learning Representations , 2024. [57] J. Liang, R. He, and T. Tan, “A comprehensive survey on test-time adaptation under distribution shifts,” International Journal of Computer Vision , vol. 133, no. 1, pp. 31–64, 2025. [58] A. Karmanov, D. Guan, S. Lu, A. El Saddik, and E. Xing, “Efficient test-time adaptation of vision-language models,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2024, pp. 14 162–14 171. [59] C. Zhang, S. Stepputtis, K. Sycara, and Y. Xie, “Dual prototype evolving for test-time generalization of vision-language models,” in Advances in Neural Information Processing Systems , vol. 37, 2024, pp. 32 111– 32 136. [60] T. Zhang, J. Wang, H. Guo, T. Dai, B. Chen, and S.-t. Xia, “Boost-adapter: Improving vision-language test-time adaptation via regional bootstrapping,” in Advances in Neural Information Processing Systems ,vol. 37, 2024, pp. 67 795–67 825. [61] J. Zhang, J. Huang, X. Zhang, L. Shao, and S. Lu, “Historical test-time prompt tuning for vision foundation models,” in Advances in Neural Information Processing Systems , vol. 37, 2024, pp. 12 872–12 896. [62] E. Sui, X. Wang, and S. Yeung-Levy, “Just shift it: Test-time prototype shifting for zero-shot generalization with vision-language models,” in 
+
+Proceedings of IEEE/CVF Winter Conference on Applications of Com-puter Vision . IEEE, 2025, pp. 825–835. [63] Z. Xiao, S. Yan, J. Hong, J. Cai, X. Jiang, Y. Hu, J. Shen, C. Wang, and C. G. Snoek, “Dynaprompt: Dynamic test-time prompt tuning,” in Pro-ceedings of the International Conference on Learning Representations ,2025. [64] A. Frome, G. S. Corrado, J. Shlens, S. Bengio, J. Dean, M. Ranzato, and T. Mikolov, “Devise: a deep visual-semantic embedding model,” in 
+
+Advances in Neural Information Processing Systems , vol. 26, 2013, p. 2121–2129. [65] R. Zhang, W. Zhang, R. Fang, P. Gao, K. Li, J. Dai, Y. Qiao, and H. Li, “Tip-adapter: Training-free adaption of clip for few-shot classification,” in Proceedings of the European Conference on Computer Vision , 2022, pp. 493––510. [66] J. Zhu, W. Wang, Z. Chen et al. , “Internvl3: Exploring advanced training and test-time recipes for open-source multimodal models,” arXiv preprint arXiv:2504.10479 , 2025. [67] C. Jing, Y. Li, H. Chen, and C. Shen, “Retrieval-augmented primitive representations for compositional zero-shot learning,” in Proceedings of the AAAI Conference on Artificial Intelligence , vol. 38, 2024, pp. 2652– 2660. [68] C. Jiang, S. Wang, Y. Long, Z. Li, H. Zhang, and L. Shao, “Imaginary-connected embedding in complex space for unseen attribute-object discrimination,” IEEE Transactions on Pattern Analysis and Machine Intelligence , vol. 47, no. 3, pp. 1395–1413, 2025. [69] A. Paszke, S. Gross, F. Massa et al. , “Pytorch: An imperative style, high-performance deep learning library,” in Advances in Neural Information Processing Systems , vol. 32, 2019. [70] S. Sinha, H. Ohashi, and K. Nakamura, “Class-difficulty based methods for long-tailed visual recognition,” International Journal of Computer Vision , vol. 130, no. 10, pp. 2517–2531, 2022. [71] S. Li, Q. Xu, Z. Yang, Z. Wang, L. Zhang, X. Cao, and Q. Huang, “Focal-sam: Focal sharpness-aware minimization for long-tailed classi-fication,” arXiv preprint arXiv:2505.01660 , 2025. [72] S. Parisot, P. M. Esperanc ¸a, S. McDonagh, T. J. Madarasz, Y. Yang, and Z. Li, “Long-tail recognition via compositional knowledge transfer,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 2022, pp. 6939–6948. [73] C. Jiang and H. Zhang, “Revealing the proximate long-tail distribution in compositional zero-shot learning,” Proceedings of the AAAI Conference on Artificial Intelligence , vol. 38, pp. 2498–2506, 2024. 
+
+Xudong Yan received the B.S. degree from Qingdao University, China, in 2023. He is currently pursuing the Ph.D. degree at the School of Computer Science and Technology, Beijing Jiaotong University. His research interests include applying vision-language models (VLMs) to real-world scenarios, particularly in zero-shot learning and test-time adaptation. He has published papers in IJCAI and NeurIPS .
+
+Songhe Feng received the B.S. and Ph.D degrees from the School of Computer and Information Tech-nology, Beijing Jiaotong University, Beijing, China, in 2003 and 2009, respectively. He is currently a full professor with the School of Computer Sci-ence and Technology, Beijing Jiaotong University. His research interests are machine learning and its applications, such as multi-view clustering, weakly-supervised multi-label learning, zero-shot learning and domain adaptation. He has published more than 100 peer-reviewed papers, including those in highly regarded journals and conferences such as the IEEE Transactions on Pattern Analysis and Machine Intelligence, IEEE Transactions on Knowledge and Data Engineering, IEEE Transactions on Image Processing, IEEE Transac-tions on Cybernetics, IEEE Transactions on Multimedia, IEEE Transactions on Circuits and Systems for Video Technology, ACM Transactions on Knowl-edge Discovery from Data, ICML, NeurIPS, CVPR, ICCV, AAAI, IJCAI, ACM Multimedia , etc. He has been a visiting scholar with Concordia University, Canada and Michigan State University, USA in 2024 and 2014, respectively. 
+
+Jiaxin Wang received the B.S. degree in Computer Science and Technology from Nanjing Tech Univer-sity, Nanjing, China. He is currently pursuing the M.S. degree in Computer Science and Technology at Beijing Jiaotong University, Beijing, China. His current research interests include machine learning and computer vision, with a particular focus on compositional zero-shot learning. 
+
+Xin Su received the M.S. degree from Beijing Jiaotong University, China, in 2023. She is cur-rently pursuing the Ph.D. degree at the School of Computer Science and Technology, Beijing Jiaotong University. Her research interests primarily focus on Multimodal Large Language models (MLLMs) and Multimodal Information Extraction. 
+
+Yi Jin (Member, IEEE) received the Ph.D. in signal and information processing from the Institute of In-formation Science, Beijing Jiaotong University, Bei-jing, China, in 2010. She was a Visiting Scholar with the School of Electrical and Electronic Engineering, Nanyang Technological University, Singapore, from 2013 to 2014. She is currently a Full Professor with the School of Computer Science and Technology, Beijing Jiaotong University. Her research interests include computer vision, pattern recognition, image processing, and machine learning.

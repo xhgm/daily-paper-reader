@@ -1,0 +1,1546 @@
+Title: Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning
+
+URL Source: https://arxiv.org/pdf/2602.12065v1
+
+Published Time: Fri, 13 Feb 2026 02:26:14 GMT
+
+Number of Pages: 31
+
+Markdown Content:
+# Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning 
+
+Xiang Liu * Sen Cui * † Guocai Yao Zhong Cao Jingheng Ma Min Zhang Changshui Zhang †
+
+## Abstract 
+
+Training robotic policies directly in the real world is expensive and unscalable. Although generative simulation enables large-scale data synthesis, cur-rent approaches often fail to generate logically coherent long-horizon tasks and struggle with dy-namic physical uncertainties due to open-loop ex-ecution. To address these challenges, we propose Affordance-Graphed Task Worlds ( AGT-World ), a unified framework that autonomously constructs interactive simulated environments and corre-sponding robot task policies based on real-world observations. Unlike methods relying on random proposals or static replication, AGT-World for-malizes the task space as a structured graph, en-abling the precise, hierarchical decomposition of complex goals into theoretically grounded atomic primitives. Furthermore, we introduce a Self-Evolution mechanism with hybrid feedback to autonomously refine policies, combining Vision-Language Model reasoning and geometric ver-ification. Extensive experiments demonstrate that our method significantly outperforms in suc-cess rates and generalization, achieving a self-improving cycle of proposal, execution, and cor-rection for scalable robot learning. 1
+
+## 1. Introduction 
+
+Training general-purpose robotic policies directly in the real world remains expensive, unsafe, and difficult to scale. Consequently, leveraging large-scale synthetic data within simulation has emerged as a promising alternative to over-come the scarcity of real-world demonstrations. Recent advances in world models and video generation have significantly improved visual fidelity. However, they 
+
+> *
+
+Equal contribution . Correspondence to: Sen Cui <cuis@mail.tsinghua.edu.cn >, Changshui Zhang 
+
+<zcs@mail.tsinghua.edu.cn >.
+
+Preprint. February 13, 2026. 
+
+> 1
+
+Our project page at: https://agt-world.github. io/ 
+
+are typically trained without explicit physical supervision, often producing physically inconsistent outcomes such as floating objects or interpenetration. This limits their di-rect applicability to robotics, where physical plausibility is paramount (Li et al., 2025b; Meng et al., 2024; Kang et al., 2024). To ensure physical feasibility, the embodied AI community relies on physics simulators that provide pre-cise collision handling and interaction feedback. Existing approaches often trade off between diversity and realism: random placement lacks logical layout, while digital twin reconstruction is prohibitively expensive. We adopt a bal-anced approach, reconstructing interactive environments that preserve the semantic and functional layout of real-world observations using matched assets (Dai et al., 2024). Even within these valid interactive scenes, automating task planning and execution remains fraught with chal-lenges. Previous works often rely on hard-coded heuristics or “black-box” reinforcement learning (RL) exploration, which frequently suffer from sparse rewards and low suc-cess rates (Wang et al., 2024). The challenge is particularly acute in long-horizon tasks, because open-loop execution pipelines of previous work fail to adapt to dynamic uncer-tainties. A minor error in the early stages can accumulate, leading to total failure, as illustrated in Figure 1. To address these limitations, we propose Affordance-Graphed Task Worlds ( AGT-World ), a unified framework that autonomously constructs interactive environments and generates physically feasible, semantically consistent long-horizon tasks. Our approach is based on the framework (Dai et al., 2024) to reconstruct simulation scenes from single RGB images, preserving semantic affordances and object states. We model the task space as a structured graph, en-abling precise decomposition of complex goals into atomic primitives. Crucially, we introduce a closed-loop self-evolution mechanism to refine policies. We summarize our key contributions as follows: • Bridging the Semantic-Physical Gap: We reconstruct diverse simulated scenes that preserve both geometric layouts and semantic affordances of real-world scenes, bridging the gap between visual perception and phys-ical simulation assets, ensuring that generated data is not just visually diverse but functionally actionable. 1
+
+> arXiv:2602.12065v1 [cs.RO] 12 Feb 2026
+
+Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning Current Approaches  Our Proposed Pipeline   
+
+> A. Simulated Scene Generation
+> Real Photo Simulated Scene CLIP, DINOv2, …
+> GSAM -v2
+> DepAny -v2
+> BEHAVIOR -1K
+> B. Graph -Based Task Generation
+> User Keyword Subtask 1
+> Subtask 2
+
+…Scene JSON  VLM/LLM     
+
+> C. Self -Evolution for Task Progression
+> VLM
+> Sequence Modification
+> Parameter Adjustment
+> Self -Evolution
+> Robot Action
+> New sequence Reasons
+> A. Physics Violation (Generative Video Models)
+> Action Flow with Parameters
+> B. Inefficient “Black -Box” Exploration
+> C. Open -Loop Execution Failure
+> 𝑡
+> Error Accumulation:
+> Collided with the Door Accident al ly Lack of Feedback
+> Inconsistency
+> Clipping
+> Random Generated
+> Put the toys into the
+> cabinet, but how? …
+> RL
+> Sparse Reward
+> Uninterpretable
+> Low SR
+
+Figure 1. An introduction of our method. A. Video generation models often produce physically implausible behaviors. We instead employ a physics simulation engine to reconstruct semantic and global-state preserving simulated scenes from real-world images at low cost. B. Randomly generated scenes are far from realism, and RL suffers from sparse rewards. We adopt affordance-graphed task generation , which enables planning and execution of action sequences in arbitrary scenes. C. In long-horizon tasks, policies typically lack execution feedback leading to error accumulation. We introduce VLM-supervised self-evolution to iteratively correct task actions during execution. 
+
+• Unified Generation and Self-Evolving Framework: 
+
+We formalize the task generation process as a path-planning problem within a structured AGT-World .By integrating scene reconstruction with this graph-theoretic modeling, we introduce a closed-loop Self-Evolution mechanism. This mechanism utilizes VLM-guided hybrid feedback to autonomously diagnose exe-cution failures and refine parameters. • Scalable Generation and Superior Performance: 
+
+Extensive experiments in 102 autonomously generated scene-task pairs demonstrate that our method achieves a high overall success rate of 71.6% . We also demon-strate the effectiveness of our self-evolving mechanism in 4 complex long-horizon tasks involving multiple primary tasks categories. 
+
+## 2. Related Works 
+
+In this section, we will review various approaches that aim to scaling up embodied data generation and policy learning. 
+
+Generative Video Models and Simulators. Early works like VideoGPT (Yan et al., 2021) laid the foundation for latent video synthesis. More recently, foundation models such as Genie (Bruce et al., 2024; Liao et al., 2025) and Sora (Liu et al., 2024) have achieved unprecedented fidelity in video prediction and interactive scene modeling. How-ever, as noted in recent benchmarks (Li et al., 2025b), they operate without an underlying physics engine. To provide physically grounded training data, high-fidelity simulators such as OmniGibson (Li et al., 2023), Gene-sis (Zhou et al., 2024), iGibson (Li et al., 2022), Man-iSkill (Tao et al., 2025), and ThreeDWorld (Gan et al., 2020) have been developed. We utilize OmniGibson in our framework due to its rich interaction capabilities and support for realistic object states, which is powered by Isaac Sim (Makoviychuk et al., 2021). 
+
+Scene Reconstruction and Task Generation. Some previ-ous works use procedural generation or text-to-scene meth-ods like Holodeck (Yang et al., 2024b) and RoboGen (Wang et al., 2024), they generate layouts from LLMs, but of-ten lack visual fidelity to specific real-world references. While GRS (Zook et al., 2025) and EmbodiedGen (Wang et al., 2025) can construct a digital twin simulation from a single RGB-D observation, but they incurs a high cost. Conversely, reconstruction techniques using NeRFs or 3D Gaussian Splatting offer photorealism but result in static non-interactive scenes (Kerbl et al., 2023; Kerr et al., 2023). Scaling robotic learning requires not just scenes, but valid tasks. While digital cousins policy (Dai et al., 2024) re-duces the cost of digital twin creation but restricts itself to predefined tasks. Recent automated works like Robo-Gen (Wang et al., 2024), GenSim2 (Hua et al., 2024) and ReGen (Nguyen et al., 2025) leverage Multi-modal LLMs to propose tasks and generate corresponding training code. In addition, some work like GRS (Zook et al., 2025) leverages a VLM for task generation. 2Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning 
+
+Policy Learning and VLA Models. Recent works like RoboGen (Wang et al., 2024), Eureka (Ma et al., 2024b) and DrEureka (Ma et al., 2024a) leverage LLMs to auto-mate reward design for RL, they often remain sensitive to exploration efficiency in sparse-reward settings. Conversely, approaches like MimicGen (Garrett et al., 2024) and Scaling Robot Learning (Yu et al., 2023) focus on scaling imitation learning via synthesized demonstrations. Similarly, Moma-gen (Li et al., 2025a) attempts to generate demonstrations under soft and hard constraints to train policies. Currently, end-to-end Vision-Language-Action (VLA) mod-els such as RT-2 (Zitkovich et al., 2023), OpenVLA (Kim et al., 2024), and Octo (Mees et al., 2024) have shown great promise. These models excel at fine-grained articulated ma-nipulation and handling complex spatial relationships. In addition, recent work has demonstrated the efficacy of VLAs in specific contexts (Tao et al., 2025; Yang et al., 2025; Zhen et al., 2024; O’Neill et al., 2024). However, these VLA mod-els typically function as open-loop executors and struggle with long-horizon reasoning. Our framework providing a high-level, graph-based plan-ning structure with self-evolution verification, where closed-loop policies are inspired by recent iterative improvement strategies (Tian et al., 2025; Garrett et al., 2024). In the future, we can also effectively complement VLAs by utiliz-ing AGT-World as global policy executors for manipula-tion, analogous to hierarchical architectures in AutoRT (Ahn et al., 2024) and CoPa (Huang et al., 2024). 
+
+## 3. Preliminary 
+
+Before demonstrating our task world modeling and algo-rithm implementation, we need to first introduce some basic concepts. In this section, we present methods for generating simulated scenes and tasks definition. 
+
+3.1. Simulated Scene Generation 
+
+The generation of the simulation environment reconstructs an interactive scene from a single real-world RGB observa-tion. Specifically, let S denote the universal physical state space of the environment, where each element sτ ∈ S rep-resents a possible relationship between any two objects at time τ , and X0 ∈ RH×W ×3 denote the real-world input image. The process outputs a simulated initial state S0 ⊂ S ,which is modeled as a sample from a posterior distribution conditioned on the visual input: 
+
+S0 ∼ p(S | X0; ϵ0), (1) where ϵ0 encapsulates the reconstruction error inherited within the reconstruction pipeline. For the complete simu-lated scene generation process and some examples of state definition, refer to Appendix A.1, A.2.3. 
+
+3.2. Simple Task Definitions 
+
+To rigorously define the boundaries of decomposition, we categorize tasks into Simple Tasks and Complex Long-Horizon Tasks .
+
+Object Roles and Simple Task Tuple. First, we define the core elements of any simple manipulation task unit. We denote ot as the target object, and os1 , o s2 as the initial and goal support objects, respectively. The states of initialization and termination are defined as functions of these objects: 
+
+sinit = sinit (ot, o s1 ), s goal = sgoal (ot, o s2 ) ∈ S . (2) Here, ot is the direct object of the robot’s action sequence and must exist. If ot is a fixed object, its attributes usu-ally represent specific parts, such as a handle; otherwise, it typically represents the object itself. os1 defines the pre-condition constraints of ot, and os2 defines the success crite-ria of ot. For tasks involving only state changes of ot itself, the support os1 and os2 may all be null. Then we can give the definition of the Simple Task :
+
+Definition 3.1 (Simple Task) . A task T is defined as simple task and we denote as 
+
+T = ⟨ot, o s1 , o s2 , s init , s goal ⟩. (3) 
+
+Action Flow and Generative Uncertainty. A simple task 
+
+T is executed via an Action Flow , denoted as 
+
+π(T ) = {a1(ot), a 2(ot), . . . , a n(ot)}, (4) representing a sequence of n atomic primitives {ai}ni=1 act-ing upon the target object ot. In our generative framework, the optimal action flow is not deterministic but is modeled as a sample from a posterior distribution conditioned on the task definition, governed by a LLM: 
+
+π ∼ pF(π | T ; ϵ1), (5) where ϵ1 represents the aleatoric uncertainty and generative error inherent in the LLM’s reasoning process. A task T
+
+is valid if there exists at least an action flow πn satisfies (5) , which ensures the transition from sinit to sgoal while maintaining invariance in the unmodelled subspace of S,that is, P(sgoal | sinit , π ) > 0.
+
+3.3. Complex Long-Horizon Tasks and Decomposition Definition 3.2 (Complex Long-Horizon Task) . A complex long-horizon task T is defined as an ordered sequence of simple tasks: 
+
+T = {T1, T 2, . . . , T K }, K ≥ 2. (6) Note that for a simple task T1, we can also denote it as 
+
+T = {T1}.3Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning Affordance -Graphed Task Worlds               
+
+> 𝒙 (𝓞 )𝑜 𝑡 1: “Cup” 𝑜 𝑡 2: “Refrigerator” …
+> 𝒕
+> 𝑇 max
+> …
+> 𝑻 𝟐
+> 𝑻 𝟏 :“Open refrigerator”
+> 𝑻 𝟐 :“Pick up cup”
+> 𝑻 𝟑 :“Place in refrigerator”
+> 𝑻 𝟒 :“Close refrigerator”
+> 𝑻 𝟑
+> 𝑻 𝟏
+> …
+> 𝑎 0
+> Invalid action 𝑎 0for 𝑜 𝑡 2
+> 𝑎 0=LIFT _UP (𝑜 𝑡 2)
+> …
+> …
+> …
+> “Put the cup into the refrigerator”
+
+Figure 2. Affordance-Graphed Task Worlds. For any complex long-horizon task, they are decomposed into multiple simple tasks, connected via inter-task edges that bridge different object slices or reset temporal states. 
+
+Action Transfer and Joint Distribution. Unlike the intra-task action flow, the transition between two consecutive simple tasks Tk and Tk+1 involves a semantic and physical shift, termed a Action Transfer . We define a action transfer 
+
+ek = e
+
+
+
+o(k) 
+
+> t
+
+, o (k+1) 
+
+> t
+
+
+
+=
+
+n
+
+aend 
+
+
+
+o(k)
+
+> t
+
+
+
+, a start 
+
+
+
+o(k+1) 
+
+> t
+
+o 
+
+(7) as the bridging operation that connects the terminal state of 
+
+Tk to the initial state of Tk+1 .We model the joint random variables of the Action Transfer Sequence E = {e1, . . . e K−1} as a conditional distribution dependent on the task decomposition T = {Tk}Kk=1 with 
+
+E ∼ pT(E | T ; ϵ2) = 
+
+> K−1
+
+Y
+
+> k=1
+
+pT(ek | Tk, T k+1 ; ϵ2), (8) where ϵ2 denotes the decomposition error introduced by the LLM when inferring the connectivity between disparate object affordances. The total probability of a successful long-horizon execution is thus the product of the success probabilities of individual simple tasks (subject to ϵ1) and the realizability of transfer actions (subject to ϵ2). 
+
+## 4. Method 
+
+In this section, we delineate our methodology AGT-World .We propose a structured modeling approach based on a 
+
+3D Semantic-Action Tensor , transforming the task genera-tion problem into a path planning problem within a high-dimensional sparse graph. 
+
+4.1. Task World and Compositional Reachability 
+
+To achieve generalizable task planning in any environments, we formalize the AGT-World as a universal directed graph 
+
+G = ( V, E ). The vertex set V constitutes a discrete three-dimensional configuration space, which serves as an ideal-ized, potentially infinite domain encompassing all theoreti-cally possible object-action combinations: 
+
+V = O × A × N+, (9) where O denotes the set of all theoretically manipulable objects, A denotes the universal set of atomic actions, and 
+
+N+ represents the discrete temporal dimension. Note that the temporal dimension denotes the relative order within a specific simple task, rather than a global absolute timestamp. And E ⊂ V × V represents the set of all physically or se-mantically feasible transitions between these configurations. 
+
+Global World State. Given a specific reconstructed scene 
+
+S0, we instantiate a concrete Object-Action Graph GS0 as a subgraph of G. This graph is sampled from a conditional distribution dependent on the scene’s affordances: 
+
+GS0 = ( VS0 = OS0 × A prim × N+, E S0 ⊂ E), (10) where OS0 ⊂ O is a subset containing only objects in S0,and Aprim ⊂ A is a pre-defined set of primitive actions. We define the Global World State at time τ as the aggregate configuration of all objects present in the generated scene graph GS0 . The state is given by: 
+
+Sτ = {sτ (oi, o j )}{oi,o j }⊂O S0 ⊂ S . (11) This global state formulation allows us to rigorously define state transitions throughout the environment, not just for isolated objects, and S0 is a special case when τ = 0 .
+
+Graph-Based Task Representation. As illustrated in Fig-ure 2, we model the task generation process as finding a path within GS0 that satisfies a user’s high-level instruction 
+
+I. This path is composed of two distinct types of edges: 
+
+Intra-Task Edges and Inter-Task Edges .
+
+1. Intra-Task Edge (Action Flow): For a simple task Tk,the action flow π(Tk) corresponds to a sequence of nodes strictly ascending the temporal dimension within the 2D slice defined by the target object o(k) 
+
+> t
+
+. These edges represent the physical execution of atomic primitives, directly altering the state Sτ .
+
+2. Inter-Task Edge (Action Transfer): The transition between two consecutive simple tasks, Tk and Tk+1 , is rep-resented by an action transfer edge ek = e(o(k) 
+
+> t
+
+, o (k+1)  
+
+> t
+
+).Crucially, unlike π(Tk), the transfer edge ek does not in-volve physical execution steps that consume simulation time. Instead, it represents a semantic and logical linkage-bridging the terminal action of Tk and the initial action of Tk+1 .To formalize this “instantaneous” context switch, we intro-duce the augmented state S+ 
+
+> τ
+
+. Given S0 and a very small temporal margin ∆τ > 0, it is defined as 
+
+S+ 
+
+> τ
+
+≜Sτ +∆ τ = s+ 
+
+> τ
+
+(oi, o j ) {oi,o j }⊂O S0
+
+≜ {sτ +∆ τ (oi, o j )}{oi,o j }⊂O S0
+
+. (12) For a valid task decomposition, the termination of task Tk
+
+and the initialization of Tk+1 must satisfy the boundary 4Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning 
+
+condition S(k+1)  
+
+> init
+
+= S(k)+  
+
+> goal
+
+. Consequently, we can define the probability of a successful action transfer as: 
+
+P
+
+
+
+S(k+1)  
+
+> init
+
+| S(k)
+
+> goal
+
+, e k
+
+
+
+= P
+
+
+
+S(k)+  
+
+> goal
+
+| S(k)
+
+> goal
+
+, e k
+
+
+
+> 0. (13) This probability quantifies the likelihood of successfully es-tablishing a logical connection between the o(k) 
+
+> t
+
+and o(k+1)  
+
+> t
+
+,which is equivalent to the success probability of the LLM’s high-level task decomposition, see Appendix B. 
+
+Compositional Reachability. Based on this probabilistic graph model, we provide a theoretical guarantee for the solvability of generated tasks. 
+
+Proposition 4.1 (Global Reachability via Hierarchical Com-position) . Let Sτ ⊂ S denote the global world state at time 
+
+τ . Assume the AGT-World graph GS0 ⊂ G satisfies: 1. Primitive Completeness: For any simple task T =
+
+⟨ot, o s1 , o s2 , s init , s goal ⟩, s init , s goal ∈ S , there exists an action flow π(T ) ⊂ VS0 s.t. P(sgoal | sinit , π ) > 0;2. Connectivity of Context: For any two consecutive sim-ple tasks Tk, T k+1 , if their boundary conditions align (i.e., S(k) 
+
+> goal
+
+≈ S(k+1)  
+
+> init
+
+), there exists an action transfer 
+
+ek(o(k) 
+
+> t
+
+, o (k+1)  
+
+> t
+
+) ⊂ VS0 connecting them with a posi-tive probability P
+
+
+
+S(k+1)  
+
+> init
+
+= S(k)+  
+
+> goal
+
+| S(k)
+
+> goal
+
+, e k
+
+
+
+> 0.Then for any complex long-horizon task T = {Tk}Kk=1 and global world state S0 = S(1)  
+
+> init
+
+, S τ = S(K) 
+
+> goal
+
+⊂ S , there exists 
+
+Π = {πk ⊂ VS0 : πk ∼ pF(π | T ; ϵ1)}Kk=1 ,
+
+E = {ek ⊂ VS0 : ek ∼ pT(e | T ; ϵ2)}K−1 
+
+> k=1
+
+,
+
+such that 
+
+P (Sτ | S0, Π, E)=
+
+> K
+
+Y
+
+> k=1
+
+P(Sτk | S+ 
+
+> τk−1
+
+, π k)
+
+| {z }
+
+> Execution Feasibility
+
+·
+
+> K−1
+
+Y
+
+> k=1
+
+P(S+ 
+
+> τk
+
+| Sτk , e k)
+
+| {z }
+
+> Transition Consistency
+
+> 0 (14) 
+
+with [0 , τ ] = SKk=1 [τk−1, τ k].
+
+The proposition means that the global transition from S0 to 
+
+Sτ is feasible with non-zero probability, and the proof of this proposition is given in Appendix C. 
+
+4.2. Graph-Based Task Generation 
+
+At present, methods for robotic perception and dynamic rep-resentation generally fall into five categories: Pixel-based, Latent, 3D Particle, Keypoint, and Object-centric represen-tations (Ai et al., 2025). While each has merits, our frame-work integrates visual feedback with a graph-based structure to enable robust long-horizon planning. Specifically, we focus on the sub-task decomposition module, inspired by works that combine LLMs with Input-Output examples for task expansion (Wang et al., 2024) or fine-tune models like Qwen-2.5VL for decomposition (Sun et al., 2025). 
+
+Initialization via VLM-Driven Decomposition. As illus-trated in Figure 3, the process begins with a user-provided keyword I, the generated simulated scene S0, and the orig-inal real-world reference image X0. These inputs are fed into a VLM to propose a high-level plan and decompose it into atomic sub-tasks. This yields a posterior distribution over the complex task structure: 
+
+T ∼ pG(T | I , S 0, X 0; ϵ3), (15) where ϵ3 represents the planning uncertainty introduced by the VLM. Given this T , and assuming the conditions of Proposition 4.1 are met, we can proceed to generate the specific action flows for each sub-task. 
+
+4.3. Self-Evolution for Task Progression 
+
+In this section, we introduce the Self-Evolution strategy and algorithm that uses VLM as a process supervisor. Figure 4 provides a complementary illustration of our work. 
+
+Self-Evolution Mechanism. For each sub-task Tk ∈ T ,the action flow π(Tk) = {a1, . . . , a n} is executed, and we extract a sequence of video frames as visual feedback. Let 
+
+I ⊂ { Global, Head, Wrist } denote the set of camera views used, and p2 be a hyperparameter controlling the frame sampling rate per action. If action aj takes time tj , we obtain the image sequence for the j-th action from view i
+
+as Xikj =
+
+
+
+xi, 1 
+
+> kj
+
+, . . . , x i, ⌈tj /p 2⌉
+
+> kj
+
+
+
+, where xil kj ∈ RH×W ×3.The VLM analyzes these frames sequentially. To pro-vide temporal context, we introduce a hyperparameter p1
+
+(look-back window). For the j-th step, the VLM ob-serves the sequence of frames corresponding to actions 
+
+{amax( j−p1,1) , . . . , a j }. Let XIkj denote the concatenated multi-view frames for this window as 
+
+XIkj =
+
+n
+
+Xik, max( j−p1,1) , . . . , X ik,j 
+
+o
+
+> i∈I
+
+, (16) and XIk =
+
+n
+
+XIkj 
+
+o|π(Tk )|
+
+> j=1
+
+denote the the complete visual observation for the sub-task. The VLM outputs a step-wise semantic critique mj ∼ pE
+
+
+
+m | XIkj ; ϵ4
+
+
+
+, where ϵ4
+
+represents the uncertainty by the VLM. The collection of all step-wise critiques is m = {mj }|π(Tk )| 
+
+> j=1
+
+.The final step aggregates all historical visual data XIk, step-wise critiques m, the overall task context T , and the history of previous evolution iterations to propose the next itera-tion’s policy. The evolution from iteration τ to τ + 1 is 5Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning Subtask Configs     
+
+> Description: …
+> Target Obj: …
+> Support Obj: …
+> Obj Category: …
+> LLM
+
+Graph -Based Task Generation       
+
+> Pick up cup
+> User Keyword
+> Stage 1: Semantic Expansion
+> Scene JSON
+> Scene Picture
+> VLM
+> LLM Detailed Task
+> Description
+> Task Name:
+> …
+> Description:
+> …
+> Stage 2: Decomposition
+> Input
+> Subtask 1
+> Subtask 2
+> Definitions
+> Target/Support …
+> …
+> Stage 3: Instantiation
+> Action Flow Planning
+> LLM
+> Size Adjustment
+> Scaling Factor Calculation
+> BDDL Generation
+> BDDL File
+> objects
+> initial
+> goal
+> ONTOP
+> NOT(ONTOP)
+
+Self -Evolution Mechanism                                     
+
+> 𝑥
+> 𝑦
+> 𝑧
+> Approach
+> Lift up
+> Grasp
+> Action with Parameters
+> Subtask 3
+> Iteration 𝝉 +𝟏
+> 𝑚 1
+> 𝑚 2
+> Step 1
+> (𝑎 1)
+> Scene
+> Perception
+> 𝐗 𝑘 ,1
+> 𝐼
+> 𝑋 𝑘 ,1
+> 𝐼
+> Analyze by VLM
+> Step 2
+> 𝐗 𝑘 ,2
+> 𝐼
+> ………
+> Step 𝑗 𝑚 𝑗
+> 𝐗 𝑘 ,𝑗
+> 𝐼
+> |𝐼 |∙𝑡 1/𝑝 2frames …
+> ……
+> ……………
+> |𝐼 |∙σ𝑖 =max {𝑗 −𝑝 1,1}
+> 𝑗 𝑡 𝑖 /𝑝 2frames
+> ………Look back window 𝑝 1
+> Step 𝑛 ……………𝑚 𝑛
+> 𝑛 =𝜋 (𝑇 𝑘 )
+> …
+> 𝐗 𝑘 ,𝑛
+> 𝐼
+> 𝐗 𝑘
+> 𝐼 𝐦
+> Subtask 𝑇 𝑘 −1
+> Self -
+> Evolution Subtasks
+> Subtask 𝑇 𝑘
+> …
+> …VLM
+> New Action Flow ො𝜋 𝜏 +1
+> New Reason ෝ𝑚 𝜏 +1
+> Tasks
+> Context
+> Initial
+> Actions
+
+Figure 3. Graph-Based Task Generation with Self-Evolution. For the left part, Stage I: Received a user keyword and scene information, producing the complete task name and an expanded task-scene description. Stage II: Leveraging the definitions of ot, o s1 , o s2 and boundary cases for decomposition, provides subtask description, and precise matching of relevant objects. Stage III: For each subtask, adjust target object size, generate a BDDL (Li et al., 2023) file that defines sinit , s goal , and match each step with corresponding actions from the primitive action library. For the right part, we use Self-Evolution Mechanism to generate new action sequence and reasons until maximum iteration times per subtask. For details, see Appendix A.2,A.3. 
+
+modeled as: 
+
+(ˆ πτ +1 , ˆmτ +1 ) ∼
+
+pE
+
+ (π, m ) | XIk, m, T , {(ˆ πi, ˆmi)}τi=1 ; ϵ4
+
+ . (17) 
+
+Optimization Algorithm A0. Within the evolution step, our algorithm A0 employs two specific strategies based on the VLM’s feedback: Sequence Modification (correcting se-mantic logic errors) and Parameter Adjustment (fine-tuning geometric parameters). Algorithm A0 iteratively applies the sampling process described above to minimize the discrep-ancy between the executed and desired states. While Proposition 4.1 assumes the existence of an optimal policy πn within the generated graph GS0 rather than the continuous universal space S. Since our action space is con-structed from a finite set of discrete primitives Aprim ⊂ A 
+
+(see Appendix A.2), it cannot fully span all actions, in-evitably introducing an irreducible systematic bias ϵbias .
+
+## 5. Experiments 
+
+To test our method, we constructed large-scale scene-task pairs. In addition, we specifically designed some complex long-horizon tasks covering basic task types and conducted ablation experiments on the self-evolution mechanism. 
+
+5.1. Experimental Setup 
+
+The generated tasks categorize into three primary types: 1) Manipulation primitives such as “Open/Close” or “Pick/-Place”; 2) Transportation tasks involving mobile base nav-igation; and 3) Fine-grained tasks requiring precise object positioning and stacking as “Place A inside/on B”. 
+
+Large-Scale Scene-Task Pairs. We leveraged generative models to select 34 suitable real-world scenes, and we re-constructed three interactive simulation environments for each real-world scene. This yielded 102 unique scenarios 
+
+comprising diverse scene layouts and task definitions au-tonomously. Here, we only test the first primary type of tasks. As shown in Table 1, our method achieves an overall success rate of 71.6% . For all tasks results, see Figure 5 (a). 
+
+Table 1. Success Rate on 102 Tasks. This validates the reliability of our scene construction and task planning pipeline. The scene generated examples and experiment details see Appendix D.3. 
+
+Task Category Count Success SR (%) 
+
+Articulated Object (Open/Close) 36 24 66.7 Rigid Object (Pick up) 66 49 74.2 
+
+Total 102 73 71.6 
+
+Representative Complex Long-Horizon Tasks. To rig-orously evaluate our framework’s capabilities in handling these composite behaviors, we designed four representative complex long-horizon tasks: • T1: Transport a glass into a refrigerator. • T2: Place an apple into a refrigerator. • T3: Transfer an apple into a bowl. • T4: Place a cup onto a table. Each complex task is a composition of the aforementioned primitive types. Because we adopted a structured task de-composition method, the actual experimental results show that the outcome of each subtask decomposition consistently remains deterministic. The details see Appendix D.4. 6Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning Subtask 1: open refrigerator (success)  Subtask 2: pick up glass (success)  Subtask 3: put glass into refrigerator                          
+
+> approach converge grasp open ungrasp navigate approach converge lift up navigate base forward ungrasp
+> navigate base left base forward turn right EEF forward lift down ungrasp
+> ……
+> ungrasp close navigate approach converge grasp
+> …
+> Subtask 4: close refrigerator
+> Subtask 3 (success)
+> Subtask 1 Subtask 2
+> Subtask 4 (success)
+> ……
+> Subtask 1 Subtask 2
+> …
+> Subtask 3
+> (After 3 evolutions for subtask 3)
+> (After 2 evolutions for subtask 4) Previous subtask not execute again
+
+Figure 4. Detailed Action Display of Self-Evolution. Here we take the task of “Transport a glass into a refrigerator” as an example. This task is divided into four subtasks: “open refrigerator”, “pick up glass”, ”put glass into refrigerator” and ”close refrigerator”. Among them, subtask 3 was successfully completed after 3 iterations, while subtask 4 went through 2 iterations. 
+
+Table 2. Comparison on task diversity and feasibility. We compare with representative human-designed robotics datasets and the concurrent work. (↑) indicates higher is better for fidelity/reconstruction quality. 
+
+Metric AGT-World RoboGen Behavior-100 RLBench Meta-World GenSim-V2 ManiSkill2 Number of Tasks 102 106 100 106 50 70 20 Task Desc. - Self-BLEU (↑) 0.806 0.284 0.299 0.317 0.322 0.378 0.674 Task Desc. - S-BERT Sim (↑) 0.376 0.165 0.210 0.200 0.263 0.288 0.194 Scene Image - ViT Sim (↑) 0.440 0.193 0.389 0.375 0.517 0.717 0.332 
+
+5.2. Task Diversity and Scene Feasibility 
+
+We evaluate the quality of our generated tasks and scenes using metrics established in prior work (Wang et al., 2024), focusing on semantic alignment and visual fidelity. 
+
+Metrics. We employ Self-BLEU (Papineni et al., 2002; Zhu et al., 2018) to analyze task description structure; unlike open-ended text generation, a higher score in our graph-based task generation framework indicates desirable struc-tural consistency for robust code parsing. For semantic fidelity, we use S-BERT (Reimers & Gurevych, 2019; Zhu et al., 2018) to measure the alignment between user key-words and generated definitions. Finally, visual reconstruc-tion quality is evaluated via ViT Similarity (Dosovitskiy et al., 2021), comparing rendered simulation images with real-world references. 
+
+Results. As shown in Table 2, our method achieves a ViT Similarity of 0.440 , outperforming many other generative baselines and comparable to human-annotated benchmarks such as Behavior-100, confirming the visual realism of our simulated scene reconstruction. Crucially, we achieve the highest S-BERT score 0.376 , demonstrating that our VLM-driven task expansion adheres strictly to user intent with-out hallucination. Furthermore, the high Self-BLEU score 
+
+0.860 is a deliberate outcome of our graph-based design, reflecting the highly standardized and executable program format essential for stable robot planning, contrasting with the unstructured randomness of other methods. 
+
+5.3. Task Generation and Evolution Performance 
+
+We evaluate the execution fidelity of autonomously gener-ated tasks on four complex scenarios. For T1 and T3, we compare Gemini-3-Flash, GPT-5.2, and the open-source model Qwen3-VL (Specifically, we all use qwen3-vl-235b-22a-thinking ); for others, we use Qwen3-VL. We set a strict failure condition: if any sub-task exceeds 5 evolution itera-tions, the entire episode is marked as failed. All the results are summarized in Table 3. 
+
+Performance Analysis. Simple primitives achieve near 
+
+100% success rates across most trials, which means the initial graph-based planning provides a solid foundation for these interactions. However, navigation-heavy sub-tasks or fine-grained manipulation tasks ( T1, T2, T4 con-tains complex transportation tasks, T3, T4 need complex fine-grained manipulation), open-loop execution falters, and self-evolution becomes critical. In T1, Qwen3-VL achieves the best completion rate 40% 
+
+by utilizing iterations to correct placement errors, the evo-lutionary progression is visualized in Figure 5 (b,c). In T3,Gemini-3-Flash excels with a 70% success rate, achieving a high ESR 62.5% in rescuing failed episodes. Detailed experimental results can be found in Appendix D.4,D.5. Failures in the later stages mainly stem from situations such as objects falling or getting stuck at the edges, and these situations are usually difficult to correct within a few steps. For detailed failure analysis, see Appendix D.6. 7Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning 
+
+Figure 5. Comprehensive Evaluation and Ablation Studies. (a) Generalization performance across 34 diverse real-world scenes, and results are split into two type of tasks. Color indicates success (Green) or failure (Red). (b) Task progression trajectory showing the relationship between cumulative iterations and sub-task completion. (c) Cost distribution per subtask, visualizing the density of required iterations. (d) Ablation study on camera views, comparing SR across different visual input configurations. (e) Ablation study on context window ( p1), analyzing the impact of history window on SR. All ablations are performed on task T1 using the Qwen3-VL. 
+
+Table 3. Skill Learning Performance on Long-Horizon Tasks. We report the Task Success Rate (SR, %), Evolution Success Rate (ESR, %) and Success Task Average Iterations (Iter) for each subtask stage, the complete task and subtask average.                                                                                                                                                         
+
+> Tasks VLM Model Demos Subtask 1 Subtask 2 Subtask 3 Subtask 4 Complete Task Subtask Avg
+> SR Iter SR ESR Iter SR ESR Iter SR ESR Iter SR Iter SR Iter
+> T1: Glass →Fridge Gemini-3-Flash 10 100 0100 —030 30 1.7 100 100 0.7 30 2.3 82.5 0.6 GPT-5.2 10 100 0100 —030 30 266.7 66.7 1.0 20 3.5 74.2 0.8
+> Qwen3-VL 20 100 0100 —045 45 2.7 88.9 66.7 0.5 40 3.1 83.5 0.8
+> T2: Apple →Fridge Qwen3-VL 10 100 0100 100 0.3 40 40 1.8 75 66.7 0.7 30 2.3 78.8 0.7
+> T3: Apple →Bowl
+> Gemini-3-Flash 10 100 070 62.5 1.6 ——————70 1.6 92.5 0.4 GPT-5.2 10 100 050 16.7 0.2 ——————50 0.2 87.5 0.1 Qwen3-VL 10 100 050 16.7 0.4 ——————50 0.4 87.5 0.1
+> T4: Cup →Table Qwen3-VL 10 100 070 60 1.0 ——————70 1.0 85 0.5
+
+5.4. Ablation Studies 
+
+We conduct ablation studies to validate our design choices regarding visual feedback and temporal context. 
+
+Effect of Camera Views. We investigate the impact of the visual perspective set I ⊂ { Global, Head, Wrist } provided to the VLM. As illustrated in Figure 5 (d), the standard and full view configuration achieves the similar performance, while relying solely on the Global or Head view leads to more planning failures due to limited field-of-view. 
+
+Effect of Temporal Context p1. We analyze the look-back window hyperparameter p1 for the VLM’s input action his-tory. As results in Figure 5 (e), increasing p1 has little effect on SR while substantially increasing costs and inference latency. Therefore, we chose p1 = 1 in our experiments. 
+
+## 6. Conclusion 
+
+In this paper, we introduced Affordance-Graphed Task Worlds ( AGT-World ), a unified framework that can au-tonomously generate physically manipulable data for scal-able robotic learning, and also provides a theoretical frame-work for graph-based task generation and self-evolution. Our approach addresses the following three core challenges: First, we bridge the semantic-physical gap by reconstruct-ing interactive simulated scenes that preserve both the geometric layouts and semantic affordances of real-world observations. Second, we model the task world as a struc-tured graph , enabling the precise decomposition of com-plex long-horizon tasks into simple tasks, which all have exe-cutable atomic actions. Third, we introduce a self-evolution mechanism with hybrid feedback, allowing the system to autonomously diagnose execution failures and refine poli-cies through a closed-loop cycle of proposal, execution, and correction. Extensive experiments demonstrate that AGT-World sig-nificantly outperforms in success rates and generalization under large-scale scene-task pairs. Furthermore, we per-formed well in several complex long-horizon tasks. Future work will consider combining RL strategies as agents to action categories under specific conditions, and designing pathways for sim-to-real transfer. 8Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning 
+
+## Impact Statement 
+
+This work presents a scalable embodied data generation method that significantly accelerates the development of general-purpose robots. Our framework lowers the barrier to training high-performance intelligent agents. By generating high-quality, long-duration demonstration data from static images, it promotes the widespread adoption of embodied artificial intelligence research. The self-evolving mechanism directly contributes to improv-ing the safety of robot behavior. By rigorously diagnosing and correcting failure modes in a simulated environment, our method minimizes the risk of physical damage during the early stages of learning and ensures the logical consis-tency of the generated policies before deployment. We acknowledge that relying on generative foundation mod-els may introduce biases present in the training data, and we encourage the community to utilize this process to create diverse datasets that represent various cultural and physical environments, thereby ensuring the fairness and robustness of robot generalization. 
+
+## References 
+
+Ahn, M., Dwibedi, D., Finn, C., Arenas, M. G., Gopalakr-ishnan, K., Hausman, K., Ichter, B., Irpan, A., Joshi, N., Julian, R., et al. Autort: Embodied foundation models for large scale orchestration of robotic agents. arXiv preprint arXiv:2401.12963 , 2024. Ai, B., Tian, S., Shi, H., Wang, Y., Pfaff, T., Tan, C., Chris-tensen, H. I., Su, H., Wu, J., and Li, Y. A review of learning-based dynamics models for robotic manipula-tion. Science Robotics , 10(106):eadt1497, 2025. Bruce, J., Dennis, M. D., Edwards, A., Parker-Holder, J., Shi, Y., Hughes, E., Lai, M., Mavalankar, A., Steiger-wald, R., Apps, C., et al. Genie: Generative interactive environments. In Forty-first International Conference on Machine Learning , 2024. Dai, T., Wong, J., Jiang, Y., Wang, C., Gokmen, C., Zhang, R., Wu, J., and Fei-Fei, L. Automated creation of digital cousins for robust policy learning. In Conference on Robot Learning (CoRL) , 2024. Dosovitskiy, A., Beyer, L., Kolesnikov, A., Weissenborn, D., Zhai, X., Unterthiner, T., Dehghani, M., Minderer, M., Heigold, G., Gelly, S., Uszkoreit, J., and Houlsby, N. An image is worth 16x16 words: Transformers for image recognition at scale. In 9th International Con-ference on Learning Representations, ICLR 2021, Vir-tual Event, Austria, May 3-7, 2021 . OpenReview.net, 2021. URL https://openreview.net/forum? id=YicbFdNTTy .Gan, C., Schwartz, J., Alter, S., Mrowca, D., Schrimpf, M., Traer, J., De Freitas, J., Kubilius, J., Bhandwaldar, A., Haber, N., et al. Threedworld: A platform for inter-active multi-modal physical simulation. arXiv preprint arXiv:2007.04954 , 2020. Garrett, C. R., Mandlekar, A., Wen, B., and Fox, D. Skillmimicgen: Automated demonstration generation for efficient skill learning and deployment. In 8th Annual Conference on Robot Learning , 2024. URL https: //openreview.net/forum?id=YOFrRTDC6d .Hua, P., Liu, M., Macaluso, A., Lin, Y., Zhang, W., Xu, H., and Wang, L. Gensim2: Scaling robot data generation with multi-modal and reasoning llms. In 8th Annual Conference on Robot Learning , 2024. Huang, H., Lin, F., Hu, Y., Wang, S., and Gao, Y. Copa: General robotic manipulation through spatial constraints of parts with foundation models. In 2024 IEEE/RSJ Inter-national Conference on Intelligent Robots and Systems (IROS) , pp. 9488–9495. IEEE, 2024. Kang, B., Yue, Y., Lu, R., Lin, Z., Zhao, Y., Wang, K., Huang, G., and Feng, J. How far is video generation from world model? – a physical law perspective. arXiv preprint arXiv:2411.02385 , 2024. Kerbl, B., Kopanas, G., Leimk ¨uhler, T., and Drettakis, G. 3d gaussian splatting for real-time radiance field rendering. 
+
+ACM Trans. Graph. , 42(4):139–1, 2023. Kerr, J., Kim, C. M., Goldberg, K., Kanazawa, A., and Tancik, M. Lerf: Language embedded radiance fields. In 
+
+Proceedings of the IEEE/CVF international conference on computer vision , pp. 19729–19739, 2023. Kim, M. J., Pertsch, K., Karamcheti, S., Xiao, T., Balakr-ishna, A., Nair, S., Rafailov, R., Foster, E., Lam, G., Sanketi, P., Vuong, Q., Kollar, T., Burchfiel, B., Tedrake, R., Sadigh, D., Levine, S., Liang, P., and Finn, C. Open-vla: An open-source vision-language-action model, 2024. URL https://arxiv.org/abs/2406.09246 .Li, C., Xia, F., Mart ´ın-Mart ´ın, R., Lingelbach, M., Srivas-tava, S., Shen, B., Vainio, K. E., Gokmen, C., Dharan, G., Jain, T., Kurenkov, A., Liu, K., Gweon, H., Wu, J., Fei-Fei, L., and Savarese, S. igibson 2.0: Object-centric simulation for robot learning of everyday household tasks. In Faust, A., Hsu, D., and Neumann, G. (eds.), Proceed-ings of the 5th Conference on Robot Learning , volume 164 of Proceedings of Machine Learning Research , pp. 455–465. PMLR, 08–11 Nov 2022. Li, C., Zhang, R., Wong, J., Gokmen, C., Srivastava, S., Mart ´ın-Mart ´ın, R., Wang, C., Levine, G., Lingelbach, M., Sun, J., et al. Behavior-1k: A benchmark for embodied ai 9Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning 
+
+with 1,000 everyday activities and realistic simulation. In 
+
+Conference on Robot Learning , pp. 80–93. PMLR, 2023. Li, C., Xu, M., Bahety, A., Yin, H., Jiang, Y., Huang, H., Wong, J., Garlanka, S., Gokmen, C., Zhang, R., Liu, W., Wu, J., Mart ´ın-Mart ´ın, R., and Fei-Fei, L. Momagen: Generating demonstrations under soft and hard constraints for multi-step bimanual mobile manip-ulation, 2025a. URL https://arxiv.org/abs/ 2510.18316 .Li, D., Fang, Y., Chen, Y., Yang, S., Cao, S., Wong, J., Luo, M., Wang, X., Yin, H., Gonzalez, J. E., et al. World-modelbench: Judging video generation models as world models. arXiv preprint arXiv:2502.20694 , 2025b. Liao, Y., Zhou, P., Huang, S., Yang, D., Chen, S., Jiang, Y., Hu, Y., Cai, J., Liu, S., Luo, J., et al. Genie envi-sioner: A unified world foundation platform for robotic manipulation. arXiv preprint arXiv:2508.05635 , 2025. Liu, Y., Zhang, K., Li, Y., Yan, Z., Gao, C., Chen, R., Yuan, Z., Huang, Y., Sun, H., Gao, J., et al. Sora: A review on background, technology, limitations, and opportunities of large vision models. arXiv preprint arXiv:2402.17177 ,2024. Ma, J., Liang, W., Wang, H.-J., Zhu, Y., Fan, L., Bastani, O., and Jayaraman, D. Dreureka: Language model guided sim-to-real transfer. Robotics: Science and Systems (RSS), 2024a. Ma, Y. J., Liang, W., Wang, G., Huang, D.-A., Bastani, O., Jayaraman, D., Zhu, Y., Fan, L., and Anandkumar, A. Eureka: Human-level reward design via coding large language models. In International Conference on Repre-sentation Learning (ICLR) , 2024b. Makoviychuk, V., Wawrzyniak, L., Guo, Y., Lu, M., Storey, K., Macklin, M., Hoeller, D., Rudin, N., Allshire, A., Handa, A., et al. Isaac gym: High performance gpu-based physics simulation for robot learning. arXiv preprint arXiv:2108.10470 , 2021. Mees, O., Ghosh, D., Pertsch, K., Black, K., Walke, H. R., Dasari, S., Hejna, J., Kreiman, T., Xu, C., Luo, J., et al. Octo: An open-source generalist robot policy. In First Workshop on Vision-Language Models for Navigation and Manipulation at ICRA 2024 , 2024. Meng, F., Liao, J., Tan, X., Shao, W., Lu, Q., Zhang, K., Cheng, Y., Li, D., Qiao, Y., and Luo, P. To-wards world simulator: Crafting physical commonsense-based benchmark for video generation. arXiv preprint arXiv:2410.05363 , 2024. Nguyen, P. T., Wang, T.-H., Hong, Z.-W., Aasi, E., Silva, A., Rosman, G., Karaman, S., and Rus, D. Regen: Generative robot simulation via inverse design. In The Thirteenth International Conference on Learning Representations ,2025. URL https://openreview.net/forum? id=EbCUbPZjM1 .Oquab, M., Darcet, T., Moutakanni, T., Vo, H., Szafraniec, M., Khalidov, V., Fernandez, P., Haziza, D., Massa, F., El-Nouby, A., et al. Dinov2: Learning robust visual features without supervision. arXiv preprint arXiv:2304.07193 ,2023. O’Neill, A., Rehman, A., Maddukuri, A., Gupta, A., Padalkar, A., Lee, A., Pooley, A., Gupta, A., Mandlekar, A., Jain, A., et al. Open x-embodiment: Robotic learning datasets and rt-x models: Open x-embodiment collab-oration 0. In 2024 IEEE International Conference on Robotics and Automation (ICRA) , pp. 6892–6903. IEEE, 2024. Papineni, K., Roukos, S., Ward, T., and Zhu, W. J. Bleu: a method for automatic evaluation of machine translation. In Proceedings of the 40th Annual Meeting of the Associ-ation for Computational Linguistics , pp. 311–318, 2002. doi: 10.3115/1073083.1073135. Radford, A., Kim, J. W., Hallacy, C., Ramesh, A., Goh, G., Agarwal, S., Sastry, G., Askell, A., Mishkin, P., Clark, J., et al. Learning transferable visual models from natural language supervision. In International conference on machine learning , pp. 8748–8763. PmLR, 2021. Ravi, N., Gabeur, V., Hu, Y.-T., Hu, R., Ryali, C., Ma, T., Khedr, H., R ¨adle, R., Rolland, C., Gustafson, L., Mintun, E., Pan, J., Alwala, K. V., Carion, N., Wu, C.-Y., Girshick, R., Doll ´ar, P., and Feichtenhofer, C. Sam 2: Segment anything in images and videos. arXiv preprint arXiv:2408.00714 , 2024. URL https:// arxiv.org/abs/2408.00714 .Reimers, N. and Gurevych, I. Sentence-bert: Sen-tence embeddings using siamese bert-networks. 
+
+ArXiv , abs/1908.10084, 2019. URL https: //api.semanticscholar.org/CorpusID: 201646309 .Sun, Q., Yang, L., Tang, W., Huang, W., Xu, K., Chen, Y., Liu, M., Yang, J., Zhu, H., Wang, Y., et al. Learning prim-itive embodied world models: Towards scalable robotic learning. arXiv preprint arXiv:2508.20840 , 2025. Tao, S., Xiang, F., Shukla, A., Qin, Y., Hinrichsen, X., Yuan, X., Bao, C., Lin, X., Liu, Y., kai Chan, T., Gao, Y., Li, X., Mu, T., Xiao, N., Gurha, A., Rajesh, V. N., Choi, Y. W., Chen, Y.-R., Huang, Z., Calandra, R., Chen, R., Luo, S., and Su, H. Maniskill3: Gpu parallelized robotics 10 Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning 
+
+simulation and rendering for generalizable embodied ai. 
+
+Robotics: Science and Systems , 2025. Tian, W., Zhang, S., Zhang, K., Chi, X., Fan, C., Lu, J., Luo, Y., Zhou, Q., Zhao, Y., Liu, N., et al. Seea-r1: Tree-structured reinforcement fine-tuning for self-evolving em-bodied agents. arXiv preprint arXiv:2506.21669 , 2025. Wang, X., Liu, L., Cao, Y., Wu, R., Qin, W., Wang, D., Sui, W., and Su, Z. Embodiedgen: Towards a generative 3d world engine for embodied intelligence. arXiv preprint arXiv:2506.10600 , 2025. Wang, Y., Xian, Z., Chen, F., Wang, T.-H., Wang, Y., Fragkiadaki, K., Erickson, Z., Held, D., and Gan, C. Robogen: Towards unleashing infinite data for auto-mated robot learning via generative simulation. In Forty-first International Conference on Machine Learning ,2024. URL https://openreview.net/forum? id=SQIDlJd3hN .Yan, W., Zhang, Y., Abbeel, P., and Srinivas, A. Videogpt: Video generation using vq-vae and transformers. arXiv preprint arXiv:2104.10157 , 2021. Yang, L., Kang, B., Huang, Z., Zhao, Z., Xu, X., Feng, J., and Zhao, H. Depth anything v2. Advances in Neu-ral Information Processing Systems , 37:21875–21911, 2024a. Yang, Y., Sun, F.-Y., Weihs, L., VanderBilt, E., Herrasti, A., Han, W., Wu, J., Haber, N., Krishna, R., Liu, L., et al. Holodeck: Language guided generation of 3d embodied ai environments. In Proceedings of the IEEE/CVF Con-ference on Computer Vision and Pattern Recognition , pp. 16227–16237, 2024b. Yang, Y., Gu, K., Wen, Y., Li, H., Zhao, Y., Wang, T., and Liu, X. Maniagent: An agentic framework for general robotic manipulation, 2025. URL https://arxiv. org/abs/2510.11660 .Yu, T., Xiao, T., Stone, A., Tompson, J., Brohan, A., Wang, S., Singh, J., Tan, C., Peralta, J., Ichter, B., et al. Scaling robot learning with semantically imagined experience. 
+
+arXiv preprint arXiv:2302.11550 , 2023. Zhen, H., Qiu, X., Chen, P., Yang, J., Yan, X., Du, Y., Hong, Y., and Gan, C. 3d-vla: 3d vision-language-action gen-erative world model. arXiv preprint arXiv:2403.09631 ,2024. Zhou, X., Qiao, Y., Xu, Z., Wang, T., Chen, Z., Zheng, J., Xiong, Z., Wang, Y., Zhang, M., Ma, P., et al. Genesis: A generative and universal physics engine for robotics and beyond. arXiv preprint arXiv:2401.01454 , 2024. Zhu, Y., Lu, S., Zheng, L., Guo, J., Zhang, W., Wang, J., and Yu, Y. Texygen: A benchmarking platform for text generation models. In The 41st International ACM SIGIR Conference on Research & Development in Information Retrieval , pp. 1097–1100, 2018. Zitkovich, B., Yu, T., Xu, S., Xu, P., Xiao, T., Xia, F., Wu, J., Wohlhart, P., Welker, S., Wahid, A., et al. Rt-2: Vision-language-action models transfer web knowledge to robotic control. In Conference on Robot Learning , pp. 2165–2183. PMLR, 2023. Zook, A., Sun, F.-Y., Spjut, J., Blukis, V., Birchfield, S., and Tremblay, J. Grs: Generating robotic simulation tasks from real-world images. In Proceedings of the Computer Vision and Pattern Recognition Conference , pp. 594–603, 2025. 11 Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning 
+
+## A. Implementation Details 
+
+A.1. Simulated Scene Generation Details 
+
+This section show the complete process of simulated scene generation 3.1 by the reconstruction method (Dai et al., 2024). The generation of the simulation environment reconstruct an interactive simulated scene from a single real-world RGB observation, and it reserving semantic affordances and object states. The pipeline is as follows: 1. Real-world Extraction: Obtain data and information from the real world, input the camera’s internal parameter matrix 
+
+K and a single RGB image X, and output a set of object representations including object labels, masks, point clouds, etc., for the subsequent creation of simulated scenes. The main methods include observing and extracting objects (using LLM, GroundedSAM-v2 (Ravi et al., 2024)), followed by depth estimation ( DepthAnything-v2 (Yang et al., 2024a)) and extracting point clouds, etc. 2. Assets Matching: Hierarchical search is conducted on the asset dataset BEHAVIOR-1K (Li et al., 2023). Through the 
+
+CLIP and DINOv2 models (Radford et al., 2021; Oquab et al., 2023), the most suitable assets are matched for each object. This step outputs the virtual assets and snapshots corresponding to each cousin in the corresponding direction. 3. Simulated Scene Generation: Improve the details such as asset location determination and scene physical stability (for example, use LLM to determine whether to install objects on the wall). And based on the OmniGibson platform (Li et al., 2023), simulation scenes are generated, providing physical simulation and rendering including object states, etc. ManiAgent (Yang et al., 2025) directly estimates the 3D coordinates of real objects from RGB images using Florence-2 , and then employs AnyGrasp to estimate the 6-DoF pose of the target position and plan the path. In contrast, our work estimates the 3D coordinates of each object from RGB images while reconstructing the entire simulated environment. It retains advanced scene attributes, such as spatial object layout S0, key semantics, and physical visibility, which offers advantages such as maintaining global physical consistency and preserving the state of complex long-horizon tasks. 
+
+A.2. Implementation Details of Graph-Based Task Generation 
+
+In this section, we provide a comprehensive breakdown of the Graph-Based Task Generation pipeline, corresponding to the left component of Figure 3 in the main paper. This process utilizes Large Language Models (LLMs) or Vision-Language Models (VLMs) to autonomously translate vague user commands into executable, physically grounded task specifications. The pipeline consists of three sequential stages: Semantic Expansion, Subtask Decomposition, and Task Instantiation. A.2.1. S EMANTIC EXPANSION 
+
+The goal of this stage is to ground a potentially vague user query into a precise scene context. 
+
+Input: 
+
+• User Keyword ( I): This can be a specific object name (e.g., “refrigerator”, “cup”), a specific action (e.g., “pick up the cup”), or a high-level abstract instruction requiring reasoning (e.g., “put the cup in the refrigerator”, “clean the room”). • Scene Configuration ( scene json ): A JSON file containing the ground-truth metadata of the reconstructed scene, including object IDs, 3D coordinates, and bounding boxes. This is essential for grounding semantic concepts to specific simulation assets (e.g., mapping “cup” to the unique ID glass 0 ). • Scene Observation (Optional): An RGB image of the scene. If provided, a VLM is employed for visual reasoning; otherwise, an LLM processes the textual JSON data. 
+
+Output: 
+
+• Task Name ( task name ): A strictly formatted string where all objects are replaced by their unique scene IDs (e.g., “put glass 0 into cabinet 0”). 12 Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning 
+
+• Detailed Task Description ( task message detail ): A step-by-step narrative of the task logic generated by the model. For example: “This is a kitchen scene. There is a cup (glass 0) on top of a cabinet (cabinet 0). The goal is to place the cup inside the cabinet. The robot must first open the cabinet door, approach the cup, grasp it, lift it up, navigate to the cabinet, and place it inside...” 
+
+A.2.2. S UBTASK DECOMPOSITION 
+
+This stage breaks down the long-horizon task into a sequence of atomic simple tasks, bridging the definition in Section 3.2 and Section 3.3 of the main paper. 
+
+Input: The task name and task message detail from A.2.1, along with the scene json .
+
+Output: A sequential list of subtask configurations (JSON). For a complex task T = {T1, T 2, . . . , T K }, each subtask configuration contains: • Subtask Name: The atomic activity (e.g., “Open Cabinet”, “Pick up Cup”). • Description: Detailed instructions specific to this subtask. • Target Object ID ( ot): The primary object being manipulated. • Support Object ID ( os1 , o s2 ): The two support objects are associated with the state definitions in the task: the first support object os1 specifies the initial state relative to the target object (e.g., the table supporting the cup), while the second support object os2 specifies the goal state relative to the target object (e.g., the container receiving the cup), they all extracted from the scene json .• BDDL Category: The specific object category mapped to the OmniGibson asset library, used for subsequent BDDL file generation. A.2.3. S UBTASK INSTANTIATION 
+
+For each decomposed subtask, we perform three parallel instantiation steps to ensure execution feasibility: BDDL Generation, Object Size Adjustment, and Action Flow Planning. 
+
+1. BDDL Generation (Initial State and Success Detection) We utilize the Behavior Domain Definition Language (Li et al., 2023) (BDDL) to define the initial state ( sinit ) and success criteria ( sgoal ) for the simulation. The LLM generates a BDDL file based on task-specific templates. This part inputs subtask configuration (Target/Support object categories) and outputs a standard ‘.bddl’ file. Here are some example predicates: • sinit : inroom(robot, kitchen) , ontop(glass 0, table 0) .• sgoal : open(fridge 0) , inside(apple 0, bowl 0) , or not(ontop(cup 0, table 0)) .
+
+2. Object Size Adjustment (Physical Feasibility) To ensure objects are graspable by the robot’s parallel gripper (maximum width ≈ 0.06 m, depending on the robot size parameters), we dynamically adjust object scales based on their bounding box extents defined in scene json . We classify objects into two types: • Type A (Fixed/Articulated Fixtures): Objects such as refrigerators, cabinets, microwaves, ovens, drawers, dishwash-ers, and tables. These are operated via handles or are static supports. • Type B (Manipulable Items): Objects such as cups, glasses, apples, bottles, boxes, bowls, and knives. These must fit inside the gripper. For type A, no scaling is applied, and return scale factor S = 1 .0. For type B, we calculate the minimum dimension on the horizontal plane: dmin = min( bbox x, bbox y ). If dmin > 0.06 m, we compute a scaling factor S such that S × dmin ≈ 0.05 m(ideal grasping width). The factor S is rounded to the nearest 0.05 or 0.1 to maintain geometric consistency. Otherwise, 
+
+S = 1 .0.13 Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning 
+
+3. Action Flow Planning (Primitive Library) The LLM maps the subtask description to a sequence of primitive actions. We define a library of 21 atomic primitives in our BasicSkill class, covering navigation, base movement, and end-effector (EEF) manipulation. This part inputs subtask configuration, and outputs ordered list of actions πn = {a1, . . . , a n}, where each action is either parameter-free or parameterized. We categorize the 21 atomic primitives based on their parameter requirements and functional domains. This categorization distinguishes between actions that rely on the underlying solver for pose determination (parameter-free) and those allowing explicit parametric tuning during the Self-Evolution phase. 
+
+3.1. Parameter-Free Context-Aware Actions. 
+
+These actions do not require explicit numerical parameters. They rely on the underlying motion planner to determine the optimal pose based on the target object’s state and global ID. • APPROACH : Move the End-Effector (EEF) to a pre-grasp approach pose via long-distance ballistic movement. • CONVERGE : Finely align the EEF with the target handle or object centroid via short-distance precision movement. • GRASP : Close the gripper to seize the target object. • UNGRASP : Open the gripper to release the currently held object. • RETREAT : Move the EEF away from the target to a safe retreat pose after interaction. • NAVIGATE TO TARGET : Global navigation planner to move the robot base near the target object ( ot). • NAVIGATE TO SUPPORT : Global navigation planner to move the robot base near the support object ( os2 ). 
+
+3.2. Vertical EEF Manipulation. 
+
+Controls the vertical elevation of the gripper to clear obstacles or place objects, with parameter format: {“ID”: height in meters }.• LIFT EEF UP : Lift the EEF vertically up. • LIFT EEF DOWN : Move the EEF vertically down. And moves the end-effector linearly relative to its current orientation frame, with parameter format: {”ID”: dis-tance in meters }.• MOVE EEF FORWARD : Move the EEF forward. • MOVE EEF BACKWARD : Move the EEF backward. • MOVE EEF LEFT : Move the EEF left. • MOVE EEF RIGHT : Move the EEF right. 
+
+3.3. Mobile Base Translation and Rotation. 
+
+Controls the linear movement of the mobile base relative to the robot’s current heading, with parameter format: {”ID”: distance in meters }.• MOVE BASE FORWARD : Move the robotic base forward. • MOVE BASE BACKWARD : Move the robotic base backward. • MOVE BASE LEFT : Move the robotic base to the left (holonomic slide). 14 Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning 
+
+• MOVE BASE RIGHT : Move the robotic base to the right (holonomic slide). And adjusts the robot’s orientation to face targets or navigate narrow passages, with parameter format: {“ID”: an-gle in degrees }.• TURN BASE LEFT : Rotate the robotic base counter-clockwise. • TURN BASE RIGHT : Rotate the robotic base clockwise. Finally, interacts with revolute or prismatic joints (e.g., doors, drawers). The parameter defines the normalized joint positions (0.0 to 1.0) or physical limits, with parameter format: {”ID”: [min limit, max limit] }. We can also use None to use default solver limits. • ARTICULATE OPEN : Move the robotic base to open a fixture. • ARTICULATE CLOSE : Move the robotic base to close a fixture. 
+
+A.3. Implementation Details of Self-Evolution Mechanism 
+
+In this section, we detail the Self-Evolution Mechanism illustrated in the right panel of Figure 3. This module serves as a closed-loop feedback system that enables the agent to autonomously diagnose execution failures and refine its policy without human intervention. The implementation leverages a Vision-Language Model (VLM) (e.g., GPT-5.2, Gemini-3-Flash, or Qwen-VL) acting in two distinct roles sequentially: a Step-wise Safety Inspector and a Global Task Supervisor .A.3.1. V ISUAL DATA PRE -PROCESSING 
+
+For each atomic action ai executed in the simulation, we capture a sequence of RGB images from multiple camera views. To optimize token usage while retaining temporal context, we apply the following pre-processing steps: • Multi-View Capture: We record images from three perspectives: Global View (static scene overview), Overhead View (fixed on the robotic base), and Wrist View (in-hand camera). This ensures that the VLM can detect both global navigation errors and fine-grained manipulation failures. • Temporal Downsampling: If an action execution generates a large number of frames, we uniformly downsample the sequence to a maximum of 6 frames. • Sliding Window Context: To provide causal context, the VLM input for step t includes visual history from the previous p steps (default p = 1 ). This allows the model to assess continuity and detect error accumulation. A.3.2. S TEP -WISE SEMANTIC CRITIQUE (T HE INSPECTOR )In the first stage, the VLM operates as a Robotic Safety Inspector , tasked with verifying the execution fidelity of each atomic action. Formally, for the j-th action aj in the current policy ˆπτ , the model receives the action definition and the local visual context XIk,j (which includes the look-back window to capture causal dynamics). The goal is to generate a step-wise semantic critique mj that diagnoses specific execution errors. The prompt design guides the VLM to perform three critical verification tasks. First, Motion Verification checks whether the robot’s physical movement aligns with the command (e.g., determining if the base successfully navigated or was physically blocked). Second, State Contrast involves comparing the start and end frames within the visual window to confirm state transitions, such as verifying if an object was successfully grasped versus the gripper closing on empty space. Finally, 
+
+Anomaly Detection focuses on identifying safety violations, specifically looking for unintended collisions, such as the robotic arm striking a door, or erratic object displacements that contradict the subtask goals. The output mj is a concise textual report summarizing these observations. 15 Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning 
+
+A.3.3. G LOBAL POLICY EVOLUTION (T HE SUPERVISOR )In the second stage, the VLM transitions to the role of an expert Robotic Task Supervisor . This module aggregates the sequence of step-wise critiques m = {mj } along with the complete visual history XIk to deduce the root cause of failure and propose an optimized policy ˆπτ +1 .The input to this stage is comprehensive, including the original action sequence, the accumulated critiques, key visual evidence (start/end states), and crucially, the Evolution History Hτ = {(ˆ πi, ˆmi)}τi=0 . This history log serves as a memory buffer, ensuring the model avoids repeating previously failed configurations. The prompts enforces a strict reasoning logic: 1. Root Cause Analysis: The model must trace the chain of events to pinpoint the exact step where the error originated, rather than just identifying the final symptom. 2. Path Re-planning & Parameter Tuning: Based on the diagnosis, the model generates a new plan. This may involve inserting navigation waypoints to avoid obstacles or fine-tuning parameters. 3. Constraint Satisfaction: The proposed sequence must be strictly composed of the valid primitives defined in Appendix A.2. The output is a tuple (ˆ πτ +1 , ˆmτ +1 ), containing the reasoned explanation and the revised action sequence for the next iteration. A.3.4. A LGORITHM SUMMARY 
+
+The overall Self-Evolution process is formalized in Algorithm 1. 
+
+Algorithm 1 Self-Evolution via Hybrid Feedback 
+
+1: Input: Initial subtask policy ˆπ0, Task Context T , Max iterations τmax 
+
+2: Initialize evolution history H ← ∅ 
+
+3: for τ = 0 to τmax do 
+
+4: Execute ˆπτ in simulation, capture visual frames XIk
+
+5: if Success Condition Met ( sgoal satisfied) then 
+
+6: Output: ˆπτ
+
+7: end if 
+
+8: Initialize critique vector m ← ∅ 
+
+9: for each action step j in ˆπτ do 
+
+10: Construct sliding window context XIk,j 
+
+11: mj ← VLM Inspector (aj , XIk,j )
+
+12: m.append (mj )
+
+13: end for 
+
+14: (ˆ πτ +1 , ˆmτ +1 ) ← VLM Supervisor (ˆ πτ , m, XIk, H)
+
+15: Update history H ← H ∪ { (ˆ πτ , ˆmτ +1 )}
+
+16: end for 
+
+17: Output: Failure 
+
+## B. Probabilistic Interpretation of Action Transfer via Stochastic State Switching 
+
+In this section, we provide a detailed interpretation of the probability definition presented in the action transfer mechanism. Recall the formalization of the “instantaneous” context switch via the augmented state S+ 
+
+> τ
+
+. Given S0 and a very small temporal margin ∆τ > 0, it is defined as: 
+
+S+ 
+
+> τ
+
+≜Sτ +∆ τ = s+ 
+
+> τ
+
+(oi, o j ) {oi,o j }⊂O S0
+
+≜ {sτ +∆ τ (oi, o j )}{oi,o j }⊂O S0
+
+. (18) 16 Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning 
+
+For a valid task decomposition, the termination of task Tk and the initialization of Tk+1 must satisfy the boundary condition 
+
+S(k+1)  
+
+> init
+
+= S(k)+  
+
+> goal
+
+. Consequently, we define the probability of a successful action transfer as: 
+
+P
+
+
+
+S(k+1)  
+
+> init
+
+| S(k)
+
+> goal
+
+, e k
+
+
+
+= P
+
+
+
+S(k)+  
+
+> goal
+
+| S(k)
+
+> goal
+
+, e k
+
+
+
+> 0. (19) This probability quantifies the likelihood of successfully establishing a logical connection between o(k) 
+
+> t
+
+and o(k+1)  
+
+> t
+
+, which is equivalent to the success probability of the LLM’s high-level task decomposition. 
+
+1. The Paradox of Physical Continuity 
+
+A natural question arises regarding the value of this probability. In a physically consistent simulation, as the temporal margin 
+
+∆τ → 0, the physical state of the world remains continuous. Specifically, for stable global states (e.g., objects resting on tables), S(k) 
+
+> goal
+
+is numerically nearly identical to S(k)+  
+
+> goal
+
+. One might therefore assume that the transition probability should strictly be 1. However, in the AGT-World framework, Sτ represents not just a snapshot of coordinates, but a set of state functions governed by specific task dynamics. The probability P(· | · , e k) measures the feasibility of Functional Switching rather than just kinematic continuity, which change the underlying stochastic processes governing the objects. 
+
+2. Stochastic Functional Switching 
+
+To elucidate this, let us assume the total task sequence T = {Tk}Kk=1 corresponds to the execution time [0 , τ ] = 
+
+SKk=1 [τk−1, τ k]. Consider the boundary between Tk and Tk+1 . Without loss of generality, assume this transition in-volves a switch in the target object from o(k) 
+
+> t
+
+to o(k+1)  
+
+> t
+
+and o(k)
+
+> t
+
+̸ = o(k+1)  
+
+> t
+
+.
+
+Phase 1: Invariance During Tk. Consider the object relations relevant to the next task Tk+1 , specifically the states involving its target o(k+1)  
+
+> t
+
+and its supports {o(k+1)  
+
+> s1
+
+, o (k+1)  
+
+> s2
+
+}. Let us assume for this analysis that o(k+1)  
+
+> t
+
+is not involved in the active manipulation of Tk (i.e., it is neither the target o(k) 
+
+> t
+
+nor a support). During the time interval [τk−1, τ k], the states 
+
+s(o(k+1)  
+
+> t
+
+, o (k+1)  
+
+> s1
+
+) and s(o(k+1)  
+
+> t
+
+, o (k+1)  
+
+> s2
+
+) are governed by an identity function (background invariance). They are effectively 
+
+constants :
+
+∀τ ∈ [τk−1, τ k], sτ (o(k+1)  
+
+> t
+
+, ·) = Const . (20) 
+
+Phase 2: Activation During Tk+1 . Upon the activation of transfer ek at τ = τk, the context switches. For the duration of 
+
+Tk+1 (starting at τk + ∆ τ ), these same state variables s(o(k+1)  
+
+> t
+
+, o (k+1)  
+
+> s1
+
+) and s(o(k+1)  
+
+> t
+
+, o (k+1)  
+
+> s2
+
+) cease to be constants. They become Time-Dependent Random Variables determined by the new action flow πk+1 and the associated stopping times δ:1. Initialization Release: The state s(o(k+1)  
+
+> t
+
+, o (k+1)  
+
+> s1
+
+) transitions from its initial configuration to a transient state at time 
+
+τk + ∆ τ + δ1, where δ1 is a random variable 0 < δ 1 < τ k+1 − (τk + ∆ τ ).2. Goal Achievement: The state s(o(k+1)  
+
+> t
+
+, o (k+1)  
+
+> s2
+
+) transitions to the success criteria sgoal at time τk + ∆ τ + δ2, where δ2
+
+is a random variable 0 < δ 2 < τ k+1 − (τk + ∆ τ ).
+
+The Role of Transfer Probability. The transition S(k)
+
+> goal
+> ek
+
+−→ S(k)+  
+
+> goal
+
+represents the instantaneous switch from the “Constant” regime to the “Stochastic Process” regime. Although the numerical values of the states may be identical at the boundary, the 
+
+definition of the variables changes fundamental types. The probability P > 0 asserts that this semantic switch is valid—i.e., that the object o(k+1)  
+
+> t
+
+is in a valid condition to accept the assignment of the new stochastic functions defined by δ1 and δ2.
+
+3. Generalization to Overlapping Contexts 
+
+The logic above holds even when object indices overlap. For instance, if o(k) 
+
+> t
+
+= o(k+1)  
+
+> t
+
+(e.g., picking up an object and then immediately placing it), the governing dynamics still change. In Tk, the state s(ot, o s2 ) might represent a “to-be-reached” condition. In Tk+1 , that same relationship might become a “pre-condition” or “to-be-released” condition. Since the task tuple ⟨ot, o s1 , o s2 ⟩ changes at least one element or the definition of sgoal , the functional dependency on time δ changes signature. 17 Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning 
+
+Therefore, the action transfer probability serves as a semantic gatekeeper. It ensures that the Global World State can validly transition from one set of active affordance functions to another, reflecting the logical consistency of the task graph generated by the VLM. 
+
+## C. Proof of Proposition 4.1 
+
+In this section, we provide the detailed proof for Proposition 4.1, demonstrating that the AGT-World framework guarantees the feasibility of complex long-horizon tasks through hierarchical composition. 
+
+Proof. The proof proceeds by first establishing the existence of local solutions for each atomic segment via spatial decomposition (Step 1), and then aggregating these segments into a global trajectory using the temporal chain rule (Step 2). 
+
+1. Spatial Decomposition into Object-Centric States 
+
+We first analyze the feasibility of individual components within the task sequence. The global world state Sτ is defined as the set of all object pair states in the scene: Sτ = {sτ (oi, o j )}{oi,o j }⊂O S0 .Unlike a monolithic state transition, the action flow π(Tk) of a simple task Tk only operates on specific objects defined in the tuple Tk = ⟨o(k) 
+
+> t
+
+, o (k) 
+
+> s1
+
+, o (k) 
+
+> s2
+
+, s init , s goal ⟩. Consequently, we analyze the transition probability by decomposing the global state into involved and uninvolved object pairs. 
+
+Part A: Execution Feasibility via Intra-Task Scope 
+
+Consider the execution phase of the k-th simple task, transforming the state from S+ 
+
+> τk−1
+
+to Sτk . The action flow πk acts exclusively on the target object o(k) 
+
+> t
+
+relative to its supports. The global state change is restricted to the relationships between the target o(k) 
+
+> t
+
+and its initial support o(k) 
+
+> s1
+
+, and between o(k)
+
+> t
+
+and its goal support o(k) 
+
+> s2
+
+. Specifically, let ∆τ > 0 be the small transfer margin. The state changes occur at specific relative time steps within the execution window [τk−1 + ∆ τ, τ k]:1. Initialization Release: The state s(o(k) 
+
+> t
+
+, o (k) 
+
+> s1
+
+) transitions from its initial configuration to a transient state at time 
+
+τk−1 + ∆ τ + δ1, where 0 < δ 1 < τ k − (τk−1 + ∆ τ ).2. Goal Achievement: The state s(o(k) 
+
+> t
+
+, o (k) 
+
+> s2
+
+) transitions to the success criteria sgoal at time τk−1 + ∆ τ + δ2, where 
+
+0 < δ 2 < τ k − (τk−1 + ∆ τ ).For all other object pairs {oi, o j } that are not subsets of {o(k) 
+
+> t
+
+, o (k) 
+
+> s1
+
+, o (k) 
+
+> s2
+
+}, the action flow πk implies an identity transforma-tion (state invariance). Thus, for the global world state Sτ where τk−1 + ∆ τ < τ ≤ τk:
+
+∀{ oi, o j }̸ ⊂ { o(k) 
+
+> t
+
+, o (k) 
+
+> s1
+
+, o (k) 
+
+> s2
+
+}, P
+
+
+
+sτk (oi, o j ) = s+ 
+
+> τk−1
+
+(oi, o j ) | S+ 
+
+> τk−1
+
+, π k
+
+
+
+= 1 . (21) By the Primitive Completeness assumption in Proposition 4.1, for the specific target and support objects involved in Tk,there exists an optimal policy πk such that the specific transition from sinit to sgoal occurs with positive probability. Since the global transition probability is the joint probability of all constituent object states (intersection of local successes and invariances), and the intersection of events with probability 1 and positive probability is positive, we obtain: 
+
+P(Sτk | S+ 
+
+> τk−1
+
+, π k) > 0. (22) This confirms that a valid action flow πk exists for each subtask Tk.
+
+Part B: Transition Consistency via Connectivity 
+
+We next consider the transition from the post-execution state Sτk of task Tk to the pre-execution state S+ 
+
+> τk
+
+of task Tk+1 .This corresponds to the semantic logic shift facilitated by the transfer action ek.Similar to Part A, this transition is instantaneous in simulation time (or occurs within margin ∆τ ) and represents a re-indexing of context. By the Connectivity of Context assumption, the boundary conditions of consecutive tasks align, i.e., 
+
+S(k) 
+
+> goal
+
+≈ S(k+1)  
+
+> init
+
+.18 Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning 
+
+This alignment implies that there exists a valid decomposition by the VLM such that the logical link ek bridges the two subtasks. Consequently, the probability of successfully shifting the global context is non-zero: 
+
+P
+
+
+
+S(k+1)  
+
+> init
+
+= S(k)+  
+
+> goal
+
+| S(k)
+
+> goal
+
+, e k
+
+
+
+> 0. (23) This guarantees the existence of the transfer edge ek ∈ E .
+
+Remark on Temporal Allocation. Ideally, the total task duration is the union of subtask intervals [0 , τ ] = SKk=1 [τk−1, τ k].In our generative modeling, τ and the specific timestamps δ are treated as random variables within the idealized configuration space. Since we have established the spatial and semantic feasibility, there exists a valid temporal scaling (robot execution speed) that satisfies the sequence constraints. We therefore assume the temporal assignment is solvable without loss of generality. 
+
+2. Temporal Decomposition via Chain Rule and Markov Property 
+
+Having established the existence of valid local transitions πk and ek for all k, we now construct the global trajectory probability. Let the global execution trajectory be represented as a directed sequence of state transitions: 
+
+S0
+
+> π1
+
+−→ Sτ1
+
+> e1
+
+−→ S+
+
+> τ1
+> π2
+
+−→ Sτ2 . . . eK−1
+
+−−−→ S+
+
+> τK−1
+> πK
+
+−−→ SτK . (24) We aim to compute the conditional probability of reaching the final state Sτ = SτK given the initial state S0. Based on the analysis in Step 1, we identify the set of action flows and transfer edges: 
+
+Π = {πk ⊂ VS0 : πk ∼ pF(π | T ; ϵ1)}Kk=1 , (25) 
+
+E = {ek ⊂ VS0 : ek ∼ pT(e | T ; ϵ2)}K−1 
+
+> k=1
+
+. (26) By applying the Chain Rule of Probability and invoking the Markov Property inherent in the AGT-World graph structure (where Sτk depends only on S+ 
+
+> τk−1
+
+, π k, and S+ 
+
+> τk
+
+depends only on Sτk , e k), the joint probability of the trajectory is: 
+
+P(Sτ | S0, Π, E) = 
+
+> K
+
+Y
+
+> k=1
+
+P(Sτk | S+ 
+
+> τk−1
+
+, π k)
+
+| {z } 
+
+> Part A: >0
+
+·
+
+> K−1
+
+Y
+
+> k=1
+
+P(S+ 
+
+> τk
+
+| Sτk , e k)
+
+| {z } 
+
+> Part B: >0
+
+. (27) 
+
+3. Conclusion 
+
+From Step 1, we proved that for every k, the execution probability P(Sτk | S+ 
+
+> τk−1
+
+, π k) is strictly positive due to primitive completeness and object-centric invariance. Similarly, the transition probability P(S+ 
+
+> τk
+
+| Sτk , e k) is strictly positive due to context connectivity. Since the product of a finite sequence of strictly positive real numbers is strictly positive, we conclude: 
+
+P(Sτ | S0, Π, E) > 0. (28) This confirms that there exists a valid decomposition consisting of policy sequence Π and transfer sequence E such that the global transition from S0 to Sτ is feasible. 
+
+## D. More experimental results 
+
+D.1. The Details of Three Camera View 
+
+In our Self-Evolution mechanism, the VLM receives visual feedback from a set of cameras I ⊂ { Global, Head, Wrist }. Each perspective offers distinct information density and spatial context, contributing differently to the planning and verification process. 1. Global View (Static Scene Overview): This view corresponds to the original perspective of the real-world input image. Since real-world photos lack intrinsic camera parameter matrices, we estimate these parameters during the simulated scene reconstruction process to align the simulation camera with the original photo’s pose. This view provides the most comprehensive understanding of the task execution, capturing the relative positions of the robot, the target object, and the support surface simultaneously. It is the primary source for checking task completion logic. 19 Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning                       
+
+> Global View Overhead View Wrist View Global View Overhead View Wrist View
+> Figure 6. Visual Comparison of Camera Perspectives. The figure is divided into two task scenarios. Left (Columns 1-3): The task “Put the cup into the refrigerator”. The Global View reveals the arm reaching inside the fridge, though the specific arm posture is occluded. The
+> Overhead View clearly shows the robot’s joint state and the open fridge door. The Wrist View captures the close-up of the cup within the gripper. Right (Columns 4-6): The task “Place the apple into the bowl”. The Global View shows the overall layout, but depth ambiguity makes it hard to judge if the apple is perfectly over the bowl. The Overhead View compensates for this by showing the alignment relative to the base. However, since the gripper is in mid-air, the Wrist View captures mostly empty space, providing little actionable information.
+
+2. Overhead View (Robot-Following): This camera is mounted virtually above the mobile base and moves synchronously with the robot. It serves as an approximation of a “third-person” view bound to the agent. This perspective allows for clear observation of the robotic arm’s pose, joint configurations, and gripper status (open/closed). However, it lacks global environmental context. As shown in our ablation study Figure 5 (d), relying solely on this view degrades performance in tasks requiring affordance reasoning—for example, it is often impossible to determine the opening direction of a refrigerator door from this angle, leading to navigation failures. 3. Wrist View (End-Effector Camera): Fixed to the robotic arm’s wrist, this camera looks directly at the gripper’s target. Its field of view is extremely limited, capturing only the immediate interaction area. While theoretically useful for fine-grained verification (e.g., checking if a cup is level), it offers almost no utility for the coarse trajectory planning and semantic reasoning required in our graph-based generation. Consequently, as indicated in Figure 5 (d), adding this view provides negligible performance gains for our task, as the global and overhead views provide sufficient information. 
+
+D.2. Robot System and Execution Details Robot Configuration and Control. We employ a FrankaMounted robotic arm equipped with a mobile base for all experiments. The agent perceives the environment through on-board RGB-D sensors. Motion planning is governed by an 
+
+Inverse Kinematics (IK) controller. For each primitive action defined in the graph, the system first calculates the target coordinate and pose for either the mobile base or the End-Effector (EEF). The IK controller then generates a continuous motion path to reach these targets sequentially. To ensure safe interaction, we initialize the robot at a fixed offset distance relative to the target object before the start of any task execution. 
+
+Scale Adaptation. A challenge inherent to monocular 3D reconstruction is the ambiguity of absolute scale. Since the scene dimensions are estimated from a single image, the physical size of the reconstructed environment may vary from real-world norms. This discrepancy necessitates a rescaling of the robotic agent to match the simulation’s affordances. Through empirical testing, we uniformly set the robot scale factor to s = 0 .7. While this setting works for the majority of our generated scenes, we observed a few failure cases still stemming from scale mismatch. 
+
+Grasping Hyperparameters. The precision of the CONVERGE primitive, which moves the gripper to the final grasping position, is highly sensitive to the distance offset parameter. This offset dictates how far the gripper stops in front of the target coordinate. If the offset is set too low, the gripper extends too far forward. For tasks like “Pick up object from table”, this often causes the gripper to collide with the object or grasp it too high, leading to instability. If the offset is set too high, the gripper may stop prematurely, resulting in “grasping air” failure where the fingers close without contacting the object. To address this, we define the convergence offset as a function of the robot’s scale. In our experiments, we use a unified hyperparameter: δoffset = 0 .14 × s, where s = 0 .7. This adaptive value ensures that the gripper positioning remains consistent relative to the scaled robot body. 20 Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning 
+
+D.3. Scalable Scene Generation Statistics 
+
+In this section, we provide detailed statistics on the dataset construction, visualize the generated environments, and evaluate the success rates of the autonomously generated atomic tasks. To ensure the diversity and realism of our evaluation environment, we constructed a dataset of 102 unique interactive scenarios . The generation process follows a hierarchical pipeline: 1. Source Image Generation: We utilized Qwen3-Max and Seedream4.5 , a state-of-the-art generative model, to synthesize 34 high-quality real-world reference images. To cover the most common household manipulation settings, we prompted the model to generate diverse layouts. The distribution includes: • 16 Kitchens: Focusing on complex articulated objects like refrigerators, ovens, microwaves, and cabinets. • 10 Bedrooms: Focusing on wardrobes, drawers, and bedside tables. • 8 Others (Study Rooms, Workshops, etc.): Focusing on tables, shelves, and miscellaneous clutter. 2. Simulated Scene Reconstruction: Using the reconstruction pipeline (Dai et al., 2024), we extracted semantic and geometric information from these 34 images. 3. Variation Augmentation: To further expand the dataset, we generated 3 unique variations for each real-world reference by randomizing the top-3 matched assets from the BEHAVIOR-1K dataset (e.g., matching a “fridge” in the image to three different interactive fridge models in simulation). This resulted in a total of 34 × 3 = 102 simulation environments. 
+
+Automated Task Proposal. 
+
+Unlike manual task design, our framework leverages the Graph-Based Task Generation module (detailed in Appendix A.2) to autonomously populate these scenes with valid tasks. For each of the 102 scenes, we employ a VLM to analyze the spatial layout and propose a context-aware keyword (e.g., “cup”, “open fridge”). The system then expands this keyword into a full task definition tuple ⟨task name , task message ⟩.This automated pipeline ensures that the generated tasks are not only semantically aligned with the visual scene but also grounded in the available physical assets. Consequently, we obtained 102 distinct Scene-Task Pairs , serving as a reliable benchmark for evaluating the robustness of our method. 
+
+Visualization of Simulated Scene. 
+
+We visualize a subset of the generated pairs in Figure 7. The top row displays the reference real-world images generated by Qwen3-Max or Seedream-4.5, while the bottom row shows the reconstructed interactive simulated scenes in OmniGibson. Despite the domain gap, our framework successfully preserves the semantic layout (e.g., the relative position of the fridge and table) and functional affordances (e.g., the graspability of handles), providing a solid foundation for task execution. 
+
+Evaluation of Atomic Task Generation. 
+
+To validate the effectiveness of our Graph-Based Task Generation mechanism, we evaluated the execution success rate on the 102 generated Scene-Task pairs. Since the primary goal here is to assess the feasibility of the generated tasks and the robustness of the graph-based planner, these tasks are primarily Simple Tasks (atomic primitives) such as “Open Refrigerator” or “Pick up Cup”. For this experiment, we disabled the Self-Evolution mechanism and relied solely on the initial open-loop plan generated by the graph solver. As shown in Table 1, our method achieves an overall success rate of 71.6% across 102 tasks. By analyzing our experimental results, the following conclusions can be drawn: • Feasibility: The high success rate confirms that our reconstruction method and affordance-graph planning effectively bridge the sim-to-real gap, producing physically feasible task definitions. • Efficiency: This result demonstrates that AGT-World can serve as a low-cost, high-throughput engine for generating large-scale, high-quality demonstration data without human annotation. 21 Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning 
+
+> (1) Open Refrigerator (2) Open Cabinet Under The Microwave (3) Open The Bottom Cabinet (4) Open Cabinet Under Cup (5) Open Refrigerator (6) Open Cabinet Under The Orange (7) Open The Left Cabinet (8) Pick Up Water Bottle On The Counter (9) Open Cabinet Under The Microwave (10) Pick Up Water Bottle On The Table
+> (11) Pick Up Black Die On The Table (12) Pick Up Glass On The Table (13) Pick Up Half Apple (14) Pick Up Red Apple From Cabinet (15) Pick Up Apple On The Table (16) Pick Up Apple On The Nightstand (17) Pick Up Teddy Bear On The Nightstand (18) Pick Up Half Apple From Nightstand (19) Pick Up Bottle Of Medicine On The Table (20) Pick Up Bottle Of Medicine On The Table
+
+Figure 7. Visualization of 20 Representative Scene-Task Pairs. Top Row: Real-world reference images generated by Qwen3-Max or Seedream-4.5. Bottom Row: Reconstructed interactive simulation environments. Each column corresponds to a specific atomic task proposed by the VLM, demonstrating our framework’s ability to generate diverse household scenarios. 
+
+• Role of Self-Evolution: The failure cases (approx. 28.4%) were mostly due to edge cases (e.g., kinematic singularities in very narrow corners). This justifies our framework’s design: using the efficient Graph-Based generator for the vast majority of data production, while reserving the computationally more expensive Self-Evolution mechanism (Section 4.3) as a specialized agent to solve complex, long-horizon, or failure-prone edge cases. 
+
+D.4. Performance of Example Complex Long-Horizon Tasks 
+
+In this section, we provide a granular breakdown of the generation and instantiation process for the four representative complex long-horizon tasks ( T1 to T4). We detail the intermediate outputs of our pipeline, from semantic expansion to action flow planning, to demonstrate the reliability and logical consistency of AGT-World .D.4.1. V ISUAL OVERVIEW OF EXAMPLES SCENARIOS 
+
+To intuitively present the experimental setup, Figure 8 visualizes the four tasks using a structured grid. Each complex long-horizon task will display real-world picture, simulated reconstruction scene, main target object, main support object, and the user keyword. D.4.2. S EMANTIC EXPANSION RESULTS 
+
+Upon receiving the user keyword, scene configuration, and observation, the VLM performs Semantic Expansion. While the exact phrasing may vary slightly across different demo runs due to the probabilistic nature of VLMs, the semantic intent remains strictly consistent with the user’s instructions. The following are representative outputs for a single demo of each complex long-horizon task: 
+
+T1: Transport a glass into a refrigerator. 
+
+"task_activity_name": "open_the_refrigerator_and_put_the_glass_into_the_refrigerator ", "task_detail_message": "This is a kitchen scene, and there is a glass_0 on the table_0, and there is a refrigerator_0 on the left side. The task we need to 
+
+22 Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning 
+
+glass 0 refrigerator 0 apple 0 refrigerator 0 apple 0 bowl 0 glass 0 table 0 “Transport a glass into a refrigerator” “Place an apple into a refrigerator” “Transfer an apple into a bowl” “Place a cup onto a table” 
+
+Figure 8. Visual Overview of Complex Long-Horizon Tasks. Row 1: Pairs of real-world reference images and reconstructed simulation environments. Row 2: Close-up views of the main target object and support object matched from the simulation environments. Row 3: 
+
+The user-provided keywords that seed the autonomous task generation process. 
+
+accomplish is to put the glass_0 on the table_0 into the refrigerator_0. The robot needs to perform a sequence of actions. First, the robotic arm needs to approach the handle of the refrigerator_0 and rotate to open it. Second, pick up the glass_0 from the table_0 and place it inside the refrigerator_0. Finally, close the refrigerator_0." 
+
+T2: Place an apple into a refrigerator. 
+
+"task_activity_name": "open_the_refrigerator_and_put_the_apple_into_the_refrigerator ", "task_detail_message": "This is a modern kitchen scene. The initial condition is that there is a half_apple (apple_0) resting on top of a breakfast_table (table_0), and a refrigerator (refrigerator_0) is positioned to the right side of the scene, mounted against the wall. The task we need to accomplish is to put the apple_0 into the refrigerator_0. The robot needs to perform a sequence of actions: First, approach the refrigerator_0 and open its door by grasping and rotating the handle. Second, pick up the apple_0 from the table_0. Third, carefully place the apple_0 inside the refrigerator_0. Finally, close the refrigerator_0 door to complete the task." 
+
+T3: Transfer an apple into a bowl. 
+
+"task_activity_name": "pick_up_apple_and_put_into_bowl", "task_detail_message": "This is a modern kitchen scene. The initial condition is that there is an apple_0 resting on the countertop of cabinet_0, and a bowl_0 placed on the wooden table_0 in the foreground. The task we need to accomplish is to pick up the apple_0 from the countertop and place it into the bowl_0. The robotic arm must first approach and grasp the apple_0 while it is stationary on the cabinet_0 surface. Then, without releasing the apple_0, the arm must move it over to the bowl_0 on the table_0 and gently release it inside the bowl_0. No container needs to be opened or closed as both objects are accessible and unobstructed." 
+
+T4: Place a cup onto a table. 
+
+23 Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning 
+
+"task_activity_name": "put_the_glass_on_the_table", "task_detail_message": "This is a modern kitchen scene. The initial condition is that there is a glass_0 (water_glass) currently located near the cabinet_0, not yet on the table_0. The task we need to accomplish is to place the glass_0 onto the table_0. The robotic arm needs to perform the following steps: First, approach and grasp the glass_0 from its current position. Second, lift and move the glass_0 toward the table_0. Third, carefully place the glass_0 onto the surface of the table_0, ensuring it is stable and properly positioned. No other objects need to be moved or manipulated during this task." 
+
+D.4.3. S UBTASK DECOMPOSITION 
+
+A defining characteristic of AGT-World is its structured, graph-based decomposition. By modeling the task space as transitions between simple sub-tasks, we ensure that the decomposition is deterministic across hundreds of demos. Regardless of visual variations in the scene, the logical steps required to satisfy the complex goal remain invariant. Due to space limitations, this document only shows the names and descriptions of each sub-task within the complex long-horizon tasks. Information such as target objects, support objects, and BDDL names, which are included in the output configuration file, are not presented here. The following are representative outputs for a single demo of each complex long-horizon task: 
+
+T1: Transport a glass into a refrigerator. 
+
+"sub_task_1": {"task_activity_name": "open_refrigerator", "task_detail_message": "First, the robotic arm needs to approach the handle of the refrigerator_0 and rotate to open it.", ... }, "sub_task_2": {"task_activity_name": "pick_up_glass", "task_detail_message": "Second, pick up the glass_0 from the table_0. The robotic arm needs to navigate to the glass_0, approach it, grasp it, and lift it from the table_0.", ... }, "sub_task_3": {"task_activity_name": "put_glass_into_refrigerator", "task_detail_message": "Third, place the glass_0 inside the refrigerator_0. The robotic arm needs to navigate to the refrigerator_0, move forward while holding the glass_0, and ungrasp to place it inside the refrigerator_0.", ... }, "sub_task_4": {"task_activity_name": "close_refrigerator", "task_detail_message": "Finally, close the refrigerator_0. The robotic arm needs to approach the handle of the refrigerator_0 and rotate to close it.", ... }
+
+T2: Place an apple into a refrigerator. 
+
+"sub_task_1": {"task_activity_name": "open_refrigerator", "task_detail_message": "First, approach the refrigerator_0 and open its door by grasping and rotating the handle.", 
+
+24 Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning 
+
+... }, "sub_task_2": {"task_activity_name": "pick_up_apple", "task_detail_message": "Second, pick up the apple_0 from the table_0. The robotic arm needs to navigate to the target apple_0, approach it, grasp it, and lift it off the table_0.", ... }, "sub_task_3": {"task_activity_name": "put_apple_into_refrigerator", "task_detail_message": "Third, carefully place the apple_0 inside the refrigerator_0. The robotic arm needs to navigate to the refrigerator_0, move forward, and release the apple_0 inside the refrigerator_0.", ... }, "sub_task_4": {"task_activity_name": "close_refrigerator", "task_detail_message": "Finally, close the refrigerator_0 door to complete the task. The robot needs to navigate to the refrigerator_0, get close to the handle, and rotate to close the door.", ... }
+
+T3: Transfer an apple into a bowl. 
+
+"sub_task_1": {"task_activity_name": "pick_up_apple", "task_detail_message": "The robotic arm must first approach and grasp the apple_0 while it is stationary on the countertop of cabinet_0. The target object is apple_0, and the support object is cabinet_0 as the success condition is that the apple_0 is no longer resting on the cabinet_0 surface.", ... }, "sub_task_2": {"task_activity_name": "put_apple_into_bowl", "task_detail_message": "Then, without releasing the apple_0, the arm must move it over to the bowl_0 on the table_0 and gently release it inside the bowl_0. The target object remains apple_0, but now the support object is bowl_0, as the success condition is that the apple_0 is inside the bowl_0.", ... }
+
+T4: Place a cup onto a table. 
+
+"sub_task_1": {"task_activity_name": "pick_up_glass", "task_detail_message": "First, the robotic arm must locate and pick up the glass_0 from its current position (near the cabinet or floor level). The robot needs to approach the glass_0, grasp it securely, and lift it off its current surface.", ... }, "sub_task_2": {"task_activity_name": "put_glass_on_table", "task_detail_message": "Second, the robotic arm must move the glass_0 toward the table_0 and gently place it on the tabletop, ensuring stability. The robot should navigate to the table_0, lower the glass_0 onto its surface, and 
+
+25 Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning   
+
+> release it carefully.", ... }
+
+D.4.4. O BJECT SIZE ADJUSTMENT 
+
+To bridge the gap between reconstructed visual assets and physical robot constraints, we implement a dynamic scaling module. For each subtask, the system identifies the target object and applies a scaling factor calculated from its bounding box extents relative to the robot’s parallel gripper width ( ≈ 0.06 m). 
+
+Detailed Scaling for T1 and T2. In complex long-horizon task 1, the target object sequence for each sub-task involves [refrigerator 0: 1.0, glass 0: 0.37, glass 0: 0.37, refrigerator 0: 1.0]. For fixed fixtures like the refrigerator, the scale is set to 1.0 to maintain the room’s layout. For the manipulable glass 0 object, a scaling factor of 0.37 was determined in sub-tasks 2 and 3 to ensure the glass diameter was easy to grasp. Finally, we selected the first occurring scaling factors for the refrigerator and the glass, which are 1.0 and 0.37 respectively, and applied these scaling factors. In complex long-horizon task 2, the target object sequence for each sub-task involves [refrigerator 0: 1.0, apple 0: 0.35, glass 0: 0.4, refrigerator 0: 1.0]. And we select 1.0 and 0.35 for the refrigerator and the apple respectively 
+
+Detailed Scaling for T3 and T4. In complex long-horizon task 3 and 4, the target object sequence for each sub-task is [apple 0: 0.42, apple 0: 0.42] and [glass 0: 0.4, glass 0: 0.4]. So we use the first occurring scaling factors 0.42 and 0.4 for 
+
+T3 and T4 respectively. D.4.5. BDDL G ENERATION (I NITIAL STATE AND SUCCESS DETECTION )The BDDL generation stage defines the logical boundaries of each subtask. The Table 4 shows the representative initial and target (goal) states of the BDDL definitions for these four complex long-horizon tasks, and we also show the representative outputs for a single demo.                               
+
+> Table 4. Initial and goal states for the sub-tasks of our complex long-horizon tasks
+> Tasks Subtask Index Initial State Target State
+> T1: Glass →Fridge 1(not (open refrigerator 0) (open refrigerator 0) 2(ontop glass 0 table 0) (not (ontop glass 0 table 0)) 3(inside glass 0 gripper) (inside glass 0 refrigerator 0) 4(open refrigerator 0) (not (open refrigerator 0))
+> T2: Apple →Fridge 1(not (open refrigerator 0) (open refrigerator 0) 2(ontop apple 0 table 0) (not (ontop apple 0 table 0)) 3(inside apple 0 gripper) (inside apple 0 refrigerator 0) 4(open refrigerator 0) (not (open refrigerator 0))
+> T3: Apple →Bowl 1(ontop apple 0 cabinet 0) (not (ontop apple 0 cabinet 0)) 2(inside apple 0 gripper) (inside apple 0 bowl 0)
+> T4: Cup →Table 1(ontop glass 0 cabinet 0) (not (ontop glass 0 cabinet 0)) 2(inside glass 0 gripper) (ontop glass 0 table 0)
+
+D.4.6. I NITIAL ACTION FLOW 
+
+The mapping of high-level subtask definitions to executable primitive sequences is a critical step in the AGT-World pipeline. While visual keyframes of these executions are omitted here for brevity, comprehensive video demonstrations of the initial and evolved policies for all tasks are available on our project page (as linked in the Abstract). Detailed definitions and physical implementations of each atomic primitive (e.g., APPROACH , CONVERGE , ARTICULATE )are provided in Appendix A.2.3. Table 5 summarizes the deterministic initial action sequences generated by our graph-based planner for the four representative complex long-horizon tasks before any self-evolution iterations. 26 Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning 
+
+Table 5. Initial action flows for the sub-tasks of our representative complex long-horizon tasks                                                                                                               
+
+> Tasks Subtask Initial Action Flow (Pre-evolution)
+> T1
+> 1APPROACH →CONVERGE →GRASP →ARTICULATE OPEN →UNGRASP 2NAVIGATE TO TARGET →APPROACH →CONVERGE →GRASP →LIFT EEF UP(0.2) 3NAVIGATE TO SUPPORT →MOVE BASE FORWARD(0.4) →MOVE EEF FORWARD(0.1) →UNGRASP 4NAVIGATE TO TARGET →APPROACH →CONVERGE →GRASP →ARTICULATE CLOSE(0.0, 0.5) →UNGRASP
+> T2
+> 1APPROACH →CONVERGE →GRASP →ARTICULATE OPEN(0.0, 0.7) →UNGRASP →RETREAT 2NAVIGATE TO TARGET →RETREAT →APPROACH →CONVERGE →GRASP →LIFT EEF UP(0.2) 3NAVIGATE TO SUPPORT →MOVE BASE FORWARD(0.4) →MOVE EEF FORWARD(0.1) →UNGRASP 4NAVIGATE TO TARGET →APPROACH →CONVERGE →GRASP →ARTICULATE CLOSE(0.0, 0.7) →UNGRASP
+> T3
+> 1APPROACH →CONVERGE →GRASP →LIFT EEF UP(0.2) 2NAVIGATE TO SUPPORT →MOVE BASE FORWARD(0.4) →MOVE EEF FORWARD(0.1) →LIFT EEF DOWN(0.3) →UNGRASP
+> T4
+> 1APPROACH →CONVERGE →GRASP →LIFT EEF UP(0.2) 2NAVIGATE TO SUPPORT →MOVE BASE FORWARD(0.4) →MOVE EEF FORWARD(0.1) →LIFT EEF DOWN(0.3) →UNGRASP
+
+D.5. Performance of Self-Evolution 
+
+In this section, we present the step-by-step evolution trajectory for the four representative complex long-horizon tasks. The Self-Evolution mechanism plays a crucial role in correcting execution failures caused by geometric uncertainties or kinematic constraints that are difficult to resolve with open-loop planning. We report the evolutionary process for one representative demonstration of each complex long-horizon task. Tables 6, 7, 8, and 9 detail the changes in the action flow across iterations. The “Iter 0” row represents the initial open-loop plan generated by the graph solver. Subsequent iterations show how the VLM refined the sequence by adjusting parameters or inserting new primitives. 
+
+Evolution of Task T1 (Transport Glass into Refrigerator). The evolution process of Task T1 (placing a glass into the refrigerator) is shown in Table 6. Subtasks 1 and 2 were successfully completed on the first attempt. However, subtask 3 (place the glass) required two iterations of improvement. Initially, the robot collided with the open refrigerator door, causing the door to close and preventing the subsequent tasks from being executed. Therefore, the VLM adjusted the base movement path. After one iteration, the glass was released too high and too far back, so the VLM adjusted the robot arm’s extension range to ensure safe placement in the correct position. Subtask 4 (close the refrigerator) required one iteration of improvement to ensure the refrigerator door was completely closed. 
+
+Table 6. Evolutionary Trajectory for Task T1: “Put the cup into the refrigerator”. Subtasks 1 and 2 succeeded initially. Subtask 3 required 2 iterations to correct placement height and depth. Subtask 4 required 1 iteration to fully close the door.                                                                      
+
+> Subtask Iter Action Flow
+> 10APPROACH →CONVERGE →GRASP →ARTICULATE OPEN →UNGRASP 20NAVIGATE TO TARGET →APPROACH →CONVERGE →GRASP →LIFT EEF UP(0.2) 30NAVIGATE TO SUPPORT →MOVE BASE FORWARD(0.4) →MOVE EEF FORWARD(0.1) →UNGRASP 1NAVIGATE TO SUPPORT →MOVE BASE FORWARD(0.3) →MOVE EEF FORWARD(0.45) →UNGRASP 2NAVIGATE TO SUPPORT →MOVE BASE FORWARD(0.3) →MOVE EEF FORWARD(0.45) →MOVE EEF FORWARD(0.2)
+> →LIFT EEF DOWN(0.3) →UNGRASP 40NAVIGATE TO TARGET →APPROACH →CONVERGE →GRASP →ARTICULATE CLOSE(0.0, 0.5) →UNGRASP 1NAVIGATE TO TARGET →APPROACH →CONVERGE →GRASP →ARTICULATE CLOSE(0.0, 0.6)
+> →MOVE EEF FORWARD(0.1) →UNGRASP
+
+Evolution of Task T2 (Place Apple into Refrigerator). Table 7 show the evolution results. Subtask 3 failed initially because the robot could not reach the deep shelf. The evolution process involved significant adjustments to the base position and rotation ( TURN BASE ) over 3 iterations to achieve a valid kinematic configuration for placement. 
+
+Evolution of Task T3 (Transfer Apple into Bowl). This evolution details is in Table 8, which required precise positioning to ensure the apple landed inside the bowl rather than hitting the rim. Subtask 2 evolved twice: first to adjust the approach angle via TURN BASE , and second to fine-tune the release height. 
+
+Evolution of Task T4 (Place Cup onto Table) Similar to T3, Table 9 shows that placing a cup on a specific spot on the table required adjusting the robot base’s orientation ( TURN BASE ) to reach the target zone. 27 Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning 
+
+Table 7. Evolutionary Trajectory for Task T2: “Put the apples into the refrigerator”. Subtask 3 underwent 3 iterations, introducing base rotation and finer arm control to navigate the apple onto the fridge shelf.                                                                             
+
+> Subtask Iter Action Flow
+> 10APPROACH →CONVERGE →GRASP →ARTICULATE OPEN(0.0, 0.7) →UNGRASP →RETREAT 20NAVIGATE TO TARGET →RETREAT →APPROACH →CONVERGE →GRASP →LIFT EEF UP(0.2) 30NAVIGATE TO SUPPORT →MOVE BASE FORWARD(0.4) →MOVE EEF FORWARD(0.1) →UNGRASP 1NAVIGATE TO SUPPORT →MOVE BASE BACKWARD(0.3) →MOVE EEF FORWARD(0.4) →MOVE EEF FORWARD(0.2) →UNGRASP 2NAVIGATE TO SUPPORT →MOVE BASE BACKWARD(0.3) →MOVE EEF FORWARD(0.4) →TURN BASE LEFT(45)
+> →MOVE EEF FORWARD(0.2) →UNGRASP 3NAVIGATE TO SUPPORT →MOVE BASE BACKWARD(0.3) →MOVE EEF FORWARD(0.4) →TURN BASE LEFT(45)
+> →MOVE EEF FORWARD(0.3) →LIFT EEF DOWN(0.2) →UNGRASP 40NAVIGATE TO TARGET →APPROACH →CONVERGE →GRASP →ARTICULATE CLOSE(0.0, 0.7) →UNGRASP
+
+Table 8. Evolutionary Trajectory for Task T3: “Pick the apple into the bowl”. The placement subtask (Subtask 2) required 2 iterations to prevent collision with the bowl’s rim. 
+
+Subtask Iter Action Flow 
+
+1 0 APPROACH → CONVERGE → GRASP → LIFT EEF UP(0.2) 20 NAVIGATE TO SUPPORT → MOVE BASE FORWARD(0.4) → MOVE EEF FORWARD(0.1) → LIFT EEF DOWN(0.3) → UNGRASP 1 NAVIGATE TO SUPPORT → MOVE BASE BACKWARD(0.15) → MOVE EEF FORWARD(0.4) → TURN BASE LEFT(15) 
+
+→ MOVE EEF FORWARD(0.1) → LIFT EEF DOWN(0.4) → UNGRASP 2 NAVIGATE TO SUPPORT → MOVE BASE BACKWARD(0.3) → MOVE EEF FORWARD(0.2) → TURN BASE RIGHT(20) 
+
+→ MOVE EEF FORWARD(0.25) → LIFT EEF DOWN(0.4) → UNGRASP 
+
+Table 9. Evolutionary Trajectory for Task T4: “Put the cup on the table”. Subtask 2 required 2 iterations, heavily relying on base rotation to align with the table surface. 
+
+Subtask Iter Action Flow 
+
+1 0 APPROACH → CONVERGE → GRASP → LIFT EEF UP(0.2) 20 NAVIGATE TO SUPPORT → MOVE BASE FORWARD(0.4) → MOVE EEF FORWARD(0.1) → LIFT EEF DOWN(0.3) → UNGRASP 1 NAVIGATE TO SUPPORT → TURN BASE RIGHT(60) → MOVE EEF FORWARD(0.4) → MOVE EEF FORWARD(0.1) 
+
+→ LIFT EEF DOWN(0.3) → UNGRASP 2 NAVIGATE TO SUPPORT → TURN BASE RIGHT(60) → MOVE EEF FORWARD(0.4) → MOVE EEF FORWARD(0.2) 
+
+→ LIFT EEF DOWN(0.3) → UNGRASP 
+
+VLM Reasoning Process. To illustrate the decision-making capability of the Self-Evolution mechanism, we provide the raw reasoning outputs for Task T1 in the box below. This includes the step-wise critiques m and the final Global Supervisor reasoning. First, subtask 3 underwent two iterations, and the output of all iterations are: 
+
+"iter_1": {"VLM-Observation": {"Step 0 observation (4 frames)": "The robot base navigates to the support (refrigerator), positioning itself near the open refrigerator door. The refrigerator door remains open throughout, and no collision or environmental change is observed during this step.", "Step 1 observation (4 frames)": "The robot base moves forward 0.45 meters toward the refrigerator. During this motion, the robotic arm collides with the open refrigerator door, causing it to swing shut partially, which alters the environment and obstructs access to the refrigerator compartment.", "Step 2 observation (2 frames)": "The robot performs the UNGRASP action while its arm is positioned near the now partially closed refrigerator door. No further collision occurs, but the glass is not placed inside the refrigerator due to the obstructed access caused by the door’s position. 
+
+28 Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning 
+
+The environment remains unchanged during this step." }, "reason": "During the execution of ’put_glass_into_refrigerator’, the robotic arm collided with the open refrigerator door while performing ’MOVE_BASE_FORWARD ’, causing the door to close partially and blocking access to the compartment. Therefore, before ’MOVE_BASE_FORWARD’, the following step should be added: ’ MOVE_BASE_LEFT 0.3m’ to clear the door swing path.", "new_sequence": [18, {"15": 0.3}, {"13": 0.45}, 5] }, "iter_2": {"VLM-Observation": {"Step 0 observation (4 frames)": "The robot base navigates toward the refrigerator, positioning itself so the arm can reach the open door. No collision occurs, and the refrigerator door remains open; the environment status is unchanged.", "Step 1 observation (3 frames)": "The robot base moves left by 0.3 meters, repositioning the arm slightly away from the refrigerator door. No collision occurs, and the refrigerator door remains open; no environmental changes are observed.", "Step 2 observation (4 frames)": "The robot base moves forward by 0.45 meters, bringing the arm closer to the refrigerator. No collision occurs, and the refrigerator door remains open; no environmental changes are observed.", "Step 3 observation (2 frames)": "The robot opens its gripper to release the glass, but the glass is not visible inside the refrigerator, indicating it was not placed successfully. No collision occurs, and the refrigerator door remains open; no environmental changes are observed." }, "reason": "The task failed because after moving the base forward, the robotic arm did not extend far enough into the refrigerator to place the glass inside before releasing it. The UNGRASP action occurred while the gripper was still outside the refrigerator compartment. Therefore, after ’MOVE_BASE_FORWARD’, the following steps should be added: 1. ’MOVE_EEF_FORWARD 0.2m’ to extend the arm into the refrigerator, and 2. ’LIFT_EEF_DOWN 0.3m’ to lower the glass to a safe placement height inside the refrigerator.", "new_sequence": [18, {"15": 0.3}, {"13": 0.45}, {"9": 0.2}, {"8": 0.3}, 5] }
+
+Next, here are the output results for subtask 4: 
+
+"iter_1": {"VLM-Observation": {"Step 0 observation (5 frames)": "The robot successfully navigates to the refrigerator, positioning itself beside the open door without hitting any obstacles. The environment remains unchanged during this step; the refrigerator door stays open, and no unintended movements or collisions occur.", "Step 1 observation (1 frames)": "The robot arm extends toward the refrigerator handle in a controlled manner, maintaining clearance from surrounding objects. No collision occurs, and the refrigerator door remains open without any unintended movement or environmental change.", "Step 2 observation (1 frames)": "The robot arm finely adjusts its position to align precisely with the refrigerator handle, showing no contact with surrounding objects. The refrigerator door remains open and stationary, with no environmental changes or collisions observed.", "Step 3 observation (1 frames)": "The robot gripper successfully closes around the refrigerator handle without colliding with any surrounding objects. The refrigerator door remains open and stationary, with no unintended environmental changes observed during the grasp.", "Step 4 observation (6 frames)": "The robot arm attempts to close the refrigerator door by pulling the handle, but the door does not fully shut 
+
+29 Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning                                                                                                                                                
+
+> and appears to be obstructed or misaligned. No collision with surrounding objects is observed, but the environment status changes partially -the door moves slightly but fails to reach afully closed position, indicating an incomplete articulation.", "Step 5observation (2 frames)": "The robot opens its gripper to release the refrigerator handle, with no contact or collision observed. The refrigerator door remains partially open and does not move further during ungrasping, indicating that the failure to fully close occurred prior to this step." }, "reason": "The failure occurred during the ’ARTICULATE_CLOSE’ step. Although the robot successfully grasped the handle and attempted to close the door, the door did not fully shut, likely due to insufficient pulling force or misalignment in the articulation range. To correct this, we should extend the articulation range slightly beyond 0.5 and add asmall forward motion of the EEF before ungrasping to ensure full closure.", "new_sequence": [17, 1, 2, 3, {"19": [0.0, 0.6]}, {"9": 0.1}, 5] }
+
+D.6. Failure Details and Analysis 
+
+D.6.1. P ERFORMANCE VARIANCE ACROSS VLM A RCHITECTURES 
+
+We conducted a comparative study on the self-evolution performance of three VLMs: Gemini-3-Flash , GPT-5.2 , and 
+
+Qwen3-VL (specifically, the open-source model qwen3-vl-235b-22a-thinking ). While all models demonstrated reasoning capabilities, their evolution strategies exhibited distinct characteristics: • Qwen3-VL (Conservative Strategy): This model tends to be conservative in its modifications. Its proposed changes often involve minimal adjustments, such as tweaking a single parameter or adding just one or two atomic actions. While this ensures stability, Qwen3-VL frequently fails to identify “stuck” situations, where the robot is physically blocked but not in collision, resulting in minor updates that do not resolve the root cause. • Gemini-3-Flash (Aggressive Strategy): Gemini-3-Flash exhibits a more aggressive and perceptive reasoning style. It is often capable of identifying subtle geometric constraints, such as the robot arm grazing the edge of a fridge door. Consequently, it proposes significant modifications, such as changing a movement parameter from around 0.3m to around 0.8m. However, given the offline nature of our evolution mechanism (where the VLM cannot interactively query state during reasoning), these large-scale parameter jumps sometimes degrade accuracy, causing the robot to deviate from the correct target position. • GPT-5.2 (Redundant Strategy): GPT-5.2 shows a tendency to over-complicate solutions. It frequently stacks new actions onto the existing sequence rather than refining the current ones. This often leads to a “death spiral” where the action sequence grows to over 10 steps. As the sequence length increases, the probability of cumulative execution error rises, making success increasingly difficult despite valid high-level logic. D.6.2. C ASE STUDIES ON PERSISTENT FAILURES 
+
+Qualitative inspection of failure cases reveals that errors are rarely due to high-level logic. Instead, they stem from low-level kinematic constraints, such as the robotic arm reaching a singularity when confined against the fridge side, or the hard-coded action primitives lacking the reflexivity to compensate for minor grasping errors. 
+
+Case 1: Kinematic Obstruction in Task T1 (Glass → Fridge). Figure 9 shows the first 4 iterations of subtask 3 (placing the glass into the refrigerator), which ultimately failed after 5 iterations. The visual record shows the robot attempting to extend its arm deep into the refrigerator. As observed in the figures, the root cause is not the arm extension parameter, but the base positioning. The robotic arm link is physically blocked by the left side of the refrigerator frame, preventing the arm from extending fully. This type of collision is subtle and difficult for the VLM to perceive from the standard camera views. 30 Affordance-Graphed Task Worlds: Self-Evolving Task Generation for Scalable Embodied Learning 
+
+Iter 1 Iter 2 Iter 3 Iter 4 
+
+Figure 9. Failure Analysis for T1 Subtask 3. Despite 4 rounds of evolution (Iter 5 also failed), the robot consistently fails to insert the glass. The root cause, visible in the Overhead View, is that the lower link of the robotic arm collides with the left wall of the refrigerator, preventing the end-effector from advancing. This kinematic constraint is difficult for the VLM to diagnose from 2D images, as it requires a subtle backward adjustment of the mobile base to clear the singularity, which is a correction that iterative parameter tuning failed to find. 
+
+Case 2: Precision Placing in Task T3 (Apple → Bowl). Figure 10 depicts a failure in Subtask 2 (Place apple into bowl). The challenge here is fine-grained spatial alignment. 
+
+Iter 1 Iter 2 Iter 3 Iter 4 
+
+Figure 10. Failure Analysis for T3 Subtask 2. The robot struggles to align the apple directly above the bowl. Over 4 iterations, the VLM attempts to correct the drift, but lacks the precision to calculate the exact offset. The open-loop nature means the VLM oscillates between over-correcting (moving too far left) and under-correcting, failing to find the ”sweet spot” within the limited iteration budget. 
+
+As shown in the iteration history, the VLM struggles to calculate the exact spatial offset required to center the gripper over the bowl. Since our method generates the next plan offline based on static visual feedback, the VLM cannot rely on real-time continuous servoing. This results in an oscillation where the robot either adjusts too little (incremental trial-and-error) or modifies parameters too aggressively, missing the target window. 31

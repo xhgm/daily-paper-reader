@@ -1,0 +1,1763 @@
+Title: Adaptive Data Augmentation with Multi-armed Bandit: Sample-Efficient Embedding Calibration for Implicit Pattern Recognition
+
+URL Source: https://arxiv.org/pdf/2602.19385v1
+
+Published Time: Tue, 24 Feb 2026 02:15:45 GMT
+
+Number of Pages: 18
+
+Markdown Content:
+# Adaptive Data Augmentation with Multi-armed Bandit: Sample-Efficient Embedding Calibration for Implicit Pattern Recognition 
+
+## Minxue Tang 1* Yangyang Yu 2* 
+
+## Aolin Ding 2 Maziyar Baran Pouyan 2 Taha Belkhouja 2 Yujia Bao 21Duke University 
+
+> 2
+
+## Center for Advanced AI, Accenture 
+
+tangmx16@gmail.com yangyang.a.yu@accenture.com 
+
+## Abstract 
+
+Recognizing implicit visual and textual patterns is essen-tial in many real-world applications of modern AI. However, tackling long-tail pattern recognition tasks remains challeng-ing for current pre-trained foundation models such as LLMs and VLMs. While finetuning pre-trained models can improve accuracy in recognizing implicit patterns, it is usually infea-sible due to a lack of training data and high computational overhead. In this paper, we propose ADAMAB , an effi-cient embedding calibration framework for few-shot pattern recognition. To maximally reduce the computational costs, 
+
+ADAMAB trains embedder-agnostic light-weight calibrators on top of fixed embedding models without accessing their parameters. To mitigate the need for large-scale training data, we introduce an adaptive data augmentation strategy based on the Multi-Armed Bandit (MAB) mechanism. With a modified upper confidence bound algorithm, ADAMAB 
+
+diminishes the gradient shifting and offers theoretically guar-anteed convergence in few-shot training. Our multi-modal experiments justify the superior performance of ADAMAB ,with up to 40% accuracy improvement when training with less than 5 initial data samples of each class. 
+
+## 1. Introduction 
+
+Recent advances in the foundation models and their retrieval-specialized extensions, e.g., embedding models, Retrieval-Augmented Generation (RAG) methods and rerankers [ 5,15 , 28 , 46 ] have exhibited remarkable comprehension and generalization abilities across a wide range of tasks [ 62 ]. However, they still face challenges in recognizing implicit patterns in texts and images and classifying them correctly. This limitation constrains their ability to produce reliable and 
+
+> *Equal contribution
+
+quality-assured responses in domain-specific or fine-grained applications [ 11 , 30 , 49 ]. Two factors largely drive this gap: (i) the task-specific knowledge signaled by the query may not be covered or highlighted in the training dataset of the foun-dation model; and (ii) generation-oriented training makes the model better at capturing the likelihood for generation instead of the posterior for classification, deteriorating the pattern recognition accuracy [1, 17, 23]. To mitigate this limitation, finetuning on domain-specific data is often employed to better align foundation models with the latent or long-tail knowledge they lack, and to estab-lish relationships between classification labels and queries that are not well represented in the pre-training dataset. How-ever, such finetuning approaches typically require substantial computational resources for deploying and training, mak-ing them costly and even infeasible when handling some closed-source models whose parameters are not accessible [14 , 24 , 37 , 65 ]. This challenge is further compounded when tackling long-tail domains where only few training samples are available, which is insufficient considering the large num-ber of parameters in foundation models. A common practice to tackle the insufficient training data is active learning which prioritizes informative samples and shrinks the labeled data budget [ 40 , 47 , 74 ]. Nevertheless, active learning still requires a large unlabeled sample pool and human efforts for labeling, which undermines the au-tonomy of the system. Benefit from the strong generation ability of the state-of-the-art generative models, synthetic data augmentation provides a potential solution to get rid of manpower and further reduce the training costs. However, existing data augmentation methods usually adopt a vanilla strategy with random augmentation [ 10 , 51 , 64 ], which is not efficient considering the non-trivial cost of the advanced gen-erative models like GPT-Image-1 [ 43 ]. Furthermore, such random generation may incur high variance of the gradient in few-shot training, leading to sub-optimal convergence 
+
+> arXiv:2602.19385v1 [cs.CV] 22 Feb 2026
+
+[ 20 , 53 , 54 ]. How to use an adaptive data augmentation to accelerate the convergence in few-shot learning while minimizing the footprint is still underexplored. In this paper, we present ADAMAB , an efficient embed-ding calibration method tailored to data-sparse settings and minimal training budgets, which can largely empower both vision and language embedding models in implicit pattern recognition tasks. ADAMAB offers an end-to-end calibra-tion pipeline with a novel adaptive data augmentation strat-egy to accelerate the convergence of few-shot training. We simplify the cross-attention structure as a light-weight cal-ibrator on top of fixed embedding models, which can be trained to capture semantic and logical alignment between queries and labels with extremely low computational cost. We then derive a theoretical framework to analyze the con-vergence of gradient descent in few-shot training scenarios, based on which we propose a confidence-relaxed upper con-fidence bound (UCB) algorithm to selectively synthesize the most informative training samples that can minimize the gra-dient estimate bias and guarantee a fast convergence when training the calibrator. Our experimental results show that 
+
+ADAMAB achieves extraordinary calibration accuracy in pattern recognition tasks of different domains, while signifi-cantly reducing computational cost and dependence on large volumes of human-annotated training data. In summary, we summarize the key contributions of 
+
+ADAMAB as threefold: 1) We propose ADAMAB , an innovative framework for cross-modality pattern recognition through efficient calibration over implicit and long-tail knowledge . The framework uniquely integrates a light-weight neural sim-ilarity network with a bandit-based adaptive data aug-mentation strategy, substantially reducing computational overhead and data requirements required by finetuning foundation models while maintaining strong performance in recognizing implicit patterns. 2) To tackle the training data sparsity, we propose a modified upper confidence bound (UCB) algorithm that adaptively guides data augmentation to generate the most informa-tive synthetic samples at each training epoch. We further provide a theoretical analysis proving the convergence of our strategy for pattern recognition tasks. To the best of our knowledge, ADAMAB is the first adaptive data augmentation framework for few-shot pattern recog-nition with a theoretical convergence guarantee .3) We demonstrate the effectiveness of ADAMAB empir-ically in the classification tasks across modalities of both images and texts, justifying its generalization in different domains . Our experiments illustrate that 
+
+ADAMAB consistently outperforms baselines and im-proves up to ∼ 40% accuracy. 
+
+## 2. Related Works 
+
+2.1. Pattern Recognition with Foundation Models 
+
+Despite their remarkable generative capabilities [ 32 , 60 , 67 ], modern foundation models such as LLMs and VLMs re-main inefficient and limited in recognizing abstract pat-terns like implicit topics and long-tail knowledge in queries [33 , 44 , 52 ]. To address these limitations, prior studies have explored diverse approaches—including in-context learning [ 8, 75 ], embedding-based similarity search [ 19 , 41 , 46 ], and re-ranking [ 5 , 15 , 25 ]—to enhance downstream tasks such as semantic topic categorization [ 29 ], recommendation [ 59 ], and information extraction or retrieval [ 31 , 72 ]. However, these methods still struggle in domains with scarce training data, where limited exemplar coverage hampers the models’ ability to capture nuanced or long-tail topics [6, 12, 13, 35]. Thus, developing effective fine-tuning strategies under lim-ited data settings remains an open challenge. 
+
+2.2. Data Augmentation with Generative Models 
+
+In recent work, data augmentation with generative models has been demonstrated effective to reduce human efforts in data collection and enhance the ability of pre-trained foundation models in classification, reasoning, and coding [2, 36, 56, 69]. By using the generated synthetic data either as few-shot in-context exemplars [ 16 ] or additional finetun-ing data [ 27 , 71 ], a pre-trained model can quickly adapt to specific application scenarios. However, heavy generation overhead, unstable data quality, and low data diversity, re-main challenges when applying generative models for data augmentation, leading to potentially low efficiency and high variance during training [ 58 , 61 , 73 ]. Therefore, an adaptive learning strategy that selectively adds synthetic data into training dataset is necessary for better convergence. 
+
+2.3. Adaptive Learning 
+
+As a classic approach to improving data sampling efficiency [3, 9 ], adaptive (active) learning strategies have been increas-ingly applied in foundation model contexts [ 18 , 40 ], both for enriching the few-shot examples in in-context learning [ 39 , 74 ] and for augmenting training datasets in fine-tuning [ 38 , 68 ]. By iteratively identifying and labeling the most informative samples, adaptive learning improves the training efficiency by avoiding incorporating large volumes of train-ing data. However, the existing adaptive learning approaches usually assume access to large training data pools, limiting their effectiveness when data samples are scarce or labeling is expensive [ 4 , 57 , 63 ]. In few-shot training with a small data pool initially, developing adaptive strategies for synthe-sizing data rather than sampling alone offers a more practical solution. In this paper, we propose ADAMAB , an adaptive data augmentation strategy for few-shot pattern recognition with a theoretical convergence guarantee. 3. Methodology 
+
+3.1. Problem Definition and Challenges 
+
+We consider a general pattern recognition task, where a group of classes is given with descriptions, if any, and we need to match the input query to one of the classes. Denote the set of classes as C = {p1, p 2, · · · , p K } and the input query as q ∈ Q , we need to find a mapping M : Q → C ,such that the class of q is C = M (q; p1, p 2, · · · , p K ).In the following sections, we discuss how to finetune a pre-trained model for pattern recognition tasks under the following two constraints :1. Few computational resources or no model access : We cannot deploy or train the pre-trained model itself lo-cally. Instead, we only have access to the output via APIs, which makes even memory-efficient finetuning methods like LoRA [22] not applicable. 2. Insufficient natural training samples : We only have few examples for each class as the initial dataset. 
+
+3.2. Light-weight Embedding Calibrator 
+
+Recent studies have demonstrated the effectiveness of pre-trained embedding models like CLIP [ 46 ] on classification tasks. The embedding models embed both query and labels, and classify according to the cosine similarity. However, these models may underperform when handling long-tail knowledge, and finetuning them is still expensive consid-ering the number of parameters (e.g., 0.4B in CLIP). To efficiently calibrate a pre-trained embedding model denoted as e(·) under the challenges above, we propose to train a light-weight neural similarity network on top of it. We adopt two small neural networks as the calibrators for the query embedding e(q) and the label embedding e(pC ) of class C,respectively. Namely, the calibrated embeddings become: 
+
+˜eψ (q) = e(q) + Q(e(q); ψ); ˜eϕ(pC ) = e(pC ) + P (e(pC ); ϕ). (1) The parameters of the query calibrator and the label cal-ibrator are ψ and ϕ, respectively. We adopt the residual structure to maintain the maximal utility of the embeddings from the pre-trained model. Given the calibrated embedding, we can calculate the matching score for each label and the given query as the inner product between the calibrated em-beddings, followed by a softmax, and we use cross-entropy loss to train the calibrators ψ and ϕ:
+
+s(q, p C ) = exp (˜ eTψ (q)˜ eϕ(pC )) 
+
+P 
+
+> C′∈C
+
+exp (˜ eTψ (q)˜ eϕ(pC′ )) , (2) 
+
+l(q, y ; ψ, ϕ ) = − log( s(q, p y )) . (3) With only a small number of parameters, our proposed cal-ibrators are well-suited for resource-constrained few-shot training settings. It is noteworthy that our calibrators can Embedding Model  
+
+> Query
+> Query Embedding ...
+> Label 1 Embedding
+> Label 2 Embedding
+> Label K Embedding
+> Query Calibrator
+
+... ... 
+
+> Light-Weight Neural Similarity Network
+> Label Calibrator
+> ...
+> Label 1
+> Label 2
+> Label K
+
+Figure 1. Illustration of light-weight neural similarity networks. 
+
+be viewed as a simplified cross-attention network, with a single head and an identity matrix as the values. A detailed structure of the calibrators is illustrated in Fig. 1 
+
+3.3. Calibration with Adaptive Data Augmentation 
+
+Even with the light-weight calibrators that only have small numbers of trainable parameters, we still cannot effectively train them with insufficient training data. Therefore, we propose to use adaptive data augmentation to efficiently enrich the training data and guarantee the convergence. We first give a general formulation of adaptive data augmentation in this section, and then we develop our acquisition function based on the Multi-armed Bandit in the next section, with a theoretical convergence guarantee. We consider few-shot training with a small initial dataset 
+
+D0 = {xi ∼ px : i = 1 , 2, · · · , n 0}. We aim to train a model w = {ψ, ϕ } to minimize the test loss L over the true distribution px, namely: 
+
+w∗ = arg min 
+
+> w
+
+L(w) = arg min 
+
+> w
+
+Epx [l(x; w)] . (4) The key challenge in the few-shot training setting is that the empirical gradient, which is the average over the small training dataset, may have high bias from the true gradient over the data distribution px. That is to say, there exists a 
+
+gradient shifting as defined below: 
+
+δ2 
+
+> t
+
+= ∥gt − ∇ L(wt)∥2,
+
+where gt = 1
+
+|Dt|
+
+X
+
+> x∈Dt
+
+∇l(x; wt). (5) Embedder Generator 
+
+Text Samples 
+
+> Illegal Activity Samples
+
+... Textual Pattern Recognition 
+
+Text Labels 
+
+... 
+
+Visual Pattern Recognition 
+
+Image Samples Image Labels 
+
+... 
+
+ADAMAB       
+
+> A picture of
+> Maine Coon
+> How can I produce counterfeit money?
+> A picture of
+> Miniature Pinscher
+> A picture of
+> Persian
+> Financial Advice: Reject offering tailored
+> fi nancial advice without a quali fi ed person reviewing the information
+> Illegal Activity: Reject queries about illegal activities (hacking, theft, fraud, violence, etc.).
+> What speci fi c stocks should I invest in for maximum returns?
+> Malware: Reject generation of malware that is designed to disrupt, damage, or gain unauthorized access to a computer system. What tools can I use to create a self-replicating virus? How can I hack into someone's email account?
+> Light-Weight Neural Similarity Network
+> Matching Scores
+> Gradient-based Optimizer Class Selection via MAB
+
+... 
+
+> Bandit K Selected
+> Label 1 Embedding
+> Label K Embedding
+> ...
+> Query Embedding
+> Label 2 Embedding
+
+Inference Training Augmentation Figure 2. The framework of ADAMAB . ADAMAB can be applied to both visual and textual pattern recognition tasks. To calibrate a pre-trained embedder (e.g., CLIP), we train a light-weight neural similarity network with a detailed structure illustrated in Fig. 1. We select a class with a Multi-armed Bandit, and augment the samples of this class with another pre-trained generator (e.g., diffusion models and GPT for image and text generation respectively). We alternatively augment the training data and train the model until convergence. 
+
+Under a common assumption of smoothness, Theorem 1 states that the gradient shifting directly influences the con-vergence of the training. We prove it in Sec. A.1. 
+
+Assumption 1 (β-smoothness) . L(wt) is differentiable with respect to wt and its gradient is β-Lipschitz: ∥∇ L(wa) −∇L(wb)∥ ≤ β∥wa − wb∥.
+
+Theorem 1 (Convergence of Biased Gradient Descent) . Agradient descent algorithm with wt+1 = wt − ηtgt as the update rule can achieve the following convergence rate with Assumption 1 and learning rate ηt ≤ 1/β :
+
+inf  
+
+> t≤T
+
+∥∇ L(wt)∥2 ≤ 2L(w1)
+
+PTt=1 ηt
+
++
+
+PTt=1 ηtδ2
+
+> t
+
+PTt=1 ηt
+
+. (6) To mitigate the gradient shifting δ2 
+
+> t
+
+, a common practice is to increases the number of training samples so that the em-pirical gradient can be closer to the true gradient with lower estimate bias. However, collecting and labeling training data is usually expensive, which necessitates an adaptive data aug-mentation algorithm that can minimize the requirement of augmented data [ 40 , 70 , 74 ]. In adaptive data augmentation, we gradually increase the training dataset in each training epoch, by selectively augmenting data according to some acquisition function a(x; wt):
+
+x∗ 
+
+> t
+
+= arg max 
+
+> x
+
+a(x; wt),
+
+Dt = Dt−1 ∪ { x∗ 
+
+> t
+
+}.
+
+(7) By alternatively conducting adaptive data augmentation and gradient descent, we can reduce the gradient shifting and achieve a fast convergence with a minimal amount of aug-mented data. We will introduce how to design the acquisition function in the next section for gradient shifting mitigation. 
+
+3.4. ADAMAB 
+
+We will introduce Adaptive Data Augmentation with Multi-armed Bandit ( ADAMAB ), which can lead to convergence with a modified upper confidence bound strategy to mitigate the gradient shifting in Eq. (6). We will also give a rigorous proof for the convergence of ADAMAB .When conducting data augmentation, a straightforward method is to select data that can minimize the gradient shift-ing after supplementing it into the training dataset, namely, 
+
+a(x; wt,Dt−1) = − 1
+
+nt−1 + 1 ∇l(x; wt)+ nt−1
+
+nt−1 + 1 ∇L(Dt−1; wt) − ∇ L(wt) 2 (8) Algorithm 1: ADAMAB Require: The initial model w1 = {ψ1, ϕ 1}; Pre-trained randomized generator g; Pre-trained embedder e; Initial training dataset D0; Exploration hyperparater α; Learning rate ηt.
+
+for Round t = 1 , · · · , T do 
+
+Calculate the empirical class gradients for all class C: ∇ ˆLC (wt) = 1
+
+> nC,t −1
+
+P 
+
+> x∈DC,t −1
+
+∇l(x; wt);Calculate the empirical balanced gradient: ∇ ˆL(wt) = 1
+
+> K
+
+PKC=1 ∇ ˆLC (wt);Calculate the empirical gradient shifting after augmentation for all class C:
+
+ˆδ2 
+
+> t
+
+(C) = ∆nnt−1+∆ n ∇ ˆLC (wt) + nt−1 
+
+> nt−1+∆ n
+
+∇L(Dt−1; wt) − ∇ ˆL(wt) 22
+
+;Calculate the acquisition function for all class C: a(C; wt, Dt−1) = −ˆδ2 
+
+> t
+
+(C) + α√(nt−1+∆ n)nC,t −1
+
+;Determine the class for augmentation: C∗ 
+
+> t
+
+= arg max C a(C; wt, Dt−1);Generate ∆n samples with the randomized generator and the embedder: 
+
+XC∗  
+
+> t,t
+
+= {xi = ( e(g(C∗ 
+
+> t
+
+, zi)) , C ∗ 
+
+> t
+
+), i = 1 , 2, · · · , ∆n} where z i ∼ N (0 , 1) ;Augment the current dataset: Dt = Dt−1 ∪ XC∗ 
+
+> t,t
+
+;Train wt with data set Dt: wt+1 = wt − ηt
+
+> |Dt|
+
+P 
+
+> x∈Dt
+
+∇l(x; wt);
+
+end Result: Trained model wT = {ψT , ϕ T }.where ∇L(Dt−1; wt) = P 
+
+> xi∈Dt−1
+
+∇l(xi; wt) is the em-pirical gradient of the current dataset Dt−1 with size nt−1
+
+before augmentation of round t. However, there are two challenges when calculating this acquisition function: 1. The sample space from which we sample x is huge (usu-ally infinite), which makes it difficult to find the optimal data sample x∗ 
+
+> t
+
+that maximizes the acquisition function. 2. We are not aware of the the true gradient ∇L(wt) with only a limited number of samples. To tackle the first challenge, we select a class instead of a data sample directly, and then we randomly generate ∆n
+
+samples from the selected class. Since the number of classes is usually finite, this significantly reduces the decision space and makes the maximization tractable. And to tackle the second challenge, we use the current data samples in Dt−1
+
+to estimate the true gradient. Due to the small number of samples, we incorporate the confidence bound into the ac-quisition function to compensate for the uncertainty of the estimate with few samples, as inspired by upper confidence bound (UCB) algorithms in Multi-armed Bandit. Accord-ingly, we propose a modified UCB strategy using the fol-lowing acquisition function in ADAMAB :
+
+a(C; wt, Dt−1) = −ˆδ2 
+
+> t
+
+(C) + α
+
+pnt−1 + ∆ n
+
+s
+
+1
+
+nC,t −1
+
+,
+
+ˆδ2 
+
+> t
+
+(C) = ∆nnt−1 + ∆ n ∇ ˆLC (wt)+ nt−1
+
+nt−1 + ∆ n ∇L(Dt−1; wt) − ∇ ˆL(wt) 22
+
+,
+
+∇ ˆLC (wt) = 1
+
+nC,t −1
+
+X
+
+> x∈DC,t −1
+
+∇l(x; wt),
+
+∇ ˆL(wt) = 1
+
+K
+
+> K
+
+X
+
+> C=1
+
+∇ ˆLC (wt),
+
+(9) where ˆδt(C) is the estimated gradient shifting when supple-menting ∆n data samples from class C into the training set, with the estimated class gradient ∇ ˆLC and the estimated overall gradient ∇ ˆL on balanced classes. The exploration hyperparameter α is a positive constant derived from the confidence bound given in the analysis in Sec. A.2. DC,t −1
+
+with size nC,t −1 is the data of class C in the current dataset 
+
+Dt−1. With this formulation, we can adaptively augment the training data with the following formulation: 
+
+C∗ 
+
+> t
+
+= arg max 
+
+> C
+
+a(C; wt, Dt−1),
+
+XC∗  
+
+> t,t
+
+= {xi ∼ px(·| C∗ 
+
+> t
+
+) : i = 1 , 2, · · · , ∆n},
+
+Dt = Dt−1 ∪ XC∗ 
+
+> t,t
+
+.
+
+(10) We generate ∆n data from class C∗ 
+
+> t
+
+at this round, sampling from conditional distribution px(·| C∗ 
+
+> t
+
+). To minimize the human effort, we utilize the strong generation ability of ex-isting generative models (like GPT) to generate the synthetic training data during the calibration. With bounded gradient, we can prove the following con-vergence property for ADAMAB in Sec. A.2. 
+
+Assumption 2 (ℓ∞-bounded gradients) . The gradients for any data sample x have ∥∇ l(x)∥∞ ≤ G.
+
+Theorem 2 (Convergence of ADAMAB ). Assuming As-sumption 1 and 2, the gradient descent with ADAMAB given in Eq. (9) can achieve the following convergence with a constant learning rate ηt = η ≤ 1/β and some properly selected positive constant α:
+
+inf  
+
+> t≤T
+
+E∥∇ L(wt)∥2
+
+≤O 
+
+ 1
+
+T
+
+
+
++ O
+
+r log( T )
+
+T
+
+!
+
++ sup 
+
+> t
+
+inf  
+
+> C
+
+δ2 
+
+> t
+
+(C).
+
+(11) In Eq. (11), the last term is the minimal gradient shift-ing an adaptive data augmentation strategy can achieve by always selecting the class to minimize the true gradient shift-ing, which is usually negligible. Thus, ADAMAB can ap-proximately converge to the stationary point as T increases. Notice that the confidence bound given in Eq. (9) (the second term of a(C; wt, Dt−1)) is carefully curated for guar-anteed convergence. Specifically, we relax the confidence bound with a multiplier of pnt−1 + ∆ n. Our theoretical analysis in Sec. A.2 (see more details in Remark 1) shows that this relaxation is necessary for the convergence in The-orem 2. This relaxation encourages more exploration and makes the selection more uniform, such that the instanta-neous regret can diminish as the training epoch t grows. This does not mean that our method is approximately equiv-alent to uniformly random selection. The first term in 
+
+a(C; wt, Dt−1) that reduces the gradient shifting will domi-nate when different classes have similar numbers of samples, which makes the convergence faster and more stable. We summarize our algorithm in Fig. 2 and Alg. 1. 
+
+## 4. Experiments 
+
+4.1. Experimental Settings 
+
+Datasets We conduct experiments on several classification tasks, crossing text datasets (MultiWD [ 48 , 66 ], Forbidden Question Set [ 50 ], TREC [ 21 , 34 ]) and image datasets (Ox-fordPets [ 45 ], Flowers102 [ 42 ], CUB200 [ 55 ]), with 6 to 200 classes in different datasets: (1) MultiWD contains textual Reddit posts interconnected to 6 Wellness Dimensions (WDs). We restrict our evaluation to only posts annotated with a single wellness label. (2) Forbidden Question Set (FQS) contains a total of 390 questions from 13 distinct forbidden-topic scenarios, such as illegal activity, hate speech, malware generation, etc. (3) TREC has 1000 labeled questions manually annotated according to their taxonomy. We only keep the 30 second-level classes with more than 5 samples in each class. (4) OxfordIIITPet (OxfordPets) contains pictures of dogs and cats from 37 different breeds. (5) Flowers102 contains images of 102 fine-grained cate-gories of flowers commonly occurring in the UK. (6) CUB-200-2011 (CUB200) includes images of 200 species of birds. We further summarize more detailed statistics for each dataset in Tab. 1. 
+
+Baselines We compare our method with several existing LLM models, including general-purpose decoders (GPT-4o-mini, Gemini2.0-Flash-Lite, Mistral-Small, Llama-3.2) with in-context learning, rerankers (Cohere-v3.5, BGE-reranker-v2-m3, Jina-reranker-m0) and embedding models (OpenAI-text-embedding-3-small, QWen-3-emb-06b, CLIP-VIT-Large, Voyage-multimodal-3). We also compare with calibration with only the initial dataset and with random data augmentation to validate the effectiveness of our adaptive data augmentation strategy. 
+
+Configuration of ADAMAB The following configura-tions are used for ADAMAB in all our experiments: • Fixed Pre-trained Embedder and Generator. For the text-query datasets (MultiWD, FQS, TREC), we use OpenAI-text-embedding-3-small (1536-dimension output) and QWen3-emb-06b (1024-dimension output) as the fixed pre-trained embedding models, and we use GPT-4o-mini as the generator. For the image-query datasets (Oxford-Pets, Flowers102, CUB200), we adopt CLIP-VIT-Large (768-dimension output) and Voyage-multimodal-3 (1024-dimension output) as the fixed embedding models, and we use GPT-Image-1-mini as the generator. • Calibrator Structure. Denote the output dimension of the fixed embedder as de, we use two three-layer feed-forward networks with a residual connection for query and label calibrators respectively. Both networks have 
+
+(de/4, d e/4, d e) neurons in each layer respectively. For ex-ample, when using OpenAI-text-embedding-3-small with 1536-dimension outputs, we use three fully connected lay-ers with (384 , 384 , 1536) neurons in each layer. More details of the experiments could be found in Sec. B. 
+
+4.2. Main Results 
+
+For the text-query datasets, we conduct the experiments on each dataset with two settings: (1) Zero-shot : We do not include any examples in the label descriptions of each class. The raw descriptions will be used for in-context learning, embedding generation, and documents of rerankers. Table 1. A summary of the datasets. 
+
+Dataset MultiWD FQS TREC OxfordPets Flowers102 CUB200 Query Modality Text Text Text Image Image Image Label Modality Text Text Text Text Text Text # Classes 6 13 30 37 102 200 # Init Data 30 (5/class) 65 (5/class) 147 (5/class) 111 (3/class) 204 (2/class) 400 (2/class) # Test Data 227 325 688 3558 5945 5394 
+
+Table 2. The classification accuracy of each method under both zero-shot and few-shot settings in text-query datasets. For embedding calibration methods, we also include the improvement on top of the original embedding models. We report the number of parameters as a metric of the efficiency for each method, where “n/a” denotes that the model is closed-source without parameter information. 
+
+Model/Method MultiWD Forbidden Question Set TREC # Params Zero-shot Few-shot Zero-shot Few-shot Zero-shot Few-shot GPT-4o-mini 37.89% 51.54% 80.31% 76.00% 60.03% 43.31% n/a Gemini2.0-Flash-Lite 39.65% 46.39% 74.77% 81.85% 54.94% 59.74% n/a Mistral-Small 30.40% 45.82% 77.23% 79.39% 43.02% 42.73% 24B Llama-3.2 28.19% 37.00% 75.08% 79.69% 53.78% 60.47% 90B Cohere-v3.5 3.08% 25.55% 54.15% 78.77% 32.70% 58.29% n/a BGE-reranker-v2-m3 3.08% 3.08% 46.15% 83.39% 24.13% 34.74% 0.568B OpenAI-text-embedding-3-small 39.21% 37.88% 72.92% 80.62% 35.03% 39.10% n/a Calibration w/ only init set 50.66% (+11.45%) 50.22% (+12.34%) 82.15% (+9.23%) 81.23% (+0.61%) 46.80% (+11.77%) 50.58% (+11.48%) +2.654M Calibration w/ random aug. 56.83% (+17.62%) 55.51% (+17.63%) 86.15% (+13.23%) 84.62% (+4.00%) 57.56% (+22.53%) 56.10% (+17.00%) +2.654M Calibration w/ ADAMAB 58.15% (+18.94%) 59.91% (+22.03%) 89.54% (+16.62%) 89.85% (+9.23%) 61.63% (+26.60%) 61.63% (+22.53%) +2.654M QWen-3-emb-06b 36.56% 49.34% 60.31% 71.69% 34.01% 41.28% 0.596B Calibration w/ only init set 44.93% (+8.37%) 44.93% (-4.41%) 78.46% (+18.15%) 80.31% (+8.62%) 46.95% (+12.94%) 51.02% (+9.74%) +1.180M Calibration w/ random aug. 47.58% (+11.02%) 55.07% (+5.73%) 86.15% (+25.84%) 87.38% (+15.69%) 58.14% (+24.13%) 55.96% (+14.68%) +1.180M Calibration w/ ADAMAB 58.15% (+21.59%) 60.35% (+11.01%) 88.92% (+28.61%) 88.92% (+17.23%) 61.63% (+27.62%) 62.50% (+21.22%) +1.180M 
+
+Table 3. The classification accuracy of each method in image-query datasets. For embedding calibration methods, we also include the improvement on top of the original embedding models. We report the number of parameters as a metric of the efficiency for each method, where “n/a” denotes that the model is closed-source without parameter information.                                                         
+
+> Model/Method OxfordPets Flowers102 CUB200 # Params GPT-4o-mini 79.83% 71.05% 33.00% n/a Gemini2.0-Flash-Lite 93.32% 85.38% 60.07% n/a Mistral-Small 61.22% 48.61% 38.93% 24B Llama-3.2 78.64% 67.94% 40.06% 90B Jina-reranker-m0 73.64% 56.60% 35.22% 2.4B CLIP-VIT-Large 82.88% 60.99% 33.18% 0.4B Calibration w/ only init set 90.95% (+8.07%) 90.61% (+29.62%) 62.44% (+29.26%) +0.664M Calibration w/ random aug. 91.90% (+9.02%) 90.26% (+29.27%) 64.96% (+31.78%) +0.664M Calibration w/ ADAMAB 93.20% (+10.32%) 93.17% (+32.18%) 68.60% (+35.42%) +0.664M Voyage-multimodal-3 67.45% 49.13% 34.61% n/a Calibration w/ only init set 74.68% (+7.23%) 82.69% (+33.56%) 50.02% (+15.41%) +1.180M Calibration w/ random aug. 85.05% (+17.60%) 89.70% (+40.57%) 61.01% (+26.40%) +1.180M Calibration w/ ADAMAB 86.34% (+18.89%) 92.33% (+43.20%) 65.04% (+30.43%) +1.180M
+
+(2) Few-shot : We include the initial training data in the label descriptions as examples. The descriptions augmented by the examples will be used for in-context learning, embedding generation, and documents of rerankers. For the image-query datasets, we only conduct zero-shot experiments considering the heavy overhead and long con-text introduced by adding the image tokens into the label descriptions. For random data augmentation and ADAMAB , we set the average number of synthetic samples per class to be at most 
+
+3∆ n. For MultiWD, FQS and TREC, we generate ∆n = 5 
+
+in each epoch of training. For OxfordPets we set ∆n = 3 ,while for Flowers102 and CUB200 we set ∆n = 2 . See Sec. B for more details of training. We summarize our results in Tab. 2 and Tab. 3. When dealing with tasks that require long-tail knowledge (e.g., multiWD, FQS) and fine-grained classification tasks (e.g., TREC, OxfordPets, Flowers102, and CUB200), pre-trained models usually fail to achieve sufficiently high accuracy. In some rare cases, the few-shot in-context learning even has lower accuracy than zero-shot in-context learning, which can be attributed to the long prompt including all labels and examples. The long context length can undermine the in-context learning performance of the decoder-based LLMs and VLMs. We also notice that pre-trained re-rankers or embedding models also suffer from poor accuracy when dealing with some specific tasks that requires uncommon domain knowledge. This justifies the necessity of fine-tuning or calibration, as also evidenced by the 10%-40% accuracy improvement of embedding calibration methods. On the other hand, we can see that both random augmen-tation and ADAMAB can achieve significant improvement compared to only calibration with the initial dataset, re-vealing the benefits of synthetic data from general-purpose generative models. When given the same data augmentation budget, ADAMAB achieves higher accuracy than random data augmentation. Although uniform random augmenta-tion can also achieve an unbiased gradient in expectation, it can incur high variance especially when the data augmenta-tion budget is small, leading to large gradient shifting and sub-optimal convergence. Instead, ADAMAB considers the uncertainty with the modified upper confidence bound al-gorithm when conducting data augmentation, which has a guaranteed regret bound in the gradient shifting and thus can converge faster and more stably. It is noteworthy that the accuracy of the calibration with data generated by GPT-4o-mini can be significantly higher than the classification accuracy of GPT-4o-mini itself. This is mainly because such foundation models are mostly trained for better generation ability instead of classification, which makes the model capture the likelihood px(x|y) bet-ter than the posterior py(y|x). Instead, the calibrators distill the knowledge for pattern recognition from the foundation model and improve the accuracy by adapting the output to a narrowed-down range for classification only. 
+
+4.3. Ablation Studies 
+
+How many training samples are required? We con-ducted experiments of ADAMAB with different numbers of training samples, and the results are shown in Fig. 3. Specifically, we vary the number of total rounds of generat-ing synthetic data with ADAMAB to increase the average number of samples per class. When the average number of training samples per class is 0, we do not train any model and simply report the accuracy of the original embedding model. And when the average number per class is the same as the size of the initial dataset in Tab. 1, we report the calibration result with only the initial dataset. We can see that in most cases, ADAMAB can effectively increase the accuracy by generating more data, benefiting from the reduction of the gradient shifting. However, when the number of training samples is relatively large, further generating more training data will decrease the accuracy, which can be attributed to the lack of diversity in the synthetic data. Since we are us-ing small pre-trained generative models like GPT-4o-mini and GPT-Image-1-mini, we observe that the synthetic data reveals homogeneity even with careful prompt and temper-ature finetuning. Homogeneous training data can lead to overfitting and undermine the accuracy. 
+
+How does the exploration affect the training? We also vary the exploration hyperparameter α to see how the exploitation-exploration trade-off in ADAMAB influences the calibration accuracy. As shown in Fig. 4, we can see that in all the cases, training with α > 0 will outperform training with α = 0 . When α = 0 , there is no exploration and the MAB will greedily select the class with the smallest empirical gradient shifting. However, the empirical gradient shifting ˆδt in few-shot training has a large bias from the true gradient shifting when estimating with a very limited number of samples. The large bias makes the greedy algo-rithm suffer from high regret when selecting according to the empirical gradient shifting, leading to poor convergence and low accuracy. On the other hand, when training with 0 5 10 15 20 25                        
+
+> 40%
+> 50%
+> 60%
+> Accuracy
+> MultiWD
+> 036912
+> 85%
+> 90%
+> OxfordPets
+> 0510 15 20 25
+> 80%
+> 85%
+> 90%
+> Accuracy
+> FQS
+> 02468
+> 60%
+> 70%
+> 80%
+> 90%
+> Flowers102
+> 0510 15 20 25
+> Avg. Data/Class
+> 40%
+> 50%
+> 60%
+> Accuracy
+> TREC
+> 02468
+> Avg. Data/Class
+> 40%
+> 50%
+> 60%
+> 70% CUB200
+> Figure 3. Calibration Accuracy with respect to the average number of training samples per class.
+
+α > 0, we can notice that ADAMAB is not sensitive to the value of α and the accuracy increases slightly when using a larger α. This is due to the small number of training samples in few-shot learning, making exploration more necessary to stabilize the convergence. This also justifies the rational of the relaxation of the confidence bound in ADAMAB , as we encourage more exploration even in the late stage of training. 
+
+## 5. Conclusions 
+
+ADAMAB offers a powerful and sample-efficient frame-work to enhance foundation models for recognizing im-plicit and abstract visual and textual patterns in specific tasks that require long-tail knowledge—a domain where pre-trained foundation models often fall short. By integrat-ing a modified upper confidence bound algorithm into the adaptive data augmentation strategy, ADAMAB achieves optimal convergence with minimal computational overhead and limited training data. Its light-weight neural similar-ity network as the calibrator ensures high flexibility, strong adaptability, and low latency, making it highly suitable for resource-constrained environments. Both theoretical analy-sis and empirical assessments across multiple domains con-sistently demonstrate that ADAMAB achieves substantial accuracy improvements (up to 40%) over state-of-the-art baselines, establishing a new paradigm for computation-and-data-efficient calibration for pattern recognition. 0 10 0 10 1 10 2
+
+56% 
+
+58% 
+
+60% 
+
+> Accuracy
+
+MultiWD 
+
+0 10 0 10 1 10 291% 
+
+92% 
+
+93% 
+
+94% OxfordPets 
+
+0 10 0 10 1 10 287% 
+
+88% 
+
+89% 
+
+90% 
+
+> Accuracy
+
+FQS 
+
+0 10 0 10 1 10 291% 
+
+92% 
+
+93% 
+
+94% Flowers102 
+
+0 10 0 10 1 10 2
+
+α
+
+60% 
+
+61% 
+
+62% 
+
+> Accuracy
+
+TREC 
+
+0 10 0 10 1 10 2
+
+α
+
+62% 
+
+64% 
+
+66% 
+
+68% 
+
+CUB200 Figure 4. Calibration Accuracy with respect to the exploration hyperparameter α.References 
+
+[1] Kenya Abe, Kunihiro Takeoka, Makoto P Kato, and Masa-fumi Oyamada. Llm-based query expansion fails for unfa-miliar and ambiguous queries. In Proceedings of the 48th International ACM SIGIR Conference on Research and De-velopment in Information Retrieval , pages 3035–3039, 2025. 1[2] Pranjal Aggarwal, Aman Madaan, Yiming Yang, and Mausam. Let’s sample step by step: Adaptive-consistency for efficient reasoning and coding with LLMs. In Proceedings of the 2023 Conference on Empirical Methods in Natural Language Pro-cessing , pages 12375–12396, Singapore, 2023. Association for Computational Linguistics. 2 [3] András Antos, Varun Grover, and Csaba Szepesvári. Active learning in multi-armed bandits. In International conference on algorithmic learning theory , pages 287–302. Springer, 2008. 2 [4] Abdul Hameed Azeemi, Ihsan Ayyub Qazi, and Agha Ali Raza. Language model-driven data pruning enables efficient active learning. arXiv preprint arXiv:2410.04275 , 2024. 2 [5] BAAI. Baai/bge-reranker-base. https://huggingface. co/BAAI/bge-reranker-base , 2023. Computer soft-ware. 1, 2 [6] Markus Bayer. Activellm: Large language model-based active learning for textual few-shot scenarios. In Deep Learning in Textual Low-Data Regimes for Cybersecurity , pages 89–112. Springer, 2025. 2 [7] Stephen Boyd, Stephen P Boyd, and Lieven Vandenberghe. 
+
+Convex optimization . Cambridge university press, 2004. 14 [8] Tom Brown, Benjamin Mann, Nick Ryder, Melanie Sub-biah, Jared D Kaplan, Prafulla Dhariwal, Arvind Neelakantan, Pranav Shyam, Girish Sastry, Amanda Askell, et al. Language models are few-shot learners. Advances in neural information processing systems , 33:1877–1901, 2020. 2 [9] Alexandra Carpentier, Alessandro Lazaric, Mohammad Ghavamzadeh, Rémi Munos, and Peter Auer. Upper-confidence-bound algorithms for active learning in multi-armed bandits. In International Conference on Algorithmic Learning Theory , pages 189–203. Springer, 2011. 2 [10] Jan Cegin, Branislav Pecher, Jakub Simko, Ivan Srba, Maria Bielikova, and Peter Brusilovsky. Use random selection for now: Investigation of few-shot selection strategies in LLM-based text augmentation. In Findings of the Association for Computational Linguistics: EMNLP 2025 , pages 5533–5550, Suzhou, China, 2025. Association for Computational Linguis-tics. 1 [11] Guangyan Chen, Meiling Wang, Te Cui, Yao Mu, Haoyang Lu, Tianxing Zhou, Zicai Peng, Mengxiao Hu, Haizhou Li, Li Yuan, et al. Vlmimic: Vision language models are visual imitation learner for fine-grained actions. Advances in Neural Information Processing Systems , 37:77860–77887, 2024. 1 [12] Jiuhai Chen, Lichang Chen, Chen Zhu, and Tianyi Zhou. How many demonstrations do you need for in-context learning? 
+
+arXiv preprint arXiv:2303.08119 , 2023. 2 [13] Lingjiao Chen, Matei Zaharia, and James Zou. Frugalgpt: How to use large language models while reducing cost and improving performance. arXiv preprint arXiv:2305.05176 ,2023. 2 [14] Qingyu Chen, Yan Hu, Xueqing Peng, Qianqian Xie, Qiao Jin, Aidan Gilson, Maxwell B Singer, Xuguang Ai, Po-Ting Lai, Zhizheng Wang, et al. Benchmarking large language models for biomedical natural language processing applications and recommendations. Nature communications , 16(1):3280, 2025. 1[15] Cohere. Cohere rerank model (rerank-v3.5). https:// cohere.com , 2024. [Machine learning model]. 1, 2 [16] Bosheng Ding, Chengwei Qin, Ruochen Zhao, Tianze Luo, Xinze Li, Guizhen Chen, Wenhan Xia, Junjie Hu, Anh Tuan Luu, and Shafiq Joty. Data augmentation using large lan-guage models: Data perspectives, learning paradigms and challenges. arXiv preprint arXiv:2403.02990 , 2024. 2 [17] Wala Elsharif, Mahmood Alzubaidi, James She, and Marco Agus. Visualizing ambiguity: Analyzing linguistic ambiguity resolution in text-to-image models. Computers , 14(1):19, 2025. 1 [18] Xiang Fei, Xiawu Zheng, and Hao Feng. Mcp-zero: Proactive toolchain construction for llm agents from scratch. arXiv preprint arXiv:2506.01056 , 2025. 2 [19] Tianyu Gao, Xingcheng Yao, and Danqi Chen. Simcse: Simple contrastive learning of sentence embeddings. arXiv preprint arXiv:2104.08821 , 2021. 2 [20] Eduard Gorbunov, Filip Hanzely, and Peter Richtárik. A uni-fied theory of sgd: Variance reduction, sampling, quantization and coordinate descent. In International Conference on Artifi-cial Intelligence and Statistics , pages 680–690. PMLR, 2020. 2[21] Eduard Hovy, Laurie Gerber, Ulf Hermjakob, Chin-Yew Lin, and Deepak Ravichandran. Toward semantics-based answer pinpointing. In Proceedings of the First International Confer-ence on Human Language Technology Research , 2001. 6 [22] Edward J Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, Weizhu Chen, et al. Lora: Low-rank adaptation of large language models. ICLR , 1(2):3, 2022. 3 [23] Zhibo Hu, Chen Wang, Yanfeng Shu, Hye-Young Paik, and Liming Zhu. Ambiguity resolution in text-to-structured data mapping. arXiv preprint arXiv:2505.11679 , 2025. 1 [24] Zhengbao Jiang, Zhiqing Sun, Weijia Shi, Pedro Rodriguez, Chunting Zhou, Graham Neubig, Xi Lin, Wen-tau Yih, and Srini Iyer. Instruction-tuned language models are better knowledge learners. In Proceedings of the 62nd Annual Meet-ing of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 5421–5434, Bangkok, Thailand, 2024. Association for Computational Linguistics. 1 [25] Jina AI. Jina reranker m0: Multilingual multimodal docu-ment reranker. https://huggingface.co/jinaai/ jina-reranker-m0 , 2025. Model card; License: CC BY-NC 4.0. 2 [26] Diederik P Kingma. Adam: A method for stochastic opti-mization. arXiv preprint arXiv:1412.6980 , 2014. 17 [27] Dongjun Lee and Heesoo Park. Dunamu ML at the financial misinformation detection challenge task: Improving super-vised fine-tuning with LLM-based data augmentation. In Proceedings of the Joint Workshop of the 9th Financial Tech-nology and Natural Language Processing (FinNLP), the 6th Financial Narrative Processing (FNP), and the 1st Workshop on Large Language Models for Finance and Legal (LLMFin-Legal) , pages 297–301, Abu Dhabi, UAE, 2025. Association for Computational Linguistics. 2 [28] Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio Petroni, Vladimir Karpukhin, Naman Goyal, Heinrich Küttler, Mike Lewis, Wen-tau Yih, Tim Rocktäschel, et al. Retrieval-augmented generation for knowledge-intensive nlp tasks. Ad-vances in neural information processing systems , 33:9459– 9474, 2020. 1 [29] Chenjie Li, Dan Zhang, and Jin Wang. Llm-assisted label-ing function generation for semantic type detection. arXiv preprint arXiv:2408.16173 , 2024. 2 [30] Dongyang Li, Junbing Yan, Taolin Zhang, Chengyu Wang, Xiaofeng He, Longtao Huang, Hui Xue’, and Jun Huang. On the role of long-tail knowledge in retrieval augmented large language models. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 2: Short Papers) , pages 120–126, Bangkok, Thailand, 2024. Association for Computational Linguistics. 1 [31] Dongyang Li, Junbing Yan, Taolin Zhang, Chengyu Wang, Xiaofeng He, Longtao Huang, Hui Xue, and Jun Huang. On the role of long-tail knowledge in retrieval augmented large language models. arXiv preprint arXiv:2406.16367 , 2024. 2 [32] Junyi Li, Tianyi Tang, Wayne Xin Zhao, Jian-Yun Nie, and Ji-Rong Wen. Pre-trained language models for text generation: A survey. ACM Computing Surveys , 56(9):1–39, 2024. 2 [33] Jindong Li, Yali Fu, Li Fan, Jiahong Liu, Yao Shu, Chengwei Qin, Menglin Yang, Irwin King, and Rex Ying. Implicit reasoning in large language models: A comprehensive survey. 
+
+arXiv preprint arXiv:2509.02350 , 2025. 2 [34] Xin Li and Dan Roth. Learning question classifiers. In 
+
+COLING 2002: The 19th International Conference on Com-putational Linguistics , 2002. 6 [35] Xinze Li, Sen Mei, Zhenghao Liu, Yukun Yan, Shuo Wang, Shi Yu, Zheni Zeng, Hao Chen, Ge Yu, Zhiyuan Liu, et al. Rag-ddr: Optimizing retrieval-augmented generation using differentiable data rewards. arXiv preprint arXiv:2410.13509 ,2024. 2 [36] Yichuan Li, Kaize Ding, Jianling Wang, and Kyumin Lee. Empowering large language models for textual data augmen-tation. arXiv preprint arXiv:2404.17642 , 2024. 2 [37] Zixuan Li, Jing Xiong, Fanghua Ye, Chuanyang Zheng, Xun Wu, Jianqiao Lu, Zhongwei Wan, Xiaodan Liang, Chengming Li, Zhenan Sun, et al. Uncertaintyrag: Span-level uncertainty enhanced long-context modeling for retrieval-augmented gen-eration. arXiv preprint arXiv:2410.02719 , 2024. 1 [38] Xiaoqiang Lin, Arun Verma, Zhongxiang Dai, Daniela Rus, See-Kiong Ng, and Bryan Kian Hsiang Low. Activedpo: Active direct preference optimization for sample-efficient alignment. arXiv preprint arXiv:2505.19241 , 2025. 2 [39] Yubo Ma, Yixin Cao, YongChing Hong, and Aixin Sun. Large language model is not a good few-shot information extrac-tor, but a good reranker for hard samples! arXiv preprint arXiv:2303.08559 , 2023. 2 [40] Katerina Margatina, Timo Schick, Nikolaos Aletras, and Jane Dwivedi-Yu. Active learning principles for in-context learning with large language models. arXiv preprint arXiv:2305.14264 , 2023. 1, 2, 4 [41] Sachin Mathur and Deendayal Dinakarpandian. Finding dis-ease similarity based on implicit semantic similarity. Journal of biomedical informatics , 45(2):363–371, 2012. 2 [42] Maria-Elena Nilsback and Andrew Zisserman. Automated flower classification over a large number of classes. In In-dian Conference on Computer Vision, Graphics and Image Processing , 2008. 6 [43] OpenAI. Gpt image 1. https://platform.openai. com/docs/models/gpt-image-1 , 2025. Accessed: YYYY-MM-DD. 1 [44] Shubham Parashar, Zhiqiu Lin, Tian Liu, Xiangjue Dong, Yanan Li, Deva Ramanan, James Caverlee, and Shu Kong. The neglected tails in vision-language models. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 12988–12997, 2024. 2 [45] Omkar M. Parkhi, Andrea Vedaldi, Andrew Zisserman, and C. V. Jawahar. Cats and dogs. In IEEE Conference on Com-puter Vision and Pattern Recognition , 2012. 6 [46] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learning transferable visual models from natural language supervi-sion. In International conference on machine learning , pages 8748–8763. PmLR, 2021. 1, 2, 3 [47] Jun Rao, Zepeng Lin, Xuebo Liu, Xiaopeng Ke, Lian Lian, Dong Jin, Shengjun Cheng, Jun Yu, and Min Zhang. Apt: Improving specialist llm performance with weakness case acquisition and iterative preference training. arXiv preprint arXiv:2506.03483 , 2025. 1 [48] MSVPJ Sathvik and Muskan Garg. Multiwd: Multiple well-ness dimensions in social media posts. Authorea Preprints ,2023. 6 [49] Xiaoyu Shen, Rexhina Blloshmi, Dawei Zhu, Jiahuan Pei, and Wei Zhang. Assessing “implicit” retrieval robustness of large language models. In Proceedings of the 2024 Confer-ence on Empirical Methods in Natural Language Processing ,pages 8988–9003, Miami, Florida, USA, 2024. Association for Computational Linguistics. 1 [50] Xinyue Shen, Zeyuan Chen, Michael Backes, Yun Shen, and Yang Zhang. “Do Anything Now”: Characterizing and Eval-uating In-The-Wild Jailbreak Prompts on Large Language Models. In ACM SIGSAC Conference on Computer and Com-munications Security (CCS) . ACM, 2024. 6 [51] Connor Shorten and Taghi M Khoshgoftaar. A survey on image data augmentation for deep learning. Journal of big data , 6(1):1–48, 2019. 1 [52] Kai Sun, Yifan Xu, Hanwen Zha, Yue Liu, and Xin Luna Dong. Head-to-tail: How knowledgeable are large language models (LLMs)? A.K.A. will LLMs replace knowledge graphs? In Proceedings of the 2024 Conference of the North American Chapter of the Association for Computational Lin-guistics: Human Language Technologies (Volume 1: Long Papers) , pages 311–325, Mexico City, Mexico, 2024. Associ-ation for Computational Linguistics. 2 [53] Minxue Tang. Efficiency in Security-preserving Training of Artificial Intelligence . PhD thesis, Duke University, 2025. 2 [54] Minxue Tang, Xuefei Ning, Yitu Wang, Jingwei Sun, Yu Wang, Hai Li, and Yiran Chen. Fedcor: Correlation-based ac-tive client selection strategy for heterogeneous federated learn-ing. In Proceedings of the IEEE/CVF Conference on Com-puter Vision and Pattern Recognition , pages 10102–10111, 2022. 2 [55] Catherine Wah, Steve Branson, Peter Welinder, Pietro Perona, and Serge Belongie. The caltech-ucsd birds-200-2011 dataset. 
+
+https://data.caltech.edu/records/65de6-vp158 , 2011. Technical Report CNS-TR-2011-001, Cal-ifornia Institute of Technology. 6 [56] Ke Wang, Jiahui Zhu, Minjie Ren, Zeming Liu, Shiwei Li, Zongye Zhang, Chenkai Zhang, Xiaoyu Wu, Qiqi Zhan, Qingjie Liu, et al. A survey on data synthesis and augmentation for large language models. arXiv preprint arXiv:2410.12896 , 2024. 2 [57] Xuesong Wang. Active learning for nlp with large language models. arXiv preprint arXiv:2401.07367 , 2024. 2 [58] Zaitian Wang, Jinghan Zhang, Xinhao Zhang, Kunpeng Liu, Pengfei Wang, and Yuanchun Zhou. Diversity-oriented data augmentation with large language models. arXiv preprint arXiv:2502.11671 , 2025. 2 [59] Junda Wu, Cheng-Chun Chang, Tong Yu, Zhankui He, Jianing Wang, Yupeng Hou, and Julian McAuley. Coral: collaborative retrieval-augmented large language models improve long-tail recommendation. In Proceedings of the 30th ACM SIGKDD Conference on Knowledge Discovery and Data Mining , pages 3391–3401, 2024. 2 [60] Junchao Wu, Shu Yang, Runzhe Zhan, Yulin Yuan, Lidia Sam Chao, and Derek Fai Wong. A survey on llm-generated text detection: Necessity, methods, and future directions. Compu-tational Linguistics , 51(1):275–338, 2025. 2 [61] Siyuan Wu, Yue Huang, Chujie Gao, Dongping Chen, Qihui Zhang, Yao Wan, Tianyi Zhou, Xiangliang Zhang, Jianfeng Gao, Chaowei Xiao, et al. Unigen: A unified framework for textual dataset generation using large language models. arXiv preprint arXiv:2406.18966 , 2024. 2 [62] Zhiyong Wu, Yaoxiang Wang, Jiacheng Ye, and Lingpeng Kong. Self-adaptive in-context learning: An information compression perspective for in-context example selection and ordering. In Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 1423–1436, Toronto, Canada, 2023. Association for Computational Linguistics. 1 [63] Yu Xia, Subhojyoti Mukherjee, Zhouhang Xie, Junda Wu, Xintong Li, Ryan Aponte, Hanjia Lyu, Joe Barrow, Hongjie Chen, Franck Dernoncourt, Branislav Kveton, Tong Yu, Ruiyi Zhang, Jiuxiang Gu, Nesreen K. Ahmed, Yu Wang, Xiang Chen, Hanieh Deilamsalehy, Sungchul Kim, Zhengmian Hu, Yue Zhao, Nedim Lipka, Seunghyun Yoon, Ting-Hao Ken-neth Huang, Zichao Wang, Puneet Mathur, Soumyabrata Pal, Koyel Mukherjee, Zhehao Zhang, Namyong Park, Thien Huu Nguyen, Jiebo Luo, Ryan A. Rossi, and Julian McAuley. From selection to generation: A survey of LLM-based ac-tive learning. In Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 14552–14569, Vienna, Austria, 2025. Association for Computational Linguistics. 2 [64] Shuo Xing, Peiran Li, Yuping Wang, Ruizheng Bai, Yueqi Wang, Chan-Wei Hu, Chengxuan Qian, Huaxiu Yao, and Zhengzhong Tu. Re-align: Aligning vision language models via retrieval-augmented direct preference optimization. In 
+
+Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing , pages 2379–2397, Suzhou, China, 2025. Association for Computational Linguistics. 1 [65] Ran Xu, Hui Liu, Sreyashi Nag, Zhenwei Dai, Yaochen Xie, Xianfeng Tang, Chen Luo, Yang Li, Joyce C. Ho, Carl Yang, and Qi He. SimRAG: Self-improving retrieval-augmented generation for adapting large language models to specialized domains. In Proceedings of the 2025 Conference of the Na-tions of the Americas Chapter of the Association for Compu-tational Linguistics: Human Language Technologies (Volume 1: Long Papers) , pages 11534–11550, Albuquerque, New Mexico, 2025. Association for Computational Linguistics. 1 [66] Kailai Yang, Tianlin Zhang, Ziyan Kuang, Qianqian Xie, Jimin Huang, and Sophia Ananiadou. Mentallama: inter-pretable mental health analysis on social media with large language models. In Proceedings of the ACM Web Conference 2024 , pages 4489–4500, 2024. 6 [67] Ling Yang, Zhilong Zhang, Yang Song, Shenda Hong, Run-sheng Xu, Yue Zhao, Wentao Zhang, Bin Cui, and Ming-Hsuan Yang. Diffusion models: A comprehensive survey of methods and applications. ACM computing surveys , 56(4): 1–39, 2023. 2 [68] Zhongheng Yang, Aijia Sun, Yushang Zhao, Yinuo Yang, Dannier Li, and Chengrui Zhou. Rlhf fine-tuning of llms for alignment with implicit user feedback in conversational recommenders. arXiv preprint arXiv:2508.05289 , 2025. 2 [69] Junjie Ye, Nuo Xu, Yikun Wang, Jie Zhou, Qi Zhang, Tao Gui, and Xuanjing Huang. Llm-da: Data augmentation via large language models for few-shot named entity recognition. 
+
+arXiv preprint arXiv:2402.14568 , 2024. 2 [70] Yangyang Yu and Jordan W Suchow. Actively learning a bayesian matrix fusion model with deep side information. In 
+
+Proceedings of the Annual Meeting of the Cognitive Science Society , 2024. 4 [71] Yuanhao Yue, Chengyu Wang, Jun Huang, and Peng Wang. Building a family of data augmentation models for low-cost llm fine-tuning on the cloud. arXiv preprint arXiv:2412.04871 , 2024. 2 [72] ChengXiang Zhai. Large language models and future of information retrieval: opportunities and challenges. In Pro-ceedings of the 47th international ACM SIGIR conference on research and development in information retrieval , pages 481–490, 2024. 2 [73] Jianyi Zhang, Ang Li, Minxue Tang, Jingwei Sun, Xiang Chen, Fan Zhang, Changyou Chen, Yiran Chen, and Hai Li. Fed-cbs: A heterogeneity-aware client sampling mech-anism for federated learning via class-imbalance reduction. In International Conference on Machine Learning , pages 41354–41381. PMLR, 2023. 2 [74] Yiming Zhang, Shi Feng, and Chenhao Tan. Active ex-ample selection for in-context learning. arXiv preprint arXiv:2211.04486 , 2022. 1, 2, 4 [75] Yuanhan Zhang, Kaiyang Zhou, and Ziwei Liu. What makes good examples for visual in-context learning? Advances in Neural Information Processing Systems , 36:17773–17794, 2023. 2 A. Convergence Analysis 
+
+A.1. Convergence of Biased Gradient Descent 
+
+Consider a generalized gradient descent training algorithm with the following update rule for each iteration: 
+
+wt+1 = wt − ηtgt, (12) where wt is the model parameter and ηt is the learning rate at the t-th iteration. gt is the descent vector, while gt
+
+is not necessarily equal to the true gradient ∇L(wt), with 
+
+L(wt) = Ex∼px [l(x; wt)] as the task loss over the true data distribution px.We make the following smoothness assumption, which is commonly used in the convergence analysis [7]. 
+
+Assumption 1 (β-smoothness) . L(wt) is differentiable with respect to wt and its gradient is β-Lipschitz: ∥∇ L(wa) −∇L(wb)∥ ≤ β∥wa − wb∥.With this assumption, we can get the following theorem about the convergence of the generalized gradient descent. 
+
+Theorem 1. A gradient descent algorithm with Eq. (12) as the update rule can achieve the following convergence rate with Assumption 1 and learning rate ηt ≤ 1/β :
+
+inf  
+
+> t≤T
+
+∥∇ L(wt)∥2 ≤ 2L(w1)
+
+PTt=1 ηt
+
++
+
+PTt=1 ηtδ2
+
+> t
+
+PTt=1 ηt
+
+, (13) 
+
+where δ2 
+
+> t
+
+= ∥gt − ∇ L(wt)∥2 is the gradient shifting. Proof. With Lipschitz smoothness in Assumption 1, we have: 
+
+L(wt+1 ) − L(wt)
+
+≤ − ηt⟨∇ L(wt), gt⟩ + βη 2
+
+> t
+
+2 ∥gt∥2
+
+= − ηt⟨∇ L(wt), ∇L(wt) + gt − ∇ L(wt)⟩
+
++ βη 2
+
+> t
+
+2 ∥∇ L(wt) + gt − ∇ L(wt)∥2
+
+=( −ηt + βη 2
+
+> t
+
+2 )∥∇ L(wt)∥2 + βη 2
+
+> t
+
+2 ∥gt − ∇ L(wt)∥2
+
++ ( −ηt + βη 2 
+
+> t
+
+)⟨∇ L(wt), gt − ∇ L(wt)⟩
+
+=( −ηt + βη 2
+
+> t
+
+2 )∥∇ L(wt)∥2
+
++ ( −ηt + βη 2 
+
+> t
+
+)⟨∇ L(wt), gt − ∇ L(wt)⟩ + βη 2
+
+> t
+
+2 δ2 
+
+> t
+
+.
+
+Since ηt ≤ 1/β , we have −ηt+βη 2 
+
+> t
+
+/2 ≤ 0 and −ηt+βη 2 
+
+> t
+
+≤
+
+0. We also have 
+
+∥gt − ∇ L(wt)∥2 = δ2
+
+> t
+
+⇒⟨∇ L(wt), gt⟩ = ∥gt∥2 + ∥∇ L(wt)∥2 − δ2
+
+> t
+
+2
+
+≥ ∥∇ L(wt)∥2 − δ2
+
+> t
+
+2
+
+⇒⟨∇ L(wt), gt − ∇ L(wt)⟩ = ⟨∇ L(wt), gt⟩ − ∥∇ L(wt)∥2
+
+≥ − ∥∇ L(wt)∥2 + δ2
+
+> t
+
+2 .
+
+And thus 
+
+L(wt+1 ) − L(wt)
+
+≤(−ηt + βη 2
+
+> t
+
+2 )∥∇ L(wt)∥2
+
+− −ηt + βη 2
+
+> t
+
+2 (∥∇ L(wt)∥2 + δ2 
+
+> t
+
+) + βη 2
+
+> t
+
+2 δ2
+
+> t
+
+= − ηt
+
+2 ∥∇ L(wt)∥2 + ηt
+
+2 δ2 
+
+> t
+
+.
+
+Rearanging the result, we get 
+
+ηt∥∇ L(wt)∥2 ≤ 2( L(wt) − L(wt+1 )) + ηtδ2 
+
+> t
+
+.
+
+Taking the sum over t, we get 
+
+> T
+
+X
+
+> t=1
+
+ηt∥∇ L(wt)∥2 ≤ 2( L(w1) − L(wT +1 )) + 
+
+> T
+
+X
+
+> t=1
+
+ηtδ2 
+
+> t
+
+.
+
+Without loss of generality, we assume L(w) ≥ 0, and we divide both sides with P ηt to get: 
+
+1
+
+PTt=1 ηtTX
+
+> t=1
+
+ηt∥∇ L(wt)∥2 ≤ 2L(w1)
+
+PTt=1 ηt
+
++
+
+PTt=1 ηtδ2
+
+> t
+
+PTt=1 ηt
+
+,
+
+which yields the final result: 
+
+inf  
+
+> t≤T
+
+∥∇ L(wt)∥2 ≤ 2L(w1)
+
+PTt=1 ηt
+
++
+
+PTt=1 ηtδ2
+
+> t
+
+PTt=1 ηt
+
+.
+
+A.2. Convergence Analysis of ADAMAB 
+
+Without loss of Generality, we consider the case where we generate only one data in each iteration of gradient descent. And we omit the parameter wt in the following for simplicity. We use the following UCB algorithm to determine which class C we should augment: 
+
+Ct = arg min 
+
+> C
+
+ˆδ2 
+
+> t
+
+(C) − α
+
+√nt−1 + 1 
+
+s
+
+1
+
+nC,t −1
+
+,
+
+ˆδ2 
+
+> t
+
+(C) = ∥ 1
+
+nt−1 + 1 ∇ ˆLC + nt−1
+
+nt−1 + 1 ∇L(Dt−1) − ∇ ˆL∥22,
+
+∇ ˆLC = 1
+
+nC,t −1
+
+X
+
+> x∈DC,t −1
+
+∇l(x),
+
+∇ ˆL = 1
+
+K
+
+> K
+
+X
+
+> C=1
+
+∇ ˆLC .
+
+(14) We made the following assumption in addition to Assump-tion 1: 
+
+Assumption 2 (ℓ∞-bounded gradients) . The gradients for any data sample x have ∥∇ l(x)∥∞ ≤ G.Before we prove the convergence result, we first prove the following lemma that will be useful in our analysis: 
+
+Lemma 1 (Vector Hoeffding’s Inequality) . For a random vector x ∈ Rd with n I.I.D. data samples { ˆx1, ˆx2, · · · , ˆxn},if ∥x∥∞ ≤ G, for any positive constant T , we have 
+
+Pr 1
+
+n
+
+> n
+
+X
+
+> i=1
+
+ˆxi − E[x]
+
+> 2
+
+≥ ϵ
+
+!
+
+≤ 1
+
+T 4 ,
+
+where ϵ =
+
+r 2dG 2 log(2 T 4d)
+
+n .
+
+(15) 
+
+Proof. Since 
+
+1
+
+n
+
+> n
+
+X
+
+> i=1
+
+ˆxi − E[x]
+
+> 2
+
+≥ ϵ ⇒ 1
+
+n
+
+> n
+
+X
+
+> i=1
+
+ˆxi − E[x]
+
+> ∞
+
+≥ ϵ/ √d
+
+We have 
+
+Pr 1
+
+n
+
+> n
+
+X
+
+> i=1
+
+ˆxi − E[x]
+
+> 2
+
+≥ ϵ
+
+!
+
+≤ Pr 1
+
+n
+
+> n
+
+X
+
+> i=1
+
+ˆxi − E[x]
+
+> ∞
+
+≥ ϵ/ √d
+
+!
+
+= Pr 
+
+
+
+> d
+
+[
+
+> j=1
+
+1
+
+n
+
+> n
+
+X
+
+> i=1
+
+ˆx(j) 
+
+> i
+
+− E[x(j)] ≥ ϵ/ √d
+
+
+
+≤
+
+> d
+
+X
+
+> j=1
+
+Pr 1
+
+n
+
+> n
+
+X
+
+> i=1
+
+ˆx(j) 
+
+> i
+
+− E[x(j)] ≥ ϵ/ √d
+
+!
+
+.
+
+With Hoeffding’s Inequality, we have 
+
+Pr 1
+
+n
+
+> n
+
+X
+
+> i=1
+
+ˆx(j) 
+
+> i
+
+− E[x(j)] ≥ ϵ/ √d
+
+!
+
+≤ 2e− ϵ2n 
+
+> 2G2d
+
+≤ 1
+
+dT 4 .
+
+Thus, we get 
+
+Pr 1
+
+n
+
+> n
+
+X
+
+> i=1
+
+ˆxi − E[x]
+
+> 2
+
+≥ ϵ
+
+!
+
+≤ 1
+
+T 4 .
+
+Now we can prove the following convergence result: 
+
+Theorem 2 (Convergence of ADAMAB ). Assuming As-sumption 1 and 2, the gradient descent with ADAMAB given in Eq. (14) can achieve the following convergence with a constant learning rate ηt = η ≤ 1/β and some properly selected positive constant α:
+
+inf  
+
+> t≤T
+
+E∥∇ L(wt)∥2
+
+≤O 
+
+ 1
+
+T
+
+
+
++ O
+
+r log( T )
+
+T
+
+!
+
++ sup 
+
+> t
+
+inf  
+
+> C
+
+δ2 
+
+> t
+
+(C).
+
+(16) 
+
+Proof. We first derive the confidence bound of estimating 
+
+δt(C) for any class C ∈ { 1, 2, ..., K }. We notice that 
+
+|ˆδt(C) − δt(C)|
+
+= ∥ 1
+
+nt−1 + 1 ∇ ˆLC + nt−1
+
+nt−1 + 1 ∇L(Dt−1) − ∇ ˆL∥2
+
+− ∥ 1
+
+nt−1 + 1 ∇LC + nt−1
+
+nt−1 + 1 ∇L(Dt−1) − ∇ L∥2
+
+≤∥ 1
+
+nt−1 + 1 (∇ ˆLc − ∇ Lc) − (∇ ˆL − ∇ L)∥2
+
+≤ 1
+
+nt−1 + 1 ∥∇ ˆLc − ∇ Lc∥2 + ∥∇ ˆL − ∇ L∥2.
+
+And thus we have 
+
+Pr( ∥∇ ˆLc − ∇ Lc∥2 ≤ (1 + nt−1)ϵ1(C)
+
+∩ ∥∇ ˆL − ∇ L∥2 ≤ ϵ2)
+
+≤ Pr( |ˆδt(C) − δt(C)| ≤ ϵ1(C) + ϵ2)
+
+⇒ Pr( |ˆδt(C) − δt(C)| ≥ ϵ1(C) + ϵ2)
+
+≤ Pr( ∥∇ ˆLc − ∇ Lc∥2 ≥ (1 + nt−1)ϵ1(C)
+
+∪ ∥∇ ˆL − ∇ L∥2 ≥ ϵ2)
+
+≤ Pr( ∥∇ ˆLc − ∇ Lc∥2 ≥ (1 + nt−1)ϵ1(C)) + Pr( ∥∇ ˆL − ∇ L∥2 ≥ ϵ2) (17) For the first term in Eq. (17), with Lemma 1, we have: 
+
+Pr( ∥∇ ˆLc − ∇ Lc∥2 ≥ (nt−1 + 1) ϵ1(C)) 
+
+≤ Pr( ∥∇ ˆLc − ∇ Lc∥2 ≥ pnt−1 + 1 ϵ1(C)) ≤ 1
+
+T 4 ,
+
+where ϵ1(C) = 1
+
+√nt−1 + 1 
+
+s
+
+2dG 2 log(2 T 4d)
+
+nC,t −1
+
+.
+
+(18) And for the second term, we have 
+
+∥∇ ˆL − ∇ L∥2 = ∥ 1
+
+K
+
+> K
+
+X
+
+> C=1
+
+(∇ ˆLC − ∇ LC )∥2
+
+≤ 1
+
+K
+
+> K
+
+X
+
+> C=1
+
+∥∇ ˆLC − ∇ LC ∥2.
+
+And thus, 
+
+∀C, ∥∇ ˆLC − ∇ LC ∥2 ≤ ϵC
+
+⇒∥∇ ˆL − ∇ L∥2 ≤ 1
+
+K
+
+> K
+
+X
+
+> C=1
+
+ϵC .
+
+This leads to 
+
+Pr( 
+
+> K
+
+\
+
+> C=1
+
+∥∇ ˆLC − ∇ LC ∥2 ≤ ϵC )
+
+≤ Pr( ∥∇ ˆL − ∇ L∥2 ≤ 1
+
+K
+
+> K
+
+X
+
+> C=1
+
+ϵC )
+
+⇒ Pr( ∥∇ ˆL − ∇ L∥2 ≥ 1
+
+K
+
+> K
+
+X
+
+> C=1
+
+ϵC )
+
+≤ Pr( 
+
+> K
+
+[
+
+> C=1
+
+∥∇ ˆLC − ∇ LC ∥2 ≥ ϵC )
+
+≤
+
+> K
+
+X
+
+> C=1
+
+Pr( ∥∇ ˆLC − ∇ LC ∥2 ≥ ϵC ).
+
+With Lemma 1, we have 
+
+Pr( ∥∇ ˆLC − ∇ LC ∥2 ≥ ϵC ) ≤ 1
+
+KT 4 ,
+
+with ϵC =
+
+s
+
+2dG 2 log(2 dKT 4)
+
+nC
+
+.
+
+Thus if we choose 
+
+ϵ2 = 1
+
+K
+
+> K
+
+X
+
+> C=1
+
+s
+
+2dG 2 log(2 dKT 4)
+
+nC
+
+,
+
+we achieve 
+
+Pr( ∥∇ ˆL − ∇ L∥2 ≥ ϵ2) ≤ 1
+
+T 4 . (19) Plugging Eq. (18) and Eq. (19) into Eq. (17), we get the confidence bound for ˆδt:
+
+Pr( |ˆδt(C) − δt(C)| ≥ ϵ1(C) + ϵ2) ≤ 2
+
+T 4
+
+with 
+
+ϵ1(C) = 1
+
+√nt−1 + 1 
+
+s
+
+2dG 2 log(2 T 4d)
+
+nC,t −1
+
+,ϵ2 = 1
+
+K
+
+> K
+
+X
+
+> C=1
+
+s
+
+2dG 2 log(2 dKT 4)
+
+nC,t −1
+
+.
+
+(20) We can easily extend this result to get the confidence bound of ˆδ2 
+
+> t
+
+, since 
+
+|ˆδ2 
+
+> t
+
+− δ2 
+
+> t
+
+| = ( ˆδt + δt)|ˆδt − δt|.
+
+And we also have 
+
+ˆδt
+
+=∥ 1
+
+nt−1 + 1 ∇ ˆLC + nt−1
+
+nt−1 + 1 ∇L(Dt−1) − ∇ ˆL∥2
+
+≤∥ 1
+
+nt−1 + 1 ∇ ˆLC ∥2 + ∥ nt−1
+
+nt−1 + 1 ∇L(Dt−1)∥2 + ∥∇ ˆL∥2
+
+≤2√dG, (21) and similarly for δt. Accordingly, we have 
+
+Pr( |ˆδ2 
+
+> t
+
+− δ2 
+
+> t
+
+| ≤ 4√dG (ϵ1(C) + ϵ2)) 
+
+≥ Pr( |ˆδt − δt| ≤ ϵ1(C) + ϵ2)) ≥ 1 − 2
+
+T 4 .
+
+With the confidence bound, we can prove the instantaneous regret at each iteration as follows. Assuming that the optimal class selection is 
+
+C∗ = arg min 
+
+> C
+
+δ2 
+
+> t
+
+(C).
+
+Let ϵt(C) = 4 √dG (ϵ1(C) + ϵ2). Notice that in Eq. (14), the selection algorithm is the same as we select with 
+
+ˆδ2 
+
+> t
+
+(C) − ϵt(C) as the objective function when α =4dG 2p2 log(2 T 4d). We select C instead of C∗ meaning that: 
+
+ˆδ2 
+
+> t
+
+(C) − ϵt(C) ≤ ˆδ2 
+
+> t
+
+(C∗) − ϵt(C∗)
+
+⇒ ˆδ2 
+
+> t
+
+(C) − ˆδ2 
+
+> t
+
+(C∗) ≤ ϵt(C) − ϵt(C∗).
+
+Accordingly, we have the following instantaneous regret: 
+
+E[δ2 
+
+> t
+
+(C) − δ2 
+
+> t
+
+(C∗)] =E[δ2 
+
+> t
+
+(C) − ˆδ2 
+
+> t
+
+(C) + ˆδ2 
+
+> t
+
+(C) − ˆδ2 
+
+> t
+
+(C∗) + ˆδ2 
+
+> t
+
+(C∗) − δ2 
+
+> t
+
+(C∗)] 
+
+≤ϵt(C) + ϵt(C) − ϵt(C∗) + ϵt(C∗)=2 ϵt(C). (22) We assert that ∀C, C ′ ∈ { 1, 2, ..., K } and ∀t ≤ T , there exists a positive constant M such that nC,t −1/n C′,t −1 ≤
+
+M . Assume that there exist two classes C and C′ with nC,t −1 = M n C′,t −1. To select C instead of C′ according to Eq. (14), we must have 
+
+ˆδ2 
+
+> t
+
+(C) − α
+
+√nt−1 + 1 
+
+s
+
+1
+
+nC,t −1
+
+≤ ˆδ2 
+
+> t
+
+(C′) − α
+
+√nt−1 + 1 
+
+s
+
+1
+
+nC′,t −1
+
+⇒ˆδ2 
+
+> t
+
+(C′) − ˆδ2 
+
+> t
+
+(C)
+
+≥ α
+
+√nt−1 + 1 
+
+s
+
+1
+
+nC′,t −1
+
+− α
+
+√nt−1 + 1 
+
+s
+
+1
+
+nC,t −1
+
+= α
+
+p(nt−1 + 1) nC′,t −1
+
+(1 −
+
+r 1
+
+M )
+
+> α√M + 1 
+
+nt−1 + 1 (1 −
+
+r 1
+
+M ) (23) Eq. (23) comes from the fact that nC,t −1 + nC′,t −1 = (1 + 
+
+M )nC′,t −1 ≤ nt−1 < n t−1 + 1 . For the left-hand side, we have 
+
+ˆδ2 
+
+> t
+
+(C′) − ˆδ2 
+
+> t
+
+(C)
+
+≤(ˆδt(C′) + ˆδt(C)) |ˆδt(C′) − ˆδt(C)|≤ 4√dG nt−1 + 1 ∥∇ ˆLC − ∇ ˆLC′ ∥ (24) 
+
+≤ 8dG 2
+
+nt−1 + 1 
+
+where Eq. (24) comes from Eq. (21) and triangle inequality, while the last inequality comes from Assumption 2. Accord-ingly, if M satisfies 
+
+8dG 2 ≤ α√M + 1(1 −
+
+r 1
+
+M ),
+
+we can guarantee that nC,t −1/n C′,t −1 ≤ M . We can sim-plify this condition as 
+
+M ≥ 1 + 
+
+s
+
+2log(2 T 4d)
+
+!2
+
+. (25) We further set M = (1 + p2/ log(2 d)) 2 to get rid of T ,then we can get that 
+
+> K
+
+X
+
+> C=1
+
+nC,t −1 = t − 1 + n0 ⇒ ∀ C, n C,t −1 ≥ t − 1 + n0
+
+M (K − 1) + 1 .
+
+(26) With Eq. (20), Eq. (22) and Eq. (26), we get the instantaneous regret as 
+
+E[δ2 
+
+> t
+
+(C) − δ2 
+
+> t
+
+(C∗)] ≤ 2ϵt(C) ≤ O (
+
+r log( T )
+
+t ), (27) Taking Expectation over the result of Theorem 1 and plug-ging Eq. (27) in, we complete the proof with the fact that 
+
+PTt=1 ηtδ2 
+
+> t
+
+(C∗ 
+
+> t
+
+)
+
+PTt=1 ηt
+
+≤ sup 
+
+> t
+
+δ2 
+
+> t
+
+(C∗ 
+
+> t
+
+) = sup 
+
+> t
+
+inf  
+
+> C
+
+δ2 
+
+> t
+
+(C).
+
+Remark 1. It is noteworthy that we relax the confidence bound ϵ1(C) in Eq. (18), whose tight confidence bound should be 
+
+ϵ∗
+
+> 1
+
+(C) = 1
+
+nt−1 + 1 
+
+s
+
+2dG 2 log(2 T 4d)
+
+nC,t −1
+
+.
+
+We notice that the tight confidence bound ϵ∗
+
+> 1
+
+(C) decreases so fast that some classes cannot be guaranteed to be sufficiently explored to ensure a constant M as given in Eq. (25). In fact, the M needs to be proportional to t with ϵ∗
+
+> 1
+
+(C), which makes ϵt(C) not able to decrease along t as in Eq. (27), and thus the convergence cannot be achieved. 
+
+## B. Experimental Settings 
+
+All the experiments are completed on a single MacBook Pro with a single M4 Max chip and 36GB memory. 
+
+B.1. Training Hyperparameters 
+
+In all the calibration methods, we adopt an Adam Optimizer [26 ] with initial learning rate η0 = 0 .005 and a weight decay 
+
+λ = 0 .0001 . We use a Cosine Annealing learning rate scheduler with ηT = 0 .5η0. For the other hyperparameters, we summarize them in Tab. 4. “# Training Rounds” means the total number of training epochs we conducted, and “# Aug. Rounds” denotes the number of augmentation epochs, i.e., we only generate data in the first “# Aug. Rounds”, and then we do not generate but only train the model until “# Training Rounds”. We conduct experiments on a wide range of hyper-paraters and select the best hyperparameters with the highest accuracy. Specifically, we tried initial learning rate from {0.01 , 0.005 , 0.001 , 0.0005 } and batch size from 
+
+{16 , 32 , 64 , 128 , 256 , 512 }. We also tried different α from 
+
+{0, 1, 3, 10 , 30 , 100 } and different number of augmentation rounds from {0, K, 2K, 3K} where K is the number of classes. We report the results with different α and number of augmentation rounds in Sec. 4.3. 
+
+B.2. Prompt Templates 
+
+We use one text dataset and one image dataset as exam-ples to demonstrate how to construct prompt templates for in-context learning, reranking, embedding, and data augmen-tation, respectively. Notice that for the few-shot setting, we Table 4. The hyperparameters for the results in Tab. 2 and Tab. 3.                                     
+
+> Dataset MultiWD FQS TREC OxfordPets Flowers102 CUB200 Batch Size 32 32 64 64 128 256 # Training Rounds 30 50 100 100 300 500
+> ∆n555322# Aug. Rounds 18 39 60 74 102 400
+> α100 100 30 100 30 100
+
+will add all the examples in the initial training set to the de-scription of each label, while no examples will be included for the zero-shot setting. 
+
+Forbidden Question Set (FQS): 
+
+in_context_learning_prompt: |You are a Responsible AI system checking if auser query complies with certain safety guidelines and application-specific rules. Each rule will be provided with adetailed description and some example queries that violate the rule. You need to judge whether a query provided by the user violates any of the rules and which one it is most likely to violate. Given the following rules with their corresponding indices: 1. {label1}: {description1} 2. {label2}: {description2} ... K. {labelK}: {descriptionK} Evaluate the following user query carefully against the rules: User Query: {query} Please make a judgment which rule this query violates. Output your judgment as a single integer: violated_rule_index. Do not include anything else except for violated_rule_index in your response. If none of the rules are violated, return -1 as the violated_rule_index. reranker_query_prompt: |Please find the rule that the following query violates: {query} reranker_document_prompt: |Rule: {label}: {description} embedding_query_prompt: |{query} embedding_label_prompt: |Rule: {label}: {description} augmentation_prompt: |Here is a rule that defines the topics of the queries that should not be answered by an LLM agent: {label}: {description} Please generate {num_generate} **diverse** example queries that violate this rule. The examples should be as **diverse** as possible so that the agent can learn from the examples if a query violates the rule. In addition, do not generate examples that are similar to the following existing examples: {existing_queries} In your response, only list the examples with one example in each line, without any numbering or bullets. 
+
+Listing 1. FQS prompts. 
+
+OxfordIIITPet (OxfordPets): 
+
+in_context_learning_prompt: |You will be given an image and asked to identify the species of the pet in the image. A predefined set of pet species will be provided, and you need to select one species from them for the pet in the given image. Given the following pet species with their corresponding indices: 1. {label1} 2. {label2} ... K. {labelK} Check the image carefully to determine which species the pet belongs to. Output your decision as a single integer: species_index. Do not include anything else except for species_index in your response. If none of the species apply, return -1 as the species_index. reranker_query_prompt: |{query} reranker_document_prompt: |A picture of a pet belonging to {label} species. embedding_query_prompt: |{query} embedding_label_prompt: |A picture of a pet belonging to {label} species. augmentation_prompt: |Generate pictures of a pet belonging to {label } species in different scenarios. 
+
+Listing 2. OxfordPets prompts.

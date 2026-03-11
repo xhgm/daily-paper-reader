@@ -1,0 +1,1021 @@
+Title: HAIC: Humanoid Agile Object Interaction Control via Dynamics-Aware World Model
+
+URL Source: https://arxiv.org/pdf/2602.11758v1
+
+Published Time: Fri, 13 Feb 2026 01:46:31 GMT
+
+Number of Pages: 17
+
+Markdown Content:
+# HAIC: Humanoid Agile Object Interaction Control via Dynamics-Aware World Model 
+
+Dongting Li 1,4 ∗, Xingyu Chen 2,4 ∗, Qianyang Wu 4, Bo Chen 4, Sikai Wu 4, Hanyu Wu 3, Guoyao Zhang 4
+
+Liang Li 4, Mingliang Zhou 4, Diyun Xiang 4, Jianzhu Ma 1†, Qiang Zhang 2†, Renjing Xu 2†
+
+1Tsinghua University 2HKUST(Guangzhou) 3ETH Zurich 4Xiaomi Robotics Lab 
+
+https://haic-humanoid.github.io/ (c) Multi-terrain Interaction (a) Underactuated Object Interaction (b) Long-horizon Interaction 
+
+Fig. 1: Our proposed framework HAIC enables a robot to perform complex interactions, including (a) Underactuated Object Interaction. The robot learns interaction skills such as skateboarding, cart pushing, and cart pulling. (b) Long-horizon Interaction. HAIC supports multi-object interaction, enabling a whole-body controller to pick up the box, load it onto the cart, then drive them forward in one policy. (c) Multi-terrain Interaction. HAIC enables robots to maintain interactions with both an object and the scene, such as carrying a box across various types of terrains, such as platforms, slopes, and stairs. 
+
+Abstract —Humanoid robots exhibit significant potential for executing complex whole-body interaction tasks in unstructured environments. While recent advancements in Human-Object In-teraction (HOI) have been substantial, prevailing methodologies predominantly address the manipulation of fully actuated objects, where the target is rigidly coupled to the robot’s end-effector and its state is strictly constrained by the robot’s kinematics. This paradigm neglects the pervasive class of underactuated objects characterized by independent dynamics and non-holonomic con-straints, which pose significant control challenges due to complex coupling forces and frequent visual occlusions. To bridge this gap, we propose HAIC, a unified framework designed to enable robust interaction across a spectrum of object dynamics without reliance on external state estimation. Central to our approach is a novel dynamics predictor that infers high-order object states, specifically velocity and acceleration, solely from proprioceptive history. These predictions are explicitly projected onto static geometric priors to construct a spatially grounded representation of dynamic occupancy, allowing the policy to internalize collision boundaries and contact affordances in visual blind spots. We employ an asymmetric fine-tuning strategy where the world model continuously adapts to the student policy’s exploration, ensuring robust state estimation under distribution shifts. We evaluate our framework on a humanoid robot. Empirical results demonstrate that HAIC achieves high success rates in agile object interactions, including skateboarding, cart pushing, and cart pulling under various weight load conditions, by proactively compensating for inertial physical perturbations, while HAIC simultaneously masters multi-object interaction involving long-horizon tasks and carrying a box across composed terrain by predicting the dynamics of multiple objects. 
+
+I. I NTRODUCTION 
+
+Humanoid robots, characterized by their anthropomorphic morphology, possess immense potential for executing complex whole-body interaction tasks in unstructured environments.           
+
+> arXiv:2602.11758v1 [cs.RO] 12 Feb 2026 Fully actuated objects
+> Underactuated objects
+> Composed terrains (a) Types of interacted objects. Box
+> BoxTerrain Skateboard Glide
+> Skateboard Comp.
+> BoxCart Cart
+> 20% 40% 60% 80% 100%
+> HDMI* HAIC (b) Success rate comparison on different tasks.
+> Fig. 2: HAIC excels at complex interactions, particularly with underactuated objects, and significantly outperforms the baseline.
+
+From transporting payloads to interacting dynamically with tools, these tasks require not only robust locomotion stability but also the capacity to perform precise interactions with the environment. Recent data-driven approaches in Human-Object Interaction have achieved significant milestones, enabling robots to acquire diverse interaction skills [16, 6, 37, 59]. However, prevailing research predominantly focuses on the Interaction of fully actuated objects , such as carrying a rigidly grasped box [6, 37]. In these scenarios, the object’s state is strictly constrained by the robot’s end-effector, re-sulting in relatively simple and fully controlled dynamics. In contrast, the real world is populated with underactuated objects possessing independent dynamics and non-holonomic constraints, such as skateboards, carts, or luggage. Manipu-lating such objects presents a dual challenge. First, visual occlusion is frequent. Large objects often obstruct onboard sensors, depriving the robot of direct observation of both the terrain and the object itself [26]. Second, dynamics coupling becomes critical. Unlike static payloads, underac-tuated objects generate independent acceleration and iner-tial forces that propagate to the robot. Traditional control methods often rely on external high-precision state estima-tion to handle these disturbances, which is impractical for real-world deployment [51]. Meanwhile, existing end-to-end reinforcement learning policies, lacking explicit modeling of high-order dynamics—specifically acceleration—often suffer from response lag, leading to instability during high-speed interactions [18, 33, 47]. Humans exhibit remarkable adaptability when facing similar constraints. Even when vision is obstructed by a carried object or when balancing on an accelerating skateboard, humans rely on proprioception and an internal mental model to infer the object’s state. This capability stems from a fusion of geometric reasoning (knowing the object’s boundaries) and dynamic sensing (feeling the forces to anticipate acceleration), enabling proactive center-of-mass adjustments. Inspired by this cognitive mechanism, we introduce HAIC, a unified learning framework designed to enable robust and agile object interaction in visual blind spots. Unlike prior models focused on visual prediction [10, 11, 13, 9, 39], HAIC is proprioception-centric and addresses the control of both fully actuated and underactuated objects through two key mechanisms in a dynamics-aware world model (DWM):  
+
+> •
+
+High-Order Dynamics Prediction: By analyzing propri-oceptive history, HAIC explicitly predicts the object’s linear and angular accelerations. This allows the robot to capture the independent motion trends of underactuated objects, facilitating proactive inertia compensation.  
+
+> •
+
+Explicit Geometric Projection: HAIC explicitly project these predicted dynamic states onto a static geomet-ric prior (point cloud) of the object. This constructs a spatially grounded representation of dynamic occupancy, enabling the policy to perceive collision boundaries and contact affordances even without visual feedback. To bridge the gap between simulation and reality, we employ an asymmetric fine-tuning strategy where the world model continuously adapts to the student policy’s exploration online, effectively mitigating distribution shifts [46, 57]. The main contributions of this work are summarized as follows:  
+
+> •
+
+Dynamics-Aware World Model: We propose a novel dynamics predictor that integrates high-order acceleration inference with explicit geometric projection, unifying state estimation for both static payloads and dynamic underactuated objects.  
+
+> •
+
+Asymmetric Adaptive Distillation: We design a ro-bust two-stage training pipeline that transfers privileged geometric and dynamic reasoning into a sensor-limited student policy via continuous world model adaptation.  
+
+> •
+
+Agile Real-World Performance: We demonstrate SOTA performance on a humanoid robot. Our framework achieves a 100% success rate in blind multi-terrain box carrying and, for the first time without external sensing, enables the robot to master agile underactuated tasks, such as dynamic skateboarding. II. R ELATED WORK 
+
+A. Humanoid Whole-Body Control and Tracking 
+
+Deep reinforcement learning (RL) [49] has achieved signif-icant milestones in tracking large-scale human motion capture (MoCap) datasets like AMASS [41]. Recent General Motion Trackers (GMT) [5, 71] and retargeting frameworks [3, 34, 16] allow humanoids to reproduce diverse kinematic behaviors. To support these data-driven approaches, scalable collection sys-tems like TWIST [74] and TWIST2 [75] have been developed to provide high-quality whole-body demonstrations. Early studies demonstrated that motion imitation and ad-versarial motion priors enable policies to track diverse human motion data, producing natural and robust whole-body control [44, 45, 65, 34, 14, 17]. These works establish motion tracking as a scalable paradigm for acquiring rich motor skills while substantially reducing manual reward engineering. Building upon this foundation, subsequent research [75, 12, 73, 76] investigates generalized whole-body control through large-scale motion datasets and unified latent representations, enabling a single policy to compose heterogeneous skills and adapt to diverse task conditions. Policies are pretrained via large-scale data and unsupervised reinforcement learning, and conditioned on language, vision, or high-level task de-scriptors to enable controllable and zero-shot skill adaptation [31, 40, 22, 50]. These models demonstrate strong generaliza-tion across diverse motion patterns, highlighting the potential of foundation training for whole-body control and advanced interactions with environments, especially dynamic objects. 
+
+B. Physics-Based Human-Object Interaction 
+
+Humanoid-object interaction (HOI) is a longstanding chal-lenge bridging computer vision and robotics. Large-scale HOI datasets provide diverse demonstrations to facilitate data-driven learning [29, 55, 4, 21, 77, 66]. Based on these data, advanced frameworks [60, 56, 61, 43, 67, 35] have been developed to train policies that master versatile whole-body interactions in simulation. Similarly, video-based imitation methods extract interactive skills directly from human videos [63, 2, 72]. Prior studies on loco-manipulation, which focus only on the interaction between the hand and objects, show that integrating force adaptation [78], hierarchical control [32, 23, 28], or residual action [54] enables precise manipulation be-haviors with stable locomotion. And visual sim-to-real transfer methods substantially improve real-world generalization for continuous manipulation tasks [69, 15, 20]. Some specialized systems demonstrate high-speed adaptation for specific sports but lack generality [52, 68, 36, 62]. As for full-body inter-actions, Omniretarget [70] improves the quality of retargeted motion by constructing the interaction mesh. HDMI [63] and ResMimic [80] incorporate residual action modules to adapt policies to virtual object states. Other methods typically rely on explicit object tracking to estimate object states, such as PhysHSI (LiDAR) [58], HDMI (markers) [63], VisualMimic (depth) [72], and DemoHLM (RGB) [8]. However, all these methods are restricted to interactions with static environments or fully actuated objects. In contrast, HAIC can learn coupled humanoid-object dynamics through a specialized world model, enabling agile interactions with underactuated objects or multi-terrain environments. 
+
+C. World Models for Humanoids 
+
+World models [10, 11] act as internal simulators that enable agents to anticipate future outcomes, and have been widely adopted in robotic manipulation to predict tactile feedback and object dynamics[7, 19, 51]. Recent work leverages world models to address high-dimensional humanoid dynamics and complex contact sequences. DWL [9] reconstructs complete physical states from noisy observations via denoising learn-ing, enabling robust whole-body control, while RWM [27] mitigates long-horizon drift through a dual-autoregressive prediction scheme. WMR [53] decouples dynamics learning from policy gradients and enforces state reconstruction to prevent representation collapse. World models are also used as self-supervised objectives for perceptual robustness, as Object  
+
+> Adapter
+> Privilege
+> Adapter
+> 𝑠 𝑡
+> 𝑝𝑟𝑜𝑝 ,𝑠 𝑡
+> 𝑟𝑒𝑓
+> 𝒫
+
+Dynamics -aware World Model     
+
+> Ƹ
+> 𝑠 𝑡
+> 𝑜𝑏𝑗 𝒫 𝑡
+> 𝑑𝑦𝑛 Ƹ𝑧 𝑡
+> 𝑝𝑟𝑖𝑣
+> Fig. 3: Overview of our Dynamics-aware World Model. It predicts object dynamics from proprioception and explicitly projects them onto a static geometric prior for reconstructing the privileged information.
+
+demonstrated by WMP [25], and extended to active inter-action in Ego-VCP [38] for ego-centric contact planning. Any2Track [79] learns dynamics-aware embeddings from ob-servation histories, enabling implicit inference of environmen-tal properties and robust sim-to-real transfer. However, these methods primarily model proprioceptive dynamics for whole-body control, often neglecting the coupled dynamics inherent in object interaction. III. M ETHODOLOGY 
+
+A. Problem Formulation 
+
+The purpose of humanoid-object interaction is to train a whole-body control policy that simultaneously tracks the reference trajectory of both the robot and the object. We formulate this proprioception-based interaction task as a par-tially observable Markov decision process (POMDP) [26]. At each timestep t, the full state st ∈ S includes the robot’s proprioception sprop t , the reference motion sref t , the point cloud of objects P and the privileged state spriv t .Since the object state sobj t cannot be acquired directly, we adapt the teacher-student framework [24] to distill the privileged information. In training, the teacher has access to the full state st. During deployment, the student only observes:  
+
+> •
+
+Onboard proprioception sprop t (joint data, IMU data).  
+
+> •
+
+Reference motion sref t . 
+
+> •
+
+Nominal geometric template P ∈ RN ×3: a standard-sized point cloud acting as a semantic prior. The goal is to explore a policy π(at|sprop t , s ref t , a t−1, P) in the simulation that enables the humanoid robot to acquire robust interaction skills with objects in the real world. 
+
+B. Dynamics-Aware World Model 
+
+Our motivation is to use the robot’s state sprop t to predict the inaccessible state of objects sobj t [51]. Therefore, we design a predictive framework to internalize the object’s dynamics relative to the robot. And we propose a pipeline that first estimates object dynamics, explicitly projects these dynamics onto the geometric prior, and subsequently feeds them into the downstream network, as shown in Fig. 3. 
+
+1) Object Adapter: The core component of the dynamics-aware world model is the object adapter, which functions as a real-time dynamics predictor. It takes the history of robot observations Ht = {sprop t−n , . . . , s prop t } and the future of reference motion Ft = {sref t , . . . , s ref t+m} as input and predicts the object’s relative spatial and temporal state: 
+
+ˆsobj t = fOA (Ht, Ft) (1) 𝑧 𝑡 
+
+> 𝑝𝑟𝑖𝑣
+
+Privilege 
+
+Encoder 
+
+Student 
+
+Actor 
+
+Teacher 
+
+Actor 
+
+𝑠 𝑡 
+
+> 𝑝𝑟𝑖𝑣
+
+, 𝒫 𝑠 𝑡 
+
+> 𝑝𝑟𝑜𝑝
+
+, 𝑠 𝑡 
+
+> 𝑟𝑒𝑓
+
+Simulation 
+
+𝑎 𝑡 
+
+> 𝑡𝑒𝑎
+
+𝑎 𝑡 
+
+> 𝑠𝑡𝑢
+> MSE
+
+Dynamics -aware 
+
+World Model 𝑠 𝑜𝑏𝑗 𝒫 
+
+Deployment 
+
+𝑠 𝑡 
+
+> 𝑝𝑟𝑜𝑝
+
+, 𝑠 𝑡 
+
+> 𝑟𝑒𝑓
+
+, 𝒫 
+
+𝑠 𝑟𝑒𝑓 
+
+𝑠 𝑝𝑟𝑖𝑣 , 𝑠 𝑝𝑟𝑜𝑝 HAIC 
+
+Ƹ
+
+𝑧 𝑡 
+
+> 𝑝𝑟𝑖𝑣
+> MSE Fig. 4: Framework overview . We train policies in the simulation from scratch. The framework includes a privileged teacher and a dynamics-aware student. The student policy utilizes the learned world model to perform robust interaction tasks such as skateboarding on a real humanoid robot.
+
+where ˆsobj t includes the predicted relative position ˆpt, orien-tation ˆRt, linear/angular velocities ( ˆvlin t , ˆvang t ), and linear/an-gular accelerations ( ˆalin t , ˆaang t ). 
+
+2) Explicit Geometric Projection: While dynamics-aware approaches using signed distance fields (SDFs) or point clouds have been explored for stationary arms [30, 19] and HOI animation [1, 64], the application to the high-dimensional dy-namics of humanoid whole-body control remains limited. By conditioning our predictor on a point-cloud-based geometric prior, the robot can mentally track an invisible object, ef-fectively transforming a partially observable Markov decision process into a manageable control task without the need for the real-time privileged states. To bridge the gap between abstract state estimation and physical interaction, we introduce an explicit geometric pro-jection step. We transform the canonical point cloud P using the predicted ˆsobj t into the robot’s root coordinate frame: 
+
+Pdyn t = ˆRt · P + ˆ pt (2) By explicitly generating the dynamic object point cloud Pdyn t ,we provide the privilege adapter with a spatially grounded representation of the object’s occupancy. Note that P serves as a geometric prior rather than a ground-truth measurement. 
+
+3) Privilege Adapter: Finally, the estimated dynamic ge-ometry is fused with proprioception via the privilege adapter. This module takes the dynamic point cloud Pdyn t , current proprioception sprop t , and the reference motion sref t to produce a predicted privileged feature ˆzpriv t . This feature serves as the input to the student actor, effectively mimicking the information flow of a privileged actor. 
+
+C. Two-Stage Training Framework 
+
+Fig. 4 illustrates the overall architecture of HAIC. To streamline our formulation, we define the unified world model loss ( LW M ) as the weighted sum of dynamics prediction error and latent feature alignment: 
+
+LW M = λobj ∥ˆsobj t − sobj t ∥2 + λpriv ∥ˆzpriv t − zpriv t ∥2 (3) where λobj and λpriv balance the supervision strength of phys-ical state regression and latent space distillation, respectively. We denote the standard PPO [49] objective (including policy gradient, value loss, and entropy) as LP P O (π, V ).
+
+1) Stage 1: Feature Alignment & Warm-up: In the first stage, we train the privileged Teacher actor πT via reinforce-ment learning. Simultaneously, we train the world model and the student actor πS to mirror the teacher’s behavior and internal representation [48]. This “warm-up” phase ensures that the student starts Stage 2 with a learned sensorimotor primitive closer to the expert distribution. The objective is: 
+
+LStage 1 = LP P O (πT , V T )+ LW M +λdistill DKL (πS || πT ) (4) Here, the action distillation term λdistill forces the student to produce actions consistent with the teacher. 
+
+2) Stage 2: Asymmetric Fine-tuning: In the second stage, we fine-tune the student actor πS using an asymmetric actor-critic setup [46]. The critic VT retains access to privileged states for variance reduction. To address the distribution shift caused by the student’s independent exploration, we continue to optimize the world model alongside the policy. The total objective is: 
+
+LStage 2 = LP P O (πS , V T ) + LW M (5) By consistently minimizing LW M in both stages, we ensure the world model continuously adapts to the evolving trajectory distribution of the student policy, preventing the “blind” policy from collapsing due to inaccurate state estimation. 
+
+Stabilization via EMA: To further mitigate instability arising from the coupled training of the policy and the world model, we maintain an exponential moving average (EMA) [42] of the world model weights for the rollout policy. The policy interacts with the environment using the EMA-smoothed predictions, while gradients are backpropagated through the online net-work. (a)  Guidance  (b) Carrying       
+
+> (c) Pushing
+> 𝒅 𝒉𝒂𝒏𝒅𝒍𝒆
+> 𝒅 𝒃𝒐𝒙
+> 𝒓 𝒄𝒐𝒏𝒕𝒂𝒄𝒕
+> 𝒃𝒐𝒙 ↑
+> 𝒓 𝒄𝒐𝒏𝒕𝒂𝒄𝒕
+> 𝒉𝒂𝒏𝒅𝒍𝒆 ↑
+> Fig. 5: Multiple Objects Contact Guidance Strategy. Ref.
+> HDMI*
+> HAIC
+> (a) Skateboarding (b) Pull Cart (c) Push Cart Fig. 6: Real-world performance comparison with the baseline across various tasks. With the specifically designed dynamics-aware world model, HAIC maintains robust stability throughout the interaction, whereas the baseline suffers from balance failures and trajectory drift.
+
+D. Multiple Objects Contact Reward 
+
+To enable robust manipulation of multiple objects, we intro-duce a contact reward rcontact that unifies geometric alignment and force regulation. As illustrated in Fig. 5, this reward dynamically guides the robot through two phases:  
+
+> •
+
+Guidance (Fig. 5a): Before contact, the reward minimizes the distance between end-effectors and semantic targets.  
+
+> •
+
+Execution (Fig. 5b-c): Upon contact, it applies force appropriately while maintaining geometric constraints. The contact reward is calculated as the average reward across all active objects o ∈ O and their corresponding end-effectors e ∈ E o:
+
+rcontact = 1
+
+|O| 
+
+X
+
+> o∈O
+
+1
+
+|E o|
+
+X
+
+> e∈E o
+
+Io,e · ro,e  
+
+> pos
+
+· ro,e 
+
+> force
+
+!
+
+. (6) Here, Io,e is a binary mask from the reference motion indicating if contact is active. The individual terms account for physical tolerances to prevent optimization instability. Position term ro,e  
+
+> pos
+
+encourages the end-effector position pe to match the target ptgt within a tolerance ϵtol :
+
+ro,e  
+
+> pos
+
+= exp ( −max(0 , ∥pe − ptgt ∥ − ϵtol )/σ p) . (7) Force term ro,e  
+
+> force
+
+ensures the contact force Fe reaches arequired threshold Fthr . We penalize the force deficit only when it falls below this threshold: 
+
+ro,e  
+
+> force
+
+= exp ( −max(0 , F thr − ∥ Fe∥)/σ f ) . (8) More detailed reward definitions and parameters are provided in Appendix B2. IV. E XPERIMENTS 
+
+A. Experimenrt Setup 1) Task Description: To validate our method, we designed three types of interaction tasks: 
+
+Underactuated Object Interaction. This task requires the robot to interact with underactuated wheeled objects, which introduces unstructured, time-varying external physical distur-bances upon contact. Unlike interactions with fully actuated objects, the motion of underactuated objects actively affects the robot’s balance, requiring the controller to predict and compensate for these disturbances in real time. 
+
+Long-horizon interaction. In addition to interacting with a single object, we also design composite sequential tasks involving multiple objects, such as loading a payload onto a mobile cart and then manipulating the cart. These scenar-ios challenge the policy’s capacity to handle discrete mode switching and maintain stable control over extended horizons while coordinating interactions with multiple dynamic bodies. 
+
+Multi-terrain interaction. The final task requires the robot to carry a box across composite terrains, including platforms, slopes, and stairs. This task places high demands on state estimation because the box obscures the robot’s view of the ground. As a result, the policy relies solely on self-perception and predictions from the world model. The controller must simultaneously handle the dynamic load on the arms and the complex interactions with the terrain. 
+
+2) Implementation Details: We describe the specific con-figurations for data processing, training infrastructure, and deployment setups below. Data Collection and Processing. To capture high-fidelity interaction behaviors, we utilized an optical motion capture system tracking both the human motion and interactive ob-jects via synchronized markers. The raw kinematic data were retargeted to humanoid and refined through a physics-based simulation pipeline to generate physically valid states with contact information (see Appendix A for details). 
+
+Training Setup. We trained the base policy and world model using PPO in the Isaac Sim simulator. The two-stage training of a model was conducted on a single NVIDIA RTX 4090 GPU and took approximately 8 hours. 
+
+Sim-to-Real Transfer. We employed extensive domain ran-domization to bridge the reality gap. For real-world deploy-ment, the policy ran on an external PC, transmitting joint position targets to the robot’s onboard control board via Ethernet. The PD controller operated at 200 Hz in simulation and 500 Hz on the real robot to ensure accurate tracking of the PD targets, while the control policies ran at 50 Hz. 
+
+3) Evaluation Metrics: To rigorously quantify the robot’s kinematic tracking performance, we define the following met-rics based on onboard proprioception. We report the Mean and Standard Deviation for error metrics, and the Success Rate (SR) for task completion. 
+
+Robot State Metrics: 
+
+• Empbpe / Empboe : Root-relative Mean Per Body Position (mm) and Orientation ( 10 −3 rad) Error. 
+
+• Eg-mpbpe : Global Mean Per Body Position Error (mm). 
+
+• Empjpe / Empjve : Mean Per Joint Position ( 10 −3 rad) and Velocity ( 10 −3 rad/frame) Error. 
+
+• Empbve / Empbae : Mean Per Body Velocity (mm/frame) and Acceleration (mm/frame 2) Error. 
+
+Object State Metrics: 
+
+• Empope / Empooe : Mean Per Object Position (mm) and Orientation ( 10 −3 rad) Error. 
+
+• Empove / Empoae : Mean Per Object Velocity (mm/frame) and Acceleration (mm/frame 2) Error. We evaluate the performance of our proposed framework on the humanoid robot in real-world scenarios. The robot operates autonomously using onboard computation, without external motion capture systems, relying solely on proprioceptive feed-back and our dynamics-aware World Model. 
+
+4) Baseline: We utilize HDMI ∗, a proprioception-only variant of the original HDMI framework [63] as our baseline. To ensure a fair comparison, this baseline was retrained from scratch using the same setup as our method. Instead of privi-leged object states, HDMI ∗ receives a history of proprioceptive observations to implicitly infer the environmental context. 
+
+B. Real-world Deployment and Comparison 
+
+In real-world experiments, our dynamics-aware world model functions as a core estimator across three distinct scenarios: (a) Underactuated Object Interaction. For underactuated objects like skateboards and carts, the world model infers the object’s full dynamics, including translation, rotation, linear/angular velocity, and acceleration. These high-order predictions are explicitly applied to the object’s canonical point cloud. (b) Long-horizon Interaction. In sequential tasks involving multiple objects, HAIC predicts the dynamics for both the box and the cart. It applies the respective predicted rotations and translations to align each object’s geometric prior independently. (c) Multi-terrain Interaction. HAIC extends its prediction to environmental features. It estimates the dynamics of the carried box while simultaneously pre-dicting the translation and orientation of terrain structures. By projecting these estimates onto the geometry and feeding the aligned features into the downstream network, the robot successfully navigates uneven ground. We compared HAIC with the baseline in these scenarios. HAIC exhibits superior robustness due to its structured representation incorporating both geometric and dynamic information. As demonstrated by the case study results below, HAIC shows significant advantages in both success rate and motion quality. 
+
+TABLE I: Real-world results for Skateboarding . We report the success rate for both Gliding and Completing. HAIC achieves stable gliding and significantly higher completion rates compared to the baseline.                          
+
+> Success Rate Robot State Metrics Method Glide Comp. Empbpe Empboe Empjpe Empbve Empbae Empjve
+> HDMI ∗20% 0% 132.1 ±35 .7666.7 ±213 .6188.7 ±12 .65.39 ±0.62 4.06 ±0.04 10.40 ±0.19
+> HAIC 100% 60% 81.5 ±15 .4453.5 ±88 .2127.1 ±11 .54.72 ±0.75 4.48 ±0.50 12.15 ±1.87
+
+TABLE II: Real-world results for Cart Manipulation . HAIC achieves 100% success in both tasks, whereas the baseline fails in “Push”.                                            
+
+> Task Method SR ↑Empbpe ↓Empboe ↓Empjpe ↓Empbve ↓Empbae ↓Empjve ↓
+> Pull Cart HDMI ∗40% 118.0 ±5.8556.7 ±43 .0165.0 ±2.36.11 ±0.13 3.73 ±0.14 10.32 ±1.00
+> HAIC 100% 76.2 ±6.8425.0 ±41 .7132.3 ±6.45.08 ±0.53 3.66 ±0.21 9.50 ±1.10
+> Push Cart HDMI ∗0% 136.2 ±23 .3778.5 ±218 .6158.9 ±4.77.36 ±0.48 5.32 ±0.21 15.62 ±0.74
+> HAIC 100% 82.0 ±6.3418.7 ±36 .6150.0 ±9.35.29 ±0.17 4.47 ±0.09 11.61 ±0.80
+
+TABLE III: Real-world results for Long-Horizon Interaction . The baseline is omitted as it failed to complete the prerequisite cart tasks. HAIC demon-strates capability in sequential object transport.                                            
+
+> Task Method SR ↑Empbpe ↓Empboe ↓Empjpe ↓Empbve ↓Empbae ↓Empjve ↓
+> Pull Cart w/ Box HDMI ∗0% ------
+> HAIC 40% 88.2 ±8.2420.7 ±16 .7157.2 ±8.25.91 ±0.07 5.02 ±0.09 12.20 ±0.31
+> Push Cart w/ Box HDMI ∗0% ------
+> HAIC 100% 70.5 ±5.7381.7 ±24 .7143.6 ±4.15.27 ±0.26 3.92 ±0.18 11.10 ±0.85
+
+TABLE IV: Real-world results for Multi-terrain Interaction . HAIC suc-ceeds on the complex slope-stair terrain where baseline fails.                                                                          
+
+> Task Method SR ↑Empbpe ↓Empboe ↓Empjpe ↓Empbve ↓Empbae ↓Empjve ↓
+> Carry Box HDMI ∗100% 66.6 ±2.0344.0 ±19 .8171.7 ±1.74.69 ±0.10 3.14 ±0.01 8.10 ±0.13
+> HAIC 100% 58.8 ±6.1305.6 ±20 .8162.0 ±6.84.21 ±0.13 3.03 ±0.05 7.75 ±0.18
+> w/ Stair HDMI ∗100% 66.2 ±4.1316.2 ±2.8158.9 ±13 .84.79 ±0.36 4.35 ±0.24 10.10 ±0.98
+> HAIC 100% 55.5 ±3.9331.2 ±23 .1118.4 ±0.64.06 ±0.02 4.05 ±0.01 8.66 ±0.01
+> w/ Slope HDMI ∗100% 53.5 ±0.7289.0 ±1.7130.6 ±1.93.68 ±0.03 3.39 ±0.01 7.41 ±0.02
+> HAIC 100% 60.5 ±4.3324.7 ±28 .0120.2 ±1.68.77 ±0.11 4.60 ±0.13 3.66 ±0.05
+> w/ Stair + Slope HDMI ∗0% 126.8 ±4.4701.0 ±32 .1162.3 ±2.05.98 ±0.07 4.03 ±0.10 10.87 ±0.27
+> HAIC 100% 60.6 ±13 .4286.5 ±59 .8128.5 ±16 .24.74 ±0.17 4.05 ±0.04 10.67 ±0.52
+
+1) Underactuated Object Interaction: This task involves high-dynamic interactions, where object interactions signifi-cantly affect the robot’s balance: skateboarding and manipu-lating wheeled carts. Fig. 6 demonstrates that HAIC maintains robust stability in skateboarding and cart tasks, whereas the baseline suffers from frequent failures and trajectory drift. 
+
+Skateboarding: Table I reports two success metrics: glide success rate (maintaining balance on the skateboard >1s) and complete success rate. While the baseline struggles to maintain basic balance, HAIC achieves a high glide success rate, TABLE V: Ablation results for Skateboarding . Vec-Pose can balance but fails to dismount due to a lack of acceleration prediction. HAIC achieves a high completion rate with the lowest robot tracking errors and the most stable object acceleration control. 
+
+SR ↑ Robot State Metrics Object State Metrics Method Glide Comp. Empbpe ↓ Eg-mpbpe ↓ Empboe ↓ Empjpe ↓ Empbve ↓ Empbae ↓ Empjve ↓ Empope ↓ Empooe ↓ Empove ↓ Empoae ↓
+
+Proprio 40% 0% 91.1 ±9.6 548.1 ±186 .4 490.6 ±58 .0 163.3 ±3.4 5.08 ±0.28 4.18 ±0.10 12.45 ±0.55 549.9 ±167 .5 1219 ±179 9.63 ±0.64 11.02 ±0.25 
+
+Vec-Pose 100% 0% 77.1 ±12 .7 430.3 ±248 .2 394.0 ±55 .0 167.0 ±4.7 4.25 ±0.20 3.94 ±0.09 10.14 ±0.10 434.8 ±259 .9 1192 ±147 8.78 ±1.25 10.75 ±0.10 
+
+Vec-Dyn 100% 100% 74.6 ±0.8 444.7 ±13 .3 416.7 ±6.8 147.7 ±2.3 4.87 ±0.16 4.11 ±0.16 12.20 ±0.56 432.1 ±9.1 1038 ±137 8.64 ±0.36 10.90 ±0.28 
+
+Geo-Pose 100% 100% 60.2 ±2.5 513.0 ±86 .2 354.5 ±18 .3 121.6 ±1.8 4.55 ±0.08 4.01 ±0.04 12.42 ±0.22 565.8 ±83 .2 1071 ±72 8.77 ±0.98 10.74 ±0.11 
+
+HAIC 100% 100% 57.8 ±2.8 417.8 ±36 .4 335.5 ±19 .7 117.6 ±0.7 4.54 ±0.11 4.04 ±0.05 12.30 ±0.31 473.8 ±43 .1 1035 ±57 8.08 ±0.32 10.66 ±0.01 
+
+TABLE VI: Ablation results for Cart Manipulation . HAIC shows consistently high performance, achieving either the best or second-best results across most metrics. 
+
+Robot State Metrics Object State Metrics Task Method SR ↑ Empbpe ↓ Eg-mpbpe ↓ Empboe ↓ Empjpe ↓ Empbve ↓ Empbae ↓ Empjve ↓ Empope ↓ Empooe ↓ Empove ↓ Empoae ↓
+
+Pull Cart Proprio 60% 97.9 ±34 .7 341.9 ±114 .6 575.4 ±188 137.4 ±6.5 5.58 ±0.73 3.75 ±0.22 11.39 ±1.69 448.8 ±190 1551 ±149 5.90 ±2.41 3.59 ±0.06 
+
+Vec-Pose 60% 100.0 ±26 .6 388.0 ±221 .0 589.6 ±141 145.3 ±13 .5 5.86 ±0.74 3.83 ±0.31 11.96 ±2.06 437.7 ±223 1530 ±212 5.78 ±1.96 3.55 ±0.03 
+
+Vec-Dyn 100% 71.3 ±0.5 244.1 ±22 .3 406.9 ±9.3 133.7 ±1.0 5.12 ±0.04 3.54 ±0.01 9.88 ±0.18 230.1 ±16 .0 1640 ±108 4.05 ±0.02 3.52 ±0.01 
+
+Geo-Pose 100% 66.1 ±0.3 261.5 ±32 .7 384.1 ±21 .7 127.3 ±4.4 5.29 ±0.66 3.65 ±0.19 10.85 ±1.52 320.3 ±89 .5 1210 ±11 .6 4.09 ±0.11 3.57 ±0.04 
+
+HAIC 100% 64.8 ±2.8 225.7 ±3.4 372.7 ±34 .1 123.1 ±0.3 4.75 ±0.01 3.48 ±0.01 9.39 ±0.09 219.5 ±6.6 1241 ±247 4.19 ±0.02 3.55 ±0.01 
+
+Push Cart Proprio 0% 112.9 ±9.2 276.6 ±80 .5 538.4 ±129 .2 172.1 ±14 .2 6.50 ±0.41 4.78 ±0.14 15.38 ±0.85 460.7 ±286 .2 1406 ±16 4.61 ±0.91 3.75 ±0.04 
+
+Vec-Pose 100% 61.5 ±1.8 451.8 ±82 .9 287.7 ±3.1 125.3 ±2.0 4.65 ±0.17 4.16 ±0.10 11.20 ±0.91 338.7 ±63 .9 1152 ±58 4.25 ±0.43 3.71 ±0.01 
+
+Vec-Dyn 100% 62.3 ±2.5 439.0 ±75 .7 299.9 ±16 .3 126.4 ±2.2 4.58 ±0.05 4.12 ±0.04 10.86 ±0.39 358.4 ±73 .1 1172 ±26 4.63 ±1.03 3.70 ±0.01 
+
+Geo-Pose 100% 64.0 ±4.8 249.1 ±43 .3 346.8 ±28 .5 141.0 ±3.1 4.93 ±0.06 4.28 ±0.03 12.70 ±0.16 259.8 ±66 .8 1153 ±107 3.65 ±0.41 3.70 ±0.01 
+
+HAIC 100% 61.3 ±2.1 221.0 ±74 .3 319.9 ±13 .0 145.9 ±5.5 5.00 ±0.10 4.23 ±0.08 12.36 ±0.39 267.9 ±85 .6 1262 ±96 4.04 ±1.07 3.70 ±0.01 
+
+demonstrating robust balance control. Although the complex dismount phase remains challenging, our method significantly outperforms the baseline, which fails to complete the task. 
+
+Cart Manipulation: Table II highlights the robustness of HAIC. Notably, in the “Push Cart” task, the baseline fails as it cannot account for the cart’s external dynamics and non-holonomic constraints. HAIC predicts the object’s forward velocity and acceleration, allowing the robot to proactively lean into the motion, resulting in a high success rate for both “Pull” and “Push” tasks. 
+
+2) Long-Horizon Interaction: We evaluate sequential tasks requiring mode switching: “Pull Cart w/ Box” (load the box, then pull the cart) and “Push Cart w/ Box” (load the box, then push the cart). The baseline was unable to attempt these long-horizon composite tasks, as it cannot reliably complete a single cart manipulation task. Therefore, Table III reports only the performance of HAIC. Despite the compounded complexity and error accumulation over a longer horizon, our framework enables the robot to transition smoothly, achieving a high success rate in the “Push Cart w/ Box” task. 
+
+3) Multi-terrain Interaction: We evaluate the robot’s ability to carry a box across varying terrains, including flat ground, 15-degree slopes, stairs, and mixed slope-stair terrains. In these scenarios, HAIC successfully picks and places a box across various types of terrains, where the policy completely occludes the robot’s visual sensors. As shown in Table IV, HAIC demonstrates superior robustness on complex terrains. While the baseline handles simple slopes, it suffers catastrophic fail-ures on the “w/ Slope + Stair” task due to error accumulation in state estimation. In contrast, HAIC maintains a high success rate with lower orientation errors, validating that our geometric prior effectively compensates for the lack of visual feedback on uneven terrain. 
+
+C. Ablation Study on HAIC To rigorously analyze the contribution of each component in our framework—specifically, the benefits of higher-order dynamics prediction and explicit geometric projection—we define five model variants for our ablation study: 
+
+• Proprio: A standard proprioception-only policy that ob-serves only the robot’s joint states and reference motion, without any explicit object representation. 
+
+• Vec-Pose: Extends the Proprio by adding an auxiliary module that predicts the object’s position and orientation (ˆp, ˆR). These are fed into the privilege adapter together. 
+
+• Vec-Dyn: Extends Vec-Pose by predicting the comprehen-sive dynamics, including velocity and acceleration ( ˆv, ˆa), which are also fed as flattened vector inputs. 
+
+• Geo-Pose: Predicts the same state ( ˆp, ˆR) as Vec-Pose. The predicted pose is used to transform the canonical point cloud into the robot frame. The explicit geometric feature and predicted pose are fed to the privilege adapter. 
+
+• HAIC: The proposed full method. It predicts the compre-hensive dynamics ( ˆp, ˆR, ˆv, ˆa), projects the pose onto the geometric feature, and then feeds all the object’s represen-tations into the privilege adapter. 0 800 1600 2400 3200 
+
+> Training Steps
+> 2.5
+> 5.0
+> 7.5
+> 10.0
+> 12.5
+> Return
+> Proprio
+> VecPose
+> VecDyn
+> GeoPose
+> HAIC
+
+Fig. 7: Learning curves on the “Push Cart w/ Box” task. 
+
+1) Analysis of Training Efficiency: Fig. 7 illustrates the learning curves of all methods on the challenging “Push Cart (a) Box Size (b) Terrain Rotation (c) Load Weight  
+
+> Sim
+> Real Fig. 8: Sim-to-real performance across various HOI tasks, including pushing, carrying, and terrain traversal. HAIC achieves robust interactions with diverse terrains and underactuated objects, and demonstrates strong generalization across object size, terrain orientation, and load weight.
+
+w/ Box” task over 3,800 training steps. HAIC demonstrates superior sample efficiency and achieves the highest asymptotic return compared to all baselines. We further evaluate the variants in the MuJoCo simulator within the same setup for quantitative comparison. 
+
+2) Skateboarding: Table V presents the results for the dy-namic skateboarding task, where Proprio struggles to maintain balance even during the glide phase, confirming the insuffi-ciency of proprioception alone. Interestingly, while Vec-Pose achieves perfect gliding success, it fails during the dismount phase, indicating that position perception aids balance but lacks the foresight to handle impulsive forces upon stepping off. Comparing this with dynamics-aware methods highlights that predicting object acceleration is critical for managing transient disturbances. Consequently, HAIC achieves high success rates across both phases with the lowest tracking errors, indicating that our world model generates necessary feedforward compensation for stability. 
+
+3) Cart Manipulation: Table VI presents the results for cart manipulation. Proprio fails to resolve object states, while Vec-Pose and Vec-Dyn suffer from severe trajectory drift despite completing the task. In contrast, methods utilizing geometric projection (Geo-Pose and HAIC) achieve significantly tighter global tracking by strictly aligning with the cart’s steering axis. Ultimately, HAIC delivers the best overall performance by combining this geometric alignment with dynamics prediction for precise and stable manipulation. 
+
+4) Other Complex Scenarios: We further extend the evalu-ation to long-horizon and multi-terrain tasks. Detailed metrics are provided in Appendix Table XII and Table XIII. Experi-mental results highlight two key advantages of HAIC:  
+
+> •
+
+Long-Horizon Stability: In sequential tasks like “Pull Cart w/ Box”, baselines fail completely due to error accumu-lation. HAIC leverages its world model to mitigate drift, thereby ensuring high success rates and precise object steering across extended interaction sequences.  
+
+> •
+
+Terrain Adaptability: On the challenging “Slope + Stair” terrain, Proprio and Vec-Pose suffer from stability issues. HAIC maintains a high success rate by predicting dy-namic disturbances caused by uneven ground. 
+
+D. Robust interaction and Generalization 
+
+To evaluate the policy’s robustness and generalization capa-bilities when encountering unseen object attributes and envi-ronmental changes, we designed a series of rigorous variations, including object size, terrain rotation, and loaded weight. The results are summarized in Fig. 8. 
+
+1) Object Size and Weight Generalization: We tested be-yond the training range ( 0.1m– 0.2m, 1kg– 2kg). The input geometric prior P remained fixed as the original standard tem-plate. The policy successfully transported a large box with a side length of 0.25 m and a heavy box weighing 3kg. For heavy objects, the policy exhibited a lower center of gravity and a slower movement speed. For large-sized objects, the policy adjusted the grasping position and arm posture to avoid self-collisions. This indicates that the world model learned general relationships between mass, inertia, and motion dynamics. 
+
+2) Terrain Orientation Perturbations: We randomly rotated slopes and stairs. The policy successfully adapted to these changes, maintaining stable walking by adjusting foot landing angles and body orientation. This demonstrates that the policy does not memorize specific terrain geometries but understands general equilibrium principles on inclined support surfaces. 
+
+3) External Perturbations: We applied instantaneous lateral thrusts during robot carrying tasks. The strategy rapidly esti-mated changes in object and self-momentum caused by the disturbance using the world model, swiftly restoring balance through stepping and arm swinging, demonstrating the ability to adapt online to unknown perturbations. These experiments demonstrate that by combining geomet-ric priors and predictions of dynamics in end-to-end training, HAIC can acquire an understanding of the essence of physical interactions, and exhibit zero-shot generalization capabilities. V. C ONCLUSION 
+
+This paper introduced HAIC, a novel framework that en-ables humanoid robots to perform robust whole-body inter-actions with underactuated objects under visual occlusion by integrating a dynamic-aware world model. By fusing static geometric priors with dynamic proprioceptive feedback, our approach effectively tracks unobserved object states and antic-ipates environmental changes through higher-order dynamics prediction. This capability was validated in various scenarios, including climbing stairs, dynamic skateboarding, and cart manipulation, demonstrating proactive gait adjustment and balance recovery. Real-world experiments on the humanoid confirm that our distilled policy achieves high performance, successfully bridging the sim-to-real gap for deployment in sensor-limited environments. REFERENCES 
+
+[1] Rami Ali Al-Asqhar, Taku Komura, and Myung Geol Choi. Relationship descriptors for interactive motion adaptation. In Proceedings of the 12th ACM SIG-GRAPH/Eurographics Symposium on Computer Anima-tion , pages 45–53, 2013. [2] Arthur Allshire, Hongsuk Choi, Junyi Zhang, David McAllister, Anthony Zhang, Chung Min Kim, Trevor Darrell, Pieter Abbeel, Jitendra Malik, and Angjoo Kanazawa. Visual imitation enables contextual humanoid control. In Proceedings of the Conference on Robot Learning (CoRL) , 2025. [3] Joao Pedro Araujo, Yanjie Ze, Pei Xu, Jiajun Wu, and C. Karen Liu. Retargeting matters: General motion retargeting for humanoid motion tracking. arXiv preprint arXiv:2510.02252 , 2025. [4] Bharat Lal Bhatnagar, Xianghui Xie, Ilya Petrov, Cris-tian Sminchisescu, Christian Theobalt, and Gerard Pons-Moll. BEHAVE: Dataset and method for tracking human object interactions. In Proceedings of the Computer Vi-sion and Pattern Recognition Conference (CVPR) , 2022. [5] Zixuan Chen, Mazeyu Ji, Xuxin Cheng, Xuanbin Peng, Xue Bin Peng, and Xiaolong Wang. Gmt: General motion tracking for humanoid whole-body control. arXiv preprint arXiv:2506.14770 , 2025. [6] Jeremy Dao, Helei Duan, and Alan Fern. Sim-to-real learning for humanoid box loco-manipulation. In 
+
+International Conference on Robotics and Automation (ICRA) , 2024. [7] Fan Feng, Phillip Lippe, and Sara Magliacane. Learning interactive world model for object-centric reinforcement learning. In 2511.02225 , Thirty-ninth Conference on Neural Information Processing Systems (NeurIPS). [8] Yuhui Fu, Feiyang Xie, Chaoyi Xu, Jing Xiong, Haoqi Yuan, and Zongqing Lu. Demohlm: From one demon-stration to generalizable humanoid loco-manipulation. 
+
+arXiv preprint arXiv:2510.11258 , 2025. [9] Xinyang Gu, Yen-Jen Wang, Xiang Zhu, Chengming Shi, Yanjiang Guo, Yichen Liu, and Jianyu Chen. Advancing humanoid locomotion: Mastering challenging terrains with denoising world model learning. arXiv preprint arXiv:2408.14472 , 2024. [10] David Ha and J¨ urgen Schmidhuber. World models. arXiv preprint arXiv:1803.10122 , 2(3), 2018. [11] Danijar Hafner, Jurgis Pasukonis, Jimmy Ba, and Timo-thy Lillicrap. Mastering diverse domains through world models. arXiv preprint arXiv:2301.04104 , 2023. [12] Jinrui Han, Weiji Xie, Jiakun Zheng, Jiyuan Shi, Weinan Zhang, Ting Xiao, and Chenjia Bai. Kungfubot2: Learn-ing versatile motion skills for humanoid whole-body control. arXiv preprint arXiv:2509.16638 , 2025. [13] Nicklas Hansen, Jyothir SV, Vlad Sobal, Yann LeCun, Xiaolong Wang, and Hao Su. Hierarchical world mod-els as visual whole-body humanoid controllers. arXiv preprint arXiv:2405.18418 , 2024. [14] Tairan He, Jiawei Gao, Wenli Xiao, Yuanhang Zhang, Zi Wang, Jiashun Wang, Zhengyi Luo, Guanqi He, Nikhil Sobanbabu, Chaoyi Pan, Zeji Yi, Guannan Qu, Kris Kitani, Jessica Hodgins, Linxi ”Jim” Fan, Yuke Zhu, Changliu Liu, and Guanya Shi. Asap: Aligning simula-tion and real-world physics for learning agile humanoid whole-body skills. arXiv preprint arXiv:2502.01143 ,2025. [15] Tairan He, Zi Wang, Haoru Xue, Qingwei Ben, Zhengyi Luo, Wenli Xiao, Ye Yuan, Xingye Da, Fernando Casta˜ neda, Shankar Sastry, et al. Viral: Visual sim-to-real at scale for humanoid loco-manipulation. arXiv preprint arXiv:2511.15200 , 2025. [16] Tairan He, Wenli Xiao, Toru Lin, Zhengyi Luo, Zhenjia Xu, Zhenyu Jiang, Jan Kautz, Changliu Liu, Guanya Shi, Xiaolong Wang, et al. Hover: Versatile neural whole-body controller for humanoid robots. In International Conference on Robotics and Automation (ICRA) , 2025. [17] Tao Huang, Junli Ren, Huayi Wang, Zirui Wang, Qingwei Ben, Muning Wen, Xiao Chen, Jianan Li, and Jiangmiao Pang. Learning humanoid standing-up control across diverse postures. arXiv preprint arXiv:2502.08378 , 2025. [18] Jemin Hwangbo, Joonho Lee, Alexey Dosovitskiy, Dario Bellicoso, Vassilios Tsounis, Vladlen Koltun, and Marco Hutter. Learning agile and dynamic motor skills for legged robots. Science Robotics , 2019. [19] Youngjoon Jeong, Junha Chun, Soonwoo Cha, and Tae-sup Kim. Object-centric world model for language-guided manipulation. arXiv preprint arXiv:2503.06170 ,2025. [20] Haoran Jiang, Jin Chen, Qingwen Bu, Li Chen, Modi Shi, Yanjie Zhang, Delong Li, Chuanzhe Suo, Chuang Wang, Zhihui Peng, et al. Wholebodyvla: Towards unified latent vla for whole-body loco-manipulation control. arXiv preprint arXiv:2512.11047 , 2025. [21] Nan Jiang, Tengyu Liu, Zhexuan Cao, Jieming Cui, Zhiyuan Zhang, Yixin Chen, He Wang, Yixin Zhu, and Siyuan Huang. Full-body articulated human-object inter-action. In International Conference on Computer Vision (ICCV) , 2023. [22] Nan Jiang, Zimo He, Wanhe Yu, Lexi Pang, Yunhao Li, Hongjie Li, Jieming Cui, Yuhan Li, Yizhou Wang, Yixin Zhu, et al. Uniact: Unified motion generation and action streaming for humanoid robots. arXiv preprint arXiv:2512.24321 , 2025. [23] Dvij Kalaria, Sudarshan S Harithas, Pushkal Katara, Sangkyung Kwak, Sarthak Bhagat, Shankar Sastry, Sri-nath Sridhar, Sai Vemprala, Ashish Kapoor, and Jonathan Chung-Kuan Huang. Dreamcontrol: Human-inspired whole-body humanoid control for scene interaction via guided diffusion. arXiv preprint arXiv:2509.14353 , 2025. [24] Ashish Kumar, Zipeng Fu, Deepak Pathak, and Jitendra Malik. Rma: Rapid motor adaptation for legged robots. In Robotics: Science and Systems (RSS) , 2021. [25] Hang Lai, Jiahang Cao, Jiafeng Xu, Hongtao Wu, Yun-feng Lin, Tao Kong, Yong Yu, and Weinan Zhang. World model-based perception for visual legged locomotion. In 
+
+2025 IEEE International Conference on Robotics and Automation (ICRA) , pages 11531–11537. IEEE, 2025. [26] Mikko Lauri, David Hsu, and Joni Pajarinen. Partially observable markov decision processes in robotics: A survey. IEEE Transactions on Robotics , 39(1):21–40, 2023. [27] Chenhao Li, Andreas Krause, and Marco Hutter. Robotic world model: A neural network simulator for ro-bust policy optimization in robotics. arXiv preprint arXiv:2501.10100 , 2025. [28] Jialong Li, Xuxin Cheng, Tianshu Huang, Shiqi Yang, Ri-Zhao Qiu, and Xiaolong Wang. Amo: Adaptive mo-tion optimization for hyper-dexterous humanoid whole-body control. arXiv preprint arXiv:2505.03738 , 2025. [29] Jiaman Li, Jiajun Wu, and C Karen Liu. Object motion guided human motion synthesis. ACM Trans. Graph. , 42 (6), 2023. [30] Jinhan Li, Yifeng Zhu, Yuqi Xie, Zhenyu Jiang, Mingyo Seo, Georgios Pavlakos, and Yuke Zhu. Okami: Teaching humanoid robots manipulation skills through single video imitation. In Conference on Robot Learning (CoRL) ,2024. [31] Yitang Li, Zhengyi Luo, Tonghe Zhang, Cunxi Dai, Anssi Kanervisto, Andrea Tirinzoni, Haoyang Weng, Kris Kitani, Mateusz Guzek, Ahmed Touati, et al. Bfm-zero: A promptable behavioral foundation model for hu-manoid control using unsupervised reinforcement learn-ing. arXiv preprint arXiv:2511.04131 , 2025. [32] Yitang Li, Yuanhang Zhang, Wenli Xiao, Chaoyi Pan, Haoyang Weng, Guanqi He, Tairan He, and Guanya Shi. Learning gentle humanoid locomotion and end-effector stabilization control. arXiv preprint arXiv:2505.24198 ,2025. [33] Zhongyu Li, Xue Bin Peng, Pieter Abbeel, Sergey Levine, Glen Berseth, and Koushil Sreenath. Rein-forcement learning for versatile, dynamic, and robust bipedal locomotion control. The International Journal of Robotics Research (IJRR) , 2024. [34] Qiayuan Liao, Takara E Truong, Xiaoyu Huang, Yu-man Gao, Guy Tevet, Koushil Sreenath, and C Karen Liu. Beyondmimic: From motion tracking to versatile humanoid control via guided diffusion. arXiv preprint arXiv:2508.08241 , 2025. [35] Yuhang Lin, Yijia Xie, Jiahong Xie, Yuehao Huang, Ruoyu Wang, Jiajun Lv, Yukai Ma, and Xingxing Zuo. Simgenhoi: Physically realistic whole-body humanoid-object interaction via generative modeling and reinforce-ment learning. arXiv preprint arXiv:2508.14120 , 2025. [36] Chenhao Liu, Leyun Jiang, Yibo Wang, Kairan Yao, Jinchen Fu, and Xiaoyu Ren. Humanoid whole-body badminton via multi-stage reinforcement learning. arXiv preprint arXiv:2511.11218 , 2025. [37] Fukang Liu, Zhaoyuan Gu, Yilin Cai, Ziyi Zhou, Shijie Zhao, Hyunyoung Jung, Sehoon Ha, Yue Chen, Danfei Xu, and Ye Zhao. Opt2skill: Imitating dynamically-feasible whole-body trajectories for versatile humanoid loco-manipulation. arXiv preprint arXiv:2409.20514 ,2024. [38] Hang Liu, Yuman Gao, Sangli Teng, Yufeng Chi, Yakun Sophia Shao, Zhongyu Li, Maani Ghaffari, and Koushil Sreenath. Ego-vision world model for humanoid contact planning. arXiv preprint arXiv:2510.11682 ,2025. [39] Junfeng Long, Junli Ren, Moji Shi, Zirui Wang, Tao Huang, Ping Luo, and Jiangmiao Pang. Learning hu-manoid locomotion with perceptive internal model. arXiv preprint arXiv:2411.14386 , 2024. [40] Zhengyi Luo, Ye Yuan, Tingwu Wang, Chenran Li, Sirui Chen, Fernando Casta˜ neda, Zi-Ang Cao, Jiefeng Li, David Minor, Qingwei Ben, et al. Sonic: Supersizing motion tracking for natural humanoid whole-body con-trol. arXiv preprint arXiv:2511.07820 , 2025. [41] Naureen Mahmood, Nima Ghorbani, Nikolaus F Troje, Gerard Pons-Moll, and Michael J Black. Amass: Archive of motion capture as surface shapes. In Proceedings of the IEEE/CVF international conference on computer vision , pages 5442–5451, 2019. [42] Daniel Morales-Brotons, Thijs Vogels, and Hadrien Hen-drikx. Exponential moving average of weights in deep learning: Dynamics and benefits. Trans. Mach. Learn. Res. , 2024. [43] Liang Pan, Zeshi Yang, Zhiyang Dou, Wenjia Wang, Buzhen Huang, Bo Dai, Taku Komura, and Jingbo Wang. Tokenhsi: Unified synthesis of physical human-scene interactions through task tokenization. In Proceedings of the Computer Vision and Pattern Recognition Conference (CVPR) , 2025. [44] Xue Bin Peng, Pieter Abbeel, Sergey Levine, and Michiel Van de Panne. Deepmimic: Example-guided deep re-inforcement learning of physics-based character skills. 
+
+ACM Transactions On Graphics (TOG) , 37(4):1–14, 2018. [45] Xue Bin Peng, Ze Ma, Pieter Abbeel, Sergey Levine, and Angjoo Kanazawa. Amp: Adversarial motion priors for stylized physics-based character control. ACM Transac-tions on Graphics (ToG) , 40(4):1–20, 2021. [46] Lerrel Pinto, Marcin Andrychowicz, Peter Welinder, Wo-jciech Zaremba, and Pieter Abbeel. Asymmetric actor critic for image-based robot learning. arXiv preprint arXiv:1710.06542 , 2017. [47] Ilija Radosavovic, Tete Xiao, Bike Zhang, Trevor Darrell, Jitendra Malik, and Koushil Sreenath. Real-world hu-manoid locomotion with reinforcement learning. Science Robotics , 2024. [48] Stephane Ross, Geoffrey Gordon, and Drew Bagnell. A reduction of imitation learning and structured prediction to no-regret online learning. In Proceedings of the Four-teenth International Conference on Artificial Intelligence and Statistics , 2011. [49] John Schulman, Filip Wolski, Prafulla Dhariwal, Alec Radford, and Oleg Klimov. Proximal policy optimization algorithms. arXiv preprint arXiv:1707.06347 , 2017. [50] Yiyang Shao, Xiaoyu Huang, Bike Zhang, Qiayuan Liao, Yuman Gao, Yufeng Chi, Zhongyu Li, Sophia Shao, and Koushil Sreenath. Langwbc: Language-directed humanoid whole-body control via end-to-end learning. 
+
+arXiv preprint arXiv:2504.21738 , 2025. [51] Andrea Sipos and Nima Fazeli. Simultaneous contact location and object pose estimation using proprioception and tactile feedback. In 2022 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) ,2022. [52] Zhi Su, Bike Zhang, Nima Rahmanian, Yuman Gao, Qiayuan Liao, Caitlin Regan, Koushil Sreenath, and S Shankar Sastry. Hitter: A humanoid table tennis robot via hierarchical planning and learning. arXiv preprint arXiv:2508.21043 , 2025. [53] Wandong Sun, Long Chen, Yongbo Su, Baoshi Cao, Yang Liu, and Zongwu Xie. Learning humanoid loco-motion with world model reconstruction. arXiv preprint arXiv:2502.16230 , 2025. [54] Wandong Sun, Luying Feng, Baoshi Cao, Yang Liu, Yaochu Jin, and Zongwu Xie. Ulc: A unified and fine-grained controller for humanoid loco-manipulation. 
+
+arXiv preprint arXiv:2507.06905 , 2025. [55] Omid Taheri, Nima Ghorbani, Michael J. Black, and Dimitrios Tzionas. GRAB: A dataset of whole-body human grasping of objects. In European Conference on Computer Vision (ECCV) , 2020. [56] Chen Tessler, Yunrong Guo, Ofir Nabati, Gal Chechik, and Xue Bin Peng. Maskedmimic: Unified physics-based character control through masked motion inpaint-ing. ACM Transactions on Graphics (TOG) , 43(6):1–21, 2024. [57] Josh Tobin, Rachel Fong, Alex Ray, Jonas Schneider, Wojciech Zaremba, and Pieter Abbeel. Domain random-ization for transferring deep neural networks from simu-lation to the real world. In 2017 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) ,2017. [58] Huayi Wang, Wentao Zhang, Runyi Yu, Tao Huang, Junli Ren, Feiyu Jia, Zirui Wang, Xiaojie Niu, Xiao Chen, Jiahe Chen, Qifeng Chen, Jingbo Wang, and Jiang-miao Pang. Physhsi: Towards a real-world generalizable and natural humanoid-scene interaction system. arXiv preprint arXiv:2510.11072 , 2025. [59] Jin Wang, Rui Dai, Weijie Wang, Luca Rossini, Francesco Ruscelli, and Nikos Tsagarakis. Hypermotion: Learning hybrid behavior planning for autonomous loco-manipulation. In Conference on Robot Learning (CoRL) ,2024. [60] Yinhuai Wang, Jing Lin, Ailing Zeng, Zhengyi Luo, Jian Zhang, and Lei Zhang. Physhoi: Physics-based imitation of dynamic human-object interaction. arXiv preprint arXiv:2312.04393 , 2023. [61] Yinhuai Wang, Qihan Zhao, Runyi Yu, Hok Wai Tsui, Ailing Zeng, Jing Lin, Zhengyi Luo, Jiwen Yu, Xiu Li, Qifeng Chen, Jian Zhang, Lei Zhang, and Ping Tan. Skillmimic: Learning basketball interaction skills from demonstrations. In Proceedings of the Computer Vi-sion and Pattern Recognition Conference (CVPR) , pages 17540–17549, June 2025. [62] Yushi Wang, Changsheng Luo, Penghui Chen, Jianran Liu, Weijian Sun, Tong Guo, Kechang Yang, Biao Hu, Yangang Zhang, and Mingguo Zhao. Learning vision-driven reactive soccer skills for humanoid robots. arXiv preprint arXiv:2511.03996 , 2025. [63] Haoyang Weng, Yitang Li, Nikhil Sobanbabu, Zihan Wang, Zhengyi Luo, Tairan He, Deva Ramanan, and Guanya Shi. Hdmi: Learning interactive humanoid whole-body control from human videos. arXiv preprint arXiv:2509.16757 , 2025. [64] Qianyang Wu, Ye Shi, Xiaoshui Huang, Jingyi Yu, Lan Xu, and Jingya Wang. Thor: Text to human-object interaction diffusion via relation intervention. arXiv preprint arXiv:2403.11208 , 2024. [65] Weiji Xie, Jinrui Han, Jiakun Zheng, Huanyu Li, Xinzhe Liu, Jiyuan Shi, Weinan Zhang, Chenjia Bai, and Xue-long Li. Kungfubot: Physics-based humanoid whole-body control for learning highly-dynamic skills. arXiv preprint arXiv:2506.12851 , 2025. [66] Sirui Xu, Dongting Li, Yucheng Zhang, Xiyan Xu, Qi Long, Ziyin Wang, Yunzhi Lu, Shuchang Dong, Hezi Jiang, Akshat Gupta, Yu-Xiong Wang, and Liang-Yan Gui. Interact: Advancing large-scale versatile 3d human-object interaction generation. In Proceedings of the Computer Vision and Pattern Recognition Conference (CVPR) , 2025. [67] Sirui Xu, Hung Yu Ling, Yu-Xiong Wang, and Liangyan Gui. Intermimic: Towards universal whole-body control for physics-based human-object interactions. In Proceed-ings of the Computer Vision and Pattern Recognition Conference (CVPR) , 2025. [68] Zifan Xu, Myoungkyu Seo, Dongmyeong Lee, Hao Fu, Jiaheng Hu, Jiaxun Cui, Yuqian Jiang, Zhihan Wang, Anastasiia Brund, Joydeep Biswas, et al. Learning agile striker skills for humanoid soccer robots from noisy sensory input. arXiv preprint arXiv:2512.06571 , 2025. [69] Haoru Xue, Xiaoyu Huang, Dantong Niu, Qiayuan Liao, Thomas Kragerud, Jan Tommy Gravdahl, Xue Bin Peng, Guanya Shi, Trevor Darrell, Koushil Sreenath, et al. Le-verb: Humanoid whole-body control with latent vision-language instruction. arXiv preprint arXiv:2506.13751 ,2025. [70] Lujie Yang, Xiaoyu Huang, Zhen Wu, Angjoo Kanazawa, Pieter Abbeel, Carmelo Sferrazza, C Karen Liu, Rocky Duan, and Guanya Shi. Omniretarget: Interaction-preserving data generation for humanoid whole-body loco-manipulation and scene interaction. arXiv preprint arXiv:2509.26633 , 2025. [71] Kangning Yin, Weishuai Zeng, Ke Fan, Minyue Dai, Zirui Wang, Qiang Zhang, Zheng Tian, Jingbo Wang, Jiangmiao Pang, and Weinan Zhang. Unitracker: Learn-ing universal whole-body motion tracker for humanoid robots. arXiv preprint arXiv:2507.07356 , 2025. [72] Shaofeng Yin, Yanjie Ze, Hong-Xing Yu, C. Karen Liu, and Jiajun Wu. Visualmimic: Visual humanoid loco-manipulation via motion tracking and generation. arXiv preprint arXiv:2509.20322 , 2025. [73] Mingqi Yuan, Tao Yu, Wenqi Ge, Xiuyong Yao, Dapeng Li, Huijiang Wang, Jiayu Chen, Xin Jin, Bo Li, Hua Chen, et al. Behavior foundation model: Towards next-generation whole-body control system of humanoid robots. arXiv preprint arXiv:2506.20487 , 2025. [74] Yanjie Ze, Zixuan Chen, Jo˜ ao Pedro Ara´ ujo, Zi ang Cao, Xue Bin Peng, Jiajun Wu, and C. Karen Liu. Twist: Teleoperated whole-body imitation system. arXiv preprint arXiv:2505.02833 , 2025. [75] Yanjie Ze, Siheng Zhao, Weizhuo Wang, Angjoo Kanazawa, Rocky Duan, Pieter Abbeel, Guanya Shi, Jiajun Wu, and C. Karen Liu. Twist2: Scalable, portable, and holistic humanoid data collection system. arXiv preprint arXiv:2511.02832 , 2025. [76] Weishuai Zeng, Shunlin Lu, Kangning Yin, Xiaojie Niu, Minyue Dai, Jingbo Wang, and Jiangmiao Pang. Behav-ior foundation model for humanoid robots. arXiv preprint arXiv:2509.13780 , 2025. [77] Juze Zhang, Haimin Luo, Hongdi Yang, Xinru Xu, Qianyang Wu, Ye Shi, Jingyi Yu, Lan Xu, and Jingya Wang. NeuralDome: A neural modeling pipeline on multi-view human-object interactions. In Proceedings of the Computer Vision and Pattern Recognition Conference (CVPR) , 2023. [78] Yuanhang Zhang, Yifu Yuan, Prajwal Gurunath, Ishita Gupta, Shayegan Omidshafiei, Ali-akbar Agha-mohammadi, Marcell Vazquez-Chanlatte, Liam Pedersen, Tairan He, and Guanya Shi. Falcon: Learning force-adaptive humanoid loco-manipulation. arXiv preprint arXiv:2505.06776 , 2025. [79] Zhikai Zhang, Jun Guo, Chao Chen, Jilong Wang, Chenghuai Lin, Yunrui Lian, Han Xue, Zhenrong Wang, Maoqi Liu, Jiangran Lyu, et al. Track any motions un-der any disturbances. arXiv preprint arXiv:2509.13833 ,2025. [80] Siheng Zhao, Yanjie Ze, Yue Wang, C Karen Liu, Pieter Abbeel, Guanya Shi, and Rocky Duan. Resmimic: From general motion tracking to humanoid whole-body loco-manipulation via residual learning. arXiv preprint arXiv:2510.05070 , 2025. APPENDIX 
+
+A. Dataset Description 
+
+To achieve robust humanoid-object interaction learning, we constructed a high-fidelity dataset covering diverse interaction scenarios. The data pipeline consists of three main stages: optical motion capture, kinematic retargeting, and physics-based state generation. 
+
+1) Assets Description: In our experiments, we employ two primary categories of objects for interaction: fully actuated and underactuated objects.  
+
+> •
+
+Box: A standard cube with a mass of 1.3 kg. Its external dimensions are 0.36 m (length) × 0.28 m (width) × 0.35 m (height)  
+
+> •
+
+Cart: The cart has a mass of 13 kg. Its base platform measures 60 cm (width) × 90 cm (length) with a ground clearance of 17 cm, and its handle is 85 cm high.  
+
+> •
+
+Skateboard: The skateboard has a mass of 3.269 kg, equipped with four wheels (diameter 6.85 cm, thickness 5 cm). Its deck is 24 cm wide with upturned edges, and its ground clearance varies from 12 to 14 cm under load. The composed terrains consist of three fundamental parts:  
+
+> •
+
+Stair: The stair has a step height of 10 cm, a tread depth of 30 cm, and a total run length of 90 cm.  
+
+> •
+
+Slope: The slope has a vertical rise of 30 cm, a slope length of 110 cm, and an inclination angle of approxi-mately 15°.  
+
+> •
+
+Platform: The platform is a flat, square surface measuring 80 cm × 80 cm. This configuration is designed to repli-cate common geometric encountered in daily locomotion tasks. 
+
+2) Data Acquisition: We used an optical motion capture system to record the human demonstration.  
+
+> •
+
+Volunteers: Participants wore a specialized motion cap-ture suit (equipped with optical markers on key body landmarks) to record whole-body kinematics.  
+
+> •
+
+Interactive Objects: Markers were affixed to the surface of interactive objects to track their 6-DoF pose (position and orientation) synchronously with the human operator.  
+
+> •
+
+Scenarios: This dataset covers complex behaviors such as skateboarding, pulling carts, and pushing carts, as well as performing complex operations on multiple objects. 
+
+3) Kinematic Retargeting: The raw marker data was pro-cessed to drive the target humanoid robot (G1) using the PoseLib framework.  
+
+> •
+
+Humanoid Motion: The human skeleton motion was retar-geted to the G1 robot’s 29-DoF kinematic structure. This process generated reference trajectories for the robot’s root position, root orientation, and 29 joint positions q. 
+
+> •
+
+Motion of Objects: The tracked object marker data were cleaned via interpolation of missing frames and trans-formed into canonical coordinate frames relative to the recording origin, yielding smooth 6-DoF trajectories for the object’s root link.  
+
+> •
+
+Alignment: Coordinate system transformations and spa-tial offsets were applied to align the human-object inter-action workspace with the robot’s physical dimensions and the simulation environment. 
+
+4) Physics-Based Motion Representation: To address the discrepancy between valid interaction and purely kinematic data (lacking physical contact information), we employed a physical simulation method based on the Isaac Gym.  
+
+> •
+
+Digital Twin Simulation: We reconstructed the scene in simulation by importing the G1 robot and dynamic assets. The robot is driven kinematically by the retargeted reference motion.  
+
+> •
+
+Dynamic Objects: The objects are driven kinematically for trajectory reference.  
+
+> •
+
+Full-State Extraction: 
+
+– Merged Body State: We compute a unified state repre-sentation that concatenates the robot’s n rigid bodies with the interactive m objects into a single ( n + m)-body array. This provides global positions, linear veloc-ities, quaternions, and angular velocities for the entire system at 50 Hz. 
+
+– Expanded Joint State: The kinematic joint state is expanded to include object articulations, resulting in a (29 + k)-DoF vector ( 29 robot joints + k object joints).  
+
+> •
+
+Contact Annotation: 
+
+– Body Contact: We heuristically compute contact binary masks by checking geometric proximity between robot links and object meshes. 
+
+– Foot Contact: Ground contact labels are generated based on foot height ( h < 0.14 m) and velocity thresh-olds ( v < 1.0 m/s), incorporating temporal hysteresis for stability.  
+
+> •
+
+Recovery Transitions: To aid reinforcement learning re-set mechanisms, we procedurally generated “recovery” transition frames that interpolate between the interaction termination state and a standard “T-pose” or standing stance, ensuring valid cycle consistency during training. 
+
+B. Algorithm Design 1) Observation Space Design: We adopt an asymmetric observation design, where the student operates under partial observability constraints to ensure deployability, while the teacher leverages privileged simulation information to facil-itate training. 
+
+Actor Observation (Student) The student policy π relies solely on onboard sensors and reference information to ensure real-world deployability. The observation vector ot ∈ O
+
+primarily consists of:  
+
+> •
+
+Proprioceptive State ( sprop t ): This includes a 5-step his-tory of joint positions, joint velocities, root angular ve-locity, and the projected gravity vector.  
+
+> •
+
+Reference Motion ( sref t ): To guide the tracking task, the actor receives the reference motion phase ϕt and a sequence of future reference joint positions. TABLE VII: Details of the Observation Space and Privileged Information.                                             
+
+> Category Observation Term Noise ( σ)Description Proprioception
+> Base Angular Velocity 0.05 History of base angular velocity in base frame (steps: [0]). Projected Gravity 0.05 History of gravity vector projected to base frame (steps: [0]). Joint Positions 0.015 History of joint positions (steps: [0, 1, 2, 3, 4, 8]). Previous Actions -Joint target history from previous 3 steps. Ref. Motion Phase -Phase variable ϕof the reference motion. Ref. Joint Positions -Future reference joint positions. Ref. Body Pos (Local) -Future reference body positions in robot local frame. Ref. Contact 1 Pos 0.01 Reference contact positions on Object 1. Ref. Contact 2 Pos 0.01 Reference contact positions on Object 2 (if enabled). Objects Point Cloud -Canonical point clouds of Object 1 & Object 2 (if enabled).
+> Privileged
+> Clean Proprioception 0.0 Noise-free history (steps: 0-8) of all proprioceptive states. Root Linear Velocity 0.0 Linear velocity of the robot base in local frame. Body Velocity 0.0 Linear velocity of key bodies (e.g., ankles). Body Height 0.0 Height of pelvis, torso, and feet relative to ground. Ref. Root State (Global) 0.0 Future reference root position/orientation in global frame. Ref. Diff (Local) 0.0 Difference between current and ref (pos, ori, ...) in local frame. Obj. 1 State 0.01 Relative state (pos, ori, ...) of Object 1 in local frame. Obj. 2 State 0.01 Relative state (pos, ori, ...) of Object 2 (if enabled) in local frame. Applied Forces -Real applied actions and torques.
+> Dynamics Randomization Parameters (Implicitly observed by Critic):
+> Body/Object Mass, Friction, Restitution, Object Scale, Joint Armature/Damping.
+> •
+
+Object Point Cloud ( P): To perceive the interaction target, a canonical point cloud of the objects is provided. 
+
+Critic Observation (Teacher) During training, the teacher has access to the privileged state spriv t to facilitate the learning of complex interaction behaviors. The details are given in Table VII. 
+
+2) Reward Design: The training objective is defined as a weighted sum of individual reward terms, maximizing the cumulative return R = P
+
+> t
+
+P 
+
+> i
+
+wiri,t . We categorize the rewards into four groups, detailed in Table VIII:  
+
+> •
+
+Motion Tracking: Encourages the policy to mimic the ref-erence human motion kinematics, including joint angles, body velocities, and root pose.  
+
+> •
+
+Object Interaction: Critical for task success, this group ensures the object tracks its target trajectory and enforces precise multiple objects contact.  
+
+> •
+
+Foot Constraints: specific terms designed to ensure phys-ical realism, such as penalizing foot sliding and encour-aging stable swing/stance phases.  
+
+> •
+
+Regularization: Penalizes high-frequency control noise, joint limit violations, and excessive energy consumption to produce smooth and feasible motions. 
+
+3) Domain Randomization: To ensure the transferability of our policy to the physical world, we employ extensive domain randomization during training. This technique mitigates the discrepancies between the simulation and reality by model-ing physical uncertainties as probabilistic distributions. We randomize a comprehensive set of parameters, ranging from the robot’s inertial and actuation properties to the physical characteristics of the interactive objects. Additionally, exter-nal perturbations are introduced to enhance stability against unforeseen disturbances. The specific randomization terms and their corresponding sampling ranges are summarized in Table IX. 
+
+4) PPO Hyperparameters and Network Architecture: We optimize the policy using PPO with the Adam optimizer, uti-lizing generalized advantage estimation (GAE) and a clipped surrogate objective to ensure stable training. Entropy regu-larization is applied to encourage exploration. Regarding the architecture, we employ an asymmetric Actor-Critic design implemented as multi-layer perceptrons (MLPs) with ELU activations. The total objective functions as a weighted sum of policy, value, and auxiliary losses. Detailed configurations and network dimensions are listed in Table X. 
+
+5) Action Space and Low-level Control: The policy out-puts actions at ∈ R23 representing target joint positions 
+
+qtarget = qt + ∆ q. Note that this dimension covers the whole-body joints excluding the 6 wrist degrees of freedom (3 per hand), as they are not involved in the interaction tasks. These targets are processed by a low-level proportional-derivative (PD) controller to compute joint torques τ :
+
+τ = kp(qtarget − qt) − kd ˙qt (9) where kp and kd are the stiffness and damping gains. This residual-style control maintains compliant interaction. The specific PD gains used for the G1 humanoid robot are detailed in Table XI. 
+
+C. Experimental Details 1) Experiment Setup: TABLE VIII: Reward Functions for the Humanoid-Object Interaction Task. 
+
+Term Expression Weight Description 
+
+(a) Motion Tracking Reward 
+
+Joint Position exp( −∥ q − qref ∥2/σ q ) 0.5 Tracks reference joint positions. Joint Velocity exp( −∥ ˙q − ˙qref ∥2/σ ˙q ) 0.5 Tracks reference joint velocities. Upper Body Pos. exp( −∥ pup − pref up ∥2/σ p) 0.5 Tracks pos. of shoulder, elbow, wrist. Upper Body Ori. exp( −∥ θup ⊖ θref up ∥2/σ θ ) 0.5 Tracks ori. of upper body links. Lower Body Pos. exp( −∥ plow − pref low ∥2/σ p) 0.5 Tracks pos. of hip, knee, ankle links. Lower Body Ori. exp( −∥ θlow ⊖ θref low ∥2/σ θ ) 0.5 Tracks ori. of lower body links. Root Position exp( −∥ proot − pref root ∥2/σ p) 0.5 Tracks pelvis position in world frame. Root Orientation exp( −∥ θroot ⊖ θref root ∥2/σ θ ) 0.5 Tracks pelvis orientation. Body Lin/Ang Vel. exp( −∥ v − vref ∥2/σ v ) 0.5 Tracks lin/ang velocities of bodies. 
+
+(b) Object Interaction Reward 
+
+Object Position exp( −∥ pobj − pref obj ∥2/σ p) 1.0 Tracks global position of object(s). Object Orientation exp( −∥ θobj ⊖ θref obj ∥2/σ θ ) 1.0 Tracks global orientation of object(s). Multiple Objects Contact 1
+
+> |O|
+
+P
+
+> o∈O
+
+ 1
+
+> |E o|
+
+P 
+
+> e∈E o
+
+Io,e · ro,e  
+
+> pos
+
+· ro,e 
+
+> force
+
+
+
+1.0 Align active body-object pairs & forces. 
+
+(c) Foot Constraints 
+
+Feet Air Time exp( clip (tair − tthr )/σ ) · Istep 0.5 Encourages longer swing phases. Feet Slip −∥ vxy 
+
+> foot
+
+∥ · Iground 0.5 Penalizes sliding velocity when grounded. Feet Contact Match exp( −∥ Ireal con − Iref con ∥2/σ ) 0.5 Matches reference contact states. Feet Air Lift − P(hfoot < h min ) · Iswing 0.5 Penalizes tripping during swing. Impact Force −∥ Fimpact ∥2 1.0 Penalizes large impact forces. 
+
+(d) Regularization 
+
+Action Rate −∥ at − at−1∥2 0.1 Penalizes rapid action changes. Joint Velocity L2 −∥ ˙q∥2 5e-4 Penalizes high velocity (energy). Joint Limits − P clip (q − qlimit ) 10.0 Penalizes exceeding physical limits. Torque Limits − P clip (τ − τlimit ) 0.01 Penalizes torque saturation. Survival 1.0 1.0 Reward for not terminating early.  
+
+> •
+
+Compute platform: Each experiment is conducted on a machine with a 24-core Intel i9-13900 CPU running at 5.4GHz, 64 GB of RAM, and a single NVIDIA GeForce RTX 4090 GPU, with Ubuntu 22.04. Each of our models is trained for 8 hours.  
+
+> •
+
+Real robot setup: We deploy our policies on a humanoid robot. The system consists of an onboard motion control board and an external PC, connected via Ethernet. The control board collects sensor data (IMU and joint states) and transmits it to the PC using the DDS protocol. The PC, running a control loop, estimates the robot’s state, maintains observation history, and executes a Finite State Machine (FSM). Inside the FSM, a dedicated RL process performs policy inference in parallel and sends target joint angles (with PD gains) back to the control board, which then issues torque commands to the motors at 500 Hz. 
+
+2) Evaluation Metrics:  
+
+> •
+
+Global Mean Per Body Position Error ( Eg-mpbpe , mm): The average position error of body parts in global coor-dinates. 
+
+Eg-mpbpe = E  pt − pref  
+
+> t2
+
+ . (10)  
+
+> •
+
+Root-Relative Mean Per Body Position Error ( Empbpe ,mm): The average position error of body parts relative to the root position. 
+
+Empbpe = E  (pt − proot ,t) − (pref  
+
+> t
+
+− pref root ,t) 2
+
+ .
+
+(11)  
+
+> •
+
+Mean Per Body Orientation Error ( Empboe , 10 −3 rad): The average angular error of body part orientations using quaternion distance. 
+
+Empboe = E 2 arccos  |⟨ qt, qref  
+
+> t
+
+⟩|  . (12)  
+
+> •
+
+Mean Per Joint Position Error ( Empjpe , 10 −3 rad): The average angular error of joint rotations (DOFs). 
+
+Empjpe = E  θt − θref  
+
+> t1
+
+ . (13)  
+
+> •
+
+Mean Per Joint Velocity Error ( Empjve , 10 −3 rad/frame): The average error of joint angular velocities. 
+
+Empjve = E  ∆θt − ∆θref  
+
+> t1
+
+ , (14) where ∆θt = θt − θt−1. 
+
+> •
+
+Mean Per Body Velocity Error ( Empbve , mm/frame): The average error in the linear velocities of body parts. 
+
+Empbve = E  ∆pt − ∆pref  
+
+> t2
+
+ , (15) where ∆pt = pt − pt−1.TABLE IX: Domain Randomization Parameters for Robot and Objects. 
+
+Category Parameter Range / Distribution 
+
+Robot Dynamics 
+
+Properties Link Mass Scale U(0 .9, 1.1) × default Center of Mass Offset U(−0.02 , 0.02) mStatic Friction U(0 .3, 1.6) 
+
+Dynamic Friction U(0 .3, 1.2) 
+
+Actuation Joint Position Offset U(−0.01 , 0.01) rad Motor Stiffness Scale U(0 .9, 1.1) 
+
+Motor Damping Scale U(0 .9, 1.1) 
+
+Action Delay U[40 , 120] ms 
+
+Object Interaction 
+
+Surface Dynamic Friction U(0 .3, 0.8) 
+
+Static-to-Dynamic Ratio U(1 .0, 2.0) 
+
+Restitution U(0 .0, 0.2) 
+
+Box Mass U(1 .0, 2.0) kg Scale U(0 .9, 1.1) 
+
+Cart Body Mass U(11 .0, 13 .0) kg Wheel Mass U(0 .2, 0.4) kg Wheel Joint Friction U(0 .01 , 0.1) N·mWheel Joint Damping U(0 .01 , 0.1) N·m·s/rad Scale U(0 .9, 1.1) 
+
+Skateboard Body Mass U(2 .0, 5.0) kg Wheel Mass U(0 .1, 0.2) kg Wheel Armature U(0 .0, 1e-4) kg ·m2
+
+Wheel Joint Damping U(0 .0, 1e-3) N·m·s/rad Scale U(0 .9, 1.1) 
+
+Slope / Stair Scale U(0 .98 , 1.02) 
+
+External Perturbation 
+
+Push Push Force U(0 .2, 0.5) × weight Push Min Interval 2s  
+
+> •
+
+Mean Per Body Acceleration Error (Empbae ,mm/frame 2): The average error in the linear accelerations of body parts. 
+
+Empbae = E  ∆2pt − ∆2pref  
+
+> t2
+
+ , (16) where ∆2pt = ∆ pt − ∆pt−1. 
+
+> •
+
+Mean Per Object Position Error ( Empope , mm): The average position error in the global coordinates of object parts. 
+
+Empope = E
+
+h
+
+pobj  
+
+> t
+
+− pobj ,ref  
+
+> t2
+
+i
+
+. (17)  
+
+> •
+
+Mean Per Object Orientation Error ( Empooe , 10 −3 rad): The average angular error in object orientations. 
+
+Empooe = E
+
+h
+
+2 arccos 
+
+
+
+|⟨ qobj  
+
+> t
+
+, qobj ,ref  
+
+> t
+
+⟩| 
+
+i 
+
+. (18)  
+
+> •
+
+Mean Per Object Velocity Error ( Empove , mm/frame): The average error in object linear velocities. 
+
+Empove = E
+
+h
+
+∆pobj  
+
+> t
+
+− ∆pobj ,ref  
+
+> t2
+
+i
+
+, (19) 
+
+TABLE X: Hyperparameters related to PPO and Network Architecture. 
+
+Hyperparameter Value 
+
+Optimizer Adam Number of Environments 4096 Rollout Steps (Horizon) 32 Mini-batches 8Learning Epochs 3Discount Factor ( γ) 0.99 GAE Parameter ( λ) 0.95 Clip Parameter ( ϵ) 0.2 Entropy Coefficient 0.001 Max Gradient Norm 1.0 Desired KL 0.01 Learning Rate 3 × 10 −4
+
+Initial Noise Std 1.0 
+
+Loss Coefficients 
+
+Value Loss Coefficient ( λvalue ) 1.0 Object Loss Coefficient ( λobj ) 1.0 Privileged Loss Coefficient ( λpriv ) 1.0 Distillation Loss Coefficient ( λdistill ) 1.0 
+
+Network Architecture 
+
+Actor MLP Size [512 , 256 , 256] 
+
+Critic MLP Size [512 , 256 , 128] 
+
+Adapter MLP Size [256 , 256] 
+
+Activation Function ELU 
+
+TABLE XI: PD controller gains for the G1 Humanoid. 
+
+Joint Name Stiffness ( kp) Damping ( kd)
+
+Legs 
+
+Left/Right Hip Pitch/Yaw 40.18 2.558 Left/Right Hip Roll 99.10 6.309 Left/Right Knee 99.10 6.309 Left/Right Ankle Pitch/Roll 28.50 1.814 
+
+Waist 
+
+Waist Yaw 40.18 2.558 Waist Roll/Pitch 28.50 1.814 
+
+Arms 
+
+Left/Right Shoulder Pitch/Roll/Yaw 14.25 0.9072 Left/Right Elbow Pitch/Roll 14.25 0.9072 Left/Right Wrist Roll/Pitch 16.78 1.068 
+
+where ∆pobj  
+
+> t
+
+= pobj  
+
+> t
+
+− pobj 
+
+> t−1
+
+. 
+
+> •
+
+Mean Per Object Acceleration Error (Empoae ,mm/frame 2): The average error of object linear accelerations. 
+
+Empoae = E
+
+h
+
+∆2pobj  
+
+> t
+
+− ∆2pobj ,ref  
+
+> t2
+
+i
+
+, (20) where ∆2pobj  
+
+> t
+
+= ∆ pobj  
+
+> t
+
+− ∆pobj 
+
+> t−1
+
+.
+
+D. Additional Experimental Results 1) Inference Latency: Real-time feasibility is paramount for agile interaction. By utilizing a sparse canonical template TABLE XII: Ablation results for Long-Horizon Interaction . The complexity of sequentially loading and manipulating objects causes error accumulation in Proprio. Proprio and Vec-Pose fail completely on “Pull Cart w/ Box”. HAIC maintains a high success rate across both tasks and achieves the lowest object orientation error in the “Push” phase, confirming that the dynamic-aware world model effectively mitigates drift over long horizons. 
+
+Robot State Metrics Object State Metrics Task Method SR ↑ Empbpe ↓ Eg-mpbpe ↓ Empboe ↓ Empjpe ↓ Empbve ↓ Empbae ↓ Empjve ↓ Empope ↓ Empooe ↓ Empove ↓ Empoae ↓
+
+Pull Cart w/ Box Proprio 0% 117.9 ±31 .3 354.7 ±93 .0 590.8 ±124 162.7 ±14 .1 5.67 ±0.24 4.64 ±0.04 12.21 ±0.15 501.6 ±47 .3 454.4 ±13 .5 4.63 ±1.04 2.87 ±0.01 
+
+Vec-Pose 0% 138.7 ±2.5 444.8 ±118 780.9 ±75 .7 155.8 ±1.4 5.25 ±0.09 4.55 ±0.02 10.57 ±0.25 550.6 ±218 438.7 ±77 .6 4.83 ±0.92 2.87 ±0.01 
+
+Vec-Dyn 100% 59.7 ±2.7 204.7 ±21 .2 333.5 ±15 .0 130.0 ±2.0 5.18 ±0.14 4.64 ±0.10 11.88 ±0.42 300.6 ±26 .1 499.3 ±66 .3 4.06 ±0.39 2.88 ±0.01 
+
+Geo-Pose 100% 69.8 ±2.0 302.2 ±65 .9 376.6 ±14 .5 138.4 ±0.9 5.63 ±0.13 4.75 ±0.02 12.45 ±0.19 414.7 ±64 .7 635.5 ±68 .1 4.47 ±0.37 2.88 ±0.01 
+
+HAIC 100% 64.4 ±2.1 196.5 ±29 .5 343.7 ±20 .3 135.8 ±5.2 5.24 ±0.14 4.65 ±0.06 12.17 ±0.46 332.9 ±30 .0 561.3 ±22 .6 4.35 ±0.26 2.86 ±0.01 
+
+Push Cart w/ Box Proprio 0% 99.7 ±39 .2 520.7 ±240 605.0 ±263 167.0 ±9.6 5.67 ±0.64 3.84 ±0.27 12.23 ±1.42 536.7 ±171 362.2 ±78 .5 4.43 ±1.01 3.03 ±0.03 
+
+Vec-Pose 80% 66.2 ±2.0 451.9 ±69 .3 393.6 ±13 .4 175.2 ±3.5 4.97 ±0.15 3.52 ±0.11 11.42 ±0.52 499.3 ±79 .4 422.3 ±41 .9 4.22 ±0.28 3.02 ±0.01 
+
+Vec-Dyn 100% 68.3 ±5.0 490.2 ±46 .3 407.7 ±21 .9 156.2 ±6.1 5.00 ±0.24 3.48 ±0.09 11.68 ±0.51 519.0 ±47 .1 386.3 ±72 .6 4.06 ±0.22 3.01 ±0.01 
+
+Geo-Pose 100% 58.2 ±1.0 360.2 ±9.1 324.8 ±6.0 141.6 ±2.0 4.95 ±0.13 3.54 ±0.08 11.39 ±0.42 491.3 ±68 .1 419.1 ±63 .7 4.11 ±0.12 3.02 ±0.02 
+
+HAIC 100% 60.2 ±3.2 326.5 ±11 .3 327.7 ±4.3 140.8 ±0.8 4.75 ±0.03 3.42 ±0.02 10.73 ±0.05 386.7 ±18 .0 326.9 ±7.3 4.00 ±0.13 3.00 ±0.01 
+
+TABLE XIII: Ablation results for Multi-terrain Interaction . HAIC achieves the most consistent success rate across all terrains, while Geo-Pose demonstrates superior stability in velocity and acceleration metrics on complex stair terrains due to the explicit geometric projection. 
+
+Robot State Metrics Object State Metrics Task Method SR ↑ Empbpe Eg-mpbpe ↓ Empboe ↓ Empjpe ↓ Empbve ↓ Empbae ↓ Empjve ↓ Empope ↓ Empooe ↓ Empove ↓ Empoae ↓
+
+Carry Box Proprio 100% 61.8 ±4.8 166.3 ±10 .3 323.6 ±16 .7 181.6 ±5.0 5.34 ±0.23 3.34 ±0.07 11.08 ±0.50 180.1 ±12 .0 129.0 ±7.3 7.23 ±0.09 1.84 ±0.05 
+
+Vec-Pose 100% 59.3 ±4.4 155.7 ±17 .6 315.9 ±19 .3 194.5 ±1.4 5.78 ±0.12 3.72 ±0.08 13.49 ±0.28 161.8 ±24 .6 149.9 ±22 .6 6.92 ±0.22 2.23 ±0.11 
+
+Vec-Dyn 100% 73.2 ±5.3 220.2 ±52 .1 340.2 ±24 .1 198.2 ±2.9 5.19 ±0.06 3.32 ±0.06 11.20 ±0.28 197.5 ±50 .4 517.4 ±45 .8 7.24 ±0.35 1.99 ±0.08 
+
+Geo-Pose 100% 69.4 ±1.6 221.8 ±13 .8 318.7 ±6.9 209.3 ±1.2 4.82 ±0.12 3.18 ±0.07 10.20 ±0.18 184.6 ±22 .5 258.3 ±8.7 6.26 ±0.25 1.71 ±0.04 
+
+HAIC 100% 64.3 ±2.9 173.2 ±34 .4 320.4 ±18 .7 182.5 ±0.8 5.17 ±0.05 3.23 ±0.04 10.29 ±0.15 176.0 ±30 .9 169.2 ±5.5 6.42 ±0.23 1.62 ±0.02 
+
+w/ Stair Proprio 100% 66.1 ±4.6 234.7 ±28 .8 351.5 ±15 .5 166.5 ±10 .8 4.95 ±0.20 4.14 ±0.06 12.02 ±0.36 148.2 ±20 .9 193.9 ±100 .8 3.88 ±0.40 2.57 ±0.09 
+
+Vec-Pose 100% 55.3 ±1.3 218.0 ±11 .4 300.6 ±9.8 132.3 ±1.5 4.34 ±0.05 3.95 ±0.02 9.41 ±0.17 138.4 ±35 .5 390.9 ±101 .2 3.79 ±0.23 2.40 ±0.06 
+
+Vec-Dyn 100% 57.8 ±4.4 216.4 ±9.9 317.3 ±30 .3 132.1 ±0.5 4.39 ±0.02 3.97 ±0.03 9.61 ±0.01 149.5 ±29 .0 294.8 ±145 .7 3.73 ±0.06 2.38 ±0.02 
+
+Geo-Pose 100% 53.7 ±1.0 283.0 ±30 .8 302.9 ±1.7 132.6 ±1.3 3.91 ±0.01 3.84 ±0.03 8.91 ±0.11 168.9 ±7.9 82.0 ±2.6 3.17 ±0.05 2.32 ±0.04 
+
+HAIC 100% 53.5 ±0.9 281.5 ±72 .9 290.5 ±0.8 127.5 ±2.5 4.34 ±0.04 3.95 ±0.03 9.67 ±0.08 154.5 ±29 .8 71.0 ±7.4 3.41 ±0.03 2.40 ±0.02 
+
+w/ Slope Proprio 100% 54.6 ±1.1 186.6 ±14 .4 317.7 ±3.6 138.4 ±2.4 3.72 ±0.04 3.30 ±0.03 8.78 ±0.08 105.4 ±5.1 108.4 ±17 .0 3.06 ±0.06 1.71 ±0.02 
+
+Vec-Pose 100% 60.7 ±2.5 235.6 ±16 .5 340.8 ±9.8 150.4 ±2.0 3.91 ±0.03 3.35 ±0.04 9.20 ±0.09 130.5 ±9.5 109.5 ±18 .6 3.29 ±0.09 1.74 ±0.01 
+
+Vec-Dyn 100% 59.4 ±1.2 229.4 ±12 .1 322.9 ±7.0 129.7 ±0.5 3.93 ±0.04 3.33 ±0.02 9.30 ±0.13 134.4 ±3.0 75.7 ±5.1 3.37 ±0.14 1.74 ±0.01 
+
+Geo-Pose 100% 70.3 ±1.9 198.9 ±28 .8 404.3 ±3.4 175.9 ±3.1 4.39 ±0.04 3.43 ±0.03 9.96 ±0.10 198.9 ±28 .8 145.1 ±24 .1 3.31 ±0.16 1.84 ±0.02 
+
+HAIC 100% 58.5 ±1.2 163.1 ±31 .0 314.4 ±8.0 131.8 ±4.0 3.90 ±0.08 3.32 ±0.02 8.94 ±0.26 99.0 ±11 .3 80.4 ±9.4 2.93 ±0.08 1.73 ±0.03 
+
+w/ Slope + Stair Proprio 60% 91.0 ±36 .9 702.9 ±203 .9 462.4 ±192 .2 185.3 ±16 .5 5.22 ±0.53 3.86 ±0.21 13.01 ±1.17 358.9 ±72 .4 337.1 ±117 .8 4.33 ±0.45 2.30 ±0.05 
+
+Vec-Pose 60% 93.2 ±52 .6 448.1 ±122 .3 503.2 ±312 .7 165.5 ±26 .4 4.84 ±0.32 3.66 ±0.14 11.87 ±0.84 222.1 ±37 .6 183.7 ±88 .7 4.49 ±0.17 2.30 ±0.04 
+
+Vec-Dyn 100% 65.3 ±6.0 336.2 ±69 .8 367.8 ±44 .9 151.5 ±1.1 4.29 ±0.12 3.47 ±0.03 10.75 ±0.28 202.8 ±30 .6 130.1 ±27 .2 3.92 ±0.26 2.26 ±0.02 
+
+Geo-Pose 100% 62.3 ±6.9 320.3 ±129 .0 321.0 ±61 .0 144.1 ±8.2 4.63 ±0.44 3.83 ±0.05 11.92 ±1.25 149.7 ±5.6 179.1 ±173 .9 3.53 ±0.63 1.72 ±0.47 
+
+HAIC 100% 67.7 ±1.9 250.1 ±29 .4 327.8 ±7.5 154.2 ±4.2 4.75 ±0.16 3.56 ±0.07 11.98 ±0.61 157.2 ±3.8 121.4 ±7.8 4.01 ±0.02 2.29 ±0.01 
+
+instead of dense raw scans, the explicit geometric projection (Eq. 2) is simplified to efficient vectorized matrix operations. The benchmarks on humanoid confirm that the total inference latency averages 0.17 ms, consuming less than 1% of the control period of 20 ms (50 Hz). This negligible overhead guarantees an instantaneous response capability for high-speed tasks such as skateboarding. 
+
+2) Ablation Study for Long-Horizon Interaction: Table XII evaluates the performance in long-horizon tasks that require sequential interaction. 
+
+Failure of Baselines in Sequential Tasks: The complexity of these tasks causes a severe accumulation of errors in baseline methods. Proprio and Vec-Pose fail completely on the “Pull Cart w/ Box” task, dropping to a 0% success rate. This indi-cates that standard policies without explicit future prediction struggle to coordinate the transition between manipulating the box and controlling the cart. 
+
+Mitigating Long-Horizon Drift: In contrast, HAIC maintains a high success rate across both “Pull” and “Push” tasks. Our dynamics-aware world model effectively mitigates the drift that typically accumulates over long horizons. This is evidenced by the significantly lower global body position error in the “Pull” task. 
+
+Precision in Complex Interaction: In the “Push Cart w/ Box” task, HAIC achieves the best performance across almost all metrics. Notably, it records the lowest object orientation error, demonstrating that our method can stably steer the cart-box system, whereas other methods struggle to maintain the heading of the coupled objects. 
+
+3) Ablation Study for Multi-terrain Interaction: Table XIII compares the performance across different terrains. 
+
+Robustness Comparison: On simple terrains, all methods achieve a high success rate. However, on the most challenging slope-stair terrain, Proprio and Vec-Pose fail to adapt to rapid height changes. In contrast, HAIC maintains a high success rate across all scenarios, showing superior robustness against environmental complexity. 
+
+Tracking Accuracy: HAIC consistently achieves lower track-ing errors than the baselines. On the slope-stair terrain, our method outperforms Geo-Pose significantly in global body position error and object orientation error. This indicates that our policy generates more stable whole-body motions and precise object manipulation.
