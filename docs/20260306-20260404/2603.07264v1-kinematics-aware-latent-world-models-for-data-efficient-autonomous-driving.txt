@@ -1,0 +1,336 @@
+Title: Kinematics-Aware Latent World Models for Data-Efficient Autonomous Driving
+
+URL Source: https://arxiv.org/pdf/2603.07264v1
+
+Published Time: Tue, 10 Mar 2026 00:48:50 GMT
+
+Number of Pages: 6
+
+Markdown Content:
+# Kinematics-Aware Latent World Models for Data-Efficient Autonomous Driving 
+
+Jiazhuo Li, Linjiang Cao, Qi Liu, and Xi Xiong 
+
+Abstract — Data-efficient learning remains a central challenge in autonomous driving due to the high cost and safety risks of large-scale real-world interaction. Although world-model-based reinforcement learning enables policy optimization through latent imagination, existing approaches often lack explicit mechanisms to encode spatial and kinematic structure essential for driving tasks. In this work, we build upon the Recurrent State-Space Model (RSSM) and propose a kinematics-aware latent world model framework for autonomous driving. Vehicle kinematic information is incorporated into the observation encoder to ground latent transitions in physically meaningful motion dynamics, while geometry-aware supervision regularizes the RSSM latent state to capture task-relevant spatial structure beyond pixel reconstruction. The resulting structured latent dynamics improve long-horizon imagination fidelity and sta-bilize policy optimization. Experiments in a driving simulation benchmark demonstrate consistent gains over both model-free and pixel-based world-model baselines in terms of sample effi-ciency and driving performance. Ablation studies further verify that the proposed design enhances spatial representation quality within the latent space. These results suggest that integrating kinematic grounding into RSSM-based world models provides a scalable and physically grounded paradigm for autonomous driving policy learning. 
+
+I. INTRODUCTION Despite rapid progress in autonomous driving, achieving reliable decision-making in long-tail and safety-critical sce-narios remains a fundamental challenge [1]. Although recent systems demonstrate strong performance within restricted operational domains, failures still occur under distribution shift, including rare road user behaviors and extreme envi-ronmental conditions [2]. Reinforcement learning (RL) pro-vides a principled framework for sequential decision-making through interaction-driven optimization [3]. However, its application to autonomous driving is severely constrained by data efficiency. Learning robust driving policies typically requires massive environment interactions, yet large-scale real-world data collection is costly, time-consuming, and po-tentially unsafe. While high-fidelity simulators reduce safety risks, they remain computationally expensive, often requiring millions of interaction steps for policy convergence. This interaction bottleneck fundamentally limits the scalability of pure model-free RL in complex driving environments. To address the interaction bottleneck, world models (WM) learn compact latent representations of environment dy-namics, enabling policy optimization through imagination rollouts instead of repeated real-environment interaction. By internalizing transition dynamics in latent space, WMs 
+
+> J. Li, L. Cao, Q. Liu and X. Xiong are with the Key Laboratory of Road and Traffic Engineering, Ministry of Education, Tongji University, Shanghai, China, emails: 2534457@tongji.edu.cn, 2431743@tongji.edu.cn, liu qi@tongji.edu.cn, xi xiong@tongji.edu.cn.
+
+significantly improve sample efficiency and support long-horizon reasoning. Building on this paradigm, we pro-pose a task-relevant world-model framework tailored for autonomous driving. Unlike purely generative latent mod-eling, our approach explicitly aligns latent dynamics with spatial and kinematic structures critical for driving tasks. Visual observations are fused with vehicle kinematic states to construct a kinematics-grounded latent representation of the driving scene, while structured spatial supervision reg-ularizes latent transitions toward geometrically consistent and driving-relevant semantics. Policy learning is then per-formed via imagination rollouts in the structured latent space, enabling data-efficient and dynamically coherent decision-making with reduced reliance on real-environment interac-tion. Existing approaches to autonomous driving decision-making broadly fall into several paradigms. Model-based control has long served as a foundation, where optimization-based methods such as model predictive control (MPC) explicitly exploit system dynamics and constraints for tra-jectory planning and tracking [4]. In contrast, model-free RL learns policies directly from interaction data, with algorithms such as Proximal Policy Optimization (PPO) [5] and Soft Actor-Critic (SAC) [6] enabling stable policy optimization. Bridging control and learning, planning with learned dy-namics integrates neural networks with search or model-based rollouts [7], [8]. To further improve data efficiency, WM learn compact latent representations of environment dynamics, supporting planning or imagination-based policy optimization. Representative approaches include PlaNet and Dreamer [9]–[11], which perform behavior learning via latent imagination, as well as large-scale generative world models for interactive environment synthesis [12]. Building on these advances, world-model-based methods have been applied to autonomous driving. Prior works enhance robustness through semantic masking or representation alignment between raw observations and privileged features [13], [14]. However, ex-isting approaches primarily focus on representation filtering or generative modeling, without explicitly constraining latent dynamics to maintain geometrically consistent and physically grounded structures essential for closed-loop vehicle control. Motivated by these observations, we build upon the Re-current State-Space Model (RSSM) [11] and propose atask-relevant world-model framework that explicitly enforces spatial and kinematic consistency in latent dynamics for autonomous driving. Rather than treating latent representa-tions as purely generative abstractions, our approach aligns the latent transition with driving-relevant spatial structure. Specifically, we introduce two complementary mechanisms. 
+
+> arXiv:2603.07264v1 [cs.RO] 7 Mar 2026
+
+First, low-dimensional vehicle kinematic states obtained from onboard sensing are incorporated into the observation encoder to ground latent transitions in physically meaningful motion dynamics. Second, structured spatial supervision is imposed through auxiliary prediction heads that estimate lane-relative geometry and neighboring vehicle states. The resulting gradients regularize the RSSM latent dynamics to preserve geometrically coherent and interaction-aware representations, thereby shaping the world model toward task-critical spatial structure. The contributions of this paper are summarized as follows: 1) We propose a kinematics-grounded world-model framework for autonomous driving that explicitly aligns latent dynamics with decision-critical spatial and motion structure. 2) We introduce kinematic grounding and geometry-aware spatial regularization into RSSM-based latent transition learning, guiding the latent dynamics toward physically meaningful and interaction-aware represen-tations. 3) We empirically demonstrate significant improvements in data efficiency and driving performance, together with enhanced prediction accuracy and imagination fidelity of the learned latent dynamics. The remainder of this paper is organized as follows. Section II explains our modeling problems and the prelimi-nary knowledge. Section III details our proposed framework. Section IV introduces the experimental setup and analyzes the results. Section V concludes the paper and discusses future directions. II. P RELIMINARIES 
+
+This section describes the problem we studied and pre-liminary knowledge of world models. In real-world driving, an ego vehicle cannot access the complete and exact state of the environment, such as the precise intentions of other drivers or occluded road regions. Instead, it must rely solely on its onboard sensors, which provide partial and noisy observations. We model the autonomous driving task as a Partially Observable Markov Decision Process (POMDP). The POMDP is defined by the tuple (S, A, O, T , G, R, γ ),where S represents the true but unobservable environment state. A is the action space consisting of continuous steering and throttle/brake commands at = ( asteer , a throttle ) ∈ [−1, 1] 2.
+
+O is the observation space. At each time step t, the ego vehi-cle receives an observation ot composed of two modalities: 
+
+ot = {It, vt}, (1) where It ∈ RH×W ×3 is an image from a front-facing camera, and vt ∈ R5 is a vector of vehicle physics, including speed, steering angle, previous actions and yaw rate. Both of them can be directly obtained through raw sensors or physical calculations. T (s′ | s, a ) : S × A × S → [0 , 1] 
+
+defines the conditional transition probability distribution over next states. G(o | s, a ) : S × A × O → [0 , 1] defines the probability of observing given state and action. R :
+
+S × A → R is the reward function balancing progress, safety, and rule compliance, while γ ∈ [0 , 1] is the discount factor. The agent’s objective is to learn a policy π(at|o≤t)
+
+that maximizes the expected cumulative discounted reward: 
+
+Eπ
+
+" ∞X
+
+> t=0
+
+γtrt
+
+#
+
+. (2) Due to partial observability in driving, the true transition dynamics T are unknown. To address this challenge, world-model-based reinforcement learning approximates belief dy-namics using a learned latent representation. Instead of explicitly maintaining a probability distribution over envi-ronment states, the agent learns a compact latent variable 
+
+ˆst ∈ S latent that summarizes past information. The world model usually includes the following com-ponents: a representation model p(ˆ st | ˆst−1, a t−1, o t) that maps high-dimensional observations into a compact latent state; a latent transition model p(ˆ st+1 | ˆst, a t) that predicts future latent states; an observation model that reconstructs or predicts observations p(ˆ ot | ˆst); and a reward model 
+
+p(ˆ rt | ˆst, a t) for value estimation. In some tasks, there also has a continue model p(ˆ ct | ˆst, a t) that predicts termination signal. Through this learned latent dynamics model, the agent can perform imagination rollouts entirely in latent space, enabling policy optimization without requiring real environment interaction at every step. III. T HE KINEMATICS -A WARE LATENT WORLD MODELS 
+
+This section provides a detailed introduction to our proposed kinematics aware world model, which integrates multi-modal encoding, RSSM-based dynamics with driving-specific supervision, and latent-space policy learning to en-able data-efficient training with explicit driving semantics. 
+
+A. Multi-modal Encoding 
+
+To address the limitations of pure image input, we pro-pose an enhanced input representation that fuses image features with 5-dimensional vehicle physical information. These physical states can be accurately and efficiently ob-tained from onboard sensors (e.g., IMU, odometry), offering a reliable and low-cost alternative to inferring them from pixels. Specifically, the image encoder processes the front-facing camera image It through a convolutional neural network (CNN): fimg = CNN (It; θimg ). The physics encoder processes the normalized vehicle physics vector vt through a multi-layer perceptron (MLP): fphys = MLP (vt; θphys ). Finally, the visual and physics features are concatenated to form the unified observation embedding: 
+
+et = Concat (fimg , f phys ) ∈ Rdimg +dphys . (3) By incorporating this information explicitly, the world model does not have to infer dynamics solely from visual observations, allowing it to focus on learning environmental dynamics and interactions. B. Latent Dynamics Modeling 
+
+The encoded observations embedding is then fed into a Recurrent State-Space Model (RSSM) [11]. At each time step, the model maintains a deterministic hidden state ht
+
+that summarizes past information, and a stochastic state zt
+
+that captures uncertainty. The transition is defined as: 
+
+ht = fθ (ht−1, z t−1, a t−1),
+
+Prior: ˆzt ∼ pθ (ˆ zt | ht),
+
+Posterior: zt ∼ qθ (zt | ht, e t),
+
+(4) where fθ is a recurrent neural network. zt is sampled from the posterior distribution during training, and prior distribution during inference. (ht, z t) together form the latent state. The basic world model loss consists of prediction loss and KL regularization loss: 
+
+Lbasic = Eqθ
+
+" TX
+
+> t=1
+
+(Lpred ,t + LKL ,t )
+
+#
+
+, (5) where Lpred ,t includes the negative log-likelihood of obser-vation reconstruction − ln pθ (ˆ ot | ht, z t), reward predic-tion − ln pθ (ˆ rt | ht, z t), and termination signal prediction 
+
+− ln pθ (ˆ ct | ht, z t). The LKL ,t = DKL (qθ (zt | ht, e t) ∥
+
+pθ (ˆ zt | ht)) is the KL divergence between the posterior and prior distribution, constraining the encoder to avoid extract-ing irrelevant information from observations and enhancing the consistency and predictability of the latent state. 
+
+C. Driving-Specific Supervision Heads 
+
+Relying solely on pixel reconstruction often neglects struc-tured semantic information and cannot guarantee geometric consistency required for long-horizon interaction prediction, as critical driving elements such as lane boundaries and surrounding vehicles occupy only a small fraction of the visual input. We extend the output heads of the basic world model by adding two task-specific detection heads. The gradients of these two new heads are backpropagated to the world model, guiding the latent state to explicitly focus on key driving scene information. A Lane Detection Head is designed to predict key lane-related information from the latent state, which are three critical indicators for lane keeping in autonomous driving: 
+
+ˆlt = flane (ht, z t) = 
+
+h ˆdleft , ˆdright , ˆ∆heading 
+
+i
+
+∈ R3, (6) where ˆdleft , ˆdright are distances to left and right lane bound-aries, and ˆ∆heading is the heading angle difference relative to the lane. A Vehicle Detection Head is designed to predict the key information of surrounding vehicles from the latent state, which is critical for collision avoidance: 
+
+ˆnt = fnbr (ht, z t) ∈ R12 , (7) specifically, the head predicts a 12-dimensional vector rep-resenting the states of up to three surrounding vehicles, with each vehicle characterized by four attributes: the relative po-sitions and relative speed along the ego vehicle’s longitudinal and lateral axes. It is worth noting that these signals are used only during training as auxiliary supervision and does not need to be provided during testing. We normalize all target values to eliminate dimensional heterogeneity across outputs. Both heads employ symlog MSE loss: 
+
+Llane = 1
+
+> T
+
+X
+
+> t
+
+∥symlog (lt) − symlog (ˆlt)∥22, (8) 
+
+Lnbr = 1
+
+> T
+
+X
+
+> t
+
+∥symlog (nt) − symlog (ˆ nt)∥22, (9) where symlog (x) = sign (x) ln( |x| + 1) . The total training loss Ltotal of the world model is then defined as: 
+
+Ltotal = Lbasic + Llane + Lnbr . (10)          
+
+> Fig. 1. World Model Learning. The network encodes multi-modal inputs into latent states and decodes multiple task-specific outputs including reconstruction, prediction, and driving-aware supervision signals.
+
+D. Actor-Critic learning 
+
+Same as DreamerV3 [11], we train an actor network π(a |
+
+ϕ) and critic network V (ϕ) using imagined trajectories: The critic estimates state values using λ-returns: 
+
+Lcritic = Eτ imag 
+
+"t+H−1X 
+
+> τ=t
+
+12
+
+ V (ϕτ ) − Rλτ
+
+2
+
+#
+
+, (11) with the λ-return defined as: 
+
+Rλτ = rτ + γ (1 − λ)vψ (sτ +1 ) + λR λτ +1 
+
+ , (12) where γ is the discount factor, λ ∈ [0 , 1] is the trace decay parameter, rτ is the immediate reward, vψ (sτ +1 ) is the bootstrap value estimate from the target network, and 
+
+H denotes the length of imagined trajectories. Intuitively, 
+
+λ-return considers cumulative rewards within finite-length imagined trajectories, while using vψ (sn) at the endpoint to approximate future returns infinitely far ahead, thereby providing a global value estimate for each state. We adopt the dynamics gradient mode, which directly maximizes the value function along the imagined trajectory. The actor loss is defined as the negative expected advan-tage, weighted by the cumulative product of discounts and continuation probabilities: 
+
+Lactor = −Eτ imag 
+
+"t+H−1X 
+
+> τ=t
+
+wτ ·  Rλτ − V (ϕτ )#
+
+, (13) where wτ = γτ −t Qτ −1 
+
+> k=t
+
+ck is the cumulative weight, ck is the predicted continuation probability from the continuation head.         
+
+> Fig. 2. Actor-Critic Learning. Imagined trajectories generated by the world model enable policy optimization in latent space. The actor predicts actions
+> π(a|ϕ)while the critic estimates values V(ϕ)via λ-returns, allowing gradient-based updates without real environment interaction.
+
+E. Reward Design 
+
+The reward function R in our driving task is composed of four components that balance progress, safety, and rule compliance: The forward distance reward R1 encourages making progress along the lane centerline: 
+
+R1 = βd × (st − st−1) × 1pos , (14) where st is the longitudinal projection of the vehicle onto the lane centerline, and 1pos indicates correct driving direction. The speed reward R2 encourages maintaining an appro-priate speed: 
+
+R2 = βs × (v/v max ) × 1pos , (15) where v is the current speed and vmax = 80 km /h.The lane center offset penalty R3 penalizes deviation from the lane center: 
+
+R3 = −βc × (|yt|)/w lane , (16) where yt denotes lateral offset and wlane is lane width. The termination reward/punishment R4 provides a sparse terminal reward for completing the route or penalty for violations: 
+
+R4 =
+
+
+
+rsuccess if episode completes successfully 
+
+−pcrash if collision occurs 
+
+−pout if vehicle drives out of road 
+
+. (17) The total reward for each timestep is: 
+
+R = R1 + R2 + R3 + R4. (18) 
+
+Algorithm 1 Kinematics-Aware World Model 
+
+Require: environment, initial policy, hyperparameters 
+
+Ensure: trained policy  
+
+> 1:
+
+Initialize replay buffer D 
+
+> 2:
+
+Initialize world model parameters θ, actor parameters ϕ,critic parameters ψ 
+
+> 3:
+
+Prefill D with random actions  
+
+> 4:
+
+for each iteration k = 1 , . . . , K do  
+
+> 5:
+
+Sample batch {(ot, a t, r t)}Tt=1 from D 
+
+> 6:
+
+/ World model learning  
+
+> 7:
+
+Encode et ← CONCAT (CNN (It; θimg ), MLP (vt; θphys ))  
+
+> 8:
+
+Compute posterior and prior states via RSSM  
+
+> 9:
+
+Compute losses: Lbasic , Llane , Lnbr  
+
+> 10:
+
+Update θ by minimizing total loss  
+
+> 11:
+
+/ Behavior learning in imagination  
+
+> 12:
+
+Sample start states from posterior  
+
+> 13:
+
+Generate imagined trajectory of length H using actor and RSSM prior  
+
+> 14:
+
+Compute λ-returns and advantages  
+
+> 15:
+
+Update critic ψ via regression to targets  
+
+> 16:
+
+Update actor ϕ via dynamics gradient  
+
+> 17:
+
+/ Environment interaction (parallel)  
+
+> 18:
+
+Rollout policy in environments for N steps, adding to D 
+
+> 19:
+
+end for 
+
+IV. N UMERICAL RESULTS 
+
+This section provides a detailed introduction to our exper-imental setup, model configuration, comparative experiment, ablation study and analysis of related results. 
+
+A. Experimental Setup 
+
+Our experiments are conducted in the MetaDrive [15] autonomous driving simulation environment. The map we selected featuring multi-lane roads, moderate traffic density, and a mix of straight and curved segments, ensuring the task is sufficiently challenging while remaining tractable. Key environment parameters include a straight and curve map string, traffic density of 0.1, action repeat of 20, image resolution of 120 ×80 pixels, time limit of 6000 environment steps, forward distance reward βd = 1 .0, speed reward βc =0.1, center offset penalty βc = 1 .0, crash and out of road penalty pcrash , p out = 40 .0.
+
+B. Model Configurations 
+
+The world model follows the DreamerV3 architecture with the enhancements described in Section 3. The CNN encoder and decoder employ a depth of 32, kernel size of 4, minimum resolution of 4, and SiLU activations. The MLP consists of 2 layers with 256 units, SiLU activations, and layer normalization. The RSSM uses a deterministic state size of 512, stochastic state size of 32 ×32 , and recurrent depth of 1. Both actor and critic networks are configured with 2 layers of 512 units and layer normalization. We use a batch size of 16 sequences, each of length 64. The learning rate is set to 1 × 10 −4. Optimization is performed using Adam. The imagination horizon is set to 
+
+H = 15 steps. For GAE, we use discount factors γ = 0 .997 
+
+and λ = 0 .95 . The KL regularization applies free bits of 
+
+1.0, with dynamics scale of 0.5 and representation scale of 
+
+0.1. All models are trained for 1.6 million environment steps (equivalent to 80,000 interactive steps due to action repeat 20). 
+
+C. Comparative Experiments 
+
+To demonstrate sample efficiency, we compare our frame-work against a standard model-free baseline: PPO imple-mented in Stable-Baselines3. PPO uses the same observation data, encoder and Actor Critic architecture of the same scale, and the same Metadrive configuration. PPO trains for 300000 agent steps with default hyperparameters: learning rate 2.5 × 10 −4, nsteps = 256 , batch size 64, and 10 epochs per update. The results in Figure 3 indicate that the world-model-based framework exhibits a relatively faster convergence rate. It reaches a stable high return (nearing 200) in just 80,000 real-environment steps. In contrast, PPO requires 300000 interaction steps to converge to a level below 150 scores.  
+
+> Fig. 3. A comparison between our model with PPO. The solid lines represent the averaged return, while the shaded area indicates the variability around the mean.
+
+D. Ablation Studies 
+
+We conducted a series of ablation experiments, and the results are presented in Figure 4 and Table I. Our ablation study compares four model variants: ImgOnly, a baseline using solely images with reward and continuation heads; Img+Head, which adds lane and neighbor detection heads to image input; and Img+Head+Phys, our full framework integrating both multi-modal inputs and five supervision heads. Table I also includes an experiment where the reward and continuation heads were removed. The result indicate that adding the lane/neighbor heads to the image-only model improved the mean return (MR) by 
+
+9.7% and the success rate (SR) by 16 percentage points. Af-ter further incorporating physical information as input, MR  
+
+> Fig. 4. Training curves of model variants in the ablation study. ImgOnly (green) uses images input alone; Img+Head (blue) adds lane and neighbor supervision heads; Img+Head+Phys (orange) further incorporates vehicle physics as input.
+
+continued to improve by 12 .2% , with a total improvement of 
+
+23 .1% . In addition, the reward and continuation heads played a crucial role in our experiment, and the performance of the model would significantly decline if they were removed. These results validate that driving-specific supervision and multi-modal inputs are both critical, with their combination yielding synergistic improvements in driving performance.                                   
+
+> TABLE I ABLATION STUDY RESULTS
+> Input Heads Metrics Image Phys Decoder Rwd/Cont Lane/Neigh MR SR
+> ✓×✓✓×176.5 0.17
+> ✓×✓✓✓193.6 0.33
+> ✓✓✓×✓172.6 0.18
+> ✓✓✓✓✓217.2 0.49
+
+E. Synthetic Scenarios 
+
+We compare the imagination quality of different model variants. As illustrated in Figure 5, the world model trained with only image input (ImgOnly) generates physically incon-sistent rollouts. For example, when the ego car is preparing to overtake, the position of the preceding vehicle becomes blurred and undergoes abrupt, unrealistic shifts. In lane-changing scenarios, the model frequently confuses yellow solid lines with white dashed lines. In contrast, the combi-nation of vehicle kinematics and auxiliary supervision effec-tively alleviates these problems. The imagined trajectories now maintain stable and physically plausible states for sur-rounding vehicles during interactions, and correctly preserve the color and type of lane markings during maneuvers, demonstrating improved physical grounding and semantic consistency in the latent space. V. CONCLUSIONS This paper presents a task-relevant world-model frame-work for autonomous driving that improves latent repre-Fig. 5. Comparison of imagination quality across model variants. Top row: ImgOnly generates physically inconsistent rollouts with blurred vehicle positions (left) and confused lane markings (right). Bottom row: Img+Head+Phys produces stable, physically plausible predictions with correct semantic preservation of surrounding vehicles and lane markings. 
+
+sentation learning through structured spatial supervision and kinematics-aware input. The proposed approach encourages the world model to capture driving-relevant spatial semantics instead of relying solely on visual reconstruction objectives. Simulation experiments demonstrate improved sample effi-ciency, faster convergence, and superior driving performance compared to baselines of the world-model only images and a model-free PPO agent, highlighting the benefits of explicitly structured supervision for safety-critical driving tasks. Future work will focus on tighter integration of vehicle dynamics and world models to improve physical consistency in latent imagination. We also plan to extend the framework to offline learning settings, leveraging large-scale driving datasets to enhance data efficiency and safety. In addition, scaling the approach to multi-agent scenarios will be an important direction for modeling interactive traffic behaviors in complex environments. REFERENCES [1] A. Kuznietsov, B. Gyevnar, C. Wang, S. Peters, and S. V. Albrecht, “Explainable ai for safe and trustworthy autonomous driving: Asystematic review,” IEEE Transactions on Intelligent Transportation Systems , vol. 25, no. 12, pp. 19 342–19 364, 2024. [2] R. Xu, H. Lin, W. Jeon, H. Feng, Y. Zou, L. Sun, J. Gorman, E. Tolstaya, S. Tang, B. White et al. , “Wod-e2e: Waymo open dataset for end-to-end driving in challenging long-tail scenarios,” arXiv preprint arXiv:2510.26125 , 2025. [3] R. Zhao, Y. Li, Y. Fan, F. Gao, M. Tsukada, and Z. Gao, “A survey on recent advancements in autonomous driving using deep reinforcement learning: Applications, challenges, and solutions,” IEEE Transactions on Intelligent Transportation Systems , vol. 25, no. 12, pp. 19 365– 19 398, 2024. [4] P. Falcone, F. Borrelli, J. Asgari, H. E. Tseng, and D. Hrovat, “Predictive active steering control for autonomous vehicle systems,” 
+
+IEEE Transactions on control systems technology , vol. 15, no. 3, pp. 566–580, 2007. [5] J. Schulman, F. Wolski, P. Dhariwal, A. Radford, and O. Klimov, “Proximal policy optimization algorithms,” arXiv preprint arXiv:1707.06347 , 2017. [6] T. Haarnoja, A. Zhou, P. Abbeel, and S. Levine, “Soft actor-critic: Off-policy maximum entropy deep reinforcement learning with a stochastic actor,” in International conference on machine learning , 2018, pp. 1861–1870. [7] D. Silver, A. Huang, C. J. Maddison, A. Guez, L. Sifre, G. Van Den Driessche, J. Schrittwieser, I. Antonoglou, V. Panneershelvam, M. Lanctot et al. , “Mastering the game of go with deep neural networks and tree search,” nature , vol. 529, no. 7587, pp. 484–489, 2016. [8] D. Ha and J. Schmidhuber, “Recurrent world models facilitate pol-icy evolution,” Advances in neural information processing systems ,vol. 31, 2018. [9] D. Hafner, T. Lillicrap, I. Fischer, R. Villegas, D. Ha, H. Lee, and J. Davidson, “Learning latent dynamics for planning from pixels,” in 
+
+International conference on machine learning . PMLR, 2019, pp. 2555–2565. [10] D. Hafner, T. Lillicrap, J. Ba, and M. Norouzi, “Dream to con-trol: Learning behaviors by latent imagination,” arXiv preprint arXiv:1912.01603 , 2019. [11] D. Hafner, J. Pasukonis, J. Ba, and T. Lillicrap, “Mastering diverse control tasks through world models,” Nature , vol. 640, no. 8059, pp. 647–653, 2025. [12] J. Bruce, M. D. Dennis, A. Edwards, J. Parker-Holder, Y. Shi, E. Hughes, M. Lai, A. Mavalankar, R. Steigerwald, C. Apps et al. ,“Genie: Generative interactive environments,” in Forty-first Interna-tional Conference on Machine Learning , 2024. [13] Z. Gao, Y. Mu, C. Chen, J. Duan, P. Luo, Y. Lu, and S. E. Li, “Enhance sample efficiency and robustness of end-to-end urban autonomous driving via semantic masked world model,” IEEE Transactions on Intelligent Transportation Systems , vol. 25, no. 10, pp. 13 067–13 079, 2024. [14] Z. Yang, X. Jia, Q. Li, X. Yang, M. Yao, and J. Yan, “Raw2drive: Reinforcement learning with aligned world models for end-to-end autonomous driving (in carla v2),” arXiv preprint arXiv:2505.16394 ,2025. [15] Q. Li, Z. Peng, L. Feng, Q. Zhang, Z. Xue, and B. Zhou, “Metadrive: Composing diverse driving scenarios for generalizable reinforcement learning,” IEEE transactions on pattern analysis and machine intelli-gence , vol. 45, no. 3, pp. 3461–3475, 2022.

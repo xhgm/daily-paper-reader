@@ -1,0 +1,456 @@
+Title: Push, Press, Slide: Mode-Aware Planar Contact Manipulation via Reduced-Order Models
+
+URL Source: https://arxiv.org/pdf/2603.12399v2
+
+Published Time: Thu, 19 Mar 2026 00:11:04 GMT
+
+Number of Pages: 8
+
+Markdown Content:
+# Push, Press, Slide: Mode-Aware Planar Contact Manipulation via Reduced-Order Models 
+
+Melih ¨ Ozcan 1, Umut Orguner 1, and Ozgur S. Oguz 2
+
+Abstract — Non-prehensile planar manipulation, including pushing and press-and-slide, is critical for diverse robotic tasks, but notoriously challenging due to hybrid contact mechanics, under-actuation, and asymmetric friction limits that tradition-ally necessitate computationally expensive iterative control. In this paper, we propose a mode-aware framework for planar manipulation with one or two robotic arms based on contact topology selection and reduced-order kinematic modeling. Our core insight is that complex wrench-twist limit surface me-chanics can be abstracted into a discrete library of physically intuitive models. We systematically map various single-arm and bimanual contact topologies to simple non-holonomic formu-lations, e.g. unicycle for simplified press-and-slide motion. By anchoring trajectory generation to these reduced-order models, our framework computes the required object wrench and distributes feasible, friction-bounded contact forces via a direct algebraic allocator. We incorporate manipulator kinematics to ensure long-horizon feasibility and demonstrate our fast, optimization-free approach in simulation across diverse single-arm and bimanual manipulation tasks. Supplementary videos and additional information are available at https://sites. google.com/view/pushpressslide .
+
+I. INTRODUCTION Non-prehensile planar manipulation is a fundamental ca-pability for robots operating in homes, warehouses, factories, and service environments. In many practical situations, a robot must move an object without forming a stable grasp: the object may be too large, too heavy, poorly shaped, cluttered by surrounding items, or simply more efficiently moved by pushing or sliding than by lifting. For instance, an object can be transported and reoriented through planar contact, then used as a tool to pull or reposition other objects (Fig. 1). At the same time, planar contact manipulation is difficult to model, plan, and control. Consequently, pushing and press-and-slide behaviors are hybrid, underactuated, and friction-limited, making them difficult to plan globally and often expensive to control online [1]. These difficulties become more pronounced in multi-contact settings, where the robot can influence not only the net object wrench but also the effective center of pressure through the distribution of normal forces. Nevertheless, this additional authority also creates new manipulation opportunities, including tighter reorienta-tion maneuvers, pivoting about a chosen contact region, and more controlled wall- or surface-assisted transport.  
+
+> 1Melih ¨Ozcan and Umut Orguner are with the Dept. of Electrical and Electronics Engineering, Middle East Technical University, Ankara, Turkiye.
+
+{melih.ozcan, umut }@metu.edu.tr  
+
+> 2Ozgur S. Oguz is with the Dept. of Computer Engineering, Bilkent University, Ankara, Turkiye.
+
+ozgur@cs.bilkent.edu.tr  
+
+> Fig. 1. A single arm uses press-and-slide to transport an object, then leverages it as a tool to reposition a second object.
+
+In this paper, we argue that many practically relevant planar contact interactions admit a simpler interpretation than a fully generic hybrid contact problem. Our key idea is to organize the planar manipulation into a small set of physically meaningful contact configurations and to associate each configuration with a reduced-order motion template. Following the idea of single-arm rear pushing being modeled as a bounded-curvature car model [2], we make a comprehen-sive analysis of manipulation tasks with single and bimanual arms. This perspective leads to a mode-aware pipeline: given a task, the robot selects a contact configuration, plans motion in the corresponding reduced model, recovers the required object wrench/twist, and allocates feasible forces to one or two arms under friction and unilateral constraints. For long-horizon motions, robot kinematic feasibility is incorporated into planning by optimizing robot configurations while keep-ing the end-effector contact pose fixed in object coordinates. 
+
+a) Contributions: This paper makes the following con-tributions:  
+
+> •
+
+Body-fixed tracking point for press-and-slide: We identify a body-fixed tracking point for single-arm press-and-slide motion that is invariant to the force direction. It allows planning as a unicycle, as a car, or a forklift; spanning the whole steering regime.  
+
+> •
+
+Mode-aware reduced-order viewpoint: We unify common planar contact interactions under a small set of physically meaningful configurations, each admitting a simple reduced-order motion template.  
+
+> •
+
+Optimization-free execution: We present closed-form,                         
+
+> arXiv:2603.12399v2 [cs.RO] 17 Mar 2026 TABLE I SUMMARY OF PLANAR CONTACT MANIPULATION MODES AND KINEMATIC PROPERTIES
+> Manipulation Mode Reduced-Order Model Body-Fixed Tracking Point CoP Steering
+> Single-Arm Rear Pushing Dubins Bicycle ✓–Single-Arm Press-and-Slide Unicycle ✓✓
+> Parallel Bimanual Pushing Dubins Bicycle / Differential Drive ✓–Orthogonal Bimanual Pushing Quasi-Holonomic ––Bimanual Press-and-Slide Quasi-Holonomic ✓✓
+
+optimization-free control strategies for motion planning. Extensive simulations demonstrate our method’s plan-ning and control effectiveness. II. RELATED WORK Planar contact manipulation is commonly modeled under quasi-static assumptions that map frictional wrenches to object motion. Mason formalized the mechanics of pushing and the role of contact location and friction constraints [3]. The limit surface then provided a compact representation of support friction and the coupled translation–rotation behavior in planar sliding [4], [5]. A substantial literature treats planar pushing as an un-deractuated, nonholonomic system. Stable Pushing identi-fies stable pushing directions that keep the object fixed relative to the pusher and enables obstacle-aware planning [6]. Pushing Revisited shows that sticking pushes admit a bounded-curvature car-like abstraction and a differential-flatness view for planning and stabilization [2]. Feedback-control formulations further emphasize hybrid contact modes and friction-limited inputs in the pusher–slider [1], motivat-ing optimization-based controllers such as hybrid MPC for online reasoning over mode sequences [7]. Motion-cone formulations offer another compact reach-ability abstraction under friction [8]. Top-contact planar sliding has received comparatively less attention: Yi and Fazeli analyze top-contact sliding via asymmetric dual limit surfaces and derive goal-reaching planners under top-contact constraints [9]. Relatedly, pulling under fixed contact can exploit stabilizing behavior when the center of pressure trails the pulling direction; Huang et al. derive exact bounds under pressure uncertainty for guaranteed plans [10]. Beyond analytical pushing, surveys synthesize contact-rich manipulation methods across modeling, hybrid/dynamic control, simulation, and learning [11], [12]. In clutter, push-grasping combines pushing with grasp planning [13]. Data-driven models have been integrated with MPC for accurate closed-loop pushing with limited data [14], supported by large-scale datasets and probabilistic predictors of outcomes and variability [15], [16]. Learning has also coupled pushing and grasping via multi-task and self-supervised RL [17], [18], and recurrent models such as Push-Net infer latent object properties from push history [19]. More broadly, contact-mode guided planning searches over hybrid contact sequences in 3D [20], dynamic in-hand sliding incorporates inertia with limit-surface models [21], and tool-assisted push–pull primitives enable confined manipulation [22]. Our work builds on these foundations, but rather than specializing in single primitives, we unify single and bi-manual pushing and press-and-slide maneuvers into a mode-aware reduced-order framework, enabling closed-form force allocation with optional kinematic feasibility planning for long horizons. III. BACKGROUND INFORMATION 
+
+A. Planar Kinematics and the Limit Surface 
+
+We model planar motion under the quasi-static assump-tion, where frictional forces dominate inertial forces. Let the net planar wrench applied to the object be W = [ Fx, F y , τ ]⊤,and the resulting planar twist be ν = [ vx, v y , ω ]⊤. In quasi-static equilibrium, support friction perfectly opposes W . The boundary of frictional wrenches the contact patch can sustain is defined by the limit surface , standardly approximated as an ellipsoid: 
+
+H(W ) = W ⊤A W = 1 , (1) where A is a diagonal shape matrix. For isotropic friction, 
+
+A uses shape coefficients a and b:
+
+A = diag( a, a, b ). (2) These coefficients represent the inverse-squared semi-axis lengths of the ellipsoid: 
+
+a = 1(μN total )2 , b = 1(c r 0 μN total )2 . (3) Here, μ is the sliding friction coefficient, Ntotal is the total normal force, r0 is the effective contact radius, and c ∈ (0 , 1] 
+
+is a dimensionless pressure distribution constant (typically 
+
+c ≈ 0.6). During active sliding, the instantaneous twist aligns with the outward normal of the limit surface at the realized wrench (normality rule ): 
+
+ν = λ∇H(W ) = 2 λAW, λ > 0. (4) This induces a local linear mapping between the applied wrench and the resulting motion: 
+
+vx = αF x, vy = αF y , ω = βτ, (5) where the translational ( α) and rotational ( β) mobilities are: 
+
+α = 2 λa = 2λ
+
+(μN total )2 ,β = 2 λb = 2λ
+
+(c r 0 μN total )2 = α
+
+(c r 0)2 .
+
+(6) Thus, for a fixed contact geometry, translational and rota-tional mobilities are physically coupled, differing strictly by the characteristic squared length scale (c r 0)2.B. Center of Pressure and Normal Load Scaling 
+
+The structure of the limit surface is fundamentally an-chored to the Center of Pressure (CoP). For an object with weight Nobj at (xobj , y obj ), subjected to k discrete downward robotic contact forces Ni at (xi, y i), the total normal force is: 
+
+Ntotal = Nobj +
+
+> k
+
+X
+
+> i=1
+
+Ni. (7) The spatial location of the CoP, (xCoP , y CoP ), is strictly de-fined by the normal-force-weighted average of these contact locations: 
+
+xCoP = xobj Nobj + Pki=1 xiNi
+
+Ntotal 
+
+,yCoP = yobj Nobj + Pki=1 yiNi
+
+Ntotal 
+
+.
+
+(8) In robotic manipulation, particularly bimanual top-contact pressing ( k = 2 ), both the CoP location and the applied normal load can be actively modulated. Assuming the patch geometry (c, r 0) remains approxi-mately constant, (6) shows both mobility constants scale inversely with the square of the total normal force: 
+
+α ∝ 1
+
+N 2total 
+
+, β ∝ 1
+
+N 2total 
+
+. (9) A pure spatial shift of the CoP alters the moment arm for externally applied forces but does not fundamentally change the local mobility coefficients ( α, β ). Crucially, when an applied action simultaneously shifts the CoP and increases the local normal force, the physical deformation of the limit surface is dominantly driven by the 1/N 2total scaling. Conse-quently, in dynamic top-pressing, the CoP acts primarily as a geometric control variable to redirect torque, while the total normal force dictates the object’s absolute slip resistance. IV. METHODOLOGY Building upon the quasi-static friction mechanics estab-lished in Section III, we abstract complex planar limit surface mappings into highly tractable reduced-order mod-els (ROMs) (Table I). By algebraically isolating points of zero lateral slip, we map continuous frictional mechanics to classic non-holonomic wheeled-vehicle analogues. The following subsections systematically analyze five contact topologies, demonstrating the evolution from strictly under-actuated, single-contact constrained models to fully expres-sive, quasi-holonomic platforms via active Center of Pressure (CoP) steering. 
+
+A. Case 1: Single-Arm Rear Pushing 
+
+In single-arm rear pushing, the contact is located at 
+
+[−d, 0] ⊤. The applied wrench W = [ fx, f y , −df y ]⊤ bounded by |fy | ≤ μf x generates the object’s twist via the linear mobility map (5): 
+
+vx = αf x, vy = αf y , ω = −βdf y . (10) xycenter of mass friction cone rear contact point virtual front axle center of pressure 
+
+> fxfy
+
+(a) Symmetric contact center of mass friction cone rear contact point virtual front axle center of pressure  
+
+> xyfxfy
+
+(b) Unsymmetric contact  
+
+> Fig. 2. Kinematic abstractions of single-arm rear pushing. (a) Symmetric pushing yields a Rear-Wheel Steering (RWS) model. (b) A lateral offset introduces a bias, distorting the steering envelope. center of mass friction cone top contact point unicycle point center of pressure
+> fxfyxy
+
+(a) Symmetric contact center of mass friction cone top contact point unicycle point center of pressure xyfxfy (b) Unsymmetric contact  
+
+> Fig. 3. Single-arm top press-and-slide. The virtual axle lies on the longitudinal axis for symmetric contacts (a) and diametrically opposite the CoM for unsymmetric contacts (b).
+
+We define an effective steering angle δ, bounded by the friction cone δmax = ± arctan( μ):
+
+tan δ = vy
+
+vx
+
+= fy
+
+fx
+
+. (11) This consequently bounds the maximum achievable path curvature κ:
+
+κ = ωvx
+
+= − βd α tan δ = − d
+
+(cr 0)2 tan δ. (12) Setting the lateral slip to zero ( vy + xvfa ω = 0 ) yields the Virtual Front Axle (VFA): 
+
+xvfa = αβd = (cr 0)2
+
+d . (13) The system perfectly abstracts as a Rear-Wheel Steering (RWS) Car (Fig. 2a), while an off-center contact (Fig. 2b) introduces an asymmetric normal force bias. Because RWS kinematics are non-minimum phase, autonomous trajectory tracking must regulate the VFA via a rear-wheel adapted Stanley control law to guarantee asymptotic stability without oscillation [23]: 
+
+δ = −θe − arctan 
+
+ ke vfa 
+
+vx
+
+
+
+, (14) where k > 0 is a tuning gain, θe is heading error, and evfa 
+
+is the cross-track error at the VFA. center of mass contact point force-invariant tracking point fcenter of pressure  
+
+> αβdd
+> αβddFig. 4. Top press-and-slide motion admits a planar force-invariant, body-fixed tracking point. This geometric point remains kinematically valid for all applied planar forces within the 2D friction circle; and acts like a virtual axle, allowing motion planning as a unicycle, car, or forklift.
+
+B. Case 2: Single-Arm Top Press-and-Slide 
+
+Elevating actuation to top-contact at [d, 0] ⊤ (on the ob-ject longitudinal axis) allows a planar force vector Fc =[Fx, F y ]⊤ bounded by a 2D friction circle. The resulting twist is: 
+
+vx = αF x, vy = αF y , ω = βdF y . (15) Solving for the coordinate xva where lateral slip is zero yields: 
+
+xva = − vy
+
+ω = − αF y
+
+βdF y
+
+= − (cr 0)2
+
+d . (16) Crucially, the lateral force Fy cancels entirely; xva is a static geometric constant dependent strictly on limit surface parameters and arm placement (Fig. 4). This single invariant Virtual Axle remains a valid non-holonomic stabilization center across the entire steering regime, perfectly bridging car-like translation and unicycle-like pure pivoting. The sign of d strictly dictates intrinsic stability: pulling ( d > 0) yields a naturally stable Front-Wheel Steering system, whereas pushing ( d < 0) exhibits non-minimum phase behavior and consequently requires better control. This invariant point permits a unified (v, ω ) kinematic control interface, entirely bypassing the need for piecewise mode-switching heuristics. For any contact location, the virtual axle lies on the line connecting the contact to the CoM (Fig. 3); its position is force-invariant but shifts with pressing force via CoP displacement. 
+
+C. Case 3: Dual-Arm Rear Pushing 
+
+Introducing two rear contacts at [−dx, ±w]⊤ yields an over-actuated net wrench at the CoM: 
+
+
+
+Fx
+
+Fy
+
+τ
+
+ =
+
+
+
+fxL + fxR 
+
+fyL + fyR 
+
+−dx(fyL + fyR ) + w(fxR − fxL )
+
+ . (17) We strategically constrain this topology into two modes. In Mode 1 (Equivalent Bicycle), synchronized forces ( fxL =
+
+fxR = fx and fyL = fyR = fy ) perfectly cancel normal force moments, yielding the twist: 
+
+vx = α(2 fx), vy = α(2 fy ), ω = −βd x(2 fy ).
+
+(18) center of mass friction cone rear contact point virtual rear wheel virtual front axle center of pressure 
+
+> xyfxfyfxfyfx2fy2
+
+(a) Equivalent bicycle center of mass friction cone rear contact point kinematic center center of pressure   
+
+> xyfx-l fx-r
+
+(b) Differential drive  
+
+> Fig. 5. Dual-arm rear pushing collapses into an Equivalent Bicycle model (a) via synchronized forces, or a Differential Drive model (b) via pure differential normal forces.
+
+The Virtual Front Axle collapses to the identical single-arm RWS model derived in Case 1: 
+
+xvfa = αβd x
+
+= (cr 0)2
+
+dx
+
+. (19) This mode doubles the absolute wrench capacity without altering the RWS Stanley architecture (Fig. 5a). Alternatively, in Mode 2 (Differential Drive), eliminating lateral friction (fyL = fyR = 0 ) steers the object entirely via differential normal forces: 
+
+vx = α(fxL +fxR ), vy = 0 , ω = βw (fxR −fxL ).
+
+(20) Because lateral velocity is permanently zero, the Instanta-neous Center of Rotation (ICR) is constrained to xicr = 0 .This perfectly mimics a classical differential drive robot (Fig. 5b), guaranteeing maneuverability in low-friction en-vironments without risking lateral slip boundary failures. 
+
+D. Case 4: Orthogonal Bimanual Pushing 
+
+For orthogonal contacts (bottom at x = −d, left at y = d), the applied wrench is the superposition of the contact forces: 
+
+
+
+Fx
+
+Fy
+
+τ
+
+ =
+
+
+
+fxB + fxL 
+
+fyB − fyL 
+
+−d(fyB + fxL )
+
+ . (21) Because rotational authority is strictly generated by friction, achievable unicycle points bifurcate into two discrete, spa-tially isolated geometric quadrants depending on the sign of ω (CW vs. CCW) (Fig. 6). To physically illustrate this, consider pure translation in the x-direction: the bottom arm xycenter of mass friction cone rear contact point CW unicycle point center of pressure 
+
+> CCW unicycle point
+> virtual front axle fx-b fy-b fx-l -f y-l
+
+(a) Extreme unicycle points center of mass rear contact point CW unicycle point CW unicycle region CCW unicycle region CCW unicycle point virtual front axle 1 + μ 2           
+
+> μ21 -μ2
+> μ21
+> μ
+> xy1
+> μ
+> 1 -μ2
+> μ21 + μ2
+> μ2
+
+(b) Unicycle regions  
+
+> Fig. 6. Orthogonal bimanual pushing generates bifurcated unicycle regions depending on rotation direction, causing the ICR to teleport during motion transitions.
+
+applies a normal force F , which can generate a maximum coupled lateral friction of ±μF . The left arm must provide a balancing normal force of μF , which in turn bounds its own friction capability to ±μ2F . Depending on the sign of these saturated friction forces, this coupling generates two extreme unicycle points (one CW and one CCW). A symmetric analysis for pure y-translation yields two additional extreme points. The achievable unicycle regions span the areas strictly between these extremes. Defining the baseline kinematic length K = α/ (βd ), these regional boundaries fall exactly at distances of dmin = 1−μ2 
+
+> μ2
+
+K and dmax = 1+ μ2 
+
+> μ2
+
+K.Consequently, these regions are completely disjoint from one another and fail to encompass the standard single-arm bicycle tracking point located at 1 
+
+> μ
+
+K. Transitioning between rotation directions requires the tracking point to pass through infinity, rendering classical non-holonomic tracking mathematically ill-posed. Instead, we abandon unicycle tracking and control the CoM directly via a desired stabilizing quasi-holonomic wrench wdes = [ F ∗ 
+
+> x
+
+, F ∗ 
+
+> y
+
+, τ ∗]⊤. We map this to the four actuator commands using a direct O(1) algebraic allocator by symmetrically distributing the rotational friction: 
+
+fyB = fxL = − τ ∗
+
+2d . (22) Substituting (22) back into (21) allows us to solve for the required normal forces using a strictly positive internal bias 
+
+fbias ≥ 0:
+
+fxB = F ∗ 
+
+> x
+
++ τ ∗
+
+2d + fbias ,fyL = −F ∗ 
+
+> y
+
+− τ ∗
+
+2d + fbias .
+
+(23) This algebraic mapping natively decouples translation and rotation, completely circumventing tracking-point singulari-ties. 
+
+E. Case 5: Dual-Arm Top Press-and-Slide 
+
+In dual-top-contact topology at pL and pR, the spatial location of the CoP is strictly bounded within the triangular convex hull formed by the origin and the two robotic contacts (Fig. 7a). By dynamically shifting the normal load distribu-tion between the arms, the controller actively steers the CoP, granting extreme maneuverability—such as maximizing NL
+
+and dropping NR → 0 to execute a pure unicycle pivot center of mass friction cone top contact point center of pressure area xyfxfyfxfy
+
+(a) CoP triangle xyfxfyfxfyxyfxfyfxfyxyfxfyfxfy (b) Pivot and move  
+
+> Fig. 7. Dual-arm top press-and-slide. The CoP is bounded within the triangular convex hull (a). Shifting the normal load allows extreme quasi-holonomic maneuvers like single-contact pivoting (b).
+
+exactly around pL (Fig. 7b). The net CoM wrench tracks a fully actuated virtual command: 
+
+
+
+F ∗
+
+> x
+
+F ∗
+
+> y
+
+τ ∗
+
+ =
+
+
+
+fxL + fxR 
+
+fyL + fyR 
+
+(xLfyL − yLfxL ) + ( xRfyR − yRfxR )
+
+ .
+
+(24) To exploit this quasi-holonomic capability without optimiza-tion solvers, we resolve the redundant degree of freedom by algebraically minimizing antagonistic internal shear forces between the contacts. The required normal forces fzL , f zR 
+
+are dynamically allocated to satisfy local Coulomb friction constraints ( μf zi ≥ ∥fi∥) while deliberately placing the CoP to maximize task mobility, perfectly decoupling path planning from frictional contact mechanics. 
+
+F. Mode-Aware Contact manipulation with Reduced-Order models (MACRO) 
+
+The kinematic abstractions derived in Section IV establish a representative library of planar manipulation modalities, ranging from highly constrained under-actuated steering to fully quasi-holonomic maneuvering. These five topologies are not exhaustive but illustrate how varying contact arrange-ments can be systematically abstracted into reduced-order models via limit surface mechanics. To deploy this continuous spectrum of models on physical robotic hardware, we introduce the Mode-Aware Contact manipulation with Reduced-Order models (MACRO) frame-work. 
+
+a) Mode Selection and Path Planning: Given a spe-cific manipulation task, object properties, and environmental constraints, the first step is to choose the required contact mode. Mode selection can be optimized (e.g., minimizing path length) or dictated by feasibility, as some tasks can only be realized by the holonomic control (Fig. 13). The system then adopts the corresponding reduced-order model. Depend-ing on the mode, this involves either anchoring a tracking controller to a statically valid non-holonomic point (e.g., a Virtual Axle) or abandoning non-holonomic tracking entirely in favor of Center of Mass (CoM) trajectory generation. For long-horizon navigation, the planner computes a path incorporating both the selected model’s mobility constraints and the robot kinematics. Because the end-effectors maintain fixed contact in the object’s body frame, the object trajec-tory dictates the required arm motions. We formulate path generation as a trajectory optimization over the manipulator joint states q to prevent singularities and joint-limit viola-tions [24]. 
+
+b) Wrench Allocation and Execution: Once a reference trajectory is generated, the controller computes the required target wrench Wd at the designated tracking point. A critical component of the MACRO framework is the O(1) algebraic allocator, which resolves Wd into a set of commanded end-effector forces Fcmd , guaranteeing strictly positive normal forces and friction-cone-bounded tangential forces. To execute these actions on physical manipulators, we em-ploy a hybrid force-impedance control architecture. Because purely feedforward force execution is susceptible to contact loss or excessive pressure under rigid-body assumptions, the commanded normal force fn, cmd is actively regulated using a Proportional-Integral (PI) controller based on the measured contact force fn, meas :
+
+fn, reg = fn, cmd + Kpen + Ki
+
+Z
+
+en dt, (25) where en = fn, cmd − fn, meas . The regulated Cartesian force vector ˜Fcmd is then projected into joint space via the Jacobian transpose, acting as the primary task wrench. To stabilize the robot’s posture while applying this wrench, the force feedforward is superimposed onto an impedance controller. The choice of impedance depends strictly on the task horizon: for local, short-horizon maneuvers, we utilize a Cartesian Impedance Controller to softly maintain the end-effector’s orientation and spatial alignment with the object’s body frame. Conversely, for long-horizon motions requiring complex reachability, we utilize a Joint Impedance Controller to track the kinematically feasible joint path q(t) generated by the planner. The final commanded joint torque is: 
+
+τcmd = τimp + J(q)⊤ ˜Fcmd + τcomp , (26) where τimp represents the selected impedance tracking law and τcomp compensates for gravity and Coriolis dynamics. This architecture robustly bridges the gap between abstract reduced-order mechanics and stable physical execution, sum-marizing the complete MACRO framework (Algorithm 1). V. EXPERIMENTS AND RESULTS To validate the proposed control framework across dif-ferent manipulation modes, we conducted comprehensive single and bimanual arm experiments in Drake, using its hydroelastic contact model to accurately compute contact wrenches. 
+
+A. Single-Arm Planar Pushing 
+
+As shown in Fig. 8, a Franka Panda arm is tasked with pushing a 15 cm cubic box to a target pose. Because the manipulator’s posture is critical in this long-horizon pushing task, Kinematic Trajectory Optimization (KTO) is used to generate a joint-space path, treating the arm and object as temporarily attached [24]. Pushing from two different initial 
+
+Algorithm 1 MACRO: Mode-Aware Contact manipulation with Reduced-Order models 
+
+Require: Task target x∗, object model O, mode library M
+
+Ensure: Joint torques τcmd (t)
+
+Select contact mode m ∈ M based on task and geometry Assign ROM and tracking point (VFA, VA, CoM, or CoP) 
+
+if mode admits CoP steering then 
+
+Select CoP strategy (pivot point, balanced, etc.) 
+
+end if 
+
+Generate reference trajectory xref (t) in ROM state space 
+
+if long-horizon motion then 
+
+Optimize robot joint path q(t) for kinematic feasibility 
+
+end if while ∥x(t) − x∗∥ > ϵ do 
+
+Compute tracking error e(t) at the assigned tracking point Compute desired object wrench Wd(t) from ROM controller Allocate Wd → Fcmd s.t. |fi| ≤ μN i, N i > 0 ▷ O(1) 
+
+Regulate normal forces via PI to obtain ˜Fcmd 
+
+Execute τcmd = τimp + J(q)⊤ ˜Fcmd + τcomp 
+
+end while 
+
+sides, the controller successfully converges the box to within 1.5 cm and 2◦ of the target. We observed that superimposing a low-gain proportional joint-tracking term over the primary pushing force improves the manipulator’s posture against frictional disturbances without disrupting the task (Fig. 9). To quantitatively evaluate this, we executed the same trajectory with and without the joint-tracking term. When employing the joint-tracking term, the motion completed in approxi-mately 30 seconds with root-mean-square (RMS) errors of 0.085 m for box position, 0.086 m for arm end-effector posi-tion, and 14 ◦ for box orientation. Conversely, relying solely on the pure pushing force extended the execution time to over 100 seconds, with the respective RMS errors increasing to 0.095 m, 0.096 m, and 17 .27 ◦. This demonstrates that a moderate arm-tracking term substantially improves both execution speed and overall trajectory adherence. 
+
+B. Press-and-Slide 
+
+In this experiment, a Panda arm manipulates a 60 ×
+
+20 × 10 cm rectangular box via top-pressing (Fig. 10). As stated by Brockett’s Theorem, a unicycle cannot be asymptotically stabilized around a specific position and ori-entation simultaneously using continuous feedback, due to its nonholonomic kinematics. To circumvent this limitation, the controller tracks a virtual look-ahead target projected beyond the desired pose. By applying a constant longitudinal driving force combined with a proportional lateral alignment force, the system robustly drives the object over the physical target, terminating with steady-state errors below 0.5 cm and 1◦
+
+(Fig. 11). Furthermore, we analyze the spatial stability of the force-invariant tracking point (the unicycle point), governed by the geometric ratio α/β = (cr 0)2. For the 0.3 kg box Fig. 8. Single-arm Planar Pushing. The same box is directed to the same target, using different contact points (Top: Left face, Bottom: Rear face).  
+
+> Fig. 9. Comparison of tracking errors during single-arm planar pushing. Having an arm tracking term, the path is tracked faster and with less error.
+
+subjected to an 8 N downward arm force at a 0.2 m offset, the effective lever arm becomes d = 0 .054 m. Computing the unicycle point under a uniform contact assumption ( c = 0 .6,
+
+r20 = 0 .1 m2) yields a theoretical mobility ratio of α/β =0.036 m2. Using the distance formula α/ (βd ), this projects the unicycle point at 0.67 m from the CoP (0.82 m from the CoM). However, the empirical unicycle point observed in simulation remains stable at approximately 0.2 m from the CoM (0.346 m from the CoP). Comparing these two results, we see that the heavy localized arm force effectively shrinks the contact patch, dropping the pressure distribution constant 
+
+c from its nominal 0.6 down to 0.43. This demonstrates that the virtual axle abstraction remains valid, and the press-and-slide motion can be modeled as a unicycle. 
+
+C. Bimanual Pivot and Move 
+
+Two KUKA iiwa7 manipulators (spaced 1.5 m apart) maneuver a large 60 × 80 × 70 cm box into a tightly constrained slot between the boxes of the same size (Fig. 12). To execute a tight turning radius, the left arm applies a dominant downward normal force, actively shifting the Center of Pressure (CoP) toward itself. Then the right arm pushes the object, pivoting it 90 ◦ around the dynamically shifted CoP. Finally, the left arm provides a pure longitudinal push to slide the object into the slot while the right arm maintains stabilizing contact.   
+
+> Fig. 10. Top press-and-slide motion. The box is controlled as a unicycle object, achieving desired position and orientation with a virtual target ahead of the real target.
+> Fig. 11. Unicycle point distance over time and tracking performance. Employing a virtual target, the desired one can be reached.
+
+D. Bimanual Press-Fit 
+
+Two iiwa7 arms that are 1 m apart manipulate a 25 × 25 ×
+
+80 cm object (Fig. 13). The arms cooperatively press the object against the wall, slide it along the surface, and apply differential forces to rotate it into a horizontal orientation. Once horizontal, the arms cooperatively press-fit the object into a designated wall spot. This validates the effectiveness of the bimanual press-and-slide mode. VI. DISCUSSION AND CONCLUSION In this paper, we presented a mode-aware framework for non-prehensile planar manipulation that mitigates the compu-tational bottlenecks of traditional hybrid contact models. By abstracting limit surface mechanics into physically intuitive reduced-order models, we seamlessly unified single-arm and bimanual manipulation. For single-arm tasks, we introduced the body-fixed planning point, a non-holonomic stabilization point bridging car-like and unicycle-like kinematics without complex switching logic. For bimanual tasks, coordinated pushing and active Center of Pressure (CoP) steering unlock quasi-holonomic maneuverability. This formulation enables Fig. 12. Bimanual Pivot and Move. Left arm presses the box to the ground, bringing the center of pressure close to itself. After the right arm rotates the box, the left arm moves it forward to its slot. 
+
+Fig. 13. Bimanual Press-Fit. The arms first press the object to the wall and rotate, and then they press-fit it into the window on the wall. 
+
+real-time, optimization-free execution via an O(1) algebraic force allocator, providing a highly scalable pathway for de-ploying complex dual-arm maneuvers on emerging bimanual and humanoid platforms. Future work will focus on hardware validation to evaluate resilience against sensor noise, estimation delays, and un-modeled friction. Additionally, because manipulating heavy or compliant objects dynamically alters pressure distribu-tions, we plan to incorporate the Winkler elastic foundation model for further analysis [25]. Integrating these contact mechanics will characterize contact patch deformation ef-fects on the CoP, further refining our allocators for robust manipulation in unstructured environments. REFERENCES [1] F. R. Hogan and A. Rodriguez, “Feedback control of the pusher-slider system: A story of hybrid and underactuated contact dynamics,” CoRR , vol. abs/1611.08268, 2016. [Online]. Available: http://arxiv.org/abs/1611.08268 [2] J. Zhou, Y. Hou, and M. T. Mason, “Pushing revisited: Differential flatness, trajectory planning, and stabilization,” The International Journal of Robotics Research , vol. 38, no. 12-13, pp. 1477–1489, 2019. [Online]. Available: https://doi.org/10.1177/0278364919872532 [3] M. T. Mason, “Mechanics and planning of manipulator pushing operations,” The International Journal of Robotics Research ,vol. 5, no. 3, pp. 53–71, 1986. [Online]. Available: https: //doi.org/10.1177/027836498600500303 [4] S. Goyal, A. Ruina, and J. Papadopoulos, “Planar sliding with dry friction part 1. limit surface and moment function,” Wear ,vol. 143, no. 2, pp. 307–330, 1991. [Online]. Available: https: //www.sciencedirect.com/science/article/pii/0043164891901043 [5] R. D. Howe and M. R. Cutkosky, “Practical kinematics and the limit surface for translation and rotation,” The International journal of robotics research , vol. 15, no. 6, pp. 65–79, 1996. [6] K. M. Lynch and M. T. Mason, “Stable pushing: Mechanics, controlla-bility, and planning,” The International Journal of Robotics Research ,vol. 15, no. 6, pp. 533–556, 1996. [7] F. R. Hogan, E. R. Grau, and A. Rodriguez, “Reactive planar manipula-tion with convex hybrid mpc,” in 2018 IEEE International Conference on Robotics and Automation (ICRA) , 2018, pp. 247–253. [8] N. Chavan-Dafle, R. Holladay, and A. Rodriguez, “Planar in-hand manipulation via motion cones,” The International Journal of Robotics Research , vol. 39, p. 027836491988025, 10 2019. [9] X. Yi and N. Fazeli, “Precise object sliding with top contact via asymmetric dual limit surfaces,” 07 2023. [10] E. Huang, A. Bhatia, B. Boots, and M. T. Mason, “Exact bounds on the contact driven motion of a sliding object, with applications to robotic pulling,” in Robotics: Science and Systems , 2017. [Online]. Available: https://api.semanticscholar.org/CorpusID:11472289 [11] J. St¨ uber, C. Zito, and R. Stolkin, “Let’s push things forward: A survey on robot pushing,” Frontiers in Robotics and AI , vol. 7, p. 8, 2020. [12] F. Ruggiero, V. Lippiello, and B. Siciliano, “Nonprehensile dynamic manipulation: A survey,” IEEE Robotics and Automation Letters ,vol. 3, no. 3, pp. 1711–1718, 7 2018. [13] M. Dogar and S. Srinivasa, “A framework for push-grasping in clutter,” 06 2011. [14] F. R. Hogan, M. Bauz´ a, and A. Rodriguez, “A data-efficient approach to precise and controlled pushing,” in Conference on Robot Learning ,2018. [Online]. Available: https://api.semanticscholar.org/CorpusID: 50786002 [15] K.-T. Yu, M. Bauz´ a, N. Fazeli, and A. Rodriguez, “More than a million ways to be pushed: A high-fidelity experimental dataset of planar pushing,” in 2016 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , 2016, pp. 30–37. [16] M. Bauz´ a and A. Rodriguez, “A probabilistic data-driven model for planar pushing,” in 2017 IEEE International Conference on Robotics and Automation (ICRA) , 2017, pp. 3008–3015. [17] L. Pinto and A. Gupta, “Learning to push by grasping: Using multiple tasks for effective learning,” in 2017 IEEE International Conference on Robotics and Automation (ICRA) , 2017, pp. 2161–2168. [18] A. Zeng et al. , “Learning synergies between pushing and grasping with self-supervised deep reinforcement learning,” in Proc. IEEE/RSJ Int. Conf. Intell. Robots Syst. (IROS) , 2018, pp. 4238–4245. [19] J. K. Li, D. Hsu, and W. S. Lee, “Push-net: Deep planar pushing for objects with unknown physical properties,” in Robotics: Science and Systems (RSS) , 2018. [20] X. Cheng, E. Huang, Y. Hou, and M. T. Mason, “Contact mode guided motion planning for quasidynamic dexterous manipulation in 3d,” in 
+
+Proceedings of the IEEE International Conference on Robotics and Automation (ICRA) , 2022, pp. 2730–2736. [21] J. Shi, J. Z. Woodruff, P. B. Umbanhowar, and K. M. Lynch, “Dynamic in-hand sliding manipulation,” IEEE Transactions on Robotics , vol. 33, no. 4, pp. 778–795, 2017. [22] S. Elliott, M. Valente, and M. Cakmak, “Making objects graspable in confined environments through push and pull manipulation with a tool,” in 2016 IEEE International Conference on Robotics and Automation (ICRA) , 2016, pp. 4851–4858. [23] S. Thrun, M. Montemerlo, H. Dahlkamp et al. , “Stanley: The robot that won the DARPA grand challenge,” Journal of Field Robotics ,vol. 23, no. 9, pp. 661–692, Jun. 2006. [24] M. ¨ Ozcan and O. S. Oguz, “Opac: An optimization-augmented control framework for single and coordinated multi-arm robotic manipulation,” in 2025 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , 2025, pp. 12 240–12 247. [25] E. Winkler, Die Lehre von der Elastizit¨ at und Festigkeit mit besonderer R¨ ucksicht auf ihre Anwendung in der Technik . Prag: Dominicius, 1867.

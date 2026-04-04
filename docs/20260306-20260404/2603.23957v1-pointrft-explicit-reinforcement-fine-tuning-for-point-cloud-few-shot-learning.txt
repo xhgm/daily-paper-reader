@@ -1,0 +1,362 @@
+Title: PointRFT: Explicit Reinforcement Fine-tuning for Point Cloud Few-shot Learning
+
+URL Source: https://arxiv.org/pdf/2603.23957v1
+
+Published Time: Thu, 26 Mar 2026 00:36:41 GMT
+
+Number of Pages: 7
+
+Markdown Content:
+# PointRFT: Explicit Reinforcement Fine-tuning for Point Cloud Few-shot Learning 
+
+Yankai Wang, Yiding Sun, Qirui Wang, Pengbo Li, Chaoyi Lu and Dongxu Zhang 
+
+Abstract —Understanding spatial dynamics and semantics in point cloud is fundamental for comprehensive 3D comprehension. While reinforcement learning algorithms such as Group Relative Policy Optimization (GRPO) have recently achieved remarkable breakthroughs in large language models by incentivizing reason-ing capabilities through strategic reward design, their potential remains largely unexplored in the 3D perception domain. This naturally raises a pivotal question: Can RL-based methods effectively empower 3D point cloud fine-tuning? In this paper, we propose PointRFT, the first reinforcement fine-tuning paradigm tailored specifically for point cloud representation learning. We select three prevalent 3D foundation models and devise special-ized accuracy reward and dispersion reward functions to stabilize training and mitigate distribution shifts. Through comprehensive few-shot classification experiments comparing distinct training paradigms, we demonstrate that PointRFT consistently outper-forms vanilla supervised fine-tuning (SFT) across diverse bench-marks. Furthermore, when organically integrated into a hybrid Pretraining-SFT-RFT paradigm, the representational capacity of point cloud foundation models is substantially unleashed, achieving state-of-the-art performance particularly under data-scarce scenarios. 
+
+Index Terms —Point Cloud Perception, Reinforcement Fine-tuning, Few-shot Learning 
+
+I. I NTRODUCTION 
+
+Grasping spatial dynamics and semantics within point clouds serves as the cornerstone for holistic 3D understanding. This necessitates continuous development by the community of pretrained foundation models with enhanced generalization and representation capabilities. These exquisite models prove instrumental for a spectrum of downstream tasks, encompass-ing reasoning [1]–[4], object classification [5]–[7], semantic segmentation [8]–[10], action recognition [11], autonomous driving [12]–[15], and embodied robotics [16]. Conventional point cloud perception methods typically de-pend on generative or contrastive pretrained models for feature extraction, succeeded by task-specific heads and supervised fine-tuning (SFT). We denote this pipeline as the ‘Pretraining-SFT’ paradigm (Pre-S). Although demonstrating effectiveness on certain benchmarks [17], [18], these paradigms exhibit constrained cross-task and cross-domain generalization and frequently necessitate dedicated models per dataset or task, thereby impeding scalability and flexibility. Recently, draw-ing inspiration from Deepseek-R1 [19], numerous studies 
+
+Yankai Wang, Yiding Sun, Qirui Wang, Chaoyi Lu and Dongxu Zhang are with the School of Software Engineering, Xi’an Jiaotong University, Xi’an 710048, China; (e-mail: zhangdongxu@stu.xjtu.edu.cn) (Corresponding author: Dongxu Zhang). 
+
+Yankai Wang and Pengbo Li are also with the International School, Beijing University of Posts and Telecommunications, Beijing 100876, China. SFT on Base        
+
+> RFT on Base
+> Source Task Target Task
+> Source Task Target Task
+> PointMAE
+> ECCV'22
+> HyperPoint
+> PR'26
+> RECON
+> ICML'23
+> Paradigm 1 Paradigm 2 Paradigm 3
+> SFT
+> SFT
+> SFT
+> SFT
+> RFT
+> RFT
+> RFT
+> RFT
+> SFT
+> RFT
+> RFT
+> SFT
+> 3D Foundation Models ...
+> ×n ×n ×n
+> (b) Potential Paradigms (a) SFT vs RFT
+> WBWS
+> WBWR
+
+Fig. 1. Schematic illustration of our PointRFT. (a) SFT frequently provokes catastrophic forgetting, particularly when knowledge is transferred across domains. Reinforcement fine-tuning mitigates this decay and equips the backbone with broader generalization. (b) Grounded in this behavior, we introduce three reusable paradigms: Pre-S, Pre-R, and Pre-S-R, and benchmark them on multiple few-shot classification tasks using three prevalent 3D foundation models. 
+
+prove that reinforcement learning (RL) coupled with Group Relative Policy Optimization (GRPO) enhances multimodal large language model (MLLM) performance [20]–[22]. These developments highlight the notable efficacy and expansive potential of RL-based fine-tuning (Pre-R) across diverse visual tasks. Consequently, we naturally pose the following question: 
+
+Can RL-based methods effectively empower 3D point cloud fine-tuning? 
+
+Regrettably, to our best knowledge, the community still lacks algorithmic breakthroughs in this area. This gap stems from differing feedback mechanisms inherent to RL-based algorithms in Large Language Models (LLM) versus point cloud foundation model. In contrast to language, point clouds are grounded in physical reality and harbor definitive objective ground truth, e.g. labels, points, or bounding boxes. Such characteristic conflicts with the implicit exploratory nature of GRPO algorithms. More crucially, as depicted in Fig. 1(a), SFT-based methods prove more readily applicable than RL-based methods, albeit suffering from overfitting on limited point cloud datasets under rigid supervision. Indeed, existing RL-based methods largely confine themselves to a narrow visual understanding scope, typically reasoning tasks like image QA [23], captioning [24], and action localization [25]. To address these limitations, we introduce PointRFT, a novel framework that substitutes vanilla SFT with RL-based methods in 3D perception. We replace GRPO’s typically implicit and subjective reward function with an explicit, quan-tifiable metric. Furthermore, we leverage accuracy reward and 
+
+> arXiv:2603.23957v1 [cs.CV] 25 Mar 2026
+
+dispersion reward to mitigate distribution shift during fine-tuning. Following [26], we evaluate three representative point cloud foundation models across two experimental settings, encompassing the three paradigms illustrated in Fig. 1(b). Our results reveal that SFT suffers from dataset overfitting and catastrophic forgetting under few-shot scenarios. Meanwhile, experimental evidence demonstrates that PointRFT not only alleviates these issues but also effectively instills the funda-mentals of point cloud classification in models. Upon shifting to the ‘Pretraining-SFT-RFT’ (Pre-S-R) paradigm, we fully unleash the potential of foundation models and attain state-of-the-art performance in the base-to-new scenario. Our contributions can be summarized as follows:  
+
+> •
+
+We introduce PointRFT for the first time, a simple yet effective RL-based paradigm enabling object-level few-shot classification in point cloud perception.  
+
+> •
+
+We design specialized explicit reward functions for point cloud perception tasks that promote knowledge acquisi-tion rather than SFT-style memorization.  
+
+> •
+
+Through comprehensive experiments across two settings, we systematically compare the positive impacts of RFT, SFT, and hybrid paradigms on point cloud perception, paving the way for further community research. II. R ELATED WORK 
+
+A. Pre-S Paradigm in 3D Perception 
+
+Within the domain of point cloud representation learning, unsupervised pretraining strategies are principally divided into contrastive and generative paradigms. Contrastive meth-ods [27]–[29] strive to maximize agreement among diverse augmentations of identical point clouds while concurrently minimizing similarity across disparate samples. PointCon-trast [30] marks a seminal milestone, subsequently advanced by MaskPoint [31] with a binary classification task that discriminates masked object points from noise. ReCon [32] integrates contrastive objectives within generative pipelines to alleviate overfitting in original architecture. HyperPoint [8] successfully extends this pipeline into hyperbolic space, fur-ther strengthening model representation capabilities through explicit constraints. On the other hand, generative methods [33] aim to re-construct point clouds from latent representations by encod-ing inputs into a feature space and subsequently decoding them. Building upon MAE [34], Point-MAE [35] streamlines training and furnishes a mature solution for the research community. Thereafter, multimodal integration alongside re-cent architectures from other domains continues to enrich representations. Joint-MAE [36] captures 2D-3D interactions, while PointGPT [37] adapts the GPT framework to point clouds. PointDif [38] and PointDico [39] employ diffusion models as an alternative to MAE for pretraining. With powerful foundation models in place, incremental training via SFT becomes straightforward. However, despite high annotation costs, SFT is still considered to merely mimic predefined answers rather than discover what works best. We shift the training paradigm from data scaling in SFT to the strategic design of reward functions tailored to specific 3D vision tasks. 
+
+B. RFT Paradigm in MLLM Perception 
+
+Building upon the proven effectiveness of reasoning in LLM, a rising trend of works seeks to transfer this capabil-ity to MLLMs, thereby facilitating reasoning across diverse visual tasks. Vision-R1 [23] addresses intricate image rea-soning within visual question answering. Perception-R1 [21] subsequently broadens this paradigm to encompass image object detection, thereby uncovering the potential of RL for perception-centric tasks. Seg-R1 [22] proposes a decoupled reasoning-segmentation framework leveraging GRPO-based RL to produce explicit chain-of-thought reasoning along-side positional prompts for image segmentation. VideoChat-R1 [24] implements reinforcement fine-tuning across three spatio-temporal tasks to improve perception and reasoning in video understanding. GRPO-RM [26] validates the efficacy of integrating GRPO into DINO [40] backbones, yielding substantial enhancements in both visual and semantic logic understanding. Although these methods have attained remarkable progress in reasoning, they exclusively support either image or video reasoning. In this work, we take a pioneering step toward applying RL to point cloud perception, aiming to bridge this gap and advance spatial understanding. III. M ETHOD 
+
+In this section, we draw inspiration from GRPO to for-mulate a RFT paradigm tailored for point cloud perception. To curb possible distribution shift during training, we devise customized accuracy and dispersion rewards. Subsequently, we delineate three compatible training schemes that synergis-tically leverage SFT and RFT to enhance few-shot learning capabilities. The overall framework is illustrated in Fig. 2. 
+
+A. Preliminaries 
+
+Following Deepseek-R1 [19], we adopt GRPO as the RL algorithm for optimization. Unlike SFT, which optimizes models through token-level losses, RL-based methods like GRPO employ policy gradients computed from reward loss for optimization. Such formulation encourages reasoning through exploration of a substantially larger solution space. Without loss of generality, let Q denote the question set, o be the label for a question q, and πθref represent the frozen reference model. SFT algorithms aim to optimize model πθ via the following objective: 
+
+L(θ) = −Eq∼Q,o ∼πθref (·| q) [log πθ (o | q)] = −Eq∼Q,o ∼πθref (·| q)
+
+
+
+> |o|
+
+X
+
+> t=1
+
+log πθ (ot | q, o <t )
+
+ . (1) Conversely, let πθold denote the policy model and 
+
+{o1, o 2, · · · , o G} be a group of responses from πθold for ques-tion q. Given the absence of a reference model in representa-tion learning, we omit the Kullback-Leibler (KL) divergence Ground Truth Label 
+
+Foundation 
+
+Models 
+
+> Tokens
+
+Foundation 
+
+Models 
+
+> Loop Update
+> p=0.4
+> ...
+
+Head   
+
+> p=0.2
+> p=0.3
+> p=0.1
+> p=0.7
+> p=0.1 p=0.1
+> ...
+> Probabilistic Distribution
+> Accuracy Reward
+> Epoch 1 Epoch 10 Epoch 20
+
+Dispersion  Reward   
+
+> Stop Gradient
+> p=0.1 p=0.1
+> p=0.3 p=0.4
+> p=0.2
+> Accuacy Loss
+
+Input Few-shot Data   
+
+> ?
+> Supervised FT Reinforcement Fine-tuning
+
+Base 
+
+Models 
+
+> Loop Update
+
+Act as 
+
+Act as actively optimized policy detached reference policy 
+
+“ ”“ ”Fig. 2. Framework of PointRFT. Following the vanilla point cloud fine-tuning pipeline, the input point cloud is fed into a pre-trained base model and fine-tuned via Eq. 1. For RL fine-tuning, we treat the base model before the update as the detached reference policy and the updated base model as the actively optimized policy to stabilize training. Building on this, we propose PointRFT, which trains the foundation model to maximize reward via Alg. 1. At each epoch, the parameters of the old model are updated and incorporated into the loss without gradient backflow. Since RFT and SFT share the same labeled data and inputs, the two paradigms do not conflict. In other words, we can maximize the downstream performance of the base model by first applying SFT and then RFT. 
+
+Algorithm 1 Pseudocode of PointRFT in a PyTorch-like style. 
+
+# x: input point cloud # y: corresponding labels # m: batch # e: training epoch # h: projection head # a, b: hyperparameter 
+
+πθold = πθbase + h # build the initial model for epoch in range(e): 
+
+πθold ← πθ # copy the old model for m in loader: # load a minibatch probs = πθold (x) # forward propagation r_acc = accuracy_reward(y_true, num_classes) #accuracy reward r_dis = -probs # dispersion reward rewards = a * r_acc + b * r_dis advantages = (rewards - mean(rewards))/std( rewards) ratio = probs / old_probs # policy gradient clipped_ratio = clip(ratio, 1-ε, 1+ ε) #distribution maintaining loss = -min(ratio * advantages, clipped_ratio * advantages).mean() loss.backward() optimizer.step() 
+
+regularizer [26]. GRPO algorithms aim to optimize model πθ
+
+through the following objective: 
+
+J(θ) = Eq∼Q, {oi}Gi=1 ∼πθold 
+
+"
+
+1
+
+G
+
+> G
+
+X
+
+> i=1
+
+min 
+
+ πθ (oi | q)
+
+πθold (oi | q) Ai,
+
+clip 
+
+ πθ (oi | q)
+
+πθold (oi | q) , 1 − ϵ, 1 + ϵ
+
+
+
+Ai
+
+  
+
+,
+
+(2) where ε denotes the clipping hyperparameter. Let 
+
+{r1, r 2, . . . , r G} be the group reward, the advantage Ai
+
+is obtained through intra-group standardization: 
+
+Ai = ri − mean ( {r1, r 2, . . . , r G})std ( {r1, r 2, . . . , r G}) . (3) By eliminating the critic model and estimating relative advantages, GRPO attains markedly higher computational efficiency [19]. 
+
+B. Reward Design 
+
+Once the advantages computation is established, we tailor the reward signal to suit point cloud representation learn-ing. Consistent with [26], we posit that similar instances form compact clusters in the embedding space. Nevertheless, given the discriminative nature of classification, the overall embedding distribution should remain sufficiently dispersion. These two objectives should be dynamically reweighted ac-cording to dataset statistics and label cardinality. Consequently, PointRFT’s reward is decomposed into an accuracy term and a dispersion term. 
+
+Accuracy Reward. Mirroring the original GRPO pipeline, we encourage the model to emit correct predictions. Yet point clouds only supply data–label pairs and lack the chain-of-thought annotations available in (M)LLMs, the indispensable group of responses {o1, o 2, · · · , o G} is absent. We therefore seek a surrogate that still yields rich output variation. The class-probability vector produced by the softmax layer serves this purpose. Unlike auto-regressive language models, we directly draw samples from this distribution. Concretely, for a 
+
+c-class dataset {C1, C 2, · · · , C c}, an input point cloud xk of true class Ck gives rise to a probability mass that we treat as a pseudo-response ensemble. Under this scheme, the accuracy reward for any draw can be compactly expressed as: 
+
+ racc i = 0 i̸ = k, racc i = c i = k. (4) Owing to the denser reward landscape of RL fine-tuning compared with SFT, we clamp the per-sample accuracy reward 
+
+racc k to a constant c while enforcing Eracc i = 1 to preserve training stability. 
+
+Dispersion Reward. HyperPoint [8] highlights that repre-sentation quality hinges on both alignment and dispersion. TABLE I FEW -SHOT LEARNING RESULT ON THE SCAN OBJECT NN D ATASET . W E CONDUCT THIS ANALYSIS ACROSS THREE DISTINCT SPLITS FOR BOTH 5-WAY 
+
+1-SHOT AND 5-WAY 5-SHOT SCENARIOS . T HE PERFORMANCE METRICS ARE REPORTED AS ACCURACY PERCENTAGES , ACCOMPANIED BY THEIR RESPECTIVE STANDARD DEVIATIONS . T HE DARKER THE COLOR , THE HIGHER THE RESULT .
+
+Method Paradigm ScanObjectNN 5-way 1-shot 5-way 5-shot 
+
+Split 1 Split 2 Split 3 Split 1 Split 2 Split 3 Point-MAE [35] Pre-S (10%) 27.85 ± 0.62 29.91 ± 0.68 33.62 ± 0.87 63.77 ± 0.83 65.42 ± 1.37 67.08 ± 0.45 Pre-S 41.08 ± 1.93 45.56 ± 1.04 49.33 ± 1.12 70.19 ± 1.94 72.64 ± 1.05 74.55 ± 1.26 Pre-R (10%) 28.03 ± 0.91 29.76 ± 0.38 36.54 ± 0.87 67.08 ± 0.45 67.33 ± 1.72 68.91 ± 0.91 Pre-R 42.00 ± 1.59 47.22 ± 0.70 50.68 ± 1.44 72.64 ± 1.05 76.25 ± 0.67 77.48 ± 1.59 Pre-S-R 48.95 ± 0.83 56.11 ± 0.66 61.50 ± 1.52 74.13 ± 0.92 76.82 ± 1.21 78.50 ± 0.39 HyperPoint [8] Pre-S (10%) 30.68 ± 0.44 31.27 ± 0.39 38.84 ± 1.61 63.27 ± 1.88 65.96 ± 0.74 67.15 ± 1.03 Pre-S 34.78 ± 0.99 37.22 ± 0.70 49.20 ± 0.84 68.04 ± 0.56 70.73 ± 0.82 74.09 ± 1.47 Pre-R (10%) 29.33 ± 0.79 37.67 ± 0.41 40.09 ± 0.95 60.45 ± 1.27 65.83 ± 0.62 66.19 ± 1.96 Pre-R 38.14 ± 1.58 46.89 ± 0.72 51.74 ± 1.37 73.50 ± 0.35 74.77 ± 1.58 77.08 ± 1.04 Pre-S-R 49.20 ± 0.84 47.46 ± 1.63 56.81 ± 1.27 74.31 ± 1.83 74.92 ± 0.91 77.24 ± 0.73 ReCon [32] Pre-S (10%) 31.74 ± 0.37 35.09 ± 0.74 40.14 ± 1.31 64.66 ± 0.49 66.11 ± 1.12 65.27 ± 0.87 Pre-S 40.47 ± 0.73 47.85 ± 0.62 51.19 ± 0.45 68.00 ± 1.45 69.54 ± 0.56 72.38 ± 1.71 Pre-R (10%) 32.05 ± 0.73 39.44 ± 1.96 38.92 ± 0.35 63.95 ± 0.94 65.19 ± 1.33 65.62 ± 0.68 Pre-R 43.67 ± 0.54 50.11 ± 0.62 57.29 ± 1.83 75.78 ± 0.91 75.52 ± 1.04 79.09 ± 1.92 Pre-S-R 56.90 ± 1.12 58.76 ± 0.87 61.54 ± 1.45 77.34 ± 1.25 76.88 ± 0.67 79.23 ± 0.49 TABLE II FEW -SHOT LEARNING RESULT ON THE MODEL NET 40 D ATASET . W ECONDUCT THIS ANALYSIS FOR BOTH 10-WAY 10-SHOT AND 10-WAY 
+
+20-SHOT SCENARIOS . W E CONDUCT FURTHER EXPERIMENTS THAT USE 
+
+10% OF THE TRAINING TIME FOR COMPARISON .
+
+Method Paradigm ModelNet40 10-way 10-shot 10-way 20-shot 
+
+Point-MAE [35] Pre-S (10%) 76.6 ± 4.3 79.9 ± 2.1 Pre-S 92.6 ± 4.1 95.0 ± 3.0 Pre-R (10%) 83.6 ± 5.3 84.9 ± 2.1 Pre-R 92.3 ± 4.5 95.0 ± 3.0 Pre-S-R 94.2 ± 3.3 95.6 ± 2.8 HyperPoint [8] Pre-S (10%) 76.8 ± 2.3 76.7 ± 2.2 Pre-S 93.3 ± 4.0 95.6 ± 2.8 Pre-R (10%) 77.0 ± 1.8 78.3 ± 1.3 Pre-R 92.6 ± 3.7 95.5 ± 3.0 Pre-S-R 93.3 ± 3.9 95.7 ± 3.0 ReCon [32] Pre-S (10%) 77.0 ± 1.9 78.7 ± 1.2 Pre-S 94.4 ± 1.9 94.9 ± 0.9 Pre-R (10%) 76.8 ± 1.8 78.3 ± 1.4 Pre-R 94.1 ± 4.4 95.9 ± 2.2 Pre-S-R 95.2 ± 0.8 96.5 ± 0.6 
+
+We further argue that point cloud perception presupposes two conditions: intra-class cohesion and global dispersion. However, with cross-entropy alone, vanilla SFT secures only weak alignment and leaves dispersion unattended. In chasing maximal accuracy, the model collapses features onto their cen-troids, inflating inter-class similarity and squandering embed-ding capacity. This geometric shrinkage is masked when data abound, yet emerges as a dominant error source under few-shot or out-of-domain shifts. To counteract this, the dispersion reward penalizes incorrect predictions: 
+
+rdis i = −pi, j ∈ { 1, 2, · · · , c }. (5) Intuitively, removing the dispersion reward collapses 
+
+TABLE III FEW -SHOT LEARNING RESULT ON THE SHAPE NET CORE DATASET . W ECONDUCT THIS ANALYSIS FOR BOTH 10-WAY 1-SHOT AND 10-WAY 
+
+5-SHOT SCENARIOS . W E CONDUCT FURTHER EXPERIMENTS THAT USE 
+
+10% OF THE TRAINING TIME FOR COMPARISON .
+
+Method Paradigm ShapeNetCore 10-way 1-shot 10-way 5-shot 
+
+Point-MAE [35] Pre-S (10%) 56.08 ± 0.85 68.27 ± 1.36 Pre-S 59.83 ± 0.54 72.45 ± 1.78 Pre-R (10%) 53.91 ± 0.42 66.18 ± 1.09 Pre-R 66.70 ± 0.87 71.52 ± 1.63 Pre-S-R 70.34 ± 0.95 73.09 ± 1.21 HyperPoint [8] Pre-S (10%) 54.00 ± 0.33 63.88 ± 1.57 Pre-S 60.25 ± 0.69 69.46 ± 1.92 Pre-R (10%) 52.14 ± 0.76 65.37 ± 1.44 Pre-R 67.80 ± 0.58 71.23 ± 1.11 Pre-S-R 73.55 ± 0.99 74.72 ± 1.68 ReCon [32] Pre-S (10%) 52.47 ± 1.15 68.93 ± 0.72 Pre-S 57.66 ± 1.88 73.25 ± 0.45 Pre-R (10%) 51.18 ± 1.63 70.54 ± 0.91 Pre-R 68.79 ± 1.37 71.02 ± 0.58 Pre-S-R 75.41 ± 1.74 76.33 ± 0.89 
+
+PointRFT back into vanilla SFT. In other words, dispersion is therefore the continuous, differentiable bridge that turns discrete labels into a learnable reward landscape. Once both components are established, the final reward is computed via summation, that is, 
+
+ri = a ∗ racc i + b ∗ rdis i , (6) where a and b are hyperparameters that regulate training stability across datasets with varying label counts. 
+
+C. Training Paradigms 
+
+Fig. 2 illustrates that SFT and RFT are intrinsically com-plementary. Exhaustive comparisons already span linguistics, TABLE IV                                            
+
+> COMPARISON IN TERMS OF ACCURACY WITH DIFFERENT DISPERSION REWARD FUNCTION AND HYPERPARAMETER SETTINGS .“SET TO 0 ”
+> MEANS ONLY AN ACCURACY REWARD IS APPLIED . 10-WAY 10-SHOT ,10-WAY 1-SHOT ,AND 5-WAY 1-SHOT ARE TESTED RESPECTIVELY .
+> Dataset Epsilon Dispersion Reward Accuracy
+> ModelNet40 [41] ε= 0 .2
+> set to 0 83.4 ±4.9 a=1,b=1 89.2 ±3.3 Eq. 6 92.6 ±3.7 ShapeNetCore [42] ε= 0 .3
+> set to 0 56.12 ±1.93 a=1,b=1 60.66 ±1.89 Eq. 6 65.42 ±1.15 ScanObjectNN [43] ε= 0 .5
+> set to 0 33.22 ±1.34 a=1,b=1 35.91 ±0.73 Eq. 6 37.04 ±1.58
+
+2D vision and MLLM perception, yet the 3D domain remains largely uncharted. This omission stems from an implicit, LLM-centric bias, leaving a conspicuous gap in how these paradigms reshape visual representations. We outline the meta-objective 
+
+F(θ; Φ) and three candidate training paradigms for future inquiry: 
+
+F(θ; Φ) ≜
+
+
+
+LSFT (θ), Φ = SFT 
+
+JRFT (θ), Φ = RFT 
+
+H(θ), Φ = Hybrid 
+
+(7) where Φ ∈ { SFT , RL , Hybrid } switches the training regime. 
+
+LSFT (θ) and JRFT (θ) denote the supervised and reinforce-ment losses respectively. The hybrid target H(θ) is the bi-level optimization: 
+
+H(θ) ≜ JGRPO (θ) s.t. θ ∈ arg min  
+
+> θ′
+
+LSFT (θ′) . (8) IV. E XPERIMENTS 
+
+A. Experiment Settings 
+
+We evaluate PointRFT on three baselines: Point-MAE [35], HyperPoint [8], and ReCon [32]. Each baseline was pretrained on ShapeNet [42] for 300 epochs. Unless otherwise specified, all baselines adhere to the original configurations detailed in their respective papers. For consistency, we fine-tune these models using a supervised protocol, aligning network settings with those of RFT. For PointRFT, the hyperparameters are set as ε = 0 .2, a = 1 , and b = 2 . Across all datasets, the Adam optimizer is utilized to train the models. Each epoch consists of 400 meta-training and 600 validation episodes, with samples randomly drawn from the training set. Each meta-training episode is configured as an N -way, M -shot setup, where 
+
+N classes are selected, each with M examples. After meta-training, we conduct final evaluations using 700 meta-testing episodes, randomly sampled from the test set, maintaining the N -way, M -shot configuration. The final performance is assessed by computing the mean classification accuracy and standard deviation across these meta-testing episodes. All experiments are conducted on NVIDIA A100-SXM4-80GB GPUs. 5 6          
+
+> GFLOPs
+> 100
+> 120
+> 140
+> 160
+> 180
+> Time (s)
+> ModelNet40
+> 345
+> GFLOPs
+> 10
+> 15
+> ShapeNetCore
+> 4.5 5.0
+> GFLOPs
+> 4
+> 6
+> 8
+> 10
+> 12 ScanObjectNN
+> Point-MAE (RFT) HyperPoint (RFT) ReCon (RFT) Point-MAE (SFT) HyperPoint (SFT) ReCon (SFT)
+> Fig. 3. Comparison of computational costs in different datasets. We report the GLOPs and training time (s) for each epoch. 10-way 10-shot, 10-way 1-shot and 5-way 1-shot are selected respectively.
+
+B. Classification: ModelNet40 
+
+Dataset. ModelNet40 [41] serves as a standard benchmark for few-shot 3D object recognition, assembling 40 CAD-based categories. Its episodic splits require a classifier to label query shapes from only a handful of support examples per class. 
+
+Comparison Results. Empirical validation spans three backbones using ModelNet40 10-way, 10-shot and 10-way, 20-shot scenarios. Results are consolidated in Table II. PointRFT marginally underperforms vanilla SFT, indicating that ample support examples erase the advantage of reinforcement fine-tuning. Meanwhile, multimodal pre-training [8], [32] consis-tently boosts accuracy over its unimodal counterpart [35], an edge that widens once the few-shot support set becomes sufficiently large. 
+
+C. Classification: ShapeNetCore 
+
+Dataset. ShapeNetCore [42] extends the evaluation to 70 CAD classes, offering broader semantic coverage. The bench-mark gauges whether models can reliably categorize sparse point clouds when each category is represented by a small, fixed support set. 
+
+Comparison Results. Table III benchmarks RFT against competing paradigms on ShapeNetCore under 10-way-1-shot and 10-way-5-shot scenarios, probing behavior across increas-ing supervision scarcity. PointRFT surpasses all counterparts in every regime, evidencing its suitability for 3D few-shot tasks. Equipped with the proposed Pre-S-R enhancement, the model unlocks additional capacity, delivering gains of +10.51%, +13.30% and +17.75% over the vanilla SFT base-lines. 
+
+D. Classification: ScanObjectNN 
+
+Dataset. ScanObjectNN [43] shifts the assessment from pristine CAD data to real-world scans. Acquired via depth sensors, it injects nuisances such as background clutter, partial occlusion, and unknown scale, thereby testing few-shot gen-eralization under the distributional shifts common in practice. The collection provides 15 annotated object categories. 
+
+Comparison Results. We contrast RFT with SFT on ScanObjectNN under 5-way 1-shot and 5-way 5-shot scenarios across three disjoint splits [44]. Each split guarantees that test point clouds are semantically isolated from training data, thereby measuring strict generalization within the prescribed budget. In Table I, PointRFT consistently ranks first in every split, confirming its robustness to real-world nuisances. Pre-S-R further amplifies this edge under 5-way-5-shot, echoing the trend previously observed on Table III. 
+
+E. Ablation Studies 
+
+Hyperparameters. We probe hyperparameter sensitivity in two ablations. Using HyperPoint [8] as the backbone, Table IV sweeps the weights a and b. Disabling dispersion reward ( b =0) hurts accuracy, corroborating its role as a soft regularizer. On the other hand, large ε destabilizes optimization, a symp-tom of sparse RL updates that favors over-fitting in low-data regimes, a pathology also observed in SFT. A moderate clip is therefore mandatory to restrain the effective parameter drift. 
+
+Computational Burden. Fig. 3 quantifies the computa-tional footprint of PointRFT using two metrics: per-epoch training time and GFLOPs. Although PointRFT demands slightly more resources than SFT, this overhead is offset by faster convergence and superior accuracy, rendering the trade-off acceptable. V. C ONCLUSION 
+
+In this paper, we propose PointRFT, a pioneering reinforce-ment fine-tuning paradigm that extends the success of GRPO-driven optimization from language modeling to the realm of 3D point cloud perception. By substituting the implicit rewards with explicit, task-oriented accuracy and dispersion signals, we mitigate the distribution shift and over-fitting endemic to scarce-data supervised fine-tuning. Our three-pronged evalua-tion framework, encompassing Pretraining-SFT, Pretraining-RFT, and the hybrid Pretraining-SFT-RFT paradigms, pro-vides the first systematic investigation into how reinforcement learning reshapes geometric representation learning. Despite rigorous variable control and ablations, limited compute and time have prevented us from extending PointRFT to additional 3D perception tasks such as semantic segmentation or action recognition, leaving its broader efficacy yet to be confirmed. In the future, we will further disentangle the precise conditions under which RFT departs from SFT when adapting point cloud backbones. REFERENCES [1] Dongxu Zhang, Ning Yang, Yiding Sun, Jihua Zhu, Jinnan Yang, Miao Xin, and Baoliang Tian, “Ascot: An adaptive self-correction chain-of-thought method for late-stage fragility in llms,” arXiv preprint arXiv:2508.05282 , 2025. [2] Dongxu Zhang, Yiding Sun, Cheng Tan, Wenbiao Yan, Ning Yang, Jihua Zhu, and Haijun Zhang, “Chain-of-thought compression should not be blind: V-skip for efficient multimodal reasoning via dual-path anchoring,” arXiv preprint arXiv:2601.13879 , 2026. [3] Dongxu Zhang, Hongqiang Lin, Yiding Sun, Pengyu Wang, Qirui Wang, Ning Yang, and Jihua Zhu, “Not all queries need deep thought: Coficot for adaptive coarse-to-fine stateful refinement,” arXiv preprint arXiv:2603.08251 , 2026. [4] Qirui Wang, Qi Guo, Yiding Sun, Junkai Yang, Dongxu Zhang, Shan-min Pang, and Qing Guo, “Personalq: Select, quantize, and serve personalized diffusion models for efficient inference,” arXiv preprint arXiv:2603.22943 , 2026. [5] Zhisheng Chen, Yingwei Zhang, Qizhen Lan, Tianyu Liu, Huacan Wang, Yi Ding, Ziyu Jia, Ronghao Chen, Kun Wang, and Xinliang Zhou, “Uni-ntfm: A unified foundation model for eeg signal representation learning,” 
+
+arXiv preprint arXiv:2509.24222 , 2025. [6] Xingguang Han, Yiding Sun, and Chaoyi Lu, “Rethinking regressor in 3d gaussian pretraining,” in Pattern Recognit. Comput. Vis. , 2026, pp. 177–190. [7] Yiding Sun, Chaoyi Lu, Haozhe Cheng, Jun Wang, Huimin Lu, Lin Chen, and Jihua Zhu, “Curve3d: Curvature-aware masked autoencoder for self-supervised point cloud understanding,” Available at SSRN 6064487 , 2026. [8] Yiding Sun, Haozhe Cheng, Chaoyi Lu, Zhengqiao Li, Minghong Wu, Huimin Lu, and Jihua Zhu, “Hyperpoint: Multimodal 3d foundation model in hyperbolic space,” Pattern Recognit. , vol. 173, pp. 112800, 2026. [9] Qizhen Lan, Yu-Chun Hsu, Nida Saddaf Khan, and Xiaoqian Jiang, “Reco-kd: Region-and context-aware knowledge distillation for efficient 3d medical image segmentation,” arXiv preprint arXiv:2601.08301 ,2026. [10] Qizhen Lan, Aaron Choi, Jun Ma, Bo Wang, Zhaogming Zhao, Xiaoqian Jiang, and Yu-Chun Hsu, “From performance to practice: Knowledge-distilled segmentator for on-premises clinical workflows,” arXiv preprint arXiv:2601.09191 , 2026. [11] Chengan Che, Chao Wang, Tom Vercauteren, Sophia Tsoka, and Luis C Garcia-Peraza-Herrera, “Lemon: A large endoscopic monocular dataset and foundation model for perception in surgical settings,” arXiv preprint arXiv:2503.19740 , 2025. [12] Dongxu Zhang, Jihua Zhu, Shiqi Li, Wenbiao Yan, Haoran Xu, Peilin Fan, and Huimin Lu, “Igasa: Integrated geometry-aware and skip-attention modules for enhanced point cloud registration,” IEEE Trans. Circuits Syst. Video Technol. , 2026. [13] Songcheng Du, Yihong Leng, Xinyi Liang, Jiaojiao Li, Wei Liu, and Qian Du, “Degradation aware unfolding network for spectral super-resolution,” IEEE Geosci. Remote Sens. Lett. , vol. 21, pp. 1–5, 2023. [14] Jiaojiao Li, Songcheng Du, Rui Song, Yunsong Li, and Qian Du, “Progressive spatial information-guided deep aggregation convolutional network for hyperspectral spectral super-resolution,” IEEE Trans. Neural Netw. Learn. Syst. , vol. 36, no. 1, pp. 1677–1691, 2025. [15] Dongxu Zhang, Yingsen Wang, Yiding Sun, Haoran Xu, Peilin Fan, and Jihua Zhu, “Cmhanet: A cross-modal hybrid attention network for point cloud registration,” Neurocomputing , vol. 680, pp. 133318, 2026. [16] Yiding Sun, Jihua Zhu, Haozhe Cheng, Chaoyi Lu, Zhichuan Yang, Lin Chen, and Yaonan Wang, “Align then adapt: Rethinking parameter-efficient transfer learning in 4d perception,” IEEE Trans. Multimedia ,2026. [17] Dongxu Zhang, Yiding Sun, Pengcheng Li, Yumou Liu, Hongqiang Lin, Haoran Xu, Xiaoxuan Mu, Liang Lin, Wenbiao Yan, Ning Yang, et al., “Pointcot: A multi-modal benchmark for explicit 3d geometric reasoning,” arXiv preprint arXiv:2602.23945 , 2026. [18] Haozhen Gong, Xiaozhong Ji, Yuansen Liu, Wenbin Wu, Xiaoxiao Yan, Jingjing Liu, Kai Wu, Jiazhen Pan, Bailiang Jian, Jiangning Zhang, et al., “Med-cmr: A fine-grained benchmark integrating visual evidence and clinical logic for medical complex multimodal reasoning,” arXiv preprint arXiv:2512.00818 , 2025. [19] Daya Guo, Dejian Yang, Haowei Zhang, Junxiao Song, Ruoyu Zhang, Runxin Xu, Qihao Zhu, Shirong Ma, Peiyi Wang, Xiao Bi, et al., “Deepseek-r1: Incentivizing reasoning capability in llms via reinforce-ment learning,” arXiv preprint arXiv:2501.12948 , 2025. [20] Ziyu Liu, Zeyi Sun, Yuhang Zang, Xiaoyi Dong, Yuhang Cao, Haodong Duan, Dahua Lin, and Jiaqi Wang, “Visual-rft: Visual reinforcement fine-tuning,” CoRR , 2025. [21] En Yu, Kangheng Lin, Liang Zhao, Jisheng Yin, Yana Wei, Yuang Peng, Haoran Wei, Jianjian Sun, Chunrui Han, Zheng Ge, et al., “Perception-r1: Pioneering perception policy with reinforcement learning,” arXiv preprint arXiv:2504.07954 , 2025. [22] Zuyao You and Zuxuan Wu, “Seg-r1: Segmentation can be surprisingly simple with reinforcement learning,” arXiv preprint arXiv:2506.22624 ,2025. [23] Wenxuan Huang, Bohan Jia, Zijie Zhai, Shaosheng Cao, Zheyu Ye, Fei Zhao, Zhe Xu, Yao Hu, and Shaohui Lin, “Vision-r1: Incentivizing reasoning capability in multimodal large language models,” arXiv preprint arXiv:2503.06749 , 2025. [24] Xinhao Li, Ziang Yan, Desen Meng, Lu Dong, Xiangyu Zeng, Yinan He, Yali Wang, Yu Qiao, Yi Wang, and Limin Wang, “Videochat-r1: Enhancing spatio-temporal perception via reinforcement fine-tuning,” 
+
+arXiv preprint arXiv:2504.06958 , 2025. [25] Tao Wu, Li Yang, Gen Zhan, Yiting Liao, Junlin Li, Deliang Fu, Li Zhang, and Limin Wang, “Tempr1: Improving temporal understand-ing of mllms via temporal-aware multi-task reinforcement learning,” 
+
+arXiv preprint arXiv:2512.03963 , 2025. [26] Yanchen Xu, Ziheng Jiao, Hongyuan Zhang, and Xuelong Li, “Grpo-rm: Fine-tuning representation models via grpo-driven reinforcement learning,” arXiv preprint arXiv:2511.15256 , 2025. [27] Songcheng Du, Yang Zou, Zixu Wang, Xingyuan Li, Ying Li, Changjing Shang, and Qiang Shen, “Unsupervised hyperspectral image super-resolution via self-supervised modality decoupling,” Int. J. Comput. Vis. , Jan. 2026. [28] Yongxin Guo, Hao Lu, Onur C. Koyun, Zhengjie Zhu, Muhammet Fatih Demir, and Metin Nafi Gurcan, “Momentum memory for knowledge distillation in computational pathology,” 2026. [29] Yongxin Guo, Ziyu Su, Onur C. Koyun, Hao Lu, Robert Wesolowski, Gary Tozbikian, M. Khalid Khan Niazi, and Metin N. Gurcan, “Bp-mambamil: A bio-inspired prototype-guided multiple instance learning for oncotype dx risk assessment in histopathology,” Computer Methods and Programs in Biomedicine , vol. 272, pp. 109039, 2025. [30] Saining Xie, Jiatao Gu, Demi Guo, Charles R. Qi, and Leonidas Guibas Or Litany, “Pointcontrast: Unsupervised pre-training for 3d point cloud understanding,” in Eur. Conf. Comput. Vis. , 2020. [31] Haotian Liu, Mu Cai, and Yong Jae Lee, “Masked discrimination for self-supervised learning on point clouds,” in Eur. Conf. Comput. Vis. 
+
+Springer, 2022, pp. 657–675. [32] Zekun Qi, Runpei Dong, Guofan Fan, Zheng Ge, Xiangyu Zhang, Kaisheng Ma, and Li Yi, “Contrast with reconstruct: Contrastive 3d representation learning guided by generative pretraining,” in Int. Conf. Mach. Learn. , 2023. [33] Chengan Che, Chao Wang, Xinyue Chen, Sophia Tsoka, and Luis C Garcia-Peraza-Herrera, “A stitch in time: Learning procedural work-flow via self-supervised plackett-luce ranking,” arXiv preprint arXiv:2511.17805 , 2025. [34] Kaiming He, Xinlei Chen, Saining Xie, Yanghao Li, Piotr Doll´ ar, and Ross Girshick, “Masked autoencoders are scalable vision learners,” in 
+
+Proc. IEEE Conf. Comput. Vis. Pattern Recognit. , 2022, pp. 16000– 16009. [35] Yatian Pang, Wenxiao Wang, Francis EH Tay, Wei Liu, Yonghong Tian, and Li Yuan, “Masked autoencoders for point cloud self-supervised learning,” in Eur. Conf. Comput. Vis. , 2022, pp. 604–621. [36] Ziyu Guo, Renrui Zhang, Longtian Qiu, Xianzhi Li, and Pheng-Ann Heng, “Joint-mae: 2d-3d joint masked autoencoders for 3d point cloud pre-training,” in Proc. Int. Joint Conf. Artif. Intell. , 2023, pp. 791–799. [37] Guangyan Chen, Meiling Wang, Yi Yang, Kai Yu, Li Yuan, and Yufeng Yue, “Pointgpt: Auto-regressively generative pre-training from point clouds,” Proc. Adv. Neural Inf. Process. Syst. , vol. 36, 2024. [38] Xiao Zheng, Xiaoshui Huang, Guofeng Mei, Yuenan Hou, Zhaoyang Lyu, Bo Dai, Wanli Ouyang, and Yongshun Gong, “Point cloud pre-training with diffusion models,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. , 2024, pp. 22935–22945. [39] Pengbo Li, Yiding Sun, and Haozhe Cheng, “Pointdico: Contrastive 3d representation learning guided by diffusion models,” arXiv preprint arXiv:2512.08330 , 2025. [40] Maxime Oquab, Timoth´ ee Darcet, Th´ eo Moutakanni, Huy V Vo, Marc Szafraniec, Vasil Khalidov, Pierre Fernandez, Daniel Haziza, Francisco Massa, Alaaeldin El-Nouby, et al., “Dinov2: Learning robust visual features without supervision,” IEEE Trans. Mach. Learn. Res. , 2023. [41] Zhirong Wu, Shuran Song, Aditya Khosla, Fisher Yu, Linguang Zhang, Xiaoou Tang, and Jianxiong Xiao, “3d shapenets: A deep representation for volumetric shapes,” in Proc. IEEE Conf. Comput. Vis. Pattern Recognit. , 2015, pp. 1912–1920. [42] Angel X Chang, Thomas Funkhouser, Leonidas Guibas, Pat Hanrahan, Qixing Huang, Zimo Li, Silvio Savarese, Manolis Savva, Shuran Song, Hao Su, et al., “Shapenet: An information-rich 3d model repository,” 
+
+arXiv preprint arXiv:1512.03012 , 2015. [43] Mikaela Angelina Uy, Quang-Hieu Pham, Binh-Son Hua, Thanh Nguyen, and Sai-Kit Yeung, “Revisiting point cloud classification: A new benchmark dataset and classification model on real-world data,” in 
+
+Proc. IEEE/CVF Int. Conf. Comput. Vis. , 2019, pp. 1588–1597. [44] Chuangguan Ye, Hongyuan Zhu, Bo Zhang, and Tao Chen, “A closer look at few-shot 3d point cloud classification,” Int. J. Comput. Vis. , vol. 131, no. 3, pp. 772–795, 2023.

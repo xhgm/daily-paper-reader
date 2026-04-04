@@ -1,0 +1,531 @@
+Title: PaQ-DETR: Learning Pattern and Quality-Aware Dynamic Queries for Object Detection
+
+URL Source: https://arxiv.org/pdf/2603.06917v1
+
+Published Time: Tue, 10 Mar 2026 00:19:31 GMT
+
+Number of Pages: 10
+
+Markdown Content:
+# PaQ-DETR: Learning Pattern and Quality-Aware Dynamic Queries for Object Detection 
+
+## Zhengjian Kang 1*, Jun Zhuang 2, Kangtong Mo 3, Qi Chen 4, Rui Liu 5, Ye Zhang 6*† 
+
+> 1
+
+New York University 2Boise State University 3University of Illinois at Urbana-Champaign 
+
+> 4
+
+University of California, Irvine 5Illinois Institute of Technology 6University of Pittsburgh 
+
+## Abstract 
+
+Detection Transformer (DETR) has redefined object detec-tion by casting it as a set prediction task within an end-to-end framework. Despite its elegance, DETR and its vari-ants still rely on fixed learnable queries and suffer from severe query utilization imbalance, which limits adaptabil-ity and leaves the model capacity underused. We propose PaQ-DETR (Pattern and Quality-Aware DETR), a unified framework that enhances both query adaptivity and super-vision balance. It learns a compact set of shared latent patterns capturing global semantics and dynamically gen-erates image-specific queries through content-conditioned weighting. In parallel, a quality-aware one-to-many as-signment strategy adaptively selects positive samples based on localization–classification consistency, enriching super-vision and promoting balanced query optimization. Exper-iments on COCO, CityScapes, and other benchmarks show consistent gains of 1.5%–4.2% mAP across DETR back-bones, including ResNet and Swin-Transformer. Beyond accuracy improvement, our method provides interpretable insights into how dynamic patterns cluster semantically across object categories. 
+
+## 1. Introduction 
+
+Object detection [48] aims to localize and classify multi-ple objects within an image. Traditional CNN-based de-tectors [12, 33, 34] rely on dense anchors and heuristic post-processing (e.g., NMS), which hinder fully end-to-end learning. Transformers have redefined this paradigm: DETR [2] formulates detection as a set prediction task trained with one-to-one Hungarian matching. Despite progress from follow-up variants [21, 23, 25, 31, 42, 46, 47], two main challenges remain. First, content-dependent ob-ject queries improve adaptivity [8, 29, 46] but often exhibit unstable semantics across scenes [42]. Second, the one-to-    
+
+> *These authors contributed equally to this work.
+> †Corresponding author. Email: yez12@pitt.edu
+> (a) Deformable-DETR (b) DN-DETR (c) DINO
+> (a) PaQ-Deformable-DETR (b) PaQ-DN-DETR (c) PaQ-DINO
+
+Figure 1. Query activation distributions of baseline DETRs vs. PaQ-DETR. Standard DETRs show highly skewed, long-tailed ac-tivations, while PaQ-DETR reduces imbalance and lowers Gini coefficients. 
+
+one matching scheme leads to highly sparse supervision: only a few queries consistently receive strong gradients, leaving many weakly optimized or under-used which is lim-iting model capacity. Prior works primarily pursue two directions for object queries: (1) static queries that maintain semantic stabil-ity but lack adaptability, and (2) content-dependent dy-namic queries that increase flexibility but introduce insta-bility. However, these directions only partially address the underlying optimization issue. Our analysis shows that both challenges arise from a structural query activation im-balance caused by DETR’s one-to-one matching, where a few “winning” queries receive most of the gradients while the majority remain weakly optimized. This perspective links query representation and supervision as two sides of the same problem, suggesting that mitigating imbalance re-quires jointly improving how queries are parameterized and how supervision signals are distributed. To address this issue, we propose PaQ-DETR, which in-tegrates two complementary components. First, we intro-duce a pattern-based dynamic query formulation that learns 1
+
+> arXiv:2603.06917v1 [cs.CV] 6 Mar 2026
+
+a compact set of shared latent patterns and composes image-specific queries via encoder-conditioned weighting. Unlike prior dynamic-query approaches ( e.g ., DDQ-DETR [43], Dy-DETR [7], EASE-DETR [11]), which improve adap-tivity without explicitly addressing optimization imbalance, our formulation enables gradient sharing through a common representational basis, promoting more balanced and se-mantically coherent query evolution. Second, we introduce a quality-aware adaptive assignment strategy that selects positive samples according to localization–classification consistency, enriching supervision without auxiliary de-coders or additional inference cost. To validate the imbalance phenomenon, we ana-lyze query activations across several DETR variants: Deformable-DETR [46], DN-DETR [23], and DINO [42]. As shown in Fig. 1, the activation distribution exhibits a substantial long-tail pattern, and the Gini coefficient even reaches up to 0.97 in DINO, demonstrating severe inequal-ity in the query utilization and confirming the structural ori-gin of imbalance. Building on these insights, PaQ-DETR jointly improves query adaptivity and supervision balance, forming a unified optimization framework that enhances DETR training dy-namics while keeping the architecture lightweight. Our contributions are threefold: • We empirically reveal and quantify severe query activa-tion imbalance in DETR models and trace its origin to the one-to-one Hungarian matching mechanism. • We propose a pattern-based dynamic query genera-tion mechanism that unifies shared semantics and image-conditioned adaptivity, alleviating imbalance. • We introduce a quality-aware adaptive assignment 
+
+strategy that balances supervision strength and further stabilizes optimization. 
+
+## 2. Related Work 
+
+DETR and Query Design. DETR [2] formulates ob-ject detection as a set prediction task trained with one-to-one Hungarian matching, using a fixed set of learnable queries shared across all images. Subsequent efforts im-prove convergence and adaptivity. Deformable-DETR [46] introduces multi-scale deformable attention and generates encoder-derived proposals as content-dependent queries. Conditional DETR [30] decomposes each query into con-tent and spatial components, and Anchor DETR [39] injects spatial priors through anchor initialization. Later works such as DINO [42] observed that encoder-driven queries of-ten suffer from semantic instability and reverted to purely learnable queries combined with denoising and contrastive objectives. DN-DETR [23] and DAB-DETR [25] further stabilize optimization via denoising and anchor parameter-ization. RT-DETR and RT-DETRv2 [29, 45] reintroduce content-dependence by selecting top-K encoder tokens as decoder queries for efficient adaptivity. Overall, static queries provide stability but limited flexibility, whereas content-dependent queries improve adaptivity at the cost of semantic consistency. PaQ-DETR bridges these paradigms by combining the semantic stability of static queries with the adaptivity of content-dependent queries. 
+
+Dynamic and Pattern-Based Queries. DETR models of-ten suffer from uneven query activation, where only a small subset of queries actively contribute to detection while re-mainings redundant [3, 11, 18, 43]. This imbalance moti-vates exploration of dynamic or pattern-based mechanisms. Dynamic Head [9] adaptively aggregates features at the head level. DDQ-DETR [43] constructs queries as static combinations of shared bases, encouraging diversity yet remaining image-independent. Dy-DETR [8] fuses 900 queries into 300 using encoder-conditioned fusion weights to reduce redundancy, while EASE-DETR [11] mitigates query competition via attention routing. DQ-DETR [19] dynamically adjusts the number of queries according to ob-ject density to improve small-object recall. Although these works enhance efficiency and diversity, they often overlook semantic coherence between dynamic and shared queries. Pattern-based formulations learn shared latent representa-tions as reusable bases [35, 38]. Our approach extends this idea with content-dependent weighting to achieve both se-mantic stability and per-image adaptivity. 
+
+One-to-Many and Hybrid Assignments. Beyond query formulation, several DETR variants revisit label assign-ment to enrich the sparse supervision of one-to-one match-ing. Group-DETR [4] divides queries into fixed groups per ground truth, MS-DETR [44] applies mixed supervi-sion across decoder stages, and H-DETR [20] introduces hybrid auxiliary branches to increase positive samples. Co-DETR [47] proposes collaborative hybrid assignments that jointly optimize one-to-one and one-to-many branches through gradient sharing. While these strategies accelerate convergence, they rely on fixed group sizes or additional decoders and lack adaptive control over supervision qual-ity. We integrate pattern-based dynamic query generation with a quality-aware adaptive assignment, jointly address-ing query and supervision imbalance in DETR training. 
+
+## 3. Methodology 
+
+PaQ-DETR is designed from a unified optimization per-spective to alleviate the structural query activation imbal-ance identified in DETR’s one-to-one matching. This im-balance causes only a few “winning” queries to domi-nate gradient updates, leaving most queries weakly opti-mized. Alleviating this issue requires addressing two com-plementary aspects of DETR training: (1) the represen-tation of object queries, which determines how gradients propagate across queries, and (2) the distribution of super-vision , which determines how many queries receive mean-2Backbone Backbone 
+
+> Deformable
+> Encoder
+> Deformable
+> Decoder & Head
+> Dilated conv
+> Relu
+> 1 x 1 conv
+> Dilated conv
+> Relu
+> 1 x 1 conv
+> LayerNorm
+> Relu
+> Linear
+> Linear
+> LayerNorm
+> Relu
+> Linear
+> Linear
+> Fusion
+> Fusion
+> Fusion
+> Weight
+> Generator
+> Avg Pooling
+> s2
+> s3
+> s4
+> s5
+> s2
+> s3
+> s4
+> s5
+> Feature map
+
+Content -Aware Weight 
+
+Generator Module  
+
+> Patterns Patterns
+> WD
+> FFN Content queries
+> Position queries
+> Position Embedding
+> Image Feature Feature Extractor
+> Weight Generator
+> Feature Fusion
+> Position Embedding
+> Image Feature Feature Extractor
+> Weight Generator
+> Feature Fusion
+> Channel
+> Attention
+> Spatial
+> Attention
+> Quality -Aware One -to -
+> Many Assignment
+
+Pattern -based Representation 
+
+Module 
+
+> Backbone Backbone
+> Deformable
+> Encoder
+> Deformable
+> Decoder & Head
+> Dilated conv
+> Relu
+> 1 x 1 conv
+> Dilated conv
+> Relu
+> 1 x 1 conv
+> LayerNorm
+> Relu
+> Linear
+> Linear
+> LayerNorm
+> Relu
+> Linear
+> Linear
+> Fusion
+> Fusion
+> Fusion
+> Weight
+> Generator
+> Avg Pooling
+> s2
+> s3
+> s4
+> s5
+> s2
+> s3
+> s4
+> s5
+> Feature map
+
+Content -Aware Weight 
+
+Generator Module  
+
+> Patterns Patterns
+> WD
+> FFN Content queries
+> Position queries
+> Position Embedding
+> Image Feature Feature Extractor
+> Weight Generator
+> Feature Fusion
+> Position Embedding
+> Image Feature Feature Extractor
+> Weight Generator
+> Feature Fusion
+> Channel
+> Attention
+> Spatial
+> Attention
+> Quality -Aware One -to -
+> Many Assignment
+
+Pattern -based Representation 
+
+Module Figure 2. Overview of PaQ-DETR . Our framework integrates (1) a content-aware weight generator that adapts query composition to image features, (2) a pattern-based representation module that learns shared semantic bases, and (3) a quality-aware one-to-many assignment that provides balanced supervision. 
+
+ingful training signals. Accordingly, PaQ-DETR introduces two synergistic components. First, a pattern-based dynamic query mod-ule constructs each query as a convex combination of shared latent patterns using encoder-conditioned weights, enabling gradient sharing and stabilizing query semantics. Second, a quality-aware adaptive assignment mechanism adjusts both the number and selection of positive samples accord-ing to prediction quality, enriching supervision without aux-iliary decoders. Together, these components form a coher-ent and lightweight framework that jointly improves query adaptivity and supervision balance. We next describe the preliminaries and each component in detail. 
+
+3.1. Preliminary 
+
+DETR Architecture. A DETR-style detector typically consists of three components: a convolutional backbone, a transformer encoder–decoder, and task-specific prediction heads. Given an input image I ∈ Rh×w×3, the backbone extracts feature tokens X ∈ Rm×d, which are refined by the encoder via self-attention to produce contextualized fea-tures Z = Encoder (X) ∈ Rm×d. The decoder operates on a set of learnable object queries Q = {q1, q 2, . . . , q n} ∈ 
+
+Rn×d, each of which iteratively attends to image features through self- and cross-attention across L layers: 
+
+Ql = FFN (CrossAttn (SelfAttn (Ql−1), Z)) . (1) The final layer output QL is mapped by prediction heads to class probabilities and bounding boxes Y = Head (QL).This formulation eliminates non-maximum suppression and allows end-to-end optimization through bipartite matching, which forms the basis for our dynamic query design. 
+
+One-to-Many Assignment. DETR [2] formulates ob-ject detection as a bipartite matching problem, where each ground-truth object is uniquely paired with a single predic-tion. The optimal matching σ is obtained by minimizing a cost that jointly considers classification and bounding-box regression through Hungarian algorithm [22]. The one-to-one matching loss is expressed as: 
+
+L1:1 = λ1Lcls (cσ , c ∗) + λ2Lbox (bσ , b ∗) + λ3Lgiou (bσ , b ∗),
+
+(2) where Lcls denotes the classification loss between the matched prediction cσ and ground-truth label c∗, and Lbox 
+
+and Lgiou are the L1 and GIoU losses between the matched boxes bσ and b∗, respectively. Although one-to-one strategy enables clean end-to-end optimization, it provides extremely sparse supervi-sion—each ground truth updates only a single query. To enrich training signals, recent works extend to one-to-many assignment [1, 44], allowing multiple predictions to match the same object. The loss is accordingly reformulated as: 
+
+L1: m =
+
+> k
+
+X
+
+> i=1
+
+λ1Lcls (cσ(i), c ∗) + λ2Lbox (bσ(i), b ∗)+ λ3Lgiou (bσ(i), b ∗),
+
+(3) where σ(i) denotes the index of the i-th matched prediction among k positive samples for the same ground-truth pair 
+
+(c∗, b ∗). This relaxation improves convergence and gener-alization, but still relies on fixed number k of positives. 
+
+3.2. Dynamic Query Learning via Latent Patterns 
+
+As illustrated in Fig. 2, our framework extends DETR with a dynamic query generation mechanism that con-structs image-specific queries from a compact set of shared latent base patterns. The overall process consists of two components on the representation side: a content-aware weight generator that produces adaptive combination 3weights from encoder features, and a pattern-based module that learns reusable latent semantic bases for constructing object queries. Together, these components enable queries to adapt to image content while preserving global semantic consistency and promoting balanced optimization. 
+
+Query Representation via Latent Patterns. We represent object queries using a dual formulation comprising content queries QC = {qC 
+
+> 1
+
+, . . . , q Cn } ∈ Rn×d and base patterns 
+
+QP = {qP 
+
+> 1
+
+, . . . , q Pm} ∈ Rm×d, where n and m denote their respective quantities and d is the embedding dimen-sion. Base patterns act as shared semantic primitives, while each content query qCi is expressed as a convex combination of these patterns: 
+
+qCi =
+
+> m
+
+X
+
+> j=1
+
+wDij qPj , (4) where WD ∈ Rn×m contains the dynamic combination weights. Each wDij reflects the contribution of pattern qPj
+
+to query qCi , constrained by wDij ≥ 0 and Pmj=1 wDij = 1 
+
+to ensure a valid convex mixture. The learning of object queries is thereby transferred to the learning of shared base patterns. This formulation allows gradients from matched queries to flow through shared patterns, thereby promot-ing parameter sharing and alleviating the winner-take-all dynamic observed in independently optimized queries. This pattern-based construction thus directly mitigates the representation-side imbalance by enabling more uniform gradient propagation across queries. 
+
+Content-Aware Weight Generator. The content-aware weight generator module produces dynamic weights WD
+
+by processing multi-scale encoder features through three lightweight components: feature extraction, multi-scale feature fusion, and weight generation. This module enables the learned base patterns to be adaptively combined accord-ing to the input image. 
+
+Feature extraction. Given unflattened multi-scale fea-ture maps Si ∈ Rhi×wi×d from the encoder outputs, we first apply a 1 × 1 convolution followed by a dilated con-volution with ReLU activation to enlarge the receptive field and capture long-range dependencies that are essential for multi-object detection. This step enhances the non-linear ability of encoder features while maintaining efficiency. 
+
+Multi-scale feature fusion. We perform top-down fu-sion by upsampling higher-level (lower-resolution) fea-tures to match the spatial resolution of lower-level (higher-resolution) ones, and then combine them through element-wise addition. The fused features are refined using lightweight channel attention [36] and spatial attention [14] to emphasize informative regions, while skip connections preserve low-level feature details. This process is applied progressively from top to bottom, producing an enhanced feature representation Z ∈ Rh2×w2×d that encodes com-prehensive multi-scale contextual information. 
+
+Weight generation. The enhanced features Z are spa-tially aggregated using average pooling to obtain compact feature representations ˆZ ∈ Rd. A two-layer MLP Fw with layer normalization and ReLU activation then transforms these features into dynamic weights: 
+
+WD = softmax (Fw(ˆZ)) . (5) The softmax operation ensures that each row of WD sums to one, forming valid convex combinations that adaptively blend base patterns from the input image content. 
+
+3.3. Quality-Aware One-to-Many Assignment 
+
+While the pattern-based module alleviates representation-side imbalance, the supervision-side imbalance caused by one-to-one matching remains a limiting factor for efficient optimization. Conventional DETR-based models [2] adopt a one-to-one Hungarian matching scheme, where each ground-truth object supervises only a single prediction. While this formulation ensures end-to-end bipartite match-ing, it inherently limits the number of positive samples per object, leading to sparse supervision and slower conver-gence. Recent variants [1, 4, 20, 44] extend this paradigm to one-to-many matching to provide richer learning signals. Building on these insights, we propose a quality-aware one-to-many assignment strategy that dynamically determines both the number and selection of positive samples for each ground-truth instance based on prediction quality. 
+
+Dynamic Positive Sample Selection. Given a set of predic-tions ˆP = {ˆp1, ˆp2, . . . , ˆpn}, where each ˆpi = ( ˆbi, ˆci) repre-sents a predicted bounding box and its classification confi-dence, and ground-truth objects G = {g1, g 2, . . . , g m}, we define a quality score for each prediction–ground-truth pair: 
+
+si,j = IoU (ˆbi, g j ) − γˆci, (6) where γ controls the trade-off between localization accu-racy and classification confidence. Higher si,j values indi-cate higher-quality predictions. For each ground truth gj , the number of assigned positive predictions kj is adaptively determined as: 
+
+kj = max 
+
+X 
+
+> i∈top-k (s·,j )
+
+si,j 
+
+ , l 
+
+ , (7) where top-k (s·,j ) indexes the top-k predictions with the highest quality scores, and l denotes the minimum num-ber of positives per instance. This formulation allows the supervision strength to adapt to the confidence–localization consistency of predictions. 
+
+Training Strategy. Our quality-aware assignment natu-rally prioritizes high-IoU but under-confident predictions, encouraging the model to focus on informative yet chal-lenging samples. We apply this dynamic assignment in in-termediate decoder layers to enhance optimization robust-ness, while preserving standard one-to-one matching in the 4final layer for efficient inference. For loss computation, we adopt the IoU-aware Varifocal Loss [41], which adaptively weights positive samples by their quality scores, providing smoother gradients and more balanced supervision across varying sample difficulties. 
+
+3.4. Overall Loss Function 
+
+Our training objective consists of three parts: a quality-aware one-to-many assignment loss, a diversity regulariza-tion over latent patterns, and standard auxiliary Hungarian losses. 
+
+Quality-Aware Assignment Loss. We adopt the proposed quality-aware one-to-many matching to construct adaptive positive sets. The loss L1: m follows Eq. 3 with the coeffi-cient settings from DINO [42]. 
+
+Pattern Diversity Regularization. To avoid redundant pat-tern representations, we penalize cosine similarity among normalized base patterns: 
+
+Ldiv = 1
+
+m(m − 1) 
+
+X
+
+> i̸=j
+
+cos(ˆ qPi , ˆqPj ) . (8) 
+
+Auxiliary Supervision. Following DETR, we apply Hun-garian losses Laux to all decoder intermediate layers. 
+
+Total Objective. The final loss is: 
+
+Ltotal = L1: m + Laux + βLdiv . (9) 
+
+## 4. Experiments 
+
+4.1. Experiment Setup 
+
+Datasets. We perform comprehensive experiments to eval-uate our model across multiple benchmarks and tasks, including the standard COCO 2017 [24], CityScapes 2016 [6], CSD [37] and MSSD [5]. For object detection, we use COCO 2017 along with two task-specific datasets: CSD and MSSD. To further assess our approach’s versatil-ity, we extend our evaluation to instance segmentation using COCO 2017 and CityScapes 2016. 
+
+Evaluation Metrics. Following established protocol [2], we evaluate detection performance using standard COCO metrics, including mean Average Precision (mAP) at differ-ent IoU thresholds (0.5, 0.75 and 0.5:0.95), as well as dif-ferent scales across small, medium, and large objects. For instance segmentation, we report both mask mAP and box mAP metrics, respectively. 
+
+Implementation details. We evaluate our approach using two backbone architectures: ResNet-50 [13] pretrained on ImageNet-1k and Swin-Large [27] pretrained on ImageNet-22k [10]. All models are trained using the AdamW opti-mizer [28] with an initial learning rate of 2×e−4 and weight decay of 1 × e−4. We adopt standard training schedules of 1× (12 epochs) and 2 × (24 epochs), where the learning rate is reduced by a factor of 0.1 at the 11th and 20th epochs, respectively. Training is performed with a batch size of 16 across 8 NVIDIA RTX 3090 GPUs. Following estab-lished practices [2, 42, 46], we apply standard data augmen-tations, including random resize, crop, and horizontal flip during training. For dynamic query generation, we employ 50 and 150 patterns to generate 300 and 900 queries, re-spectively, consistent with baseline configurations. Within one-to-many assignment, the hyper-parameters are config-ured as follows: l = 1 , k = 4 , and γ = 0 .4. The diversity loss weight is set to β = 0 .2.
+
+4.2. Main Results 
+
+COCO 2017. We evaluate our methods on the COCO 2017 benchmark [24] across multiple DETR baselines, in-cluding Deformable-DETR [46], DAB-DETR [25], DN-DETR [23], and DINO [42], using 300 or 900 queries. Un-like Co-DETR [47], we follow the standard DETR train-ing pipeline without introducing extra queries or auxil-iary branches. As shown in Table 1, our PaQ variants consistently improves all baselines by 1.1–1.6 mAP un-der the 12-epoch schedule. Notably, PaQ-DINO reaches 51.9 mAP, surpassing DINO++ by 1.6 and yielding larger gains on medium (+2.3 AP M ) and large (+2.9 AP L) ob-jects. With 24-epoch training, it further achieves 52.6 mAP, outperforming recent methods such as DDQ-DETR [43] and Stable-DINO [26]. Using a Swin-L backbone (Ta-ble 2), PaQ-DINO attains 57.8 mAP, surpassing all coun-terparts. These results demonstrate that our dynamic query and quality-aware designs generalize well across architec-tures and training schedules. 
+
+Comparison with One-to-Many Assignment DETRs. 
+
+Recent DETR variants [4, 20, 44, 47] employ one-to-many assignment to enrich supervision and speed up convergence. To ensure a fair comparison, we follow the hybrid config-uration of H-DETR [20] only in training with Nh = 1500 
+
+and k = 6 positives in an auxiliary branch, while keep-ing our main branch equipped with the proposed adaptive assignment, termed as PaQ-DETR. As shown in Table 3, PaQ-DETR achieves the highest mAP among representative one-to-many methods, including Group-DETR [4], MS-DETR [44], and Co-DETR [47], confirming that our unified pattern- and quality-aware design provides complementary benefits for feature diversity and balanced supervision. 
+
+CSD and MSSD. To demonstrate generalizability, we eval-uate our method on two task-specific datasets for defect de-tection: CSD [37] and MSSD [5]. As shown in Table 4 and Table 5, our method achieves 54.2 and 55.2 mAP respec-tively, improving over DINO baseline by 0.8 and 4.2 mAP. These consistent gains across diverse datasets validate the robustness of our method beyond general object detection. 5Table 1. The performance on COCO val 2017 based on ResNet-50 backbone under 12 and 24 epochs. ++ denotes we re-implement the methods and report the corresponding results. Rows marked in gray show the results integrating our methods. 
+
+Method Backbone Epochs Queries mAP AP 50 AP 75 AP S AP M AP L
+
+H-DETR [20] ResNet-50 12 300 48.7 66.4 52.9 31.2 51.5 63.5 MS-DETR [44] ResNet-50 12 300 48.8 66.2 53.2 31.5 52.3 63.7 Deformable-DETR++ [46] ResNet-50 12 300 46.9 65.6 51.1 30.1 50.4 60.3 PaQ-Deformable-DETR (ours) ResNet-50 12 300 48.4 66.9 52.6 32.2 52.2 63.1 DAB-DETR++ [25] ResNet-50 12 300 48.0 66.2 52.4 31.9 51.4 61.7 PaQ-DAB-DETR (ours) ResNet-50 12 300 49.2 67.7 53.6 32.8 52.6 63.9 
+
+DN-DETR++ [23] ResNet-50 12 300 47.3 65.1 51.5 29.7 51.1 62.1 PaQ-DN-DETR (ours) ResNet-50 12 300 48.9 66.8 53.2 32.6 52.2 62.4 Cascade-DETR [40] ResNet-50 12 900 49.7 67.1 54.1 32.4 53.5 65.1 Stable-DINO [26] ResNet-50 12 900 50.4 67.4 55.0 32.9 54.0 65.5 Align-DETR [1] ResNet-50 12 900 50.2 67.8 54.4 32.9 53.3 65.0 DDQ-DETR [43] ResNet-50 12 900 50.7 68.1 55.7 - - -Salience-DETR [15] ResNet-50 12 900 49.2 67.1 53.8 32.7 53.0 63.1 Rank-DETR [32] ResNet-50 12 900 50.4 67.9 55.2 33.6 53.8 64.2 DAC-DETR [17] ResNet-50 12 900 50.0 67.6 54.7 32.9 53.1 64.4 Dy-DETR [8] ResNet-50 12 900 49.7 68.1 54.2 - - -Ease-DETR [11] ResNet-50 12 900 50.8 68.9 55.3 34.1 54.2 65.1 Deformable-DETR++ [46] ResNet-50 12 900 47.6 65.8 52.1 32.2 51.1 61.4 PaQ-Deformable-DETR (ours) ResNet-50 12 900 48.9 67.1 53.3 33.2 52.6 63.6 DAB-DETR++ [25] ResNet-50 12 900 48.3 66.4 52.8 32.1 51.6 62.0 PaQ-DAB-DETR (ours) ResNet-50 12 900 49.4 67.7 53.7 33.4 52.8 64.0 DN-DETR++ [23] ResNet-50 12 900 48.7 66.4 52.9 32.1 52.1 63.7 PaQ-DN-DETR (ours) ResNet-50 12 900 49.8 67.6 53.5 33.2 52.7 64.8 DINO++ [42] ResNet-50 12 900 50.3 67.9 55.3 34.1 53.7 63.7 PaQ-DINO (ours) ResNet-50 12 900 51.9 69.1 56.3 35.1 56.0 66.6 
+
+DDQ-DETR [43] ResNet-50 24 900 52.0 69.5 57.2 35.2 54.9 65.9 Stable-DINO [26] ResNet-50 24 900 51.5 68.5 56.3 35.2 54.7 66.5 Align-DETR [1] ResNet-50 24 900 51.3 68.2 56.1 35.5 55.1 65.6 MS-DETR [44] ResNet-50 24 900 51.7 68.7 56.5 34.0 55.4 65.5 DAC-DETR [17] ResNet-50 24 900 51.2 68.9 56.0 34.0 54.6 65.4 DINO++ [42] ResNet-50 24 900 50.9 68.6 55.8 34.8 54.1 65.2 PaQ-DINO (ours) ResNet-50 24 900 52.6 69.7 56.9 35.7 56.4 67.0                                                                                   
+
+> Table 2. The performance on COCO val 2017 based on Swin-L backbone under 12 epochs. Method Backbone Epochs Queries mAP AP 50 AP 75 AP SAP MAP L
+> H-Def-DETR [20] Swin-L 12 300 55.9 75.2 61.0 39.1 59.9 72.2 DINO [42] Swin-L 12 900 56.8 75.4 62.3 41.1 60.6 73.5 Salience-DETR [15] Swin-L 12 900 56.5 75.0 61.5 40.2 61.2 72.8 Rank-DETR [32] Swin-L 12 900 57.6 76.0 63.4 41.6 61.4 73.8 DAC-DETR [17] Swin-L 12 900 57.3 75.7 62.7 40.1 61.5 74.4 Stable-DINO [26] Swin-L 12 900 57.7 75.7 63.4 39.8 62.0 74.7
+> Relation-DETR [16] Swin-L 12 900 57.8 76.1 62.9 41.2 62.1 74.4 PaQ-DINO (ours) Swin-L 12 900 57.8 76.2 62.6 41.4 62.2 74.2
+
+4.3. Ablation Study 
+
+Pattern number analysis. Fig. 3(a) shows the optimal per-formance 51.7 mAP is achieved with 150 or 200 patterns. Even a compact set of 50 patterns still yields +0.7 mAP over the baseline, suggesting that a small number of shared pat-terns is sufficient to capture diverse object semantics. How-ever, 250 patterns cause slight degradation due to optimiza-tion interference from excessive pattern diversity. 6Table 3. The performance on COCO val 2017 with one-to-many assignment DETRs using ResNet-50 backbone under 12 epochs.                                     
+
+> Method mAP AP 50 AP 75 AP SAP MAP L
+> Group-DETR [4] 49.8 --32.4 53.0 64.2
+> H-Def-DETR [20] 48.7 66.4 52.9 31.2 51.5 63.5 MS-DETR [44] 50.0 67.3 54.4 31.6 53.2 64.0 Co-DETR [47] 52.1 69.4 57.1 35.4 55.4 65.9 PaQ-DETR (ours) 52.4 69.8 57.4 36.1 55.6 66.2
+
+Table 4. The performance on CSD based on ResNet-50 backbone under 60 epochs. 
+
+Method mAP AP 50 AP 75 AP S AP M
+
+DAB-DETR [25] 50.2 88.5 51.0 48.2 38.2 DN-DETR [23] 49.9 88.0 51.2 47.6 37.7 H-DETR [20] 53.0 90.6 55.7 51.2 39.2 DINO [42] 53.4 91.0 55.8 50.9 39.6 PaQ-DINO (ours) 54.2 91.8 56.2 51.4 40.2 
+
+Table 5. The performance on MSSD based on ResNet-50 back-bone under 120 epochs. 
+
+Method mAP AP 50 AP S AP M AP L
+
+DAB-DETR [25] 33.7 60.0 15.9 26.7 29.0 DN-DETR [23] 45.6 74.1 18.6 31.9 41.0 H-DETR [20] 46.9 76.8 20.3 45.3 40.7 DINO [42] 51.0 80.0 20.0 47.4 44.8 PaQ-DINO (ours) 55.2 80.2 27.2 48.2 45.2 
+
+(a) 50 100 150 200 250    
+
+> 51.0
+> 51.3
+> 51.7 51.7 51.5
+
+(b) 0.0 0.1 0.2 0.3 0.4  
+
+> 51.2 51.3
+> 51.8
+> 51.5
+> 50.8
+
+(c) 2 3 4 5 6  
+
+> 51.2
+> 51.6 51.7
+> 51.3
+> 50.7
+
+(d) 0.2 0.4 0.6 0.8 
+
+> 51.3
+> 51.7
+> 51.4
+> 51.1
+
+Figure 3. Ablation study on key hyperparameters of PaQ-DETR: (a) number of patterns, (b) diversity loss weight β, (c) top-k in quality-aware assignment, and (d) balancing weight γ.
+
+Diversity loss weight analysis. Fig. 3(b) illustrates that re-moving the diversity regularization ( β = 0 ) leads to a 0.6 mAP drop, while too strong a weight ( β > 0.3) also harms accuracy. A moderate β = 0 .2 achieves a good trade-off between stability and diversity. 
+
+One-to-many assignment hyper-parameters. For the one-to-many assignment in Fig. 3(c–d), the best results oc-cur at top-k selection k = 4 and IoU-classification balance 
+
+γ = 0 .4. Larger k values introduce low-quality matches, confirming the benefit of positive assignments with selec-tive, quality-driven supervision. 
+
+Component ablation. Table 6 reports the effect of each 
+
+Table 6. Ablation study on different components. ‘D’: dynamic query, ‘Q’: Quality-aware one-to-many assignment. 
+
+D Q mAP AP 50 AP 75 AP S AP M AP L Gini 50.3 67.9 55.3 34.1 53.7 63.7 0.97 
+
+✓ 51.4 69.0 56.0 35.3 55.2 66.5 0.90 
+
+✓ 51.1 68.4 55.5 34.8 55.1 65.6 0.95 
+
+✓ ✓ 51.9 69.1 56.3 35.1 56.0 66.6 0.89 
+
+Figure 4. Convergence curves comparing baseline (dashed lines) with our methods (solid lines). The horizontal axis shows the num-ber of the epochs, while the vertical axis shows mAP metrics. 
+
+component over the DINO++ baseline. Dynamic query learning alone improves performance by +1.1 mAP with clear gains on large objects (+2.8 AP L). Quality-aware as-signment contributes an additional +0.8 mAP. When com-bined, our method reaches 51.9 mAP, notably boosting AP M (+2.3) and AP L (+2.9). These results confirm the complementary benefits of dynamic query generation and quality-aware supervision. In addition to accuracy, we also observe a reduction in query imbalance, as reflected by the lower Gini coefficient (0.97 → 0.89), demonstrating that our design encourages more balanced query utilization dur-ing training. 
+
+4.4. Model Analysis 
+
+Analysis of convergence. Fig. 4 compares conver-gence curves with a ResNet-50 backbone (900 queries, 12 epochs). PaQ variants converge faster and achieve higher accuracy than Def-DETR, DN-DETR, and DINO. The dy-namic query learning provides stronger initialization and stabilizes optimization, explaining the observed accelera-tion over static-query counterparts. 
+
+Analysis of pattern activations. We analyze the activation behavior of dynamic weights WD that transform learned patterns into dynamic queries. As shown in Fig. 5, we examine two representative categories, person and cat , on COCO val 2017, considering successful detections with IoU > 0.7 and confidence > 0.5. The activations are highly sparse, indicating that detection relies on selective pattern combinations. Interestingly, person and cat share partially overlapping activations, suggesting the presence of reusable patterns across categories. 7(a) 0       
+
+> 50
+> 100
+> 150
+> pattern #
+> 0
+> 112
+> 224
+> 336
+> 448
+> 560
+> output of detection
+> pattern weights for ` person ` detections
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+> 020 40 60 80 100 120 140
+> pattern #
+> 0.0
+> 0.1
+> 0.2
+> 0.3
+> query weight
+> average pattern weights for ` person `
+> mean response
+> ±1 std dev
+
+(b) 0       
+
+> 50
+> 100
+> 150
+> pattern #
+> 0
+> 38
+> 76
+> 114
+> 152
+> 190
+> output of detection
+> pattern weights for ` cat ` detections
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+> 0.6
+> 020 40 60 80 100 120 140
+> pattern #
+> 0.1
+> 0.0
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+> query weight
+> average pattern weights for ` cat `
+> mean response
+> ±1 std dev
+
+Figure 5. Pattern activation visualization. Left: activation heat-map; Right: statistical distribution of weights over successful de-tection for (a) person and (b) cat categories. 
+
+Figure 6. t-SNE visualization of WD on 200 images from COCO 
+
+val 2017. Zoom in to see details. 
+
+Analysis of semantic clustering. Because the dynamic weights WD are conditioned on image features, semanti-cally similar images should yield similar WD distributions. We flatten WD from 200 COCO validation images and project them using t-SNE for 2D visualization. As shown in Fig. 6, clear semantic clusters emerge—animals (red) occupy the top-left region, aircraft (amber) the bottom-left, and vehicles (purple) the bottom-right—indicating that PaQ-DETR encodes meaningful semantics when generating content-aware dynamic queries. 
+
+4.5. Computational and Memory Efficiency 
+
+We analyze the computational efficiency of PaQ-DETR in terms of parameters, FLOPs, memory, and inference speed. As shown in Table 7, our PaQ-DINO introduces marginal overhead compared to strong DETR baselines. The addi-tional cost is less than +5% FLOPs and +0.5 GB memory, with only 0.2 FPS decrease in inference speed. It shows that 
+
+Table 7. Computational efficiency analysis. 
+
+Method Params (M) FLOPs (G) Mem (GB) FPS Deformable-DETR++ [46] 40.5 188 3.63 16.4 DN-DETR++ [23] 41.2 192 3.64 16.6 DINO++ [42] 42.0 196 3.67 15.8 
+
+PaQ-DINO (ours) 43.8 205 4.15 15.4 
+
+Table 8. Instance segmentation results on COCO val 2017 and CityScapes 2016 with 300 queries and ResNet-50 backbone. 
+
+Method Epochs Mask mAP Box mAP 
+
+Dataset: COCO val2017 
+
+Baseline [46] 12 32.4 46.5 PaQ-Def-DETR (ours) 12 34.8 48.4 
+
+Baseline [46] 24 35.1 48.6 PaQ-Def-DETR (ours) 24 37.2 50.6 
+
+Dataset: CityScapes 2016 
+
+Baseline [46] 12 34.8 52.6 PaQ-Def-DETR (ours) 12 36.8 54.8 
+
+Baseline [46] 24 36.6 54.4 PaQ-Def-DETR (ours) 24 38.8 56.2 
+
+our method preserves almost the same runtime while deliv-ering consistent performance gains of +1.2–4.2 mAP across datasets. 
+
+4.6. Instance Segmentation 
+
+We further extend our method to instance segmentation by incorporating an additional mask prediction head into the transformer-based architecture. We evaluate on COCO val2017 [24] and Cityscapes [6] using 300 queries, with Deformable-DETR [46] serving as baseline. Table. 8 presents both mask AP and box AP results under 12 and 24 epochs. On COCO val 2017, we achieve substantial mask AP improvements of 2.4 (12 epochs) and 2.1 (24 epochs) over the baseline. Similarly, on Cityscapes, we observe con-sistent gains of 2.0 and 2.2 for mask AP at 12 and 24 epochs. The box AP results also show comparable improvements, indicating that our proposed method benefits both localiza-tion and segmentation. 
+
+## 5. Conclusion 
+
+We introduced PaQ-DETR, a novel approach that enhances DETR-based object detection through two key innovations: dynamic query learning via latent patterns and quality-aware one-to-many assignment. Extensive experiments on COCO 2017, CityScapes 2016 and two specialized datasets, demonstrate consistent performance gains across various models and backbones. Our analysis reveals that object queries can be effectively represented by a much smaller set of learnable patterns, and these patterns exhibit meaningful semantic clustering properties that adapt to image content. 8References 
+
+[1] Zhi Cai, Songtao Liu, Guodong Wang, Zheng Ge, Xiangyu Zhang, and Di Huang. Align-detr: Improving detr with sim-ple iou-aware bce loss. arXiv preprint arXiv:2304.07527 ,2023. 3, 4, 6 [2] Nicolas Carion, Francisco Massa, Gabriel Synnaeve, Nicolas Usunier, Alexander Kirillov, and Sergey Zagoruyko. End-to-end object detection with transformers. In European confer-ence on computer vision , pages 213–229. Springer, 2020. 1, 2, 3, 4, 5 [3] Fangyi Chen, Han Zhang, Kai Hu, Yu-Kai Huang, Chenchen Zhu, and Marios Savvides. Enhanced training of query-based object detection via selective query recollection. In 
+
+Proceedings of the IEEE/CVF conference on computer vi-sion and pattern recognition , pages 23756–23765, 2023. 2 [4] Qiang Chen, Xiaokang Chen, Jian Wang, Shan Zhang, Kun Yao, Haocheng Feng, Junyu Han, Errui Ding, Gang Zeng, and Jingdong Wang. Group detr: Fast detr training with group-wise one-to-many assignment. In Proceedings of the IEEE/CVF international conference on computer vision ,pages 6633–6642, 2023. 2, 4, 5, 7 [5] Yongqi Chen, Jiawei Pan, Jiayu Lei, Deyu Zeng, Zongze Wu, and Changsheng Chen. Eee-net: Efficient edge enhanced network for surface defect detection of glass. IEEE Transac-tions on Instrumentation and Measurement , 72:1–13, 2023. 5[6] Marius Cordts, Mohamed Omran, Sebastian Ramos, Timo Rehfeld, Markus Enzweiler, Rodrigo Benenson, Uwe Franke, Stefan Roth, and Bernt Schiele. The cityscapes dataset for semantic urban scene understanding. In Proceed-ings of the IEEE conference on computer vision and pattern recognition , pages 3213–3223, 2016. 5, 8 [7] Yiming Cui, Linjie Yang, and Ding Liu. Dynamic proposals for efficient object detection. arXiv preprint arXiv:2207.05252 , 2022. 2 [8] Yiming Cui, Linjie Yang, and Haichao Yu. Learning dy-namic query combinations for transformer-based object de-tection and segmentation. In International Conference on Machine Learning , pages 6591–6602. PMLR, 2023. 1, 2, 6 [9] Xiyang Dai, Yinpeng Chen, Jianwei Yang, Pengchuan Zhang, Lu Yuan, and Lei Zhang. Dynamic detr: End-to-end object detection with dynamic attention. In Proceedings of the IEEE/CVF international conference on computer vision ,pages 2988–2997, 2021. 2 [10] Jia Deng, Wei Dong, Richard Socher, Li-Jia Li, Kai Li, and Li Fei-Fei. Imagenet: A large-scale hierarchical image database. In 2009 IEEE conference on computer vision and pattern recognition , pages 248–255. Ieee, 2009. 5 [11] Yulu Gao, Yifan Sun, Xudong Ding, Chuyang Zhao, and Si Liu. Ease-detr: Easing the competition among object queries. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 17282– 17291, 2024. 2, 6 [12] Ross Girshick, Jeff Donahue, Trevor Darrell, and Jitendra Malik. Rich feature hierarchies for accurate object detection and semantic segmentation. In Proceedings of the IEEE con-ference on computer vision and pattern recognition , pages 580–587, 2014. 1 [13] Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun. Deep residual learning for image recognition. In Proceed-ings of the IEEE conference on computer vision and pattern recognition , pages 770–778, 2016. 5 [14] Qibin Hou, Daquan Zhou, and Jiashi Feng. Coordinate at-tention for efficient mobile network design. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 13713–13722, 2021. 4 [15] Xiuquan Hou, Meiqin Liu, Senlin Zhang, Ping Wei, and Badong Chen. Salience detr: Enhancing detection trans-former with hierarchical salience filtering refinement. In Pro-ceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 17574–17583, 2024. 6 [16] Xiuquan Hou, Meiqin Liu, Senlin Zhang, Ping Wei, Badong Chen, and Xuguang Lan. Relation detr: Exploring explicit position relation prior for object detection. In European con-ference on computer vision , pages 89–105. Springer, 2024. 6[17] Zhengdong Hu, Yifan Sun, Jingdong Wang, and Yi Yang. Dac-detr: Divide the attention layers and conquer. Advances in Neural Information Processing Systems , 36:75189–75200, 2023. 6 [18] Shihua Huang, Zhichao Lu, Xiaodong Cun, Yongjun Yu, Xiao Zhou, and Xi Shen. Deim: Detr with improved match-ing for fast convergence. In Proceedings of the computer vision and pattern recognition conference , pages 15162– 15171, 2025. 2 [19] Yi-Xin Huang, Hou-I Liu, Hong-Han Shuai, and Wen-Huang Cheng. Dq-detr: Detr with dynamic query for tiny object detection. In European conference on computer vision , pages 290–305. Springer, 2025. 2 [20] Ding Jia, Yuhui Yuan, Haodi He, Xiaopei Wu, Haojun Yu, Weihong Lin, Lei Sun, Chao Zhang, and Han Hu. Detrs with hybrid matching. In Proceedings of the IEEE/CVF con-ference on computer vision and pattern recognition , pages 19702–19712, 2023. 2, 4, 5, 6, 7 [21] Zhengjian Kang, Ye Zhang, Xiaoyu Deng, Xintao Li, and Yongzhe Zhang. Lp-detr: Layer-wise progressive relation for object detection. In International Conference on Intelligent Computing , pages 144–156. Springer, 2025. 1 [22] Harold W Kuhn. The hungarian method for the assignment problem. Naval research logistics quarterly , 2(1-2):83–97, 1955. 3 [23] Feng Li, Hao Zhang, Shilong Liu, Jian Guo, Lionel M Ni, and Lei Zhang. Dn-detr: Accelerate detr training by intro-ducing query denoising. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition ,pages 13619–13627, 2022. 1, 2, 5, 6, 7, 8 [24] Tsung-Yi Lin, Michael Maire, Serge Belongie, James Hays, Pietro Perona, Deva Ramanan, Piotr Doll´ ar, and C Lawrence Zitnick. Microsoft coco: Common objects in context. In 
+
+European conference on computer vision , pages 740–755. Springer, 2014. 5, 8 [25] Shilong Liu, Feng Li, Hao Zhang, Xiao Yang, Xianbiao Qi, Hang Su, Jun Zhu, and Lei Zhang. Dab-detr: Dynamic an-
+
+9chor boxes are better queries for detr. In International Con-ference on Learning Representations . 1, 2, 5, 6, 7 [26] Shilong Liu, Tianhe Ren, Jiayu Chen, Zhaoyang Zeng, Hao Zhang, Feng Li, Hongyang Li, Jun Huang, Hang Su, Jun Zhu, et al. Detection transformer with stable matching. In 
+
+Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 6491–6500, 2023. 5, 6 [27] Ze Liu, Yutong Lin, Yue Cao, Han Hu, Yixuan Wei, Zheng Zhang, Stephen Lin, and Baining Guo. Swin transformer: Hierarchical vision transformer using shifted windows. In 
+
+Proceedings of the IEEE/CVF international conference on computer vision , pages 10012–10022, 2021. 5 [28] Ilya Loshchilov and Frank Hutter. Decoupled weight de-cay regularization. In International Conference on Learning Representations , 2017. 5 [29] Wenyu Lv, Yian Zhao, Qinyao Chang, Kui Huang, Guanzhong Wang, and Yi Liu. Rt-detrv2: Improved base-line with bag-of-freebies for real-time detection transformer. 
+
+arXiv preprint arXiv:2407.17140 , 2024. 1, 2 [30] Depu Meng, Xiaokang Chen, Zejia Fan, Gang Zeng, Houqiang Li, Yuhui Yuan, Lei Sun, and Jingdong Wang. Conditional detr for fast training convergence. In Proceed-ings of the IEEE/CVF international conference on computer vision , pages 3651–3660, 2021. 2 [31] Zhixiong Nan, Xianghong Li, Jifeng Dai, and Tao Xiang. Mi-detr: an object detection model with multi-time inquiries mechanism. In Proceedings of the Computer Vision and Pat-tern Recognition Conference , pages 4703–4712, 2025. 1 [32] Yifan Pu, Weicong Liang, Yiduo Hao, Yuhui Yuan, Yukang Yang, Chao Zhang, Han Hu, and Gao Huang. Rank-detr for high quality object detection. Advances in Neural Informa-tion Processing Systems , 36:16100–16113, 2023. 6 [33] Joseph Redmon, Santosh Divvala, Ross Girshick, and Ali Farhadi. You only look once: Unified, real-time object de-tection. In Proceedings of the IEEE conference on computer vision and pattern recognition , pages 779–788, 2016. 1 [34] Shaoqing Ren, Kaiming He, Ross Girshick, and Jian Sun. Faster r-cnn: Towards real-time object detection with region proposal networks. Advances in neural information process-ing systems , 28, 2015. 1 [35] Binxu Wang and Carlos R Ponce. A geometric analysis of deep generative image models and its applications. In Inter-national Conference on Learning Representations . 2 [36] Qilong Wang, Banggu Wu, Pengfei Zhu, Peihua Li, Wang-meng Zuo, and Qinghua Hu. Eca-net: Efficient channel at-tention for deep convolutional neural networks. In Proceed-ings of the IEEE/CVF conference on computer vision and pattern recognition , pages 11534–11542, 2020. 4 [37] Qishan Wang, Shuyong Gao, Li Xiong, Aili Liang, Kaidong Jiang, and Wenqiang Zhang. A casting surface dataset and benchmark for subtle and confusable defect detection in complex contexts. IEEE Sensors Journal , 24(10):16721– 16733, 2024. 5 [38] Xiaogang Wang and Xiaoou Tang. A unified framework for subspace face recognition. IEEE Transactions on pattern analysis and machine intelligence , 26(9):1222–1228, 2004. 2[39] Yingming Wang, Xiangyu Zhang, Tong Yang, and Jian Sun. Anchor detr: Query design for transformer-based detector. In Proceedings of the AAAI conference on artificial intelli-gence , pages 2567–2575, 2022. 2 [40] Mingqiao Ye, Lei Ke, Siyuan Li, Yu-Wing Tai, Chi-Keung Tang, Martin Danelljan, and Fisher Yu. Cascade-detr: Delv-ing into high-quality universal object detection. In Proceed-ings of the IEEE/CVF International Conference on Com-puter Vision , pages 6704–6714, 2023. 6 [41] Haoyang Zhang, Ying Wang, Feras Dayoub, and Niko Sun-derhauf. Varifocalnet: An iou-aware dense object detector. In Proceedings of the IEEE/CVF conference on computer vi-sion and pattern recognition , pages 8514–8523, 2021. 5 [42] Hao Zhang, Feng Li, Shilong Liu, Lei Zhang, Hang Su, Jun Zhu, Lionel M Ni, and Heung-Yeung Shum. Dino: Detr with improved denoising anchor boxes for end-to-end object detection. arXiv preprint arXiv:2203.03605 , 2022. 1, 2, 5, 6, 7, 8 [43] Shilong Zhang, Xinjiang Wang, Jiaqi Wang, Jiangmiao Pang, Chengqi Lyu, Wenwei Zhang, Ping Luo, and Kai Chen. Dense distinct query for end-to-end object detection. In Proceedings of the IEEE/CVF conference on computer vi-sion and pattern recognition , pages 7329–7338, 2023. 2, 5, 6[44] Chuyang Zhao, Yifan Sun, Wenhao Wang, Qiang Chen, Er-rui Ding, Yi Yang, and Jingdong Wang. Ms-detr: Efficient detr training with mixed supervision. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 17027–17036, 2024. 2, 3, 4, 5, 6, 7 [45] Yian Zhao, Wenyu Lv, Shangliang Xu, Jinman Wei, Guanzhong Wang, Qingqing Dang, Yi Liu, and Jie Chen. Detrs beat yolos on real-time object detection. In Proceed-ings of the IEEE/CVF conference on computer vision and pattern recognition , pages 16965–16974, 2024. 2 [46] Xizhou Zhu, Weijie Su, Lewei Lu, Bin Li, Xiaogang Wang, and Jifeng Dai. Deformable detr: Deformable trans-formers for end-to-end object detection. arXiv preprint arXiv:2010.04159 , 2020. 1, 2, 5, 6, 8 [47] Zhuofan Zong, Guanglu Song, and Yu Liu. Detrs with col-laborative hybrid assignments training. In Proceedings of the IEEE/CVF international conference on computer vision ,pages 6748–6758, 2023. 1, 2, 5, 7 [48] Zhengxia Zou, Keyan Chen, Zhenwei Shi, Yuhong Guo, and Jieping Ye. Object detection in 20 years: A survey. Proceed-ings of the IEEE , 111(3):257–276, 2023. 1 
+
+10

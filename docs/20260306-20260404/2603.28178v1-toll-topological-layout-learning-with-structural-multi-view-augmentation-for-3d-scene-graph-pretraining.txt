@@ -1,0 +1,1212 @@
+Title: ToLL: Topological Layout Learning with Structural Multi-view Augmentation for 3D Scene Graph Pretraining
+
+URL Source: https://arxiv.org/pdf/2603.28178v1
+
+Published Time: Tue, 31 Mar 2026 02:11:51 GMT
+
+Number of Pages: 20
+
+Markdown Content:
+# ToLL: Topological Layout Learning with Structural Multi-view Augmentation for 3D Scene Graph Pretraining 
+
+Yucheng Huang * 1 Luping Ji 1 Xiangwei Jiang * 1 Wen Li 1 Mao Ye 1
+
+Abstract 
+
+3D Scene Graph (3DSG) generation plays a piv-otal role in spatial understanding and semantic-affordance perception. However, its generalizabil-ity is often constrained by data scarcity. Current solutions primarily focus on cross-modal assisted representation learning and object-centric gener-ation pre-training. The former relies heavily on predicate annotations, while the latter’s predicate learning may be bypassed due to strong object priors. Consequently, they could not often pro-vide a label-free and robust self-supervised proxy task for 3DSG fine-tuning. To bridge this gap, we propose a Topological Layout Learning (ToLL) for 3DSG pretraining framework. In detail, we de-sign an Anchor-Conditioned Topological Geome-try Reasoning, with a GNN to recover the global layout of zero-centered subgraphs by the spatial priors from sparse anchors. This process is strictly modulated by predicate features, thereby enforc-ing the predicate relation learning. Furthermore, we construct a Structural Multi-view Augmenta-tion to avoid semantic corruption, and enhancing representations via self-distillation. The extensive experiments on 3DSSG dataset demonstrate that our ToLL could improve representation quality, outperforming state-of-the-art baselines. 
+
+1. Introduction 
+
+3D Scene Graph (3DSG) generation elevates scene under-standing from object-centric perception to holistic relational modeling. By capturing the semantic associations and func-tional affordances between entities, 3DSGs serve as a criti-cal structured representation for downstream agents in tasks like Vision-Language Navigation (Anderson et al., 2018) and Robotics (Zitkovich et al., 2023). A typical 3DSSG 
+
+> *
+
+Equal contribution 1School of Computer Science and Engi-neering, University of Electronic Science and Technology of China (UESTC), Chengdu, China. Correspondence to: Luping Ji <jilup-ing@uestc.edu.cn >.
+
+Preprint. March 31, 2026. GNN-based    
+
+> Feat. Extraction
+> (Topo. Message
+> Passing)
+> Triplet
+> Feature
+> CLIP
+> Feature
+> Lalign CLIP
+> Encoder
+> Text
+> Triplet
+> (a) Proxy Task: Cross-modal Alignment via GT Text Label
+> Graph
+> build .
+> Scene points
+> Decoder
+> (AtlasNet)
+> GNN-based
+> Feat. Extraction
+> (Topo. Message
+> Passing)
+> Graph
+> build .
+> Scene points Scene points
+> Lgen
+> (b) Proxy Task: Trivial Scene Generation via Explict Obj Geometry
+> Structural-Aug.
+> GNN-based Feat.
+> Extraction
+> (Topo. Message
+> Passing)
+> Scene points
+> Decoder
+> (CPDM)
+> Scene points
+> Graph build.
+> Lgen
+> Self-distillation
+> Teach. View
+> Stu. View
+> Teach. View
+> Stu. View
+> EMA
+> Noise Points
+> (c) Proxy Task (Ours): Non-trivial Scene Generation via Obj-geometric Bottleneck
+
+Figure 1. Proxy task scheme comparison of 3DSG generation: (a) cross-modal Vision-Language representation, (b) trivial scene generation, (c) non-trivial scene generation, i.e. , our ToLL. 
+
+framework (Wald et al., 2020; Armeni et al., 2019; Zhang et al., 2021a) comprises object and edge encoders for seman-tic extraction, coupled with a Graph Neural Network (GNN) for topological reasoning. Current 3DSG research primarily explores knowledge prior injection, predicate representation modeling, and self-supervised pretext tasks. Early approaches relied on knowledge prior injection, either through statistical prototypes (Zhang et al., 2021b) or cross-modal distillation from CLIP (Wang et al., 2023; Chen et al., 2024; Koch et al., 2024a) as shown in Figure 1(a). However, these methods depend heavily on annotated text-label pairs, limiting scalability. Others focused on explicit geometric modeling, utilizing vector differences (Wu et al., 2023) or hyperrectangles (Feng et al., 2025) to constrain predicate learning. Yet, these supervised methods struggle with gener-alization due to the long-tail sparsity of 3D relational data. To reduce annotation dependence, Self-Supervised Learn-ing (SSL) has emerged as a promising direction. Joint-embedding methods (Xie et al., 2020; Wu et al., 2025a; Zhang et al., 2021c;c; Van Assel et al., 2025) have proven effective for point cloud understanding but falter in 3DSG, as predicate representations are sensitive to the geometric transformations required for multi-view augmentation. In-spired by Auto-Encoder methods (Kingma & Welling, 2014; 1
+
+> arXiv:2603.28178v1 [cs.CV] 30 Mar 2026 ToLL: Topological Layout Learning with Structural Multi-view Augmentation
+
+Van Den Oord et al., 2017), (Koch et al., 2024b) designs an augmentation-free generative pretraining for 3DSG as shown in Figure 1(b). However, we identify a critical flaw in existing generative graph approaches: the ”Geometric Short-cut”. When dense spatial priors are provided, models tend to trivially interpolate the node positions from neighbors or themselves, rather than decoding the underlying topological constraints, leading to superficial edge representations. To address these limitations, we propose a Topological Lay-out Learning (ToLL) framework as shown in Figure 1(c). Our approach enforces the model to learn geometry strictly from topology, preventing shortcut learning. First, we intro-duce Anchor-Conditioned Topological Geometric Reason-ing (ACTGR). By normalizing node coordinates and enforc-ing a single-anchor information bottleneck (Hu et al., 2024), we compel the GNN to function as a ”dead-reckoning” system. The model must recover the global layout solely through edge-based propagation, establishing a generative feedback loop that simultaneously enhances fine-grained geometry and edge semantics. Second, to robustify representation against the semantic cor-ruption from geometric transformation, we propose Struc-tural Multi-view Augmentation (SMA) inspired by (Caron et al., 2021; Wu et al., 2025b; You et al., 2020; Zhu et al., 2021; Hou et al., 2022; Zhou et al.). Instead of geometric distortion, we employ connectivity perturbation to generate asymmetric student views. Through a SwAV-style (Caron et al., 2020) self-distillation, we enforce semantic consis-tency, ensuring the backbone captures representations invari-ant to both spatial incompleteness and topological occlusion. In summary, our primary contributions are: (1) We propose the ToLL, a new pre-training framework that mitigates geometric shortcuts in 3DSG generation via an information bottleneck. (2) We design ACTGR to enforce the explicit topological reasoning for layout recovery, and SMA to learn structurally robust semantics via cross-view self-distillation. (3) The extensive experiments conducted on the public 3DSSG dataset demonstrate that our ToLL scheme effec-tively boosts 3DSG fine-tuning. 
+
+2. Related Work 
+
+3D Scene Graph Prediction. Supervised 3DSG architec-tures (Wald et al., 2020; Ma et al., 2024; Feng et al., 2023) have evolved to incorporate external semantic priors (e.g., VLMs (Koch et al., 2024a; Chen et al., 2024)) or explicit geometric constraints (Wu et al., 2023; Feng et al., 2025) for predicate refinement. However, these methods rely heavily on sparse annotated triplets, limiting generalization. 
+
+Self-supervised Learning on Point Cloud. Self-Supervised Learning (SSL) on point clouds, including joint-embedding (Xie et al., 2020; Zhang et al.) and masked modeling (Pang et al., 2023), addresses data scarcity but struggles in the 3DSG domain. Rigid geometric augmenta-tions (e.g., rotation) used in SSL can fundamentally alter spa-tial predicate semantics. Furthermore, these object-centric methods (Wu et al., 2025a) fail to capture the complex topological structures essential for inferring inter-object re-lationships. Despite (Koch et al., 2024b)’s success with generative pre-training, it ignores shortcuts arising from full node visibility, which undermine topological reasoning. This limitation prevents the model from acquiring effective predicate representation capabilities. 
+
+Self-supervised Learning (SSL) on Graph. Graph SSL (Liu et al., 2022; Wu et al., 2021) typically constructs multi-view pairs via topological augmentations—such as node dropping or edge perturbation employed in GraphCL (You et al., 2020; 2021; Xu et al., 2021), or through reconstructive objectives like masking node features and structures in GraphMAE (Hou et al., 2022; Tian et al., 2023). Since 3DSG can be abstracted as a graph representa-tion learning problem (Hamilton, 2020), these topological augmentations offer a crucial advantage. By constructing multiple structural views, we can facilitate robust represen-tation learning while avoiding the semantic corruption of predicates often caused by the geometric augmentations. 
+
+3. Preliminary 
+
+3.1. 3D Scene Graph Prediction Definitions. We formulate the task of 3D Scene Graph Generation as learning a mapping from a 3D scene point cloud to a semantic graph G = ( V, E). Here, V = {oi}Ni=1 
+
+represents the set of N object instances, where each oi is associated with a subset of point cloud data. The set of edges E = {eij ∈ RD | (i, j ) ∈ M} denotes the semantic dependencies, where a directed edge eij = ( oi, o j ) corre-sponds to a predicate relationship between the subject oi
+
+and object oj . And M is the set of connected indices. The total number of edges is given by |E| = M .
+
+Feature Encoding and Propagation. The proposed frame-work comprises three core modules: an object encoder 
+
+ϕobj , a predicate encoder ϕrel , and a graph neural network GNN (·). First, we initialize the latent embeddings for nodes and edges by projecting the raw point cloud data and rela-tive geometric features into a high-dimensional latent space through {h(0)  
+
+> i
+
+= ϕobj (oi), h(0)  
+
+> ij
+
+= ϕrel (oi, o j )}, where 
+
+h(0)  
+
+> i
+
+∈ RN ×d, h(0)  
+
+> ij
+
+∈ RM ×d denote the initial features for nodes and edges, respectively. To capture high-order dependencies, these embeddings are propagated through a message-passing mechanism. The GNN facilitates bidirectional semantic enhancement by ag-2ToLL: Topological Layout Learning with Structural Multi-view Augmentation View 1: Edge-Guided Student & Anchor-Conditioned Topological Geometry Reasoning (ACTGR) 
+
+> soning
+
+Raw 3D Scene 
+
+Point Cloud 
+
+Connected Sub -graph 
+
+Construction 
+
+Gsub = (Vsub , Esub )
+
+> Structural Multi-view Augmentation (SMA)
+
+` 
+
+> View 2: Global Teacher
+> (rij )GRU
+
+R-GNN     
+
+> Relative
+> Message
+> Conditional Diffusion Model
+> (Layout Recovery)
+> Reverse
+> PTP0
+> Process
+> Recon.
+> Layout P0
+> Gaussian
+> Noise PT
+> Layout Prior
+> Latents h(T)
+> Topological
+> Layout Passing
+> GNN
+> object
+> edge
+> triplet GNN
+> 𝐀 𝐀𴀀𝐀
+> 𝐀 𝐀𴰀𝐀
+> 𝐀 𝐀𴰀𝐀
+> 𝐀 𝐀𴀀𝐀
+> EMA
+> EMA
+> Predictor(MLP)
+> View 3: Node-Guided Student
+> 𝐀 𝐀𴰀𝐀
+> 𝐀 𝐀𴀀𝐀
+> Predictor(MLP)
+> EMA
+> Cross-View
+> Self-
+> Distillation
+> Geometric
+> Layout Loss
+> Sinkhorn (OT)
+> Tatal Optimization Objective
+
+Edge 
+
+Predicate 
+
+Node 
+
+Object 
+
+> Parameter Sharing
+> GNN
+> edge
+> triplet
+> object  object
+> triplet
+> edge
+> STU
+> Prototype
+> Stu Proto.
+> Embed. Layer
+> Teach
+> Prototype Teach Proto.
+> Embed. Layer
+> Reference
+> Latents
+> Query
+> Latents
+
+Lgen Ldistill 
+
+Ltotal =Lgen +λLdistill 
+
+> Node Masking
+> (anchor setting)
+> Edge Masking
+> (more weak)
+> Edge Masking
+> (more strong)
+
+Figure 2. Our 3D Scene Graph Pretraining scheme via Topological Layout Learning with Structural Multi-view Augmentation. 
+
+gregating context from neighbors, as follows: 
+
+{h(L) 
+
+> i
+
+, h(L) 
+
+> ij
+
+} = GNN 
+
+
+
+{h(0)  
+
+> i
+
+}, {h(0)  
+
+> ij
+
+}; E
+
+
+
+(1) where h(L) represents the contextually refined representa-tions after L layers of propagation. 
+
+Scene Graph Inference. Finally, the refined embeddings are fed into task-specific classification heads (MLPs) to predict the semantic probability distributions 
+
+P (ci|G ) = Softmax (MLP cls (h(L) 
+
+> i
+
+)) 
+
+P (rij |G ) = Softmax (MLP rel (h(L) 
+
+> ij
+
+)) (2) where ci and rij denote the predicted object class and predi-cate category, respectively. 
+
+3.2. Conditional Point Cloud Diffusion 
+
+We formulate the main pre-training task as a conditional generative process guided by latent codes c with layout prior. Following the DDPM framework, we define a forward process that gradually corrupts the clean point cloud X0 into Gaussian noise. At any step t, the noisy state Xt can be sampled directly via q(Xt|X0) = N (Xt; √¯αtX0, (1 −
+
+¯αt)I), where ¯αt is the cumulative noise schedule. The generative model learns to reverse this process by pre-dicting the noise ϵ added to Xt, conditioned on the latent representation c. We optimize the network parameters θ by minimizing the simple noise prediction error: 
+
+L(θ) = Et,X 0,ϵ 
+
+h
+
+ϵ − ϵθ (√¯αtX0 + √1 − ¯αtϵ, c, t ) 2i
+
+,
+
+(3) where t is uniformly sampled, ϵ ∼ N (0 , I ), ϵθ (·) is a train-able neural network. This objective forces the backbone to capture the underlying geometric priors of 3D objects under the structural guidance of c.
+
+4. Methods 
+
+We formulate 3D Scene Graph pre-training (Figure 2) as a diffusion-based conditional layout restoration task. To achieve the context-aware learning of semantics and geome-try, we propose Anchor-Conditioned Topological Geometric Reasoning (ACTGR). Furthermore, we design Structural Multi-view Augmentation (SMA) to facilitate robust repre-sentation learning in a joint-embedding way. 
+
+4.1. Anchor-Conditioned Topological Geometric Reasoning. Definitions. Let Gsub = ( Vsub , Esub ) be a connected sub-graph derived from the scene, where Vsub represents the object nodes and Esub represents the relative geometric con-straints (edges). Assuming the numbers of nodes and edges are N and M , respectively. We define the problem of spatial layout restoration as inferring the absolute spatial attributes 
+
+S = {si}i∈V sub for all nodes, given a partially observed state driven by anchors. 
+
+Anchor Latent Initialization. We first project all object point clouds Pi within the subgraph Gsub into a canonical coordinate system via zero-mean centering and scale normal-ization. These normalized point clouds are processed by an object encoder ϕobj to extract latent features h(0)  
+
+> i
+
+∈ RN ×d.3ToLL: Topological Layout Learning with Structural Multi-view Augmentation 
+
+We define the spatial layout restoration as a conditional in-ference task anchored by a few nodes {va} ∈ V sub . For the selected anchor, we augment its latent feature with the 11-dimensional ground-truth absolute descriptor sgt , which encapsulates centroid coordinates, bounding box dimen-sions, and volumetric statistics. The final initial states h(0) 
+
+> i
+
+for the reasoning process are formulated as: 
+
+h′(0)  
+
+> i
+
+=
+
+(MLP 
+
+
+
+[h(0)  
+
+> i
+
+∥ sgt ]
+
+
+
+, i ∈ V anchor 
+
+h(0)  
+
+> i
+
+, i / ∈ V anchor 
+
+(4) where [· ∥ · ] denotes the concatenation operation, and MLP :
+
+Rd+11 → Rd is a Multi-Layer Perceptron (MLP) designed to project the concatenated features back to the original latent dimension d, ensuring dimensional alignment with non-anchor nodes. 
+
+Relative Geometric Constraints. Each edge eij ∈ E sub 
+
+carries a relative geometric attribute rij (e.g., relative vector 
+
+∆pij or size ratio ∆sij ). We posit that the absolute state of a neighbor vj can be recovered from vi via a learnable transformation function Φtrans :
+
+sj ≈ Φtrans (si, rij ) (5) Mathematically, if the graph is consistent, Φtrans represents a geometric operator (e.g., translation or scaling) such that 
+
+sj = si ⊕ rij .
+
+Recurrent Topological Propagation. Since the depth of subgraphs varies and can be large, simply stacking GNN layers to cover the maximum possible path length is compu-tationally prohibitive and parameter-inefficient. To address this, we propose a recurrent propagation scheme. We utilize a lightweight, fixed-depth GNN (denoted as GNN base , with 
+
+Lbase = 2 layers) as the local spatial context aggregator, and wrap it within a Gated Recurrent Unit (GRU) to iteratively refine the node states. At each recurrent step t (t = 1 , . . . , T ), the node features are updated by fusing the historical state with the newly aggregated local geometric messages:             
+
+> h(t)
+> i=GRU
+> 
+> h(t−1)
+> i,GNN base
+> 
+> h(t−1)
+> i,X
+> j∈N (i)
+> ψmsg (h(t−1)
+> j,eji ,rji )
+> |{z }
+> Spatial Context (2-layer GNN)
+> 
+
+(6) Here, ψmsg denotes the message function that encodes rel-ative geometric constraints from neighbors, and GNN base 
+
+aggregates these messages to form the local spatial context. 
+
+Effective Receptive Field Analysis. Instead of fixing a deep architecture, our recurrent approach allows for a dy-namic effective receptive field (ERF). With T iterations and a base GNN depth of Lbase , the ERF expands to 
+
+Reff = T × Lbase . For any target node vk with a shortest path distance d(va, v k) = K from the anchor, the absolute spatial information is fully recovered once the propagation covers the distance: 
+
+h(T ) 
+
+> k
+
+encodes sk if T × Lbase ≥ K (7) This formulation effectively solves the chain of geometric constraints sk = sa ⊕ ra, 1 ⊕ · · · ⊕ rK−1,k in a parameter-efficient manner, as the model size remains constant regard-less of the graph depth. 
+
+Latent-Guided Layout Recovery. Upon completion of the recurrent propagation, we obtain latent representations 
+
+H = {h(T ) 
+
+> i
+
+}i∈V sub . We cast the layout restoration as learn-ing the conditional distribution pθ (P |H ) to reconstruct the dense geometry of the subgraph. Specifically, we map the condition to the R-GNN output h(T ) 
+
+> i
+
+. Since h(T ) 
+
+> i
+
+has ag-gregated global topological messages relative to the anchor, it allows the diffusion model to synthesize point clouds di-rectly in the target global coordinate system rather than a canonical local frame. And the denoising network ϵθ is designed to predict the noise residual for each object’s point cloud, strictly guided by its corresponding latent feature. 
+
+Topology-Forced Single-Anchor Training. In layout learning, relational networks face a critical issue, it tend to exploit shortcuts by explicit spatial priors from multiple an-chors, rather than learning the relative geometric constraints encoded in edges Esub . To strictly enforce topological rea-soning, we propose a Single-Anchor Constraint strategy. Formally, let I(S; H) be the mutual information between the ground-truth spatial layout S and the learned latent rep-resentations H. Our goal is to maximize the dependency of 
+
+H on the topological path P rather than on a dense set of absolute priors. We hypothesize that minimizing the number of anchors maximizes the ”topological necessity.” 
+
+Definition (Topological Necessity). We strictly limit the anchor set to a singleton |V anchor | = 1 . Let va be the sole anchor. For any target node vk, the information flow is forced to traverse the path Pa→k:
+
+p(sk|sa) ∝ Y 
+
+> eij ∈P a→k
+
+ϕedge (rij ) (8) By masking all other potential anchors, we create an in-formation bottleneck where recovering sk is structurally impossible without decoding the relative transformations 
+
+rij along the edges. 
+
+Proposition 1 (Prevention of Shortcut Learning). Let ϵtop 
+
+and ϵsprior denote error contributions from edge reasoning and the spatial prior provided by anchor, respectively. With multiple anchors ( |V anchor | ≥ 2), the model may trivially minimize loss via ϵsprior while neglecting ϵtop . Under the Single-Anchor Constraint ( |V anchor | = 1 ), ϵsprior becomes inaccessible, thereby forcing the optimization to strictly minimize ϵtop .
+
+4ToLL: Topological Layout Learning with Structural Multi-view Augmentation 
+
+Empirically, we randomly sample exactly one node va ∼U(Vsub ) as the anchor per iteration. This compels the R-GNN to function as a rigorous ”dead reckoning” system, ensuring learned features reflect cumulative geometric trans-formations rather than local memorization. 
+
+4.2. Structural Multi-view Augmentation 
+
+To facilitate robust representation learning, we introduce 
+
+Structural Multi-view Augmentation (SMA) . Unlike stan-dard geometric jittering, SMA employs topological perturba-tion and spatial masking to construct complementary views, enforcing semantic consistency via self-distillation. We construct three structural views that interact via a student-teacher paradigm in the following: 
+
+Edge-Guided Student View, Gedge : This view preserves the complete edge topology but almost lacks absolute spa-tial attributes for the nodes (masking nodes). It aligns with the reference to learn geometry-to-semantics mapping. 
+
+Holistic Teacher View, Gref : A global view processed by the Target network (EMA). It retains both rich node informa-tion and stable edge topology, serving as the comprehensive upper bound for the students. 
+
+Node-Guided Student View, Gnode : This view preserves the rich node information but suffers from severe topologi-cal occlusion (masking edges). It forces the encoder to rely on node features to infer missing relationships. It aligns with the reference to learn semantics-to-topology reasoning. 
+
+Asymmetric Cross-View Distillation. We adopt a Mean Teacher framework consisting of a student network fθ and a target network fξ . To prevent representational collapse, we employ an asymmetric architecture where a predictor head 
+
+gϕ is appended exclusively to the student branch. The target network parameters ξ are updated via Exponential Moving Average (EMA) of the student parameters θ:
+
+ξt = αξ t−1 + (1 − α)θt (9) where α is the momentum coefficient. 
+
+4.3. Optimization Objectives 
+
+Our framework is optimized via a unified objective that systematically utilizes the geometric layout restoration and the structural semantic alignment through distillation. 
+
+Geometric Layout Restoration Loss. For the ACTGR, we employ a diffusion-based generative objective. The denoising network ϵθ predicts the noise residual for each object’s point cloud with absolute spatial-layout attributes individually. The optimization objective is formulated as: 
+
+Lgen = Eτ,P gt ,ϵ 
+
+" X
+
+> i∈V sub
+
+ϵ − ϵθ (P τi , τ, h(T ) 
+
+> i
+
+) 2
+
+> F
+
+#
+
+(10) where P τi denotes the noisy point cloud at diffusion step τ ,and h(T ) 
+
+> i
+
+is the latent condition from the R-GNN. By mini-mizing this loss, the network learns to utilize the structural prior to ”sculpt” the noise into a coherent 3D shape at the correct absolute position. 
+
+Structural Distillation Loss. In the SMA module, we perform consistency learning at the three levels: L =
+
+{object , edge , triplet }. The student views aim to regress the distribution of the holistic reference’s prototypes C. The distillation loss is formulated as: 
+
+Ldistill = X
+
+> l∈L
+> Nl
+
+X
+
+> k=1
+
+ℓswav 
+
+ glϕ(z(l)
+
+> stu
+
+), sg (z(l) 
+
+> ref
+
+); Cl (11) where z(l) 
+
+> stu
+
+∈ {G edge , Gnode } denotes features from the stu-dent views, z(l) 
+
+> ref
+
+denotes features from the holistic reference, and sg (·) is the stop-gradient operation. 
+
+Total Objective. The final objective balances the genera-tive task with the discriminative alignment: 
+
+Ltotal = Lgen (Gedge ) + λ X
+
+> v∈{ edge,node }
+
+Ldistill (Gv , Gref )
+
+(12) where λ is a hyper-parameter balancing the regularization strength. This formulation ensures that the shared back-bone simultaneously learns accurate layout recovery via 
+
+Gedge and robust semantic topology via Gnode , unified by the guidance of Gref .
+
+5. Experiments 
+
+5.1. Pretraining Setup 
+
+For pre-training, we constructed subgraph samples using 1,513 ScanNet scenes. We first excluded objects with fewer than 512 points. The remaining objects were uniformly sam-pled to 1,024 points. Furthermore, we construct connected subgraphs to generate 7,392 samples, which collectively contain 33,949 nodes and 61,599 edges. The pre-training stage consists of 150 epochs. The AdamW optimizer is utilized with a weight decay of 10 −4 and a learning rate of 10 −3, modulated by a cosine scheduler with a 5-epoch warm-up. A weight of 0.1 is assigned to the self-distillation loss component. The batchsize is set to 32. The experiments are performed on four RTX 3090 GPUs. 5ToLL: Topological Layout Learning with Structural Multi-view Augmentation 
+
+Table 1. Comparisons with state-of-the-arts on the 3DSSG dataset. The inference model backbones are denoted by symbols: “ pn ” for PointNet and “ pt ” for PointTransformer. “LFS ”: Learning from scratch. “PointDif ”: Weights of object encoder initialized with PointDif (Zheng et al., 2024). “ ToLL ”: Weights of complete 3DSG encoders initialized with our ToLL. “ +MLP only ”: Only MLP heads are fine-tuned. “ RP ”: Weights of complete 3DSG backbone initialized with random parameters.                                                                                                                                                                                                            
+
+> Method Object Predicate Triplet SGCLs PredCLs
+> A@1 A@5 A@1 A@3 mA@1 mA@3 mA@50 mA@100 mR@20 mR@50 mR@20 mR@50 SGPN pn +LFS (Wald et al., 2020) 50.32 74.56 89.89 98.15 40.63 63.41 52.74 65.58 19.7 22.6 32.1 38.4 SGFN pn +LFS (Wu et al., 2023) 53.67 77.18 90.19 98.17 41.89 70.82 58.37 67.61 20.5 23.1 46.1 54.8 SGFN pt +LFS (Wu et al., 2023) 56.04 79.37 89.22 97.65 46.69 71.84 60.05 70.26 29.3 30.8 55.7 62.1 VL-SAT pn +LFS (Wang et al., 2023) 55.66 78.66 89.81 98.45 54.03 77.67 65.09 73.59 31.8 32.4 57.8 64.2 VL-SAT pt +LFS (Wang et al., 2023) 57.84 78.69 89.76 98.13 52.43 73.35 63.55 72.48 30.3 32.8 54.7 63.8 OCRL pn +LFS (Heo et al., 2025) 58.67 79.49 89.32 98.06 50.76 74.43 62.29 70.26 29.7 31.5 52.9 60.2 OCRL pt +LFS (Heo et al., 2025) 57.43 80.07 90.11 98.21 50.63 75.68 63.79 73.48 31.7 33.8 59.6 65.2 SGFN pt +PointDif 57.10 79.56 89.75 98.12 48.82 73.29 63.61 72.89 32.2 33.5 56.4 62.6 VL-SAT pt +PointDif 58.54 79.93 89.74 98.06 52.66 73.33 64.86 73.66 33.5 34.2 58.4 64.8 SGFN pt +ToLL 58.68 80.62 90.42 98.53 54.59 81.36 66.58 74.32 35.2 36.6 58.7 66.3 VL-SAT pt +ToLL 58.72 80.54 90.88 98.64 56.67 79.03 66.42 75.59 35.7 36.7 59.2 67.6
+> SGFN pt +ToLL only MLP 52.54 76.64 82.51 94.74 28.77 49.30 48.87 58.29 27.6 29.7 39.0 44.2 VL-SAT pt +ToLL only MLP 54.41 77.23 85.59 95.18 32.16 50.84 50.05 60.65 30.3 31.2 46.7 57.4 SGFN pt +RP only MLP 40.88 71.28 78.56 91.63 19.85 42.79 39.97 49.11 19.5 24.8 35.5 39.7 VL-SAT pt +RP only MLP 38.62 71.15 81.27 92.89 22.74 43.96 40.13 51.03 19.8 27.5 35.2 40.5
+
+Table 2. Detailed performance on Predicate Classification (Head, Body, Tail) and Triplet Prediction (Zero-Shot setting). “ pn ” for PointNet and “ pt ” for PointTransformer. “ LFS ”: Learning from scratch. “ ToLL ”: Weights of complete 3DSG backbone initialized with our ToLL. 
+
+Method Predicate Triplet 
+
+Head Body Tail Unseen Seen mA@3 mA@5 mA@3 mA@5 mA@3 mA@5 A@50 A@100 A@50 A@100 SGPN pn +LFS (Wald et al., 2020) 96.66 99.17 66.19 85.73 10.18 28.41 15.78 29.60 66.60 77.03 SGFN pn +LFS (Wu et al., 2023) 95.08 99.38 70.02 87.81 38.67 58.21 22.59 35.68 71.44 80.11 SGFN pt +LFS (Wu et al., 2023) 96.18 99.46 76.74 87.41 48.25 62.73 25.54 46.69 72.87 80.08 VL-SAT pn +LFS (Wang et al., 2023) 96.31 99.21 80.03 93.64 52.38 66.13 31.28 47.26 75.09 82.25 VL-SAT pt +LFS (Wang et al., 2023) 95.97 98.92 78.75 88.84 54.44 68.90 32.87 46.32 77.28 83.37 CCL-3DSG pn +LFS (Chen et al., 2024) 98.54 99.78 84.72 96.03 61.24 75.91 36.72 52.47 80.58 88.92 
+
+OCRL pn +LFS (Heo et al., 2025) 95.73 98.85 79.34 92.01 52.66 67.02 27.47 42.93 75.66 82.33 OCRL pt +LFS (Heo et al., 2025) 95.29 98.90 79.98 92.03 55.06 65.67 30.55 44.77 78.72 82.38 SGFN pt +ToLL 96.68 99.12 82.29 93.60 57.45 72.31 35.18 48.94 77.85 84.42 VL-SAT pt +ToLL 96.97 99.65 84.41 97.83 59.92 78.92 38.64 56.19 78.82 90.06 
+
+5.2. Fine-tuning Setup 
+
+3DSSG dataset is employed as the benchmark for scene graph fine-tuning. The optimizer and scheduler configura-tions remained consistent with the pre-training phase, except that the warm-up period was omitted and the batch size is set to 8. The top-k accuracy “A@k” is employed to eval-uate object and predicate classification. The mean top-k accuracy “mA@k” was used to assess the impact of long-tail categories in predicates. Scene Graph Classification (SGCLs, with graph-constrained) and Predicate Classifica-tion (PredCls) are introduced to evaluate predicate recall capability - both employing the Top-k recall “R@k”. In addition, we introduce two evaluation protocols: 
+
+The 1st protocol is a full fine-tuning scheme. In this setting, the parameters of the complete pretrained encoders are updatable; however, we assigned them a lower learning rate of 0.5 × 10 −4, while the MLP layers are set to 10 −4.
+
+The 2nd protocol is an MLP-only fine-tuning scheme. 
+
+The entire pre-trained encoders are frozen, and only the MLP layers are fine-tuned with a learning rate, 10 −4.
+
+5.3. Comparison with State-of-the-Art Methods Quantitative Analysis. Table 1 presents a comparative evaluation on the 3DSSG dataset across three paradigms: learning from scratch, initialization with a pre-trained object encoder, and our proposed pre-training method. First, compared to “VL-SAT pt +LFS ”, “VL-SAT pt +PointDif ”achieves gains of 0.7 and 0.23 on the Object “A@1” and Predicate “mA@1” metrics, respectively. This substanti-ates that enhanced object representations, acting as reliable semantic anchors, could bolster predicate classification ca-pabilities via GNNs. Crucially, our proposed framework “VL-SAT pt +ToLL ” out-6ToLL: Topological Layout Learning with Structural Multi-view Augmentation 
+
+performs both “VL-SAT pt +LFS ” and “VL-SAT pt +PointDif ”, achieving state-of-the-art results. The improvements are particularly pronounced on metrics reflecting long-tailed robustness: compared to the “VL-SAT pt +LFS ”, we observe substantial gains of 4.24 in Predicate “mA@1” and 2.87 in Triplet “mA@50”. Finally, the ” MLP Only ” experiment of “VL-SAT pt ” reveals that while our frozen backbone supports strong object clas-sification (“A@1”: 54.41), the predicate mA@1 lags behind the fully fine-tuned counterpart. This suggests that, relative to objects, the learning of predicate representations has not yet reached the precise semantic space after ToLL. 
+
+Long-tail Robustness and few-shot Analysis. To further probe the robustness of our pre-training framework, we details performance across varying predicate frequency dis-tributions (Head, Body, Tail) and evaluates zero-shot gener-alization capabilities on unseen triplets. 
+
+Long-tail Robustness. As shown in Table 2, while main-taining the competitive performance of “VL-SAT pt +ToLL ”on Head predicates, our method achieves remarkable gains on the distinctively harder categories: Body “mA@3” im-proves by 5.66 and Tail “mA@3” surges by 5.48 compared to the “VL-SAT pt +LFS ”. As shown in Figure 3, leveraging the pre-trained weights provided by our ToLL enables the model to achieve higher recognition accuracy on long-tail predicate classes. 0.0  
+
+> 0.5
+> 1.0
+> Predicate A@1
+> VL-SAT_trans (from scratch)
+> VL-SAT_trans (w/ ToLL) 10 1
+> 10 2
+> 10 3
+> 10 4
+> Predicate Num. Class Number
+
+Figure 3. Predicate A@1 for all predicate categories. 
+
+Zero-Shot Generalization. We further evaluate the capacity for compositional reasoning by examining performance on ”Unseen” triplets—defined as those triplet configurations in the 3DSSG test set that do not appear in the training set. Our approach “VL-SAT pt +ToLL ” demonstrates superior generalization, achieving an “A@50” of 38.64 on unseen triplets, outperforming the “VL-SAT pt +LFS ” by 5.77. 
+
+5.4. Ablation Studies and Representation Analysis 
+
+We conducted extensive ablation studies on the 3DSSG. We focus on the metrics: Object “A@1”, Predicate “mA@1” and “mA@3”, and Triplet “mA@50” and “mA@100”. SGFN pt is selected as the experimental object in this section. 
+
+Effectiveness of Anchor-Conditioned Topological Rea-soning (ACTGR). We first validate the core hypothesis that 
+
+Table 3. Ablation Studies on 3DSSG. We analyze the impact of Anchor-Conditioned Topological Geometric Reasoning (ACTGR), Structural Multi-view Augmentation (SMA), initialization strate-gies, and cross-modal loss. The best results in each block are highlighted.                                                
+
+> Method (SGFN)/ Settings Obj Pred Triplet
+> A@1 mA@1 mA@3 mA@50 mA@100
+> (1) Anchor-Conditioned Topological Geometric Reasoning, ACTGR
+> Baseline Global Layout 57.62 47.28 70.20 60.39 70.85 ACTGR 58.46 53.87 75.69 64.92 73.66
+> (2) Structural Multi-view Augmentation, SMA
+> SMA w/ ACTGR 58.62 54.59 81.36 66.58 74.32 SMA w/o ACTGR 55.36 50.07 72.64 61.94 71.63
+> (3) Object Encoder Init (ACTGR+SMA)
+> Random Initialization 57.94 52.37 76.62 63.69 73.87 PointDif Initialization 58.62 54.59 81.36 66.58 74.32
+> (4) Optional Extension (ACTGR+SMA)
+> w/ Cross-modal (CLIP) 58.96 55.61 78.89 66.62 74.51 w/o Cross-modal (CLIP) 58.62 54.59 81.36 66.58 74.32
+
+restricting spatial information forces topological learning. We formulated a Baseline (Global Absolute Layout) where the model is provided with the absolute spatial positions and bounding box sizes for all objects in the subgraph without edge masking. Our ACTGR retain only one random an-chor’s absolute attributes and mask the rest. As shown in Ta-ble 3, the ACTGR outperforms the Global-layout Baseline, particularly in Triplet “mA@50” (improvement of 4.53). Be-cause the baseline suffers from “shortcut learning” where the network memorizes absolute coordinates from objects rather than learning the relative geometric constraints en-coded in the edges. 
+
+Impact of Structural Multi-view Augmentation (SMA). 
+
+As shown in Table 3, we analyzed the necessity of the SMA with self-distillation. Building upon ACTGR, by leverag-ing the structural augmentation with self-distillation, we achieve effective semantic alignment while preventing fea-ture collapse. It can be observed that “SMA w/ ACTGR” further improves Predicate “mA@3” by 5.67 and Triplet “mA@50” by 1.66 compared to “ACTGR”. And relying solely on SMA, “SMA w/o ACTGR” fails to achieve effec-tive representation learning. 
+
+Object Encoder Initialization Strategies. We evaluated two initialization protocols for the object encoder ϕobj be-fore pretraining: (1) Random Initialization; (2) PointDif Initialization. The PointDif initialization improves Object “A@1” by 0.68 and Predicate “mA@1” by 2.22, compared to the random one. This indicates that leveraging the pre-trained object weights could enhance the 3DSG pretraining. 
+
+Cross-Modal assistance Learning (Optional). Further-more, we explore the cross-modal (text-obj pointcloud) as-sistance for our ToLL. The addition of this cross-modal supervision leds to a improvement in Object “A@1” by 0.34 and a improvement in Predicate “mA@3” by 1.02. 7ToLL: Topological Layout Learning with Structural Multi-view Augmentation From Scratch 
+
+> (Edge)
+> Ours ToLL
+> (Edge)
+> From Scratch
+> (Obj)
+> Ours ToLL
+> (Obj)
+> Clustering Results after fine-tuning (Train set)
+> ToLL w/o ACTGR
+> (Edge)
+> Ours ToLL
+> (Edge)
+> ToLL w/o ACTGR
+> (Obj)
+> Ours ToLL
+> (Obj)
+> Clustering Results before fine-tuning (Val set)
+
+Figure 4. Visualization of latent features clustering. 
+
+Cluster Quality Evaluation. As shown in Figure 4. Ini-tial comparisons on the 3DSSG validation set show that pre-training promotes the aggregation of semantically akin features compared to the weight from “ ToLL w/o ACTGR ”. This also demonstrates that the information bottleneck con-structed by ACTGR compels the model to learn topological structures, focusing more on the semantic and spatial infor-mation of the entire graph. Moreover, post-fine-tuning anal-ysis on the training set confirms that our method generates more distinct clusters than training from scratch, achieving superior intra-class compactness and inter-class separability. NMI:0.125  
+
+> ARI:0.028
+> NMI:0.298
+> ARI:0.122
+> NMI:0.324
+> ARI:0.126
+> NMI:0.415
+> ARI:0.071
+> NMI:0.544
+> ARI:0.144
+> NMI:0.507
+> ARI:0.142
+> Edge Object
+> The Aligned Clustering
+> Confusion Matrix
+> ToLL ToLL w/o ACTGR From Scratch
+> w/o finetuning
+
+Figure 5. Visualization of latent features clustering. 
+
+Figure 5 is the Clustering Confusion Matrix on the 3DSSG Val. Set. The diagonal elements indicate the clustering consistency with GT labels after optimal matching. We report the Normalized Mutual Information (NMI) and Ad-justed Rand Index (ARI) of the node and edge features among weights with “ ToLL w/o ACTGR ”, “ ToLL ” and “ From Scratch ”. The first two methods involve no fine-tuning, whereas “ From Scratch ” represents supervised learning on 3DSSG with random initialization. Notably, “ ToLL ” outper-forms the supervised one in predicate-level NMI and ARI metrics. This demonstrates that our pre-training scheme achieves superior semantic clustering efficacy. 
+
+Analysis of Accuracy Curves. As depicted in Figure 6, Our ToLL results in faster convergence compared to the Training Curves  Validation Curves 
+
+Figure 6. Analysis of Accuracy Curves (Train and Validation). GT Layout 
+
+> Our Scene Generation by Layout Recovery
+
+Figure 7. Visualization of Layout Recovery. 
+
+baseline. The predicate training accuracy exhibits a steeper ascent than the baseline and the object weights initialization with PointDif ’W-only Acc’. During evaluation, our scheme outperforms all comparisons, securing the highest scores on both Object “A@1” and Predicate “mA@1”. 
+
+Layout Recovery Results. Figure 7 illustrates the results in our topological layout learning task. Despite the imposed geometric information bottleneck, our model could often ac-curately recover the global spatial layout. We acknowledge the discrepancies in object scale and shape, compared to the ground truth. These are attributed to the inherent sensitivity of generative models to the high variance and noise, often inevitable in the dataset ScanNet for pre-training. 
+
+6. Conclusion and Future Work 
+
+This paper presents a new Topological Layout Learning with Structural Multi-view Augmentation framework for the pre-training of 3DSG generation. By integrating Anchor-Conditioned Topological Geometric Reasoning with the self-distillation on Structural Multi-view Augmentation, it turns a layout recovery task into a robust proxy for learning topological and semantic dependencies. Extensive experi-ments show that this method could achieve state-of-the-art performance on 3DSSG benchmark. Nevertheless, some challenges still exist, due to the inherent sparsity of data and the high noise levels in relational triplet data. To address these bottlenecks, future work will focus on the construction of better large-scale high-quality 3DSG datasets, and then solve the ambiguous definitions of predicates. 8ToLL: Topological Layout Learning with Structural Multi-view Augmentation 
+
+Impact Statement 
+
+This paper presents work whose goal is to advance the field of Machine Learning. There are many potential societal consequences of our work, none which we feel must be specifically highlighted here. 
+
+References 
+
+Anderson, P., Wu, Q., Teney, D., Bruce, J., Johnson, M., S ¨underhauf, N., Reid, I., Gould, S., and Van Den Hengel, A. Vision-and-language navigation: Interpreting visually-grounded navigation instructions in real environments. In 
+
+Proceedings of the IEEE conference on computer vision and pattern recognition , pp. 3674–3683, 2018. Armeni, I., He, Z.-Y., Gwak, J., Zamir, A. R., Fischer, M., Malik, J., and Savarese, S. 3d scene graph: A structure for unified semantics, 3d space, and camera. In Proceedings of the IEEE/CVF international conference on computer vision , pp. 5664–5673, 2019. Caron, M., Misra, I., Mairal, J., Goyal, P., Bojanowski, P., and Joulin, A. Unsupervised learning of visual features by contrasting cluster assignments. Advances in neural information processing systems , 33:9912–9924, 2020. Caron, M., Touvron, H., Misra, I., J ´egou, H., Mairal, J., Bojanowski, P., and Joulin, A. Emerging properties in self-supervised vision transformers. In Proceedings of the IEEE/CVF international conference on computer vision ,pp. 9650–9660, 2021. Chen, L., Wang, X., Lu, J., Lin, S., Wang, C., and He, G. Clip-driven open-vocabulary 3d scene graph generation via cross-modality contrastive learning. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pp. 27863–27873, 2024. Feng, M., Hou, H., Zhang, L., Wu, Z., Guo, Y., and Mian, A. 3d spatial multimodal knowledge accumulation for scene graph prediction in point cloud. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pp. 9182–9191, 2023. Feng, M., Yan, C., Wu, Z., Dong, W., Wang, Y., and Mian, A. Hyperrectangle embedding for debiased 3d scene graph prediction from rgb sequences. IEEE Transactions on Pattern Analysis and Machine Intelligence , 2025. Hamilton, W. L. Graph representation learning . Morgan & Claypool Publishers, 2020. Heo, K., Kim, G., Kim, S., and Cho, M. Object-centric representation learning for enhanced 3d semantic scene graph prediction. In The Thirty-ninth Annual Conference on Neural Information Processing Systems , 2025. Hou, Z., Liu, X., Cen, Y., Dong, Y., Yang, H., Wang, C., and Tang, J. Graphmae: Self-supervised masked graph autoencoders. In Proceedings of the 28th ACM SIGKDD conference on knowledge discovery and data mining , pp. 594–604, 2022. Hu, S., Lou, Z., Yan, X., and Ye, Y. A survey on information bottleneck. IEEE Transactions on Pattern Analysis and Machine Intelligence , 46(8):5325–5344, 2024. Kingma, D. P. and Welling, M. Auto-encoding variational bayes. In Int. Conf. on Learning Representations , 2014. Koch, S., Hermosilla, P., Vaskevicius, N., Colosi, M., and Ropinski, T. Lang3dsg: Language-based contrastive pre-training for 3d scene graph prediction. In 2024 Interna-tional Conference on 3D Vision (3DV) , pp. 1037–1047. IEEE, 2024a. Koch, S., Hermosilla, P., Vaskevicius, N., Colosi, M., and Ropinski, T. Sgrec3d: Self-supervised 3d scene graph learning via object-level scene reconstruction. In Proceed-ings of the IEEE/CVF Winter Conference on Applications of Computer Vision , pp. 3404–3414, 2024b. Liu, Y., Jin, M., Pan, S., Zhou, C., Zheng, Y., Xia, F., and Yu, P. S. Graph self-supervised learning: A survey. IEEE transactions on knowledge and data engineering , 35(6): 5879–5900, 2022. Ma, Y., Liu, H., Pei, Y., and Guo, Y. Heterogeneous graph learning for scene graph prediction in 3d point clouds. In 
+
+European Conference on Computer Vision , pp. 274–291. Springer, 2024. Pang, Y., Tay, E. H. F., Yuan, L., and Chen, Z. Masked autoencoders for 3d point cloud self-supervised learning. 
+
+World Scientific Annual Review of Artificial Intelligence ,1:2440001, 2023. Tian, Y., Dong, K., Zhang, C., Zhang, C., and Chawla, N. V. Heterogeneous graph masked autoencoders. In Pro-ceedings of the AAAI conference on artificial intelligence ,volume 37, pp. 9997–10005, 2023. Van Assel, H., Ibrahim, M., Biancalani, T., Regev, A., and Balestriero, R. Joint embedding vs reconstruction: Prov-able benefits of latent space prediction for self supervised learning. arXiv preprint arXiv:2505.12477 , 2025. Van Den Oord, A., Vinyals, O., et al. Neural discrete rep-resentation learning. Advances in neural information processing systems , 30, 2017. Wald, J., Dhamo, H., Navab, N., and Tombari, F. Learning 3d semantic scene graphs from 3d indoor reconstructions. In Proceedings of the IEEE/CVF Conference on Com-puter Vision and Pattern Recognition , pp. 3961–3970, 2020. 9ToLL: Topological Layout Learning with Structural Multi-view Augmentation 
+
+Wang, Z., Cheng, B., Zhao, L., Xu, D., Tang, Y., and Sheng, L. Vl-sat: Visual-linguistic semantics assisted training for 3d semantic scene graph prediction in point cloud. In 
+
+Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pp. 21560–21569, 2023. Wu, L., Lin, H., Tan, C., Gao, Z., and Li, S. Z. Self-supervised learning on graphs: Contrastive, generative, or predictive. IEEE Transactions on Knowledge and Data Engineering , 35(4):4216–4235, 2021. Wu, S.-C., Tateno, K., Navab, N., and Tombari, F. Incre-mental 3d semantic scene graph prediction from rgb se-quences. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pp. 5064–5074, 2023. Wu, X., DeTone, D., Frost, D., Shen, T., Xie, C., Yang, N., Engel, J., Newcombe, R., Zhao, H., and Straub, J. Sonata: Self-supervised learning of reliable point representations. In Proceedings of the Computer Vision and Pattern Recog-nition Conference , pp. 22193–22204, 2025a. Wu, Z., Zhang, J., Pai, D., Wang, X., Singh, C., Yang, J., Gao, J., and Ma, Y. Simplifying dino via coding rate regularization. In Forty-second International Conference on Machine Learning , 2025b. Xie, S., Gu, J., Guo, D., Qi, C. R., Guibas, L., and Litany, O. Pointcontrast: Unsupervised pre-training for 3d point cloud understanding. In European conference on com-puter vision , pp. 574–591. Springer, 2020. Xu, D., Cheng, W., Luo, D., Chen, H., and Zhang, X. In-fogcl: Information-aware graph contrastive learning. Ad-vances in Neural Information Processing Systems , 34: 30414–30425, 2021. You, Y., Chen, T., Sui, Y., Chen, T., Wang, Z., and Shen, Y. Graph contrastive learning with augmentations. Advances in neural information processing systems , 33:5812–5823, 2020. You, Y., Chen, T., Shen, Y., and Wang, Z. Graph contrastive learning automated. In International conference on ma-chine learning , pp. 12121–12132. PMLR, 2021. Zhang, C., Yu, J., Song, Y., and Cai, W. Exploiting edge-oriented reasoning for 3d point-based scene graph anal-ysis. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pp. 9705–9715, 2021a. Zhang, S., Hao, A., Qin, H., et al. Knowledge-inspired 3d scene graph prediction in point cloud. Advances in Neu-ral Information Processing Systems , 34:18620–18632, 2021b. Zhang, Y., Wu, X., Lao, Y., Wang, C., Tian, Z., Wang, N., and Zhao, H. Concerto: Joint 2d-3d self-supervised learn-ing emerges spatial representations. In The Thirty-ninth Annual Conference on Neural Information Processing Systems .Zhang, Z., Girdhar, R., Joulin, A., and Misra, I. Self-supervised pretraining of 3d features on any point-cloud. In Proceedings of the IEEE/CVF international conference on computer vision , pp. 10252–10263, 2021c. Zheng, X., Huang, X., Mei, G., Hou, Y., Lyu, Z., Dai, B., Ouyang, W., and Gong, Y. Point cloud pre-training with diffusion models. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pp. 22935–22945, 2024. Zhou, J., Wei, C., Wang, H., Shen, W., Xie, C., Yuille, A., and Kong, T. Image bert pre-training with online tokenizer. In International Conference on Learning Rep-resentations .Zhu, Y., Xu, Y., Yu, F., Liu, Q., Wu, S., and Wang, L. Graph contrastive learning with adaptive augmentation. In Proceedings of the web conference 2021 , pp. 2069– 2080, 2021. Zitkovich, B., Yu, T., Xu, S., Xu, P., Xiao, T., Xia, F., Wu, J., Wohlhart, P., Welker, S., Wahid, A., et al. Rt-2: Vision-language-action models transfer web knowledge to robotic control. In Conference on Robot Learning , pp. 2165–2183. PMLR, 2023. 10 ToLL: Topological Layout Learning with Structural Multi-view Augmentation 
+
+A. Theoretical Analysis of Proposition 1: Necessity of Single-Anchor Constraint 
+
+In this section, we provide a formal analysis for Proposition 1 , characterizing the learning dynamics under multi-anchor versus single-anchor settings. We employ the framework of Linearized Gradient Flow (common in Neural Tangent Kernel analysis) to model the training dynamics. We demonstrate that the Single-Anchor Constraint is a necessary condition to prevent Gradient Starvation of the topological inference modules. 
+
+A.1. Problem Formulation and Decomposition 
+
+Let D = {(Gi, S i)}Ni=1 be the dataset. We analyze the learning of the reconstruction function Fθ . To make the dynamics analytically tractable, we adopt the linearized network assumption, decomposing the predictive function ˆsk for a target node 
+
+k into two additive components locally around the initialization: 
+
+ˆsk(θ) ≈ Φprior (xA; θnode )
+
+| {z }
+
+> Spatial Interpolation (Shortcut)
+
++ Φ topo (xA, Epath ; θedge )
+
+| {z }
+
+> Topological Path Integration (Core)
+
+(13) where Φprior relies solely on anchor positions (spatial correlation), and Φtopo relies on edge predicates (path integration). 
+
+θnode and θedge denote the disjoint parameters associated with the respective modules. xA = {sa}a∈A denotes the set of absolute spatial coordinates for the anchor nodes, serving as the basis for spatial interpolation. Epath represents the sequence of edges and semantic predicates along the topological path connecting the anchor set A to the target node k, which provides the relative geometric cues for path integration. We analyze the gradient flow dynamics dθ dt = −∇ θ L(θ) under the squared loss L(θ) = 12 ∥sk − ˆsk(θ)∥2.
+
+A.2. Case 1: Gradient Starvation under Multi-Anchor Setting ( |A| ≥ 2)Assumption 1 (Spectral Bias): Neural networks fit low-frequency or linear components of the target function significantly faster than high-frequency or compositional components. In 3D scenes with multiple anchors, the target position sk is often spatially correlated with the anchors (e.g., via convex combination), allowing a low-complexity approximation: 
+
+sk ≈ Φprior (θ∗
+
+> node
+
+) = ⇒ ∥ sk − Φprior (θ∗
+
+> node
+
+)∥ < ϵ (14) Let λprior and λtopo be the effective convergence rates (eigenvalues of the underlying NTK) for the prior and topological components, respectively. Due to Spectral Bias, Φprior (linear interpolation) is learned much faster than Φtopo (compositional reasoning), implying λprior ≫ λtopo .In the linearized regime, the residual error e(t) = sk − ˆsk(t) is dominated by the fastest decaying mode: 
+
+∥e(t)∥ ≈ ∥ e(0) ∥e−λprior t (15) Consider the update for the edge parameters θedge . Assuming the feature Jacobian is approximately constant during the early training phase, the cumulative update is bounded: 
+
+∥∆θedge ∥ =
+
+Z ∞
+
+> 0
+
+dθ edge 
+
+dt dt ≈ ∇θedge Φtopo 
+
+Z ∞
+
+> 0
+
+e−λprior tdt ∝ O 
+
+ 1
+
+λprior 
+
+
+
+(16) 
+
+Conclusion: As λprior → ∞ (representing an easy interpolation shortcut), the total update ∥∆θedge ∥ → 0. The topological module is ”starved” of gradients because the residual is eliminated by the prior before the topological features can be learned. 
+
+A.3. Case 2: Forced Gradient Flow under Single-Anchor Constraint ( |A| = 1 )
+
+With a single anchor sroot , the spatial prior Φprior collapses to a simple translation. For a general target sk, the approximation error of this term is lower-bounded: 
+
+min 
+
+> θnode
+
+∥sk − Φprior (θnode )∥2 ≥ C ≫ 0 (17) Unlike Case 1, the residual e(t) cannot vanish solely by optimizing θnode . We denote the persistent residual as eres (t). The gradient dynamics for edge parameters become: 
+
+dθ edge 
+
+dt = eres (t) · ∇ θedge Φtopo (18) 11 ToLL: Topological Layout Learning with Structural Multi-view Augmentation 
+
+Since eres (t) is non-vanishing with respect to θnode , it acts as a persistent driving force. To minimize L, the system is forced 
+
+to utilize Φtopo to fit the residual sk − sroot . This ensures that θedge receives continuous gradient updates, bypassing the simplicity bias. 
+
+B. Information-Theoretic Analysis for Structural Multi-view Augmentation 
+
+We formally justify our SMA strategy as maximizing the mutual information between the learned representation and the underlying scene structure. Let the holistic scene S be the latent semantic content. The generated views Gref and Gstu are observations transmitted through lossy channels. Let zref = fξ (Gref ) and zstu = fθ (Gstu ) denote the representations from the teacher and student networks, respectively. In our framework, the distillation objective is defined as the Mean Squared Error (MSE): Ldistill = ∥zref − zstu ∥2. From a probabilistic perspective, minimizing this L2 distance is equivalent to maximizing the log-likelihood of a conditional Gaussian distribution p(zref |zstu ) ∼ N (zstu , σ 2I). Consequently, minimizing the MSE loss is theoretically equivalent to minimizing the conditional entropy H(zref |zstu ):
+
+min  
+
+> θ
+
+LMSE ⇐⇒ max  
+
+> θ
+
+log p(zref |zstu ) ⇐⇒ min  
+
+> θ
+
+H(zref |zstu ) (19) Since the teacher network evolves slowly via EMA, its marginal entropy H(zref ) can be considered constant relative to the student’s optimization step. Thus, minimizing Eq. 19 is equivalent to maximizing the Mutual Information lower bound: 
+
+max  
+
+> θ
+
+I(zref ; zstu ) = max  
+
+> θ
+
+[H(zref ) − H(zref |zstu )] (20) According to the Data Processing Inequality (DPI), since zstu is derived from a structurally corrupted graph (with missing edges/nodes), maximizing I(zref ; zstu ) forces the encoder fθ to capture the redundant structural dependencies required to infer the missing information from the visible parts, thereby ensuring robust representation learning. 
+
+C. Pretraining Implement Details 
+
+C.1. Pretraining Graph Data Preparation 
+
+To construct robust training samples for the graph-based pre-training task, we propose a pipeline that transforms raw 3D scene data into a set of connected, semantically compact subgraphs. The data preparation process Φ takes a labeled point cloud scene S as input and outputs a set of graph samples Gsamples = {G1, G 2, . . . , G M }. This process consists of three stages: Node Abstraction, Subgraph Partitioning, and Connectivity-Preserving Edge Generation. C.1.1. N ODE ABSTRACTION AND FILTERING 
+
+Given a scene point cloud P ∈ RN ×3 and corresponding instance labels L ∈ ZN , we first filter out noise and insignificant instances (e.g., wall, floor). Let Ik be the set of points belonging to instance k. We discard any instance where |Ik| < τ pts 
+
+(with τpts = 512 by default) to ensure geometric stability. For each valid instance k, we define a graph node vk. To capture the comprehensive geometric characteristics of the object, we initialize its feature representation fk ∈ R11 by aggregating multiple geometric descriptors. Given the point set Ik of instance k, we compute the centroid ck, standard deviation σk, bounding box extent ek, volume Vk, and maximum length 
+
+Lk as follows: 
+
+ck = 1
+
+|Ik|
+
+X
+
+> p∈Ik
+
+p, σk =
+
+s 1
+
+|Ik|
+
+X
+
+> p∈Ik
+
+(p − ck)2,
+
+ek = max 
+
+> p∈Ik
+
+(p) − min 
+
+> p∈Ik
+
+(p),Vk =
+
+> 3
+
+Y
+
+> j=1
+
+ek,j , Lk = max  
+
+> j
+
+ek,j 
+
+(21) 12 ToLL: Topological Layout Learning with Structural Multi-view Augmentation 
+
+where operations on vectors (e.g., max, min, square) are applied element-wise along the spatial dimensions. The final node feature is formed by concatenating these attributes: 
+
+fk = [ ck, σ k, ek, V k, L k] (22) The set of all valid nodes in the scene is denoted as Vscene = {v1, v 2, . . . , v K }.C.1.2. S UBGRAPH PARTITIONING VIA HIERARCHICAL CLUSTERING 
+
+Constructing a single graph for a large-scale indoor scene is computationally expensive and may introduce irrelevant long-range dependencies. Therefore, we partition the scene into compact subgraphs based on spatial proximity. We employ Agglomerative Hierarchical Clustering with Ward’s linkage method. We compute the pairwise Euclidean distance matrix D between all centroids {ck}. The algorithm iteratively merges clusters Ci and Cj that minimize the increase in total within-cluster variance. The linkage distance d(Ci, C j ) is defined as: 
+
+d(Ci, C j ) = 
+
+s
+
+|Ci| · | Cj ||Ci| + |Cj | ∥μi − μj ∥2 (23) where μ represents the centroid of the cluster. We impose a constraint on the minimum subgraph size Kmin (e.g., Kmin = 3 ). The clustering terminates when the partition 
+
+{V 1, V2, . . . , VM } satisfies |V m| ≥ Kmin for all m, ensuring each subgraph contains sufficient context for relation learning. C.1.3. C ONNECTIVITY -P RESERVING EDGE GENERATION 
+
+For each partitioned node set Vm, we construct a directed graph Gm = ( Vm, Em). To simulate partial observability and prevent the network from overfitting to trivial fully-connected patterns, we employ a stochastic edge pruning strategy while guaranteeing graph connectivity. Let Ef ull be the set of all possible directed edges in Vm (excluding self-loops), where |E f ull | = |V m|(|V m| − 1) . We define a target removal ratio ρ ∼ U (ρmin , ρ max ). The target number of edges is Ntarget = ⌊(1 − ρ)|E f ull |⌋ .To guarantee that Gm remains connected (specifically, weakly connected), we construct the edge set Em in two steps: 1. Spanning Tree Initialization : We first sample a random spanning tree T over Vm. This contributes |V m| − 1 edges and forms the ”connectivity backbone” of the subgraph. 
+
+Etree ⊂ E f ull , s.t. (Vm, Etree ) is connected. (24) 2. Random Augmentation : We calculate the remaining number of edges needed Nrem = max(0 , N target − |E tree |).We then randomly sample Nrem distinct edges from the remaining candidates Ef ull \ E tree and add them to the graph. The final edge set is defined as: 
+
+Em = Etree ∪ Sample (Ef ull \ E tree , N rem ) (25) This mechanism ensures that every training sample is a valid connected component, preventing the generation of isolated nodes which creates invalid training signals. Finally, for each subgraph Gm, an anchor node vanchor ∈ V m is randomly selected to serve as the reference point for relative coordinate encoding in the pre-training task. 
+
+C.2. Details on Structural Multi-view Augmentation with Self-distillation (SwAV & View Settings) 
+
+To effectively learn semantic representations from unlabeled 3D scene graphs, we employ a structural multi-view self-distillation framework inspired by SwAV. This section details the construction of multi-views, the queue-based prototype assignment mechanism, and the specific hyperparameter configurations used in our pre-training. 13 ToLL: Topological Layout Learning with Structural Multi-view Augmentation 
+
+C.2.1. M ULTI -VIEW CONSTRUCTION STRATEGY 
+
+We construct asymmetric views for the Student and Teacher networks to encourage robustness against structural perturbations. As shown in Table 4, we generate three views for the Student network ( Sv1, S v2, S v3) and two views for the Teacher network (Tv5, T v6). The augmentation strategies include: • No Rotation Augmentation: Denoted as “View 2” in code (pts v2). This involves scene scale variations, random resampling and elastic distortion applied to the point cloud inputs. • Point Masking: Randomly masking a portion of input point groups like Point-MAE before the Transformer encoder. • Edge Masking: Randomly masking edges in the scene graph to simulate partial connectivity. The Student network is trained to predict the semantic cluster assignments of the Teacher’s views. Specifically, we enforce cross-view consistency pairs: (Tv6 → Sv2), (Tv5 → Sv3), (Tv5 → Sv1), and (Tv6 → Sv3).
+
+Table 4. Configuration of Multi-view Augmentations. Source indicates whether the input points are from the original coordinates (Origin) or spatially augmented ones (Augmented). M-Ratio denotes the masking ratio.                       
+
+> Role View ID Source Input Point M-Ratio Edge M-Ratio Objective
+> Student
+> Sv1Origin 0.8 0.2 Prediction / Gradient Update Sv2Augmented 0.8 0.6
+> Sv3Origin 0.8 0.6 Teacher Tv6Origin 0.2 0.2 Target Generation (EMA)
+> Tv5Augmented 0.1 0.1
+
+C.2.2. Q UEUE -BASED PROTOTYPE ASSIGNMENT 
+
+Standard SwAV relies on large batch sizes to compute diverse cluster assignments. To adapt this to 3D scene graph learning where batch sizes are limited by our GPU memory, we introduce a First-In-First-Out (FIFO) Queue mechanism. 
+
+Queue Construction: We maintain three separate queues for different semantic entities: Objects ( Qobj ), Edges ( Qedge ), and Triplets ( Qtrip ). Let B be the current batch size and D be the feature dimension. The queue stores historical features from previous iterations to augment the current batch during the Sinkhorn-Knopp assignment step. 
+
+Q ∈ RL×D , where L ≫ B (26) where L is the queue length. During training, the Teacher’s features from the current batch are enqueued, and the oldest features are dequeued. We employ dist.all gather to synchronize features across all GPUs before enqueuing to maximize diversity. 
+
+Warm-up Strategy: Before the start of the first epoch, we perform a ”Queue Warm-up” phase. We run the model in inference mode on the training set to fill all queues ( Qobj , Qedge , Qtrip ) until they are full. This ensures that the cluster assignment is stable from the very first optimization step. 
+
+Loss Calculation: For a given semantic level (e.g., Object), let Zt ∈ RB×D be the Teacher’s features and Zs ∈ RB×D
+
+be the Student’s features. We concatenate the Teacher’s features with the queue to form the support set K = [ Zt; Q]. The cluster assignment probabilities Qt are computed using the Sinkhorn-Knopp algorithm over K:
+
+Qt = Sinkhorn (C⊤K, ϵ, n iters ) (27) where C are the learnable prototypes. The loss is computed only on the first B assignments (corresponding to the current batch), ensuring the queue is used solely for density estimation: 
+
+LSwAV = − 1
+
+B
+
+> B
+
+X
+
+> i=1
+
+X
+
+> k
+
+q(i,k ) 
+
+> t
+
+log p(i,k ) 
+
+> s
+
+(28) where ps is the softmax probability predicted by the Student network. 14 ToLL: Topological Layout Learning with Structural Multi-view Augmentation 
+
+C.2.3. H YPERPARAMETER SETTINGS 
+
+The specific hyperparameters used for the prototypes, queue, and loss functions are detailed in Table 5. The triplet feature dimension is larger ( 512 × 3) as it concatenates subject, object, and predicate features.  
+
+> Table 5. Hyperparameters for SwAV, Queues, and Prototypes.
+
+Parameter Value 
+
+Queue Settings 
+
+Queue Length ( L) 3840 Warm-up True (Pre-fill before Epoch 0) 
+
+Prototype Settings (Num Clusters) 
+
+Object Prototypes ( Kobj ) 1000 Edge Prototypes ( Kedge ) 200 Triplet Prototypes ( Ktrip ) 500 
+
+Feature Dimensions ( D)
+
+Object / Edge Dim 512 Triplet Dim 512 × 3 = 1536 
+
+Sinkhorn & Loss 
+
+Temperature ( τ ) 0.1 Sinkhorn Epsilon ( ϵ) 0.05 Sinkhorn Iterations 10 SwAV Loss Weight 0.1 
+
+C.3. Details on Noise-Aware Focal Loss for Layout Recovery 
+
+In the layout recovery task, our ultimate recovery target is not the zero-centered object point clouds, but rather the subgraph point clouds endowed with absolute spatial positional information, objects in these subgraphs naturally exhibit significant variations in scale (e.g., large structural walls vs. small household objects) and data quality (e.g., sensor noise vs. clean surfaces). Standard L2 loss treats all points equally, which leads to two optimization issues: • Dominance of Outliers: Noisy points with high local variance produce large distance errors, dominating the gradient and causing the model to overfit to noise rather than recovering the underlying geometry. • Scale Imbalance: Without proper weighting, dense small objects might be overwhelmed by sparse large structures, or vice versa. To address this, we implement a Variance-Aware Focal Loss mechanism. Instead of globally normalizing the point clouds (which destroys relative layout information), we compute adaptive weights based on scale-invariant local geometric properties. This allows the network to focus on reliable structural components while suppressing the influence of high-variance noise. C.3.1. L OCAL GEOMETRIC FEATURE EXTRACTION 
+
+Given a subgraph point cloud P = {pi}Ni=1 ∈ RN ×3, we first construct a local neighborhood Ni for each point pi using K-Nearest Neighbors (KNN) with K = 16 . We compute the local covariance matrix Ci for each neighborhood: 
+
+Ci = 1
+
+K − 1
+
+X 
+
+> pj∈N i
+
+(pj − ¯pi)( pj − ¯pi)⊤ (29) where ¯pi is the centroid of Ni. Let λ1 ≤ λ2 ≤ λ3 be the eigenvalues of Ci, representing the variance magnitude along the principal axes. 15 ToLL: Topological Layout Learning with Structural Multi-view Augmentation 
+
+C.3.2. W EIGHT COMPUTATION STRATEGY 
+
+We design the weighting function W (pi) to capture two key attributes: Structural Clarity and Density. 
+
+1. Scale-Invariant Structural Score ( Sstruct ): To distinguish between valid surfaces (simple shapes like planes/lines) and isotropic noise, we utilize the Sphericity metric. Unlike curvature, the ratio of eigenvalues is invariant to the physical size of the object: 
+
+Si = λ1
+
+λ3 + ϵ , S(i) 
+
+> struct
+
+= 1 .0 − S i (30) For planar structures (walls, floors) or linear structures (legs), λ1 ≪ λ3, resulting in Si ≈ 0 and a high structural score 
+
+Sstruct ≈ 1. Conversely, for noise or high-variance clusters, λ1 ≈ λ3, resulting in a low score. This effectively down-weights noise regardless of the cluster size. 
+
+2. Normalized Density Score ( Sdense ): To further suppress sparse outliers that may form pseudo-shapes, we penalize points with large average KNN distances ¯di:
+
+S(i) 
+
+> dense
+
+= exp( −α · ¯di) (31) where α is a scaling factor adjusted to the physical unit of the scene (e.g., α = 20 .0 for metric units). C.3.3. F INAL WEIGHTED LOSS 
+
+The final adaptive weight wi for each point is a linear combination of the structural and density scores, mapped to a stable range [wmin , w max ]:
+
+wi = wmin + ( wmax − wmin ) · (β · S(i) 
+
+> struct
+
++ (1 − β) · S(i)
+
+> dense
+
+) (32) where we set wmin = 0 .1, w max = 1 .2, and β = 0 .8. Finally, the diffusion recovery loss is weighted by wi:
+
+Lgen = Et,p 0,ϵ 
+
+" NX
+
+> i=1
+
+wi∥ϵ − ϵθ (pt, t )∥2
+
+#
+
+(33) By assigning wi → 0.1 for high-variance noise and wi → 1.2 for clean geometric structures, the optimization process is stabilized, ensuring the model prioritizes the recovery of the valid scene layout. 
+
+D. Additional Experiments 
+
+D.1. Clustering Metrics Comparisons 
+
+To quantitatively evaluate the quality of the learned representations during the unsupervised pre-training phase, we monitor the semantic consistency of the feature space using clustering metrics. Specifically, we extract the latent features from the frozen encoder and apply K-Means clustering to map these features into K clusters, where K corresponds to the number of ground truth semantic classes. We employ three standard metrics: Normalized Mutual Information (NMI), Adjusted Rand Index (ARI), and Clustering Accuracy (ACC). D.1.1. M ETRIC DEFINITIONS 
+
+Let Y = {y1, . . . , y N } be the ground truth labels and C = {c1, . . . , c N } be the cluster assignments predicted by K-Means. 
+
+Clustering Accuracy (ACC): Since the cluster indices from K-Means are permutation-invariant and do not directly correspond to ground truth class IDs, we employ the Hungarian algorithm to find the optimal one-to-one mapping M
+
+between clusters and classes that maximizes the overlap. The ACC is defined as: ACC (Y, C ) = max 
+
+> π∈ΠK
+
+1
+
+N
+
+> N
+
+X
+
+> i=1
+
+I (yi = π(ci)) (34) where ΠK is the set of all possible permutations of labels, and I(·) is the indicator function. This metric reflects the “purity” of the clusters after optimal alignment. 16 ToLL: Topological Layout Learning with Structural Multi-view Augmentation     
+
+> Figure 8. Visualization of Clustering Metrics Evolution. The curves demonstrate the progressive improvement of NMI, ARI, and ACC scores for both Edge (Relation) and Object semantic recovery. The metrics were recorded at 10-epoch intervals over a total of 150 pre-training epochs , compared against the “learning from the scratch (LFS)” baseline. Ours “Pre-training” results is test without any fine-tuning. “LFS” results are obtained by training the same architecture from scratch on the 3DSSG dataset with supervised labels.
+
+Normalized Mutual Information (NMI): NMI measures the mutual dependence between the predicted clusters and the ground truth, normalized by their entropies to facilitate comparison. It is calculated as: NMI (Y, C ) = 2 · I(Y ; C)
+
+H(Y ) + H(C) (35) where I(Y ; C) is the mutual information between Y and C, and H(·) denotes the entropy. NMI is robust to variations in cluster sizes. 
+
+Adjusted Rand Index (ARI): ARI measures the similarity between two data clusterings by considering all pairs of samples and counting pairs that are assigned in the same or different clusters in the predicted and true clusterings. Crucially, it adjusts for chance agreement: ARI = RI − E[RI ]max( RI ) − E[RI ] (36) where RI is the unadjusted Rand Index. An ARI close to 0 indicates random labeling, while 1 indicates perfect agreement. D.1.2. Q UANTITATIVE RESULTS AND ANALYSIS 
+
+We conducted the pre-training for a total of 150 epochs and recorded the metrics on the validation set every 10 epochs. Fig. 7 illustrates the evolution of representation quality for both Objects and Edges (Relationships). The results demonstrate the effectiveness of our proposed pre-training strategy: • Robust Semantic Recovery: As shown in the Object metrics curves in Fig. 7, all three metrics exhibit a significant upward trend throughout the training process. Specifically, the NMI score improves from 0.361 (Epoch 10) to 0.501 
+
+(Epoch 150), and ARI increases by over 10 × (from 0.012 to 0.133 ). This confirms that the model is actively learning to group semantically similar instances without any supervised labels, approaching the performance of fully supervised baselines. 17 ToLL: Topological Layout Learning with Structural Multi-view Augmentation 
+
+• Superior Relational Understanding: For Edge clustering (scene relationships), our method demonstrates exceptional performance. By the final stage ( Epoch 150 ), our method achieves an ACC of 0.255 and NMI of 0.323 , effectively surpassing the LFS baseline (ACC 0.203 , NMI 0.298 ). This indicates that our graph-based pre-training captures complex structural dependencies better than the baseline approach. • Convergence: The metrics show rapid growth in the early stages (Epochs 10-60) and gradually plateau and stabilize in the later stages (Epochs 100-150), suggesting that the model has converged to a stable semantic space, providing a high-quality initialization for downstream fine-tuning tasks.                                         
+
+> Table 6. Ablation Studies on View Numbers and Loss Functions. We analyze the impact of increasing the number of augmented views in the Student-Teacher framework and the effectiveness of the Noise-Aware Focal Loss (NAFL). The best results in each block are highlighted.
+> Settings Obj Pred Triplet
+> A@1 mA@1 mA@3 mA@50 mA@100
+> (1) Impact of Different View Numbers ( K)
+> K= 3 (Default) 58.62 54.59 81.36 66.58 74.32
+> K= 4 59.15 55.32 80.04 66.15 75.09
+> K= 5 59.24 55.78 81.41 66.42 74.83
+> (2) Effectiveness of Loss Function
+> Standard L2Loss 57.20 53.40 76.25 63.12 73.50 w/ NAFL (Ours) 58.62 54.59 81.36 66.58 74.32
+
+D.2. Analysis of Different Student View Numbers 
+
+To investigate the impact of view diversity on representation learning, we conducted an ablation study by varying the number of augmented student views ( K) used in our Structural Multi-view Augmentation (SMA) module. In our default setting, we utilize K = 3 views to construct the student-teacher consistency constraints. As shown in the first block of Table 6, increasing the number of student views consistently improves the model’s performance across all metrics. Specifically, when increasing K from 3 to 4, and subsequently to 5, the Object A@1 score rises from 58.62% to 59.24%, and the Predicate mA@1 increases from 54.59% to 55.78%. This trend suggests that introducing more diverse student views forces the network to learn more robust and invariant geometric representations. With a higher K, the model is exposed to a wider variety of spatial perturbations and masking patterns during pre-training, which effectively prevents overfitting to specific local features and encourages the capture of global structural dependencies. Although K = 5 yields the best results, it also incurs higher computational costs; therefore, we adopt K = 3 as the default trade-off between efficiency and performance in our main experiments. 
+
+D.3. Analysis of Noise-Aware Focal Loss 
+
+A core challenge in 3D scene layout recovery is the presence of high-variance noise and the scale imbalance between different scene components. To address this, we proposed the Noise-Aware Focal Loss (NAFL), which dynamically down-weights noisy points and up-weights structurally significant regions based on local geometric properties. The second block of Table 6 compares our NAFL against a standard L2 reconstruction loss (MSE). The results demonstrate that replacing the standard loss with NAFL provides a significant performance boost. The Object A@1 improves by 1.42% (from 57.20% to 58.62%), and the Predicate mA@1 sees gain of 1.19% (from 53.40% to 54.59%). This improvement confirms our hypothesis that standard L2 loss is easily dominated by outliers with high local variance, leading to suboptimal convergence. By incorporating the variance-aware weighting mechanism, NAFL effectively suppresses the gradients from noisy unstructured points while focusing the model’s optimization on valid geometric surfaces (e.g., walls, furniture), thereby resulting in a more accurate and semantically meaningful scene graph generation. 
+
+D.4. Qualitative Visualization Results 
+
+To intuitively understand the effectiveness of our proposed pre-training scheme, we provide qualitative comparisons between our method and two strong baselines: SGFN trained from scratch (w/o PT) and OCRL. Fig. 9 visualizes the generated scene 18 ToLL: Topological Layout Learning with Structural Multi-view Augmentation Point Cloud OCRL Ours SGFN w/ ToLL 
+
+> plant
+> floor
+> armchair
+> lamp
+> wall
+> box
+> wall
+> stool
+> plant
+> floor
+> armchair
+> decoration
+> wall
+> monitor
+> door
+> chair
+> standing on
+> left
+> standing on
+> attached to
+> left
+> standing on
+> hanging on
+> right
+> right  standing on standing on
+> attached to
+
+SGFN w/o ToLL                          
+
+> plant
+> floor
+> armchair
+> wall
+> curtain
+> standing on
+> left
+> standing on
+> attached to
+> right  standing on chair
+> decoration
+> hanging on
+> floor stool
+> couch table couch table
+> ottoman
+> coffee table
+> stool floor
+> lamp lamp lamp
+> lamp lamp
+> lamp
+> wall wall wall
+> pillow
+> pillow
+> armchair armchair
+> armchair
+> pillow
+> pillow pillow
+> pillow
+> floor
+> attached to
+> attached to attached to attached to
+> standing on standing on standing on
+> lying on
+> right
+> lower than
+> higher than
+> lying on
+> close by
+> close by
+> hanging on
+> hanging on
+> lower than
+> lying on
+> higher than
+> standing on
+> right left
+> standing on
+> standing on
+> left right
+> standing on
+> standing on
+> left
+> standing on
+> right
+> standing on
+> floor
+> wardrobe
+> cabinet
+> wardrobe
+> floor floor
+> nightstand
+> right
+> wardrobe
+> stand
+> right standing on standing on standing on
+> attached to standing on standing on
+> table
+> radiator
+> curtain
+> bag
+> blanket
+> wall
+> standing on
+> wall wall
+> attached to attached to
+> standing on
+> hanging on
+> close by close by
+> connected to
+> left
+> close by
+> shelf
+> radiator
+> table close by
+> attached to
+> box
+> box
+> window
+> chair
+> chair
+> standing on
+> table
+> radiator
+> standing on left
+> attached to
+> close by close by
+> left
+> connected to
+> right
+> wall curtain curtain
+> bath cabinet commode
+> picture clock window
+> floor floor floor
+> wall wall
+> shelf shelf shelf
+> wall
+> chair chair chair bath cabinet
+> attached to
+> standing on
+> attached to
+> standing on
+> attached to
+> attached to
+> standing on
+> attached to
+> standing on standing on
+> attached to
+> attached to
+> attached to
+> standing on standing on
+> attached to
+> box
+
+Figure 9. Qualitative Results of Our Method vs. Baseline (Learning From Scratch) & OCRL. The columns from left to right represent: the input Point Cloud, the scene graph generated by SGFN (w/o ToLL) with learning from scratch, OCRL, and Ours (SGFN w/ ToLL) . Green nodes indicate correctly identified objects or detailed spatial relationships, while red nodes/edges in baselines often represent misclassifications or over-simplified relations. 
+
+graphs across four distinct indoor scenes (living rooms, bathroom, and bedroom). As illustrated in Fig. 9, our method demonstrates superior performance in two key aspects: fine-grained semantic classifica-tion and complex spatial relationship reasoning. 
+
+Robust Semantic Classification: Our method effectively leverages the structural knowledge learned during pre-training to distinguish visually similar but semantically different objects. For instance, in the second row (Living Room scene), the baseline SGFN misclassifies the footrest as a generic “stool” , whereas our method correctly identifies it as an “ottoman”. Similarly, in the third row (Bathroom scene), while the baseline predicts a “bath cabinet” , our model accurately recognizes the specific furniture as a “commode”. Furthermore, our method successfully detects small-scale objects that are easily ignored by baselines, such as the “clock” on the wall and the “bag” in the bedroom scene. 
+
+Precise Spatial Reasoning: Beyond object classification, our method generates more topologically accurate and detailed relationships. In the second row, the baselines tend to predict simple adjacent relationships like “close by” or “standing 19 ToLL: Topological Layout Learning with Structural Multi-view Augmentation 
+
+on”. In contrast, our model captures fine-grained vertical geometric relationships, such as “higher than” and “lower than” between the couch table, pillows, and the armchair. This indicates that our variance-aware pre-training strategy effectively helps the model understand the relative spatial layout of subgraphs rather than just proximity. In summary, compared to SGFN and OCRL which often produce sparse graphs or misclassify objects in cluttered envi-ronments (e.g., falsely detecting a “box” or “lamp” in the first row), our method generates dense, semantically rich, and geometrically precise scene graphs that better reflect the ground truth scene layout. 20

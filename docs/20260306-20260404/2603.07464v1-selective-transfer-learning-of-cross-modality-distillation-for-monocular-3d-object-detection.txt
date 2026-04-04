@@ -1,0 +1,535 @@
+Title: Selective Transfer Learning of Cross-Modality Distillation for Monocular 3D Object Detection
+
+URL Source: https://arxiv.org/pdf/2603.07464v1
+
+Published Time: Tue, 10 Mar 2026 01:06:22 GMT
+
+Number of Pages: 14
+
+Markdown Content:
+# Selective Transfer Learning of Cross-Modality Distillation for Monocular 3D Object Detection 
+
+Rui Ding, Student Member, IEEE, Meng Yang, Member, IEEE, and Nanning Zheng, Fellow, IEEE 
+
+Abstract —Monocular 3D object detection is a promising yet ill-posed task for autonomous vehicles due to the lack of ac-curate depth information. Cross-modality knowledge distillation could effectively transfer depth information from LiDAR to image-based network. However, modality gap between image and LiDAR seriously limits its accuracy. In this paper, we systematically investigate the negative transfer problem induced by modality gap in cross-modality distillation for the first time, including not only the architecture inconsistency issue but more importantly the feature overfitting issue. We propose a selective learning approach named MonoSTL to overcome these issues, which encourages positive transfer of depth information from LiDAR while alleviates the negative transfer on image-based network. On the one hand, we utilize similar architectures to ensure spatial alignment of features between image-based and LiDAR-based networks. On the other hand, we develop two novel distillation modules, namely Depth-Aware Selective Feature Distillation (DASFD) and Depth-Aware Selective Relation Distillation (DASRD), which selectively learn positive features and relationships of objects by integrating depth uncertainty into feature and relation distillations, respectively. Our approach can be seamlessly integrated into various CNN-based and DETR-based models, where we take three recent models on KITTI and a recent model on NuScenes for validation. Extensive experiments show that our approach considerably improves the accuracy of the base models and thereby achieves the best accuracy compared with all recently released SOTA models. The code is released on https://github.com/DingCodeLab/MonoSTL. 
+
+Index Terms —3D object detection, depth estimation, cross-modality, knowledge distillation, selective transfer. 
+
+I. I NTRODUCTION 
+
+# THREE-dimensional (3D) object detection is a crucial component for scene perception of autonomous vehicles. The dominant solution of 3D detection often relies on LiDAR sensors [1]–[5], which has achieved great success in the past decade. However, high cost and complex configuration of LiDAR sensors limit the deployment in practical applications. Monocular 3D detection offers a convenient and flexible solution in recent years [6]–[11]. However, these methods are limited due to the ill-posed nature of monocular 3D detection. As a result, there is still a huge performance gap between LiDAR-based and monocular 3D detectors due to the lack of accurate depth information. Recently, cross-modality knowledge distillation provides an innovative solution to effectively leverage LiDAR data for 
+
+Rui Ding, Meng Yang, and Nanning Zheng are with the Insti-tute of Artificial Intelligence and Robotics, Xi’an Jiaotong University, Xi’an 710049, P.R.China. E-mails: dingrui@stu.xjtu.edu.cn; {mengyang, nnzheng }@mail.xjtu.edu.cn. Corresponding authors: M. Yang and N. Zheng. 
+
+monocular 3D object detection [12]. The teacher network takes LiDAR or a fusion of LiDAR and images as inputs, while the student network uses only images. In the training stage, accurate depth information of LiDAR is transferred to the student network through distillation modules. In the inference stage, only the student network is retained to predict 3D objects from single images. However, it arises two challenging issues due to modality gap between LiDAR and images in cross-modality distillation: 1) Architecture inconsistency . The network architectures of LiDAR-based and image-based detectors are gener-ally inconsistent due to different input modalities [13]. LiDAR-based detectors generally use point-based [14] or voxel-based [15] networks, while image-based detec-tors use CNN-based [16] or transformer [11] architec-tures. Their architecture inconsistency incurs extra bur-den to handle spatially-unaligned intermediate features between the teacher and student networks. 2) Feature overfitting . Learned features of LiDAR-based and image-based detectors also differ due to different input modalities. LiDAR contains precise depth informa-tion, while images contain texture and color details [17], [18]. The student network tends to overfit to features of the teacher network during training, because accurate depth information is beneficial to high prediction accu-racy. However, learned features of the student network may not be effective enough due to the lack of accurate depth information during inference. These two issues are collectively referred as the negative transfer problem of cross-modality distillation in our work. That means, learned features from the teacher network are not always beneficial to the student network. The fundamental reason behind the negative transfer problem is the modality gap between LiDAR and images. PKD [13] already confirmed that the architecture inconsistency issue may lead to perfor-mance decline for the student network. Fig. 1(a) shows visual examples of positive and negative transfer induced by the feature overfitting issue. When the student network already localizes 3D objects accurately compared to ground-truth (GT), transferring the features from teacher to student may worsen the localization accuracy, and vice versa. Fig. 1(b)-(d) quantitatively verifies that the negative transfer problem has a significant impact in cross-modality distillation and our selective transfer learning approach well alleviates this problem on both the KITTI and NuScenes datasets. A few methods in recent years made preliminary attempts on the negative transfer problem. On the one hand, the 1   
+
+> arXiv:2603.07464v1 [cs.CV] 8 Mar 2026 2
+> Fig. 1. Negative transfer problem in cross-modality distillation. (a) A visual example of positive/negative transfer. (b) The accuracy of monocular 3D detection is seriously decreased when fully transferring the features to student from teacher with a similar architecture based on MonoDLE* 1. Our approach uses selective transfer learning to alleviate the negative transfer problem and considerably improves the accuracy of four base models on (c) KITTI and (d) NuScenes datasets.
+
+architecture inconsistency issue is relatively easy to avoid. For instance, Monodistill [19] and ADD [20] used similar network architectures for the teacher and student networks, while CMKD [21] conducted distillation from a Bird’s Eye View (BEV) perspective to alleviate the architecture inconsistency issue partly. On the other hand, the feature overfitting issue is more challenging and not well investigated in the literature. The methods [19], [20] simply distinguished foreground and background to filter away noises in the background, which partly alleviated the feature overfitting issue. Similar problems were studied in the field of transfer learning [22]. However, traditional transfer learning focuses on transferring knowledge between different tasks or domains [23], [24], while our task deals with transferring knowledge between different modal-ities. In conclusion, existing methods did not fully handle the negative transfer problem of cross-modality distillation in monocular 3D detection, especially for the feature overfitting issue. In this paper, we systematically investigate the negative transfer problem caused by modality gap in cross-modality distillation including not only the architecture inconsistency issue but more importantly the feature overfitting issue. We propose a selective learning approach named MonoSTL to well alleviate the negative transfer problem in monocular 3D object detection. Our approach utilizes similar network architectures for the teacher and student networks following [13] to address the architecture inconsistency issue, while develops two novel distillation modules to address the feature overfitting issue. In this way, our approach encourages positive transfer of depth information from LiDAR while alleviates the negative transfer on image-based network. First, we introduce depth uncertainty as a criterion to selectively learn depth information from the teacher network.           
+
+> 1MonoDLE* refers to the base model in Monodistill [19], which is developed on the basis of MonoDLE [9].
+> 2FCOS3D* refers to its open-source model, which is developed on the basis of FCOS3D [25].
+
+In cross-modality distillation, LiDAR-based network supple-ments accurate depth information that is missed in images. Depth uncertainty could well reflect the depth prediction capa-bility of the student network. Therefore, we use it to determine the proportion of depth information from the teacher network in the training. Second, we develop two novel distillation modules, namely, Depth-Aware Selective Feature Distillation (DASFD ) and Depth-Aware Selective Relation Distillation (DASRD ). These two modules distinguish the importance of objects during the distillation process and emphasize the selective learning of features in the teacher network. Specif-ically, DASFD and DASRD selectively learn positive fea-tures/relationships of objects from the teacher network by integrating depth uncertainty into feature/relation distillation. Our approach can be seamlessly integrated into various CNN-based and DETR-based models without increasing infer-ence costs. In this paper, it is comprehensively applied on four recent open-source models for easy implementation including MonoDLE*, MonoCon [10], MonoDETR, and FCOS3D* 2.The results demonstrate that our approach considerably im-proves the accuracy of the base models on KITTI in Fig. 1(c) and NuScenes in Fig. 1(d). It thereby achieves the best accuracy compared with all released SOTA models in recent years. In addition, our approach holds the potential to achieve higher accuracy with stronger models in the future. Our contributions are highlighted as follows:  
+
+> •
+
+We systematically investigate the negative transfer prob-lem of cross-modality distillation in monocular 3D de-tection for the first time.  
+
+> •
+
+We propose two novel distillation modules to alleviate the problem, which can be seamlessly integrated into various CNN-based and DETR-based models.  
+
+> •
+
+Our approach considerably improves the accuracy of four recent models on two datasets. It thereby achieves the best accuracy compared with all released SOTA models. 3 
+
+> Fig. 2. Overview of our MonoSTL framework . The framework comprises three components including the teacher network, the student network, and three distillation modules. First, we train the teacher network with GT depth map from LiDAR. It adopts similar architectures to the student network. Second, three distillation modules are used to selectively transfer features from the teacher network to the student network including our DASRD and DASFD modules as well as the general response distillation module. Finally, only the student network is retained to predict 3D objects from single images in the inference stage.
+
+II. R ELATED WORK 
+
+A. Monocular 3D Object Detection 
+
+Monocular 3D detection predicts locations, dimensions, and angles of 3D objects from single images. Due to the lack of accurate depth information in images, there is still a huge per-formance gap between monocular 3D detection and LiDAR-based 3D detection. MonoDLE [9] verified that the accuracy of monocular 3D detection is mainly limited by depth prediction compared to LiDAR-based 3D detection. Recent approaches can be divided into two categories based on whether extra depth data is involved in the training. Monocular 3D detection without extra depth data often predicts depth information from single images through 2D-3D geometric constraints and prior knowledge. For instance, GupNet [26] used height priors of objects for depth estimation. MonoFlex [27] combined multiple depth estimation methods using depth uncertainty. MonoDDE [28] introduced a keypoint-based method to further improve the accuracy of depth estimation. With the success of Detection Transformer (DETR) [29] in 2D detection, Mon-oDETR [11] and MonoDTR [30] extended DETR to monoc-ular 3D detection. However, these methods are limited due to the ill-posed nature of monocular 3D detection. The methods with extra depth data have attracted considerable attention in recent years. Pseudo-LiDAR [31]–[33] converted depth maps into pseudo-LiDAR and utilized LiDAR detectors for 3D object detection. However, these methods do not well utilize LiDAR data. In this paper, we adopt cross-modality distillation to effectively leverage depth information from LiDAR data in the training phase for monocular 3D detection. 
+
+B. Cross-Modality Knowledge Distillation 
+
+Knowledge distillation was originally proposed for model compression [34] and then widely applied in various domains [35], [36]. Most knowledge distillation approaches use the same input modality for the teacher and student networks, while cross-modality knowledge distillation involves different input modalities. 2DPASS [37] used images to boost the representation learning on LiDAR. Monodistill [19] and ADD [20] utilized LiDAR as inputs for the teacher network to enhance the depth prediction capability of the student network. Monodistill and ADD used similar network architectures for the teacher and student network, while CMKD [21], BEVDis-till [38] and UniDistill [39] conducted distillation from BEV perspective to partly alleviate the architecture inconsistency issue in cross-modality distillation. However, these methods do not fully consider the negative transfer problem induced by modality gap in cross-modality distillation, particularly for the feature overfitting issue. In this paper, we systematically investigate and alleviate the negative transfer problem for the first time, including not only the architecture inconsistency issue but more importantly the feature overfitting issue. 
+
+C. Depth Uncertainty 
+
+Depth uncertainty refers to the confidence in the accuracy of perceived depth information. It is crucial in autonomous driving to ensure safe and reliable decision-making, espe-cially in complex and dynamic environments. Therefore, depth uncertainty estimation is as important as depth estimation for 3D object detection. A fundamental formula of depth uncertainty estimation was proposed in [40] and it has been 4
+
+widely adopted in 3D detection such as MonoPair [41] and GupNet. For example, MonoFlex and MonoDDE leveraged depth uncertainty to combine various depth estimation meth-ods and employed a soft fusion approach to enhance depth values. To our knowledge, we first utilize depth uncertainty to selectively learn the depth information of the teacher network. By integrating depth uncertainty, our approach well alleviates the negative transfer problem in cross-modality distillation. III. M ETHOD 
+
+A. Overall Framework 
+
+Fig. 2 presents the overall framework of our approach. It comprises three components: 1) the student network takes a single image as input, 2) the teacher network adopts a similar architecture but different inputs (either LiDAR or a fusion of LiDAR and image), and 3) two novel distillation modules including Depth-Aware Selective Feature Distillation (DASFD ) and Depth-Aware Selective Relation Distillation (DASRD ). The student network could adopt various CNN-based and DETR-based detection models without any modifications. It ensures the seamless compatibility of our approach with various models without increasing inference cost. In this paper, we take three recent models on KITTI to validate our approach including MonoDLE [9], MonoCon [10] and MonoDETR [11]. In addition, we take a recent model FCOS3D* [25] on NuScenes to validate the effectiveness of our approach across various datasets. The teacher network utilizes a similar archi-tecture to alleviate the architecture inconsistency issue. The two novel distillation modules DASFD and DASRD are used to alleviate the feature overfitting issue. DASFD selectively learns positive features of objects from the teacher network by integrating depth uncertainty into feature distillation, while 
+
+DASRD selectively learns positive relationships of objects by integrating depth uncertainty into relation distillation. In addition, the classical response distillation [19] is incorporated but not the focus of this work. In our framework, we define levels of intermediate features obtained from backbones as {S(l)}l∈(1 ,...,L ) in the student network and {T (l)}l∈(1 ,...,L ) in the teacher network. The total number of intermediate feature levels used for distillation is denoted as L. For each object, we obtain the length and width of its feature map using GT 2D bounding box. These bounding boxes well distinguish foreground and background regions and they are used in the ROIAlign operation. Notably, these values are only utilized during the training phase and do not affect the inference process. Specifically, we assign the index i to represent the i-th objects, and the total number of objects in GT is denoted as N . Notably, the intermediate layers utilized for distillation are determined according to the used base models in the student network. 
+
+B. Depth-Aware Selective Feature Distillation 
+
+In general knowledge distillation [42], [43], the student network was directly forced to mimic the feature map from the teacher network. It may result in the feature overfitting issue. Therefore, we first introduce the Depth-Aware Selective Fea-ture Distillation ( DASFD ) to alleviate the feature overfitting issue in cross-modality distillation. 
+
+1) General Feature Distillation. The general feature dis-tillation loss Lf d is as follows: 
+
+Lf d =
+
+> L
+
+X
+
+> l=1
+
+1
+
+H(l) × W (l) F
+
+
+
+T (l), S (l)
+
+, (1) where H(l), W (l) denote the height and width of the feature map for distillation, and F (·) represents different feature distillation functions. In the general knowledge distillation, the student network fully relies on features from the teacher network, leading to effective inference when they share the same input modality and have similar network architectures. However, in cross-modality knowledge distillation, the modal-ity gap between LiDAR and images may lead to feature overfitting of the student network to the teacher network. The feature overfitting issue results in ineffective features of the student network during inference. To address this issue, we develop a selective learning approach, which distills only positive information while avoids interference from negative information in cross-modality distillation. 
+
+2) Depth Uncertainty. First of all, we require an effective metric to achieve selective learning. Fig. 2 shows that the detect head modules in both the teacher and student networks predict instance depth, depth uncertainty, and other prediction heads in cross-modality distillation. LiDAR-based network supplements accurate depth information that is missed in image-based network. Therefore, depth uncertainty could well reflect the depth prediction capability of the student network. It provides a reasonable criterion for our solution. We use it to determine the proportion of knowledge to be learned from the teacher network in the training. Notably, though the teacher network directly provides pixel-level depth values from LiDAR in the input, both the teacher and student networks still require to predict instance depth and depth uncertainty for objects. Similar to previous methods, we adopt the classical depth estimation formula in [40], which obtains instance depth and depth uncertainty simultaneously. The expression of the depth loss Ldep is as follows: 
+
+Ldep = |z − z∗|
+
+σ + log( σ), (2) where z and z∗ represent predicted depth value and ground truth (GT), respectively. The symbol σ denotes the depth uncertainty. Both z and σ can be predicted from our networks. The second term in the formula prevents infinite output values of networks, yielding reasonable depth uncertainty to reflect the quality of depth prediction [44]. Higher depth uncertainty indicates that predicted depth values of the student network are more unreliable. Therefore, more depth information of the teacher network should be transferred to the student network, and vice versa. In our solution, depth uncertainty is obtained from the student network. Specifically, we calculate a weight ωi as 
+
+ωi = σS,i for the i-th object in the student network. In 5
+
+this way, the weight value directly indicates the accuracy of predicted objects. When the student network accurately predicts objects, the distillation weight value is reduced to alleviate the interference of the features from the teacher network. On the contrary, the distillation weight value is increased to transfer more depth information to the student network. Notably, depth uncertainty can be optionally obtained from the teacher network or a fusion of the teacher and student networks. The ablation study of different weight schemes can be seen in Table VIII. 
+
+3) Our Feature Distillation. Our DASFD module utilizes the weighted depth uncertainty of objects to optimize the cross-modality feature distillation loss, denoted as Lwf d , as follows:          
+
+> Lwf d =
+> LX
+> l=1
+> NX
+> i=1
+> M(l)
+> iω(l)
+> i
+> 1
+> H(l)
+> i×W(l)
+> i
+> F
+> 
+> T(l)
+> i, S (l)
+> i
+> 
+> ,(3)
+
+where H(l) 
+
+> i
+
+and W (l) 
+
+> i
+
+denote the height and width of the 
+
+i-th foreground object in feature map, respectively. T (l) 
+
+> i
+
+and 
+
+S(l) 
+
+> i
+
+represent the feature maps of the i-th foreground object obtained from the teacher and student networks, respectively. We adopt the simple L2 loss as the fundamental distillation function F (·), and it is calculated pixel-by-pixel between feature maps of the teacher and student networks. Our feature distillation loss differs from the general distillation loss in two aspects. On the one hand, M (l) 
+
+> i
+
+represents the foreground mask of the i-th object, which is obtained from 2D bounding box ground truth. This approach distinguishes foreground and background to effectively filter away noises in the background. On the other hand, ω(l) 
+
+> i
+
+represents our selective learning weights for objects in cross-modality distillation. We use an effective metric to distinguish the importance of objects, which allows our approach to selectively learn positive features of objects from the teacher network. 
+
+C. Depth-Aware Selective Relation Distillation 
+
+Relative relations of objects can also transfer depth infor-mation from the teacher network to the student network [45]– [47], which exhibits a low correlation with input modalities. Therefore, we then introduce the Depth-Aware Selective Re-lation Distillation ( DASRD ) to further alleviate the feature overfitting issue in cross-modality distillation. 
+
+1) General Relation Distillation. The general relation distillation loss is as follows:       
+
+> Lrd =
+> LX
+> l=1
+> NX
+> iNX
+> j
+> G
+> 
+> R
+> 
+> T(l)
+> i, T (l)
+> j
+> 
+> , R
+> 
+> S(l)
+> i, S (l)
+> j
+> 
+> ,(4)
+
+where T (l) 
+
+> i
+
+and S(l) 
+
+> i
+
+represent feature maps of the i-th foreground object from the teacher and student networks, respectively. Notably, the size of feature maps is fixed by applying the RoIAlign operation [48]. The function R(·) is employed to calculate the feature similarity between the i-th and j-th objects in the teacher and student networks separately. The function G(·) is then utilized to compute the pairwise re-lationship similarity between the teacher and student networks. Relation distillation transfers structural knowledge by captur-ing the relationships among objects. The structural knowledge exhibits a low correlation with the input modalities of the networks and it is not susceptible to modality gap. Therefore, it is particularly suitable for cross-modality distillation in 3D object detection. 
+
+2) Our Relation Distillation. Existing relation distilla-tion methods often considered foreground objects equally. However, in cross-modality distillation, the importance of objects may vary significantly. For example, objects that are accurately predicted usually transfer more useful information than others. Based on this, we can categorize objects into pos-itive objects and negative objects. Therefore, the relationships among positive objects are more crucial than those among negative objects. The relationships of positive objects can lead to positive transfer effect in cross-modality distillation. Conversely, the relationships of negative objects may result in severe negative transfer problem. Motivated by this observation, we propose the Depth-Aware Selective Relation Distillation ( DASRD ) module to further consider the importance of objects in relation distillation. Sim-ilar to the DASFD module, we also utilize depth uncertainty to measure the importance of objects in the relation distillation loss. Specifically, we incorporate depth uncertainty in equation (2) to the function R(·) to compute the correlation between two objects as follows:                      
+
+> DT[i,j ]=
+> LX
+> l=1
+> R
+> 
+> T(l)
+> i, T (l)
+> j
+> 
+> σ2( l)
+> T,i +σ2( l)
+> T,j
+> + log
+> 
+> σ2( l)
+> T,i +σ2( l)
+> T,j
+> ,(5)
+> DS[i,j ]=
+> LX
+> l=1
+> R
+> 
+> S(l)
+> i, S (l)
+> j
+> 
+> σ2( l)
+> S,i +σ2( l)
+> S,j
+> + log
+> 
+> σ2( l)
+> S,i +σ2( l)
+> S,j
+> ,(6)
+
+where DT [i,j ] and DS[i,j ] denote the correlations between paired objects in the teacher network and the student network, respectively. σT,i and σS,i represent depth uncertainty of the 
+
+i-th object estimated by the teacher network and the student network, respectively. The two functions DT [i,j ] and DS[i,j ]
+
+in equation (5) and (6) are then used to replace the function 
+
+R(·) in the relation distillation loss in equation (4). Our relation distillation loss, denoted as Lwrd , can be represented as follows: 
+
+Lwrd =
+
+> N
+
+X
+
+> iN
+
+X
+
+> j
+
+G  DT [i,j ], D S[i,j ]
+
+ . (7) In our solution, we choose L1 loss as the distillation function 
+
+G(·). In equation (5) and (6), a smaller value of denominator implies a higher importance of their relative relationship. In this case, these objects are assigned higher weights in our loss, and the network pays more attention to the relationships among positive targets. In this way, the student network can selectively learn relative relationships of objects to alleviate the feature overfitting issue in cross-modality distillation. 6
+
+Algorithm 1 Our feature distillation loss in DASFD Input: GT 2D box M , teacher network features T , student network features S
+
+Output: our feature distillation loss Lf d  
+
+> 1:
+
+Initialization: l ← 0, student depth uncertainty σS ←
+
+0, L ← (total numbers of feature levels of S), object weight ω ← 0, Lwf d ← 0 
+
+> 2:
+
+repeat  
+
+> 3:
+
+Update σ(l) 
+
+> S
+
+based on Equation (2)  
+
+> 4:
+
+Update ω(l) based on σ(l) 
+
+> S
+> 5:
+
+Update Lwf d based on Equation (3)  
+
+> 6:
+
+l ← l + 1  
+
+> 7:
+
+until l > = L
+
+D. Loss Function 
+
+The total loss function of our model is as follows: 
+
+L = Lsrc + λ1 · Lwf d + λ2 · Lwrd + λ3 · Led , (8) where Lwf d represents the feature distillation loss in our 
+
+DASFD and Lwrd represents the relation distillation loss in our DASRD . Lsrc represents the general loss to train 3D detection, which is determined by employed base models such as MonoDLE*, MonoCon, MonoDETR and FCOS3D* in our work. Led represents the classical response distillation loss as follows: 
+
+Led = 1
+
+K
+
+> K
+
+X
+
+> κ=1
+
+RE (YT,κ , Y S,κ ), (9) where K represents the number of detection heads. YT,κ and 
+
+YS,κ represent the features of the κ-th detection head from the teacher and student networks. The detection heads include instance depth, depth uncertainty, and other prediction heads shown in Fig. 2. The function RE (·) is utilized to compute the pairwise features of all these detection heads between the teacher and student networks. We choose L1 loss as 
+
+RE (·) and calculate these head features pixel-by-pixel. The hyperparameters λ1, λ2, and λ3 are utilized to balance the four losses. The ablation study of different loss weights can be seen in Table IX. 
+
+E. Pseudocodes of our distillation modules 
+
+The main technical contributions of our approach lie in the two novel distillation modules including DASFD and DASRD .For clarity and easy reproduction, we further present the pseudocodes of the losses in these two modules including our feature distillation loss in Algorithm 1 and our relation distillation loss in Algorithm 2. Notably, these two losses are not limited by network architectures, which can be easily integrated into to various base models for cross-modality knowledge distillation in the future. IV. E XPERIMENTS 
+
+A. Setting 
+
+1) Dataset and Evaluation Metrics. Our approach is mainly evaluated on the widely used KITTI dataset [49] for a 
+
+Algorithm 2 Our relation distillation loss in DASRD Input: GT 2D box M , teacher network features T , student network features S
+
+Output: our relation distillation loss Lrd  
+
+> 1:
+
+Initialization: l ← 0, depth uncertainty σT , σ S ← 0,
+
+L ← (total numbers of feature levels of S), Lwrd ← 0,relations between paired objects DT , D S ← 0 
+
+> 2:
+
+repeat  
+
+> 3:
+
+Update σ(l) 
+
+> T
+
+, σ (l) 
+
+> S
+
+based on Equation (2)  
+
+> 4:
+
+Update T, S by ROIAlign operation  
+
+> 5:
+
+Update DT , D S based on Equation (5) and (6)  
+
+> 6:
+
+Update Lwrd based on Equation (7)  
+
+> 7:
+
+l ← l + 1  
+
+> 8:
+
+until l > = L
+
+fair comparison. This dataset is the most common benchmark for monocular 3D detection. The dataset consists of 7481 images for training and 7518 images for testing. We divide the training data into a training set with 3712 images and a validation set with 3769 images following [50]. Similar to previous methods, our approach primarily focuses on detect-ing objects in the Car category while secondarily detecting Pedestrian and Cyclist. Additionally, objects within the KITTI dataset are categorized into three difficulty levels (i.e. Easy, Moderate, and Hard) based on factors such as occlusion, truncation, and size. The primary metrics used for performance comparison are BEV Average Precision ( AP BEV ) and 3D Average Precision ( AP 3D ). Following [51], 40 recall positions are sampled to calculate AP. Notably, the IOU thresholds are 0.7 for Car, and 0.5 for Pedestrian and Cyclist. In addition, we evaluate the effectiveness of our approach across datasets on NuScenes. NuScenes [52] is a large-scale multi-modal dataset, including multi-view RGB images from 6 cameras, points from 5 Radars and 1 LiDAR. There are overall 1.4M annotated 3D bounding boxes across 10 categories. We extract single-view data from NuScenes for monocular 3D detection. Evaluation metrics include mean Average Precision (mAP) and nuScenes detection score (NDS). 
+
+2) Basic Model Setting. Our model is trained on a single NVIDIA 3090 GPU. We adopt similar settings to the base models (MonoDLE*, MonoCon, MonoDETR, and FCOS3D*) including the optimizer, epochs, batch size, and data augmentation. The loss weights λ1 and λ2 are set as 10 and 1, respectively. The loss weight λ3 is set to 1 for CNN-based models and 0.1 for DETR-based models. We train our model in an end-to-end way similar to [19]. The student network is independently trained or directly loading pertained weights of base models. The teacher network is independently trained and its parameters are frozen. During distillation, the features of the student network pass through two convolution layers and the loss is computed together with the features of the teacher network based on DASFD and DASRD . In the inference, the student network only employs images as input. 
+
+B. Implementation details on base models 
+
+Our approach is comprehensively verified by integrating into different kinds of base models. Four representative open-7                                                                                                   
+
+> TABLE I
+> COMPARISON TO THE THREE BASE MODELS ON KITTI . O UR APPROACH CONSISTENTLY OUTPERFORMS THE THREE BASE MODELS ACROSS ALL DIFFICULTY LEVELS IN BOTH THE TRAINING AND VALIDATION SETS .Method AP 3D(Car test) AP 3D(Car val) AP BEV (Car val) Easy Mod. Hard Easy Mod. Hard Easy Mod. Hard MonoDLE * [9] 17.23 12.26 10.29 19.29 15.13 12.78 26.47 20.24 18.29 MonoDLE* + Ours 24.04 16.50 13.85 25.59 19.23 16.60 34.20 25.82 22.47 Improvement +6.81 +4.24 +3.56 +6.3 +4.1 +3.82 +7.73 +5.58 +4.18
+> MonoCon [10] 22.50 16.46 13.95 26.33 19.01 15.98 34.65 25.39 21.93 MonoCon + Ours 23.47 17.07 14.20 27.13 20.57 17.40 36.31 26.60 22.87 Improvement +0.97 +0.61 +0.25 +0.8 +1.56 +1.42 +1.66 +1.21 +0.94
+> MonoDETR [11] 23.65 15.92 12.99 28.84 20.61 16.38 37.86 26.95 22.80 MonoDETR + Ours 24.54 17.14 14.59 32.24 22.06 18.50 41.82 29.33 25.23 Improvement +0.89 +1.22 +1.60 +3.40 +1.45 +2.12 +3.96 +2.38 +2.43
+
+source models are adopted for easy implementation including MonoDLE*, MonoCon, MonoDETR and FCOS3D*. Mono-DLE* has been widely adopted for monocular 3D detection in recent years, which ensures a fair comparison with other models. MonoCon and MonoDETR are two recent CNN-based and DETR-based models, which achieved SOTA on KITTI among all released models in recent years. FCOS3D* is implemented on the NuScenes dataset. 
+
+1) Network Structure. Both MonoDLE* and MonoCon employ the DLA-34 architecture as the backbone and utilize multiple CNN-based heads to predict 3D object attributes from single images. FCOS3D* employs ResNet-101 as its backbone network and utilizes multiple CNN-based heads. MonoDETR employs ResNet-50 as its backbone network and integrates a visual encoder and a depth encoder to extract image and depth features, respectively. These features are then combined in a depth-aware transformer module to predict 3D detection attributes. 
+
+2) Inputs and Distillation Layers. For MonoDLE*, Mono-Con and FCOS3D*, the teacher network employs depth maps as input, which are transformed from LiDAR data. For Mon-oDETR, the teacher network employs a visual encoder for image inputs and a depth encoder for depth maps inputs. It ensures that the depth encoder branch of the teacher network is mainly influenced by input LiDAR data. The layers used for knowledge distillation vary for different network architec-tures. For MonoDLE*, MonoCon and FCOS3D*, knowledge distillation is performed from the last three layers of the backbone network. For MonoDETR, knowledge distillation is only performed from two feature layers of the depth encoder. 
+
+3) Training Settings. For the KITTI dataset, our approach is trained end-to-end for 200 epochs and adopts a warm-up strategy of 5 epochs. For the NuScenes dataset, the total epoch is 24. For MonoDLE*, we employ Adam optimizer with an initial learning rate of 1.25 e−3, and decay it by ten times at 120 and 160 epochs. Data augmentation consists of random flips and center crops. For MonoCon, the common Adam optimizer is utilized with an initial learning rate of 2.25 e−4,with a cyclic scheduler. Data augmentation consists of random flips and center crops. For MonoDETR, the AdamW optimizer is used with an initial learning rate of 2e−4, and decays it by ten times at 125 and 165 epochs. Data augmentation consists of random flips, center crops, and random shifts. For FCOS3D*, the SGD optimizer is used with an initial learning rate of 2e−3, and decays it by ten times at 16 and 22 epochs. Data augmentation consists of random flips. 
+
+C. Evaluation 
+
+In this section, we compare the performance of our approach with dozens of recent baselines on both the KITTI validation and test sets. Firstly, we compare our approach with the three base models in Table I. Secondly, we compare our approach with other recent SOTA methods in Table II. Then, we compare our approach with other cross-modality distillation methods in Table III. Finally, we additionally present the results of our approach on pedestrian and bicycle categories in Table IV. 
+
+1) Comparison to Three Base Models On KITTI. Table I shows that our approach consistently outperforms the three base models across all difficulty levels on both the KITTI validation and test sets. Specifically, our approach achieves significant gains on MonoDLE* and also well improves the accuracy of MonoDETR and Monocon on the validation split. The gains on MonoDETR and Monocon are lower than those on MonoDLE*. One reason lies that MonoCon incorporated various auxiliary tasks, which partly alleviates the impact of modality gap. In addition, the architecture of MonoDETR is not suitable for LiDAR inputs. Notably, these two models achieve SOTA accuracy among all released models of monocular 3D detection, so improving their accuracy is more challenging. Despite these challenges, our approach still achieves a considerable improvement on all these base models. 
+
+2) Comparison to Recent SOTA Models. Table II shows the comparison of our approach and dozens of released SOTA models in recent years. Benefiting from the effectiveness of the developed DASFD and DASRD modules as well as the strong ability of the base models, our approach expectedly achieves the best accuracy compared with all these baseline models. No-tably, our approach serves as a general distillation framework that can be applied to various CNN-based and DETR-based detection models. Therefore, it can be seamlessly integrated into stronger base models to achieve higher accuracy without increasing inference cost once their codes are released in the future. 
+
+3) Comparison using the Same Base Model. We further compare our approach with existing cross-modality distillation methods. we select the recent Monodistill for comparison. Both our approach and Monodistill employ MonoDLE* as 8
+
+TABLE II 
+
+COMPARISON TO RECENT SOTA MODELS . THE BEST RESULTS ARE IN BOLD . O UR APPROACH CONSISTENTLY ACHIEVES THE BEST ACCURACY ON BOTH THE KITTI VALIDATION AND TEST SPLITS .Method Reference AP 3D (Car test) AP BEV (Car test) AP 3D (Car val) Mod. Easy Hard Mod. Easy Hard Mod. Easy Hard CMAN [53] TITS2022 11.87 17.77 9.16 17.04 25.89 12.88 16.75 24.91 12.46 MonoDLE [9] CVPR2021 12.26 17.23 10.29 18.89 24.79 16.00 13.66 17.45 11.68 MonoRUn [54] CVPR2021 12.30 19.65 10.58 17.34 27.94 15.24 14.65 20.02 12.61 MonoRCNN [55] ICCV2021 12.65 18.36 10.03 18.11 25.48 14.10 14.87 19.07 12.59 DDMP-3D [56] CVPR2021 12.78 19.71 9.80 17.89 28.08 13.44 - - -HMF [57] TIP2022 13.12 20.28 9.56 - - - - - -MonoPixel [58] TITS2023 13.33 19.06 11.90 19.75 27.98 17.32 - - -CaDDN [59] CVPR2021 13.41 19.17 11.46 18.91 27.94 17.19 16.31 23.57 13.84 MonoEF [60] TPAMI2021 13.87 21.29 11.71 19.70 29.03 17.26 16.30 18.26 15.24 MonoFlex [27] CVPR2021 13.89 19.94 12.07 19.75 28.23 16.89 17.51 23.64 14.83 AutoShape [61] ICCV2021 14.17 22.47 11.36 20.08 30.66 15.59 14.65 20.09 12.07 MonoGround [62] CVPR2022 14.36 21.37 12.62 20.47 30.07 17.74 18.69 25.24 15.58 DEVIANT [63] ECCV2022 14.46 21.88 11.89 20.44 29.65 17.43 16.54 24.63 14.52 Context-Aware [64] TITS2022 14.49 20.89 12.19 20.77 29.57 17.88 16.09 20.15 15.59 Homo [65] CVPR2022 14.94 21.75 13.07 20.68 29.60 17.81 16.89 23.04 14.90 GupNet [26] ICCV2021 15.02 22.26 13.12 21.19 30.29 18.20 16.46 22.76 13.72 MonoPoly [66] PR2022 15.22 22.07 13.24 21.08 30.32 18.19 16.13 22.94 13.01 MonoDTR [30] CVPR2022 15.39 21.99 12.73 20.38 28.59 17.14 18.57 24.52 15.51 DCD [67] ECCV2022 15.90 23.81 13.21 21.50 32.55 18.25 17.38 23.94 15.32 MonoDETR [11] ICCV2023 15.92 23.65 12.99 21.44 32.08 17.85 20.61 28.84 16.38 Monodistill [19] ICLR2022 16.03 22.97 13.60 22.59 31.87 19.72 18.47 24.31 15.76 PDR [6] TCSVT2023 16.14 23.69 13.78 21.74 31.76 18.79 19.44 27.65 16.24 Monocon [10] AAAI2022 16.46 22.50 13.95 22.10 31.12 19.00 19.01 26.33 15.98 Shape-Aware [68] TITS2023 16.52 23.84 13.88 - - - 18.39 24.92 15.56 Monocon+ Ours - 17.07 23.47 14.20 24.47 33.35 20.12 20.57 27.13 17.40 MonoDETR+ Ours - 17.14 24.54 14.59 22.42 32.19 19.48 22.06 32.24 18.50 
+
+TABLE III 
+
+COMPARISON TO MONODISTILL WITH THE SAME BASE MODEL ON 
+
+KITTI. THE RESULTS SHOW THAT OUR APPROACH MORE EFFECTIVELY ALLEVIATES FEATURE OVERFITTING ISSUE IN CROSS -MODALITY DISTILLATION . T HE GAIN OF OUR APPROACH IS MAINLY ATTRIBUTED TO THE DEVELOPED DASFD AND DASRD MODULES .Method AP 3D (Car test) AP 3D ( Car val) Easy Mod. Hard Easy Mod. Hard MonoDLE* 17.23 12.26 10.29 19.29 15.13 12.78 MonoDistill 22.97 16.03 13.60 24.31 18.47 15.76 MonoDLE*+ Ours 24.04 16.50 13.85 25.59 19.23 16.60 vs Monodistill +1.07 +0.47 +0.25 +1.28 +0.76 +0.84 
+
+the base model for a fair comparison. In this experiment, we employ the same base model as Monodistill and avoid the impact of the architecture inconsistency issue. Therefore, the accuracy gap between the two approaches primarily arises from the feature overfitting issue. Table III shows that our approach considerably outperforms Monodistill on both the training and validation sets. It indicates that our approach effectively alleviates the feature overfitting issue in cross-modality distillation while Monodistill does not well handle this problem. The improvement of our approach is mainly attributed to the developed DASFD and DASRD modules, which alleviate the feature overfitting issue by selectively learning positive features and relationships of objects in cross-modality distillation. 
+
+4) Comparison for Pedestrian and Cyclist. Detecting pedestrians and cyclists is more challenging compared to cars due to their small sizes and limited training samples. Similar to other methods, our approach focuses on detecting cars while maintains competitive performance on pedestrians and cyclists categories. Therefore, the knowledge distillation is 
+
+TABLE IV 
+
+COMPARISON FOR PEDESTRIAN AND CYCLIST CATEGORIES ON THE 
+
+KITTI TEST SET WITH IOU THRESHOLDS OF 0.5. OUR APPROACH ACHIEVES THE BEST ACCURACY ACROSS ALL DIFFICULTY LEVELS ON PEDESTRIAN AND COMPETITIVE ACCURACY ON CYCLIST .Method AP 3D (Pedestrian) AP 3D (Cyclist) Easy Mod. Hard Easy Mod. Hard MonoEF 4.27 2.79 2.21 1.80 0.92 0.71 D4LCN 4.55 3.42 2.83 2.45 1.67 1.36 M3D-RPN 4.92 3.48 2.94 0.94 0.65 0.47 DDMP-3D 4.93 3.55 3.01 4.18 2.50 2.32 AutoShape 5.46 3.74 3.03 5.99 3.06 2.70 MonoGeo 8.00 5.63 4.71 4.73 2.93 2.58 MonoFlex 9.43 6.31 5.26 4.17 2.35 2.04 MonoDLE 9.64 6.55 5.44 4.59 2.66 2.45 MonoPair 10.02 6.68 5.53 3.79 2.21 1.83 
+
+MonoDLE*+Ours 10.23 6.91 5.80 4.15 2.47 2.17 
+
+mainly conducted for the Car category in our approach. Table IV presents the detection results of pedestrians and cyclists categories on the KITTI test set. It is seen that our approach based on MonoDLE* still achieves the best accuracy across all difficulty levels on the pedestrians category and competitive accuracy on the cyclist category compared with recent models. The detection gain on these categories partly benefits from the moderate assistance of LiDAR data in our approach. Notably, the training set in our approach contains few samples for pedestrians and cyclists categories. It remains a challenging task in our future work. 
+
+D. Ablation Studies 
+
+In this section, we conduct ablation studies to confirm the effectiveness of different modules and influence of parameters in our approach. First, we verify the effectiveness of our 9                                                                         
+
+> TABLE V
+> ABLATION STUDIES OF DISTILLATION MODULES ON KITTI
+> VALIDATION .FD, RD, AND ED REFER TO GENERAL FEATURE ,RELATION ,
+> AND RESPONSE DISTILLATION . DASFD AND DASRD REFER TO OUR DISTILLATION AND RELATION DISTILLATION .#General Ours AP 3D(Car val) FD RD DASFD DASRD ED Easy Mod. Hard a. 19.29 15.13 12.78 b. ✓21.63 17.24 14.71 c. ✓✓✓24.31 18.47 15.76 d. ✓✓✓24.78 18.57 16.50 e. ✓✓✓25.37 19.06 16.33 f. ✓✓✓25.59 19.23 16.60
+> TABLE VI
+> ABLATION STUDIES OF DISTILLATION MODULES ON NUSCENES VALIDATION .FCOS3D* REFERS TO THE RESULTS OF ITS OPEN -SOURCE MODEL . N OTABLY ,ALL METHODS DON ’T UTILIZE TEST -TIME AUGMENTATION (TTA) AND MODEL ENSEMBLE .Method DASFD DASRD MAP ↑NDS ↑
+> FCOS3D* 0.321 0.395 FCOS3D*+DASFD ✓0.331 0.400 FCOS3D*+DASRD ✓0.328 0.396 FCOS3D*+ Ours ✓✓0.335 0.400
+
+distillation modules DASFD and DASRD on both the KITTI and NuScenes datasets in Table V and table VI. Second, we verify the criterion of depth uncertainty in our approach with a general criterion in Table VII. Third, we further compare different weight schemes of depth uncertainty estimation in Table VIII. Last, we analyze the effect of hyperparameters and the teacher network in Tables IX and X, respectively. 
+
+1) Effectiveness of Distillation Modules on KITTI. Our approach mainly comprises two novel distillation modules including DASFD and DASRD . Table V shows the ablation studies of each individual module, as well as the general response distillation. MonoDLE* is adopted as the base model. First, Row a and b simply verify the effectiveness of the individual response distillation. Second, Row d and c verify the effectiveness of the individual DASRD . Third, Row e and c verify the effectiveness of the individual DASFD . Last, our final solution achieves a significant performance improvement, when all three distillation modules are employed in Row f. In conclusion, both the two modules DASFD and DASRD in our approach work effectively to alleviate the negative transfer problem in cross-modality distillation. 
+
+2) Effectiveness of Distillation Modules on NuScenes. We further verify the effectiveness of our two distillation modules on another dataset NuScenes. To this end, we integrate our approach into the base model FCOS3D* [25], which was well implemented on NuScenes by the authors. Table VI demonstrates that both the two individual modules DASFD 
+
+and DASRD could well improve the accuracy of the base model. Our final solution achieves a significant performance improvement, when both the two distillation modules are employed. 
+
+3) Ablation Study on Depth Uncertainty. Our approach requires an effective evaluation metric for selective learning in cross-modality distillation. Both depth errors and depth uncertainty could well reflect the depth prediction capability of                              
+
+> TABLE VII
+> ABLATION STUDY ON DEPTH UNCERTAINTY .EMPLOYING DEPTH UNCERTAINTY CONSISTENTLY ACHIEVES BETTER RESULTS ACROSS ALL DIFFICULT LEVELS COMPARED WITH DEPTH ERROR .Method AP 3D(Car val) Easy Mod. Hard w/ depth error 24.27 18.36 15.59 w/ depth uncertainty 25.59 19.23 16.60 TABLE VIII
+> ABLATION STUDIES ON WEIGHT SCHEMES OF DEPTH UNCERTAINTY .
+> BOTH THE TWO FUSION STRATEGIES YIELD EVEN WORSE RESULTS THAN A SEPARATE WEIGHT SCHEME .Scheme AP 3D(Car val) Easy Mod. Hard separately Student 25.59 19.23 16.60 Teacher 24.65 19.14 16.45 fusion sum 24.04 18.12 15.47 multiply 24.37 18.42 16.41
+
+the student network. Table VII compares the performance of our approach using depth uncertainty and depth errors as the criterion. Employing depth uncertainty consistently achieves better results across all difficulty levels compared with depth errors. The reason lies that distant objects often exhibit larger depth errors compared with nearby objects. It results in the imbalance issue of objects when using depth errors as the evaluation metric. In contrast, depth uncertainty well reflects the confidence of the network in its predictive capability. 
+
+4) Weighting Schemes of depth uncertainty. In our solution, depth uncertainty is obtained from the student net-work, denoted ”student”. It can be optionally obtained from the teacher network, or a fusion of the teacher and student networks. When depth uncertainty is obtained from the teacher network, denoted ”teacher”, it is calculated as ωi = 1 −σT,i . In this way, the teacher network assigns higher weight values to well-learned objects and lower weight values to poorly-learned objects. It ensures that depth information is only provided by high-quality objects to avoid the negative transfer problem for the student network, and vice versa. Depth uncertainty can also be obtained from a fusion of the teacher and stu-dent networks. We take two operations for fusion including summation and multiplication of these two schemes, namely ”sum” and ”multiply”. Overall, the ”student” scheme performs better than others in Table VIII. The ”teacher” scheme tends to prioritize higher-quality objects, while the ”student” scheme often focuses on objects that are not well predicted. The latter is more suitable for distillation because it can transfer more positive information for low-quality objects. As a result, the fusion of the two weight schemes yields even worse accuracy than a separate weight scheme. 
+
+5) Ablation Study on Loss Weights. The hyperparameters 
+
+λ1, λ2, and λ3 in equation (8) are utilized to balance different losses in our approach. The two loss weights for feature distil-lation ( λ1) and relation distillation ( λ2) have been set to be 10 and 1 following the settings in Monodistill. Table IX shows the influence of the loss weight for response distillation λ3. The CNN-based MonoDLE* and the DETR-based MonoDETR are adopted as base models. Based on the ablation study, the 10                                                                
+
+> Fig. 3. Visual results in BEV view . The first row in each example displays 3D boxes detected by our approach on images. The second row compares our approach with the base model MonoDLE* in BEV view. The third row compares our approach with the recent Monodistill using the same base model in BEV view. The improvement of our approach is mainly attributed to the developed DASFD and DASRD modules. TABLE IX
+> ABLATION STUDIES OF THE LOSS WEIGHT λ3. T HE LOSS WEIGHTS λ1
+> AND λ2HAVE BEEN SET TO BE 10 AND 1FOLLOWING MONODISTIL [19]. Method λ3
+> AP 3D(Car val) Easy Mod. Hard MonoDLE* 0.1 21.68 17.04 14.55 125.59 19.23 16.60
+> 10 22.48 16.65 14.31 MonoDETR 0.1 32.24 22.06 18.50
+> 129.59 21.58 18.06 10 30.71 21.25 17.73 TABLE X
+> EFFECT OF THE TEACHER NETWORK .OUR APPROACH IS NOT HIGHLY INFLUENCED BY THE ACCURACY OF THE TEACHER NETWORK .Method network AP 3D(Car val) Easy Mod. Hard Monocon Teacher 68.13 49.72 41.48 Base model 26.33 19.01 15.98 Ours 27.13 20.57 17.40 MonoDETR Teacher 40.07 27.68 22.49 Base model 28.84 20.61 16.38 Ours 32.24 22.06 18.50
+
+value of the loss weight λ3 is set to 1 for CNN-based models and 0.1 for DETR-based models in our approach. Notably, Table X shows that the accuracy of the teacher model for MonoDETR is much lower than MonoDLE* and MonoCon. It further indicates that a smaller loss weight λ3 for response distillation is more suitable for DETR-based models. 
+
+6) Impact of the Teacher Network. Our approach lever-ages effective LiDAR-based detectors for monocular 3D de-tection. Is our approach highly influenced by the accuracy of LiDAR-based detectors? Table X shows the accuracy of the teacher networks for the base models MonoCon and MonoDETR in our approach. Notably, these two recent models achieve comparable accuracy of monocular 3D detection. It is seen that the accuracy of the teacher network for MonoDETR is much lower than MonoCon across all difficulty levels. The reason lies that MonoCon employs LiDAR as input, while MonoDETR uses both LiDAR and images. Therefore, input LiDAR only affects the depth encoder of MonoDETR, which limits its accuracy compared with MonoCon. Nevertheless, our approach achieves desired results on both MonoCon and MonoDETR. Indeed, our approach on MonoDETR achieves the best accuracy on both validation and test sets using the metric AP3D than all released SOTA models. It indicates that our approach is not highly influenced by the accuracy of the teacher network. The effectiveness of cross-modality distilla-tion is mainly determined by whether the model successfully transfers positive information while blocking interference from negative information. 
+
+E. Visualization 
+
+In this section, we show visual results of detected 3D boxes to clearly demonstrate the effectiveness of our approach. We also offer failure examples and analysis. In addition, we adopt t-SNE feature analysis to intuitively show the effectiveness of our approach in alleviating the negative transfer problem. 
+
+1) Visual Results in BEV view. Fig. 3 shows the visual comparison of our approach with the base model MonoDLE* and the recent cross-modality distillation method Monodistill. Both our approach and Monodistill employ MonoDLE* as the base model for a fair comparison. It is clear that our approach achieves superior detection performance compared to the base model and Monodistill, especially for distant and occluded objects. Though Monodistill improves the detection results compared to the base model, it also introduces false positives while reducing false negatives in Fig. 3(b). It confirms that Monodistill indiscriminately learns depth information from the teacher network, which helps in detecting distant targets but also results in false positives due to feature overfitting. In contrast, our approach selectively learns positive features from the teacher network, resulting in better detection results and reducing false positives and false negatives. 
+
+2) Visual Results in lateral view. Fig. 4 further shows the visual results of our approach compared with the recent cross-modality distillation approach Monodistill in lateral view. In Fig. 4(a) and Fig. 4(b), our approach successfully detected objects missed by Monodistill. In Fig. 4(c), false detections observed in Monodistill are avoided in our approach. In 11    
+
+> Fig. 4. Visual results in lateral view . The first and second col in each example displays 3D boxes detected by our approach and Monodistill, respectively. Our approach performs better than Monodistill in cases of false positives and false negatives.
+> Fig. 5. Failure examples. A few objects are missed or detected inaccurately by our approach. The failure case is mainly caused by the inaccurate depth estimation of object centers.
+
+addition, in Fig. 4(d), our approach localizes distant objects more accurately than Monodistill. The improvement of our approach is attributed to the developed DASFD and DASRD 
+
+modules, which well alleviate the feature overfitting issue in cross-modality distillation. 
+
+3) Failure examples. We observe in Fig. 5 that a few objects are occasionally missed or detected inaccurately. In fig. 5(a), both the base model and our approach miss the farthest object. In fig. 5(b), our approach does not locate the object accurately. It indicates that, despite providing depth   
+
+> Fig. 6. t-SNE visualization of network features on both train and valida-tion sets. Nearby objects, i.e. objects with close GT labels, are distinguished more easily in our approach than the base model and monodistill, such as blue (20-21m) and pink (21-22m). It indicates that the feature overfitting issue in our approach is well alleviated than others.
+
+information to images through cross-modality distillation, the network still faces challenges in overcoming the ill-posed problem of monocular depth estimation. 
+
+4) t-SNE Feature Visualization and Analysis. T-distributed stochastic neighbor embedding (t-SNE) [69], [70] is a statistical method for visualizing high-dimensional data. We visualize network features using t-SNE on the head fea-tures used for depth prediction. The base model MonoDLE* and the recent Monodistill are used for comparison. We use t-SNE to reduce the dimension of depth prediction features 12 
+
+to two dimensions and use those as x and y coordinates to visualize the distributions of depth features. In Fig. 6, each point corresponds to an object. Different colors represent the ranges of objects using GT depth labels. Objects with closer GT depth labels are referred as nearby objects. When two objects in the figure are plotted more closely, it may be more challenging to distinguish their depth. Con-sequently, when nearby objects in the figure exhibits greater separation, it indicates stronger depth prediction performance of the model. Additionally, if a model effectively distinguishes nearby objects on both the training and validation sets, it indi-cates effective generalization ability of the model. Conversely, if a model performs well on the training set but not well on the validation set, it may suffer from the feature overfitting issue. The detailed analysis is as follows:  
+
+> •
+
+Feature distributions w/ and w/o distillation. Before distillation, feature distributions of the base model are clearly inconsistent on train and validation sets. It indi-cates that learned features from training set are ineffective on validation sets for monocular 3D detection due to the lack of depth information in images. After distillation by our approach, feature distributions of the student network are well consistent with each other on train and validation sets than base model. Additionally, nearby objects could be easily distinguished by our approach than the base model. It indicates that cross-modality distillation effectively transfers missing depth information from LiDAR data to the student network, resulting in the performance improvement of monocular 3D detection.  
+
+> •
+
+How our approach alleviates feature overfitting? Exist-ing cross-modality distillation methods such as Monodis-till could easily distinguish nearby objects in the train set. However, they do not work well in the validation set due to the feature overfitting issue caused by modality gap. By comparison, our approach could well distinguish nearby objects in both train and validation sets. It ensures the generalization ability of monocular 3D detection on validation and test sets. The improvement of our approach is mainly beneficial to the selective learning strategy from the teacher network to alleviate the feature overfitting issue in cross-modality distillation. V. C ONCLUSION 
+
+This paper systematically investigated the negative trans-fer problem of cross-modality distillation in monocular 3D detection including not only the architecture inconsistency issue but more importantly the feature overfitting issue. The proposed method was seamlessly integrated into four base models to considerably improve the detection accuracy on multiple datasets. It also held the potential to achieve higher accuracy with stronger CNN-based and DETR-based models in the future. In addition, the proposed method provides a fundamental solution for cross-modality distillation between multi-modal RGB and depth/LiDAR for other relevant tasks in this field. Though our approach has well alleviated the negative trans-fer problem for monocular 3D detection, how to completely eliminate the modality gap in cross-modality distillation still remains a challenge. On the one hand, existing methods to resolve the architecture inconsistency issue are not always applicable to all base models. On the other hand, it is still unable to exactly determine which transferred features are beneficial in cross-modality distillation. REFERENCES [1] S. Shi, X. Wang, and H. Li, “Pointrcnn: 3d object proposal generation and detection from point cloud,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2019, pp. 770–779. [2] A. H. Lang, S. Vora, H. Caesar, L. Zhou, J. Yang, and O. Beijbom, “Pointpillars: Fast encoders for object detection from point clouds,” in 
+
+Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2019, pp. 12 697–12 705. [3] Z. Yuan, X. Song, L. Bai, Z. Wang, and W. Ouyang, “Temporal-channel transformer for 3d lidar-based video object detection for autonomous driving,” IEEE Transactions on Circuits and Systems for Video Technology ,vol. 32, no. 4, pp. 2068–2078, 2021. [4] L. Zhao, J. Guo, D. Xu, and L. Sheng, “Transformer3d-det: Improving 3d object detection by vote refinement,” IEEE Transactions on Circuits and Systems for Video Technology , vol. 31, no. 12, pp. 4735–4746, 2021. [5] D. Sugimura, T. Yamazaki, and T. Hamamoto, “Three-dimensional point cloud object detection using scene appearance consistency among multi-view projection directions,” IEEE Transactions on Circuits and Systems for Video Technology , vol. 30, no. 10, pp. 3345–3357, 2019. [6] H. Sheng, S. Cai, N. Zhao, B. Deng, M.-J. Zhao, and G. H. Lee, “Pdr: Progressive depth regularization for monocular 3d object detection,” IEEE Transactions on Circuits and Systems for Video Technology , 2023. [7] L. Yang, X. Zhang, J. Li, L. Wang, M. Zhu, C. Zhang, and H. Liu, “Mix-teaching: A simple, unified and effective semi-supervised learning framework for monocular 3d object detection,” IEEE Transactions on Circuits and Systems for Video Technology , 2023. [8] C. Tao, J. Cao, C. Wang, Z. Zhang, and Z. Gao, “Pseudo-mono for monocular 3d object detection in autonomous driving,” IEEE Transactions on Circuits and Systems for Video Technology , 2023. [9] X. Ma, Y. Zhang, D. Xu, D. Zhou, S. Yi, H. Li, and W. Ouyang, “Delving into localization errors for monocular 3d object detection,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2021, pp. 4721–4730. [10] X. Liu, N. Xue, and T. Wu, “Learning auxiliary monocular contexts helps monocular 3d object detection,” in Proceedings of the AAAI Confer-ence on Artificial Intelligence , no. 2, 2022, pp. 1810–1818. [11] R. Zhang, H. Qiu, T. Wang, X. Xu, Z. Guo, Y. Qiao, P. Gao, and H. Li, “Monodetr: Depth-aware transformer for monocular 3d object detection,” 
+
+arXiv preprint arXiv:2203.13310 , vol. 2, no. 3, p. 7, 2022. [12] A. Gao, Y. Pang, J. Nie, Z. Shao, J. Cao, Y. Guo, and X. Li, “Esgn: Efficient stereo geometry network for fast 3d object detection,” IEEE Transactions on Circuits and Systems for Video Technology , 2022. [13] W. Cao, Y. Zhang, J. Gao, A. Cheng, K. Cheng, and J. Cheng, “Pkd: General distillation framework for object detectors via pearson correlation coefficient,” Advances in Neural Information Processing Systems , vol. 35, pp. 15 394–15 406, 2022. [14] C. R. Qi, H. Su, K. Mo, and L. J. Guibas, “Pointnet: Deep learning on point sets for 3d classification and segmentation,” in Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition , 2017, pp. 652–660. [15] Y. Zhou and O. Tuzel, “Voxelnet: End-to-end learning for point cloud based 3d object detection,” in Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition , 2018, pp. 4490–4499. [16] X. Zhou, D. Wang, and P. Kr¨ ahenb¨ uhl, “Objects as points,” arXiv preprint arXiv:1904.07850 , 2019. [17] Z. Liu, H. Tang, A. Amini, X. Yang, H. Mao, D. L. Rus, and S. Han, “Bevfusion: Multi-task multi-sensor fusion with unified bird’s-eye view representation,” in 2023 IEEE International Conference on Robotics and Automation (ICRA) . IEEE, 2023, pp. 2774–2781. [18] Y. Li, A. W. Yu, T. Meng, B. Caine, J. Ngiam, D. Peng, J. Shen, Y. Lu, D. Zhou, Q. V. Le et al. , “Deepfusion: Lidar-camera deep fusion for multi-modal 3d object detection,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2022, pp. 17 182–17 191. [19] Z. Chong, X. Ma, H. Zhang, Y. Yue, H. Li, Z. Wang, and W. Ouyang, “Monodistill: Learning spatial features for monocular 3d object detection,” 
+
+arXiv preprint arXiv:2201.10830 , 2022. 13 
+
+[20] Z. Wu, Y. Wu, J. Pu, X. Li, and X. Wang, “Attention-based depth distilla-tion with 3d-aware positional encoding for monocular 3d object detection,” in Proceedings of the AAAI Conference on Artificial Intelligence , no. 3, 2023, pp. 2892–2900. [21] Y. Hong, H. Dai, and Y. Ding, “Cross-modality knowledge distillation network for monocular 3d object detection,” in European Conference on Computer Vision . Springer, 2022, pp. 87–104. [22] W. Zhang, L. Deng, L. Zhang, and D. Wu, “A survey on negative transfer,” IEEE/CAA Journal of Automatica Sinica , vol. 10, no. 2, pp. 305– 329, 2022. [23] S. J. Pan and Q. Yang, “A survey on transfer learning,” IEEE Transac-tions on Knowledge and Data Engineering , vol. 22, no. 10, pp. 1345–1359, 2009. [24] C. Tan, F. Sun, T. Kong, W. Zhang, C. Yang, and C. Liu, “A survey on deep transfer learning,” in Artificial Neural Networks and Machine Learning–ICANN 2018: 27th International Conference on Artificial Neural Networks, Rhodes, Greece, October 4-7, 2018, Proceedings, Part III 27 .Springer, 2018, pp. 270–279. [25] T. Wang, X. Zhu, J. Pang, and D. Lin, “Fcos3d: Fully convolutional one-stage monocular 3d object detection,” in Proceedings of the IEEE/CVF International Conference on Computer Vision , 2021, pp. 913–922. [26] Y. Lu, X. Ma, L. Yang, T. Zhang, Y. Liu, Q. Chu, J. Yan, and W. Ouyang, “Geometry uncertainty projection network for monocular 3d object de-tection,” in Proceedings of the IEEE/CVF International Conference on Computer Vision , 2021, pp. 3111–3121. [27] Y. Zhang, J. Lu, and J. Zhou, “Objects are different: Flexible monocular 3d object detection,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2021, pp. 3289–3298. [28] Z. Li, Z. Qu, Y. Zhou, J. Liu, H. Wang, and L. Jiang, “Diversity matters: Fully exploiting depth clues for reliable monocular 3d object detection,” in 
+
+Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2022, pp. 2791–2800. [29] N. Carion, F. Massa, G. Synnaeve, N. Usunier, A. Kirillov, and S. Zagoruyko, “End-to-end object detection with transformers,” in Euro-pean Conference on Computer Vision . Springer, 2020, pp. 213–229. [30] K.-C. Huang, T.-H. Wu, H.-T. Su, and W. H. Hsu, “Monodtr: Monocular 3d object detection with depth-aware transformer,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2022, pp. 4012–4021. [31] Y. Wang, W.-L. Chao, D. Garg, B. Hariharan, M. Campbell, and K. Q. Weinberger, “Pseudo-lidar from visual depth estimation: Bridging the gap in 3d object detection for autonomous driving,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2019, pp. 8445–8453. [32] X. Weng and K. Kitani, “Monocular 3d object detection with pseudo-lidar point cloud,” in Proceedings of the IEEE/CVF International Confer-ence on Computer Vision Workshops , 2019, pp. 0–0. [33] X. Wang, W. Yin, T. Kong, Y. Jiang, L. Li, and C. Shen, “Task-aware monocular depth estimation for 3d object detection,” in Proceedings of the AAAI Conference on Artificial Intelligence , no. 07, 2020, pp. 12 257– 12 264. [34] G. Hinton, O. Vinyals, and J. Dean, “Distilling the knowledge in a neural network,” arXiv preprint arXiv:1503.02531 , 2015. [35] T. Liu, K.-M. Lam, R. Zhao, and G. Qiu, “Deep cross-modal represen-tation learning and distillation for illumination-invariant pedestrian detec-tion,” IEEE Transactions on Circuits and Systems for Video Technology ,vol. 32, no. 1, pp. 315–329, 2021. [36] W. Ma, Q. Chen, T. Zhou, S. Zhao, and Z. Cai, “Using multimodal con-trastive knowledge distillation for video-text retrieval,” IEEE Transactions on Circuits and Systems for Video Technology , 2023. [37] X. Yan, J. Gao, C. Zheng, C. Zheng, R. Zhang, S. Cui, and Z. Li, “2dpass: 2d priors assisted semantic segmentation on lidar point clouds,” in European Conference on Computer Vision . Springer, 2022, pp. 677– 695. [38] Z. Chen, Z. Li, S. Zhang, L. Fang, Q. Jiang, and F. Zhao, “Bevdistill: Cross-modal bev distillation for multi-view 3d object detection,” arXiv preprint arXiv:2211.09386 , 2022. [39] S. Zhou, W. Liu, C. Hu, S. Zhou, and C. Ma, “Unidistill: A universal cross-modality knowledge distillation framework for 3d object detection in bird’s-eye view,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2023, pp. 5116–5125. [40] A. Kendall and Y. Gal, “What uncertainties do we need in bayesian deep learning for computer vision?” Advances in Neural Information Processing Systems , vol. 30, 2017. [41] Y. Chen, L. Tai, K. Sun, and M. Li, “Monopair: Monocular 3d object detection using pairwise spatial relationships,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2020, pp. 12 093–12 102. [42] A. Romero, N. Ballas, S. E. Kahou, A. Chassang, C. Gatta, and Y. Ben-gio, “Fitnets: Hints for thin deep nets,” arXiv preprint arXiv:1412.6550 ,2014. [43] J. Kim, S. Park, and N. Kwak, “Paraphrasing complex network: Net-work compression via factor transfer,” Advances in Neural Information Processing Systems , vol. 31, 2018. [44] W. Su, Q. Xu, and W. Tao, “Uncertainty guided multi-view stereo network for depth estimation,” IEEE Transactions on Circuits and Systems for Video Technology , vol. 32, no. 11, pp. 7796–7808, 2022. [45] F. Tung and G. Mori, “Similarity-preserving knowledge distillation,” in Proceedings of the IEEE/CVF International Conference on Computer Vision , 2019, pp. 1365–1374. [46] B. Peng, X. Jin, J. Liu, D. Li, Y. Wu, Y. Liu, S. Zhou, and Z. Zhang, “Correlation congruence for knowledge distillation,” in Proceedings of the IEEE/CVF International Conference on Computer Vision , 2019, pp. 5007– 5016. [47] W. Park, D. Kim, Y. Lu, and M. Cho, “Relational knowledge distilla-tion,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2019, pp. 3967–3976. [48] K. He, G. Gkioxari, P. Doll´ ar, and R. Girshick, “Mask r-cnn,” in 
+
+Proceedings of the IEEE International Conference on Computer Vision ,2017, pp. 2961–2969. [49] A. Geiger, P. Lenz, and R. Urtasun, “Are we ready for autonomous driving? the kitti vision benchmark suite,” in 2012 IEEE Conference on Computer Vision and Pattern Recognition . IEEE, 2012, pp. 3354–3361. [50] X. Chen, K. Kundu, Y. Zhu, A. G. Berneshawi, H. Ma, S. Fidler, and R. Urtasun, “3d object proposals for accurate object class detection,” 
+
+Advances in Neural Information Processing Systems , vol. 28, 2015. [51] A. Simonelli, S. R. Bulo, L. Porzi, M. L´ opez-Antequera, and P. Kontschieder, “Disentangling monocular 3d object detection,” in Pro-ceedings of the IEEE/CVF International Conference on Computer Vision ,2019, pp. 1991–1999. [52] H. Caesar, V. Bankiti, A. H. Lang, S. Vora, V. E. Liong, Q. Xu, A. Krish-nan, Y. Pan, G. Baldan, and O. Beijbom, “nuscenes: A multimodal dataset for autonomous driving,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 2020, pp. 11 621–11 631. [53] Y. Cao, H. Zhang, Y. Li, C. Ren, and C. Lang, “Cman: Leaning global structure correlation for monocular 3d object detection,” IEEE Transactions on Intelligent Transportation Systems , vol. 23, no. 12, pp. 24 727–24 737, 2022. [54] H. Chen, Y. Huang, W. Tian, Z. Gao, and L. Xiong, “Monorun: Monoc-ular 3d object detection by reconstruction and uncertainty propagation,” in 
+
+Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2021, pp. 10 379–10 388. [55] X. Shi, Q. Ye, X. Chen, C. Chen, Z. Chen, and T.-K. Kim, “Geometry-based distance decomposition for monocular 3d object detection,” in 
+
+Proceedings of the IEEE/CVF International Conference on Computer Vision , 2021, pp. 15 172–15 181. [56] L. Wang, L. Du, X. Ye, Y. Fu, G. Guo, X. Xue, J. Feng, and L. Zhang, “Depth-conditioned dynamic message propagation for monocular 3d object detection,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2021, pp. 454–463. [57] H. Liu, H. Liu, Y. Wang, F. Sun, and W. Huang, “Fine-grained multilevel fusion for anti-occlusion monocular 3d object detection,” IEEE Transactions on Image Processing , vol. 31, pp. 4050–4061, 2022. [58] Y. Kim, S. Kim, S. Sim, J. W. Choi, and D. Kum, “Boosting monocular 3d object detection with object-centric auxiliary depth supervision,” IEEE Transactions on Intelligent Transportation Systems , vol. 24, no. 2, pp. 1801–1813, 2022. [59] C. Reading, A. Harakeh, J. Chae, and S. L. Waslander, “Categorical depth distribution network for monocular 3d object detection,” in Pro-ceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2021, pp. 8555–8564. [60] Y. Zhou, Y. He, H. Zhu, C. Wang, H. Li, and Q. Jiang, “Monoef: Ex-trinsic parameter free monocular 3d object detection,” IEEE Transactions on Pattern Analysis and Machine Intelligence , vol. 44, no. 12, pp. 10 114– 10 128, 2021. [61] Z. Liu, D. Zhou, F. Lu, J. Fang, and L. Zhang, “Autoshape: Real-time shape-aware monocular 3d object detection,” in Proceedings of the IEEE/CVF International Conference on Computer Vision , 2021, pp. 15 641–15 650. [62] Z. Qin and X. Li, “Monoground: Detecting monocular 3d objects from the ground,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2022, pp. 3793–3802. 14 
+
+[63] A. Kumar, G. Brazil, E. Corona, A. Parchami, and X. Liu, “Deviant: Depth equivariant network for monocular 3d object detection,” in European Conference on Computer Vision . Springer, 2022, pp. 664–683. [64] D. Zhou, X. Song, J. Fang, Y. Dai, H. Li, and L. Zhang, “Context-aware 3d object detection from a single image in autonomous driving,” 
+
+IEEE Transactions on Intelligent Transportation Systems , vol. 23, no. 10, pp. 18 568–18 580, 2022. [65] J. Gu, B. Wu, L. Fan, J. Huang, S. Cao, Z. Xiang, and X.-S. Hua, “Homography loss for monocular 3d object detection,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2022, pp. 1080–1089. [66] H. Guan, C. Song, Z. Zhang, and T. Tan, “Monopoly: A practical monocular 3d object detector,” Pattern Recognition , vol. 132, p. 108967, 2022. [67] Y. Li, Y. Chen, J. He, and Z. Zhang, “Densely constrained depth estimator for monocular 3d object detection,” in European Conference on Computer Vision . Springer, 2022, pp. 718–734. [68] W. Chen, J. Zhao, W.-L. Zhao, and S.-Y. Wu, “Shape-aware monocular 3d object detection,” IEEE Transactions on Intelligent Transportation Systems , 2023. [69] G. E. Hinton and S. Roweis, “Stochastic neighbor embedding,” Advances in neural information processing systems , vol. 15, 2002. [70] L. Van der Maaten and G. Hinton, “Visualizing data using t-sne.” Journal of machine learning research , vol. 9, no. 11, 2008.

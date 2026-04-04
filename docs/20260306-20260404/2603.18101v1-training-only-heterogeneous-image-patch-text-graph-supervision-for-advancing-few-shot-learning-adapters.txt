@@ -1,0 +1,1073 @@
+Title: Training-Only Heterogeneous Image-Patch-Text Graph Supervision for Advancing Few-Shot Learning Adapters
+
+URL Source: https://arxiv.org/pdf/2603.18101v1
+
+Published Time: Fri, 20 Mar 2026 00:07:54 GMT
+
+Number of Pages: 22
+
+Markdown Content:
+# Training-Only Heterogeneous Image-Patch-Text Graph Supervision for Advancing Few-Shot Learning Adapters 
+
+## Mohammed Rahman Sherif Khan Mohammad Ardhendu Behera B Sandip Pradhan Swagat Kumar Amr Ahmed Edge Hill University, Ormskirk, Lancashire, L39 4QP 
+
+{Mohamm, Beheraa, Pradhans, Kumars, Ahmeda }@edgehill.ac.uk 
+
+## Abstract 
+
+Recent adapter-based CLIP tuning (e.g., Tip-Adapter) is a strong few-shot learner, achieving efficiency by caching sup-port features for fast prototype matching. However, these methods rely on global uni-modal feature vectors, over-looking fine-grained patch relations and their structural alignment with class text. To bridge this gap without in-curring inference costs, we introduce a novel asymmetric training-only framework. Instead of altering the lightweight adapter, we construct a high-capacity auxiliary Hetero-geneous Graph Teacher that operates solely during train-ing. This teacher (i) integrates multi-scale visual patches and text prompts into a unified graph, (ii) performs deep cross-modal reasoning via a Modality-aware Graph Trans-former (MGT), and (iii) applies discriminative node filter-ing to extract high-fidelity class features. Crucially, we employ a cache-aware dual-objective strategy to supervise this relational knowledge directly into the Tip-Adapter’s key–value cache, effectively upgrading the prototypes while the graph teacher is discarded at test time. Thus, inference remains identical to Tip-Adapter with zero extra latency or memory. Across standard 1-16-shot benchmarks, our method consistently establishes a new state-of-the-art. Ab-lations confirm that the auxiliary graph supervision, text-guided reasoning, and node filtering are the essential ingre-dients for robust few-shot adaptation. Code is available at 
+
+https://github.com/MR-Sherif/TOGA.git .
+
+## 1. Introduction 
+
+Foundational vision-language models (VLMs) such as CLIP [27 ], ALIGN [ 16 ] and LiT [ 42 ] achieve impressive zero-shot generalization by aligning images and text in a shared em-bedding space. Although effective for general-domain recog-nition, their reliance on a single spatially-averaged global image descriptor is sub-optimal for Fine-Grained Visual  
+
+> BCorresponding author: Ardhendu Behera (Beheraa@edgehill.ac.uk) A Photo of a [bird]
+> A Photo of a [bird]
+> Cache
+> Train Only
+> c) Proposed
+> b) GraphAdapter
+> a) Tip-Adapter
+> A Photo of a [bird]
+> Cache
+
+Figure 1. The core trade-off of VLM adaptation and our proposed solution. (a) Lightweight adapters (e.g., Tip-Adapter [ 43 ]) are fast but limited, as they only reason over the single, global image feature. (b) Heavyweight adapters (e.g., GraphAdapter [ 22 ]) are more powerful, reasoning over visual patches, but their complex GNN adds a permanent, significant cost at inference time. (c) Our proposed method , TOGA (the best of both), uses a powerful auxil-iary teacher. This teacher, our modality-aware graph transformer (MGT), performs deep bi-modal reasoning on a unified graph of patches and text. It supervises its knowledge into the lightweight “student” adapter, which is the only component used at inference, achieving high performance with the efficiency of (a). 
+
+Classification (FGVC) [ 8, 10 , 20 , 33 ], where sub-categories differ by subtle, localized cues (e.g., beak shape or plumage pattern distinguishing a “Yellow-bellied Warbler” from a “Grey Warbler”). Spatial averaging obscures fine-grained information. Adapting VLMs to few-shot domains remains a key open challenge: naively fine-tuning all parameters is both computationally expensive and prone to overfitting in the K-shot regime [43, 47]. Parameter-Efficient Fine-Tuning (PEFT) offers a prag-1
+
+> arXiv:2603.18101v1 [cs.CV] 18 Mar 2026
+
+matic alternative, but forces a performance-latency trade-off (Fig. 1). Global-feature adapters (e.g., CLIP-Adapter, Tip-Adapter in Fig. 1a) [ 9, 12 , 43 ] are attractive for their tiny parameter footprint and fast inference (CLIP-Adapter adds near-constant overhead; Tip-Adapter’s cost scales with cache size). However, they still operate on semantically diluted global features, leaving fine-grained evidence under-exploited. Patch-level adapters (e.g., Visual Prompt Tuning (VPT) [ 17 ], GraphAdapter [ 22 ] in Fig. 1b) enrich represen-tations by reasoning over patch tokens, but at the price of permanent inference overhead (extra tokens, GNN passes) and often unimodal reasoning (patch ↔patch) that under-utilizes text semantics. In summary, current PEFT is either fast but coarse or expressive but slow at inference. 
+
+Motivation: This exposes a clear research gap. The ideal few-shot adapter must satisfy two competing objectives: (1) be expressive enough to reason over fine-grained, patch-level evidence and its bimodal alignment to textual class seman-tics; (2) preserve the zero-overhead inference of lightweight baselines (e.g., Tip-Adapter). Modern VLM adapters do not achieve both: global-feature adapters are fast but coarse (they inherit the spatially averaged descriptor), while patch-level adapters improve detail sensitivity but introduce GNN/extra-token computation at test time and are often unimodal 
+
+(patch ↔patch only). Our approach is simple: inject relational cross-modal rea-soning only during training and guide the components that remain at deployment: the adapter and its key–value cache. We introduce TOGA (Training-Only Graph Adapter), an asymmetric distillation framework (Fig. 1(c)) co-training a lightweight, permanent student (cache adapter) with a powerful, training-only teacher. The novelty lies in the teacher’s architecture, which is a modality-aware Hetero-geneous Image-Patch–Text Graph built from frozen CLIP encoders. It represents multi-scale visual patches and class-name text embeddings as nodes within a single graph topol-ogy. A Modality-aware Graph Transformer (MGT) per-forms type-specific message passing over image ↔patch, patch ↔patch, image ↔text and patch ↔text edges to learn the complex, fine-grained correlations between visual evi-dence and class semantics. This knowledge is dynamically distilled into the student adapter (key-value cache) through cache-aware objectives. At testing, the entire teacher stack is discarded: we train with graphs, test as Tip-Adapter with no architectural changes, no extra latency or memory. This is effective because (i) the teacher injects high-level relational knowledge (disambiguating near-neighbors via patch co-occurrence/consistency) and cross-modal selectiv-ity (pulling evidence toward the correct prompt, suppress-ing noise). (ii) Distillation targets the key-value cache mechanism to maintain gains without the teacher at the test time. Our contributions are: (1) A novel asymmetric training-only distillation for few-shot VLM adaptation that couples the Tip-Adapter key-value cache (student) with a high-capacity teacher, delivering zero test-time overhead. (2) A Modality-aware Graph Transformer over a unified heterogeneous image-patch–text graph that performs deep bi-modal (visual and text) hierarchical (image ↔patch) rea-soning; to our knowledge, this is the first such teacher for few-shot CLIP adaptation. (3) We introduce a cache-aware dual-objective co-training strategy where a Focal Loss [ 23 ] is used as a teacher-forcing regularizer to ensure that the auxiliary graph teacher becomes a robust expert. (4) Comprehensive evidence on 1–16-shot benchmarks: consis-tent gains over lightweight (Tip-/CLIP-Adapter) and heavy-weight (graph/patch) baselines, with ablations isolating the effects of patch-only graphs, patch–text edges, focalized teacher forcing, and cache alignment. 
+
+## 2. Related Works 
+
+Parameter-Efficient VLM Adaptation. Adapting large VLMs without full fine-tuning is costly and overfit-prone in a few-shot regimes [ 43 , 47 ]. This has led to three dominant PEFT strands: (1) Prompt learning : CoOp [ 47 ] introduces learnable tex-tual context tokens for CLIP, but its static prompts overfit base classes and generalize poorly to unseen categories. Co-CoOp [ 46 ] addresses this with input-conditional prompts that adapt per image, improving base →novel transfer. Kg-CoOp [ 37 ] further regularizes prompt tuning by pulling learned prompts toward hand-crafted prompts, mitigating the forgetting of CLIP’s general knowledge. ProGrad [ 48 ]constrains optimization via prompt-aligned gradients to pre-vent catastrophic drift during tuning. MaPLe [ 19 ] couples visual and textual prompts and learns stage-wise prompts to tighten cross-modal alignment. PLOT++ [ 3 ] learns multiple prompts and uses optimal transport to match prompt distribu-tions to visual features, avoiding prompt collapse. Similarly, Visual Fourier Prompt Tuning [ 41 ] and semantic-guided DA-VPT [ 28 ] learn prompts in visual space. Despite these advances, most prompt methods still reason over a global image descriptor, not patch-level structures, and therefore have limited leverage on fine-grained cues. (2) Adapters and residual heads : This strand adds lightweight modules, such as small bottleneck layers (CLIP-Adapter) [ 9] or low-rank updates (LoRA) [ 13 , 39 ], to the frozen encoders. TaskRes [ 38 ] acts directly on the text-based classifier through a residual that decouples prior vs. task knowledge (good preservation of CLIP priors). Recent task-aware variants (Ta-Adapter [ 45 ]) equip visual and tex-tual encoders with task prompts. Yet, like prompt methods, these operate largely at the global feature level and do not inject structured patch-wise reasoning. (3) Cache-based methods : Tip-Adapter [ 43 ] constructs a key–value cache over few-shot supports for fast proto-type matching and can be lightly fine-tuned; follow-ups 2explore cache design, calibration, and hybrid cascades (e.g., CaFo [ 44 ]: prompt →generate →cache, COSMIC [ 15 ], or other two-stage adaptation strategies [ 6]). These lines keep inference cheap but again rely on global embeddings, under-utilizing relational patch evidence. Our work directly super-vises the cache—keys/values—via training-only relational signals. 
+
+Graph Neural Networks (GNNs) for Visual Reasoning. 
+
+A complementary line model relations and spatial struc-ture at patch/region level using GNNs. In the context of FGVC, GNNs capture higher-order visual interactions [ 29 ]and spatial structure [ 1]. GraphAdapter [ 22 ] builds dual knowledge graphs (visual and textual) for VLM tuning, im-proving alignment but still requires graph processing at test time (and is not cache-centric). In broader multimodal tasks (Visual Question Answering (VQA), Scene Graph Genera-tion (SGG)), unified heterogeneous graphs directly connect visual and textual nodes constructed from pixels [ 21 ] or 3D objects [ 34 ], allowing cross-modal message passing. How-ever, these designs are rarely used as training-only teach-ers for few-shot VLM adaptation. Our approach fills this gap: a heterogeneous image-patch–text graph runs only dur-ing training, supervising the adapter to encode fine-grained knowledge into its key–value cache. 
+
+Knowledge Distillation and Auxiliary Training. Classi-cal KD transfers soft logits from a teacher to a student; in VLMs, most works use offline teachers or symmetric mutual learning. TaskRes [ 38 ] can be viewed as preserving priors by a residual head; ProGrad [ 48 ] KgCoOp [ 37 ] can be seen as regularized supervision that guards general knowledge. We adopt an asymmetric online scheme in which a high-capacity teacher (heterogeneous image-patch–text graph) supervises a lightweight student (cache adapter) and goes beyond logits by directly supervising cache keys/values, directly upgrading the prototype memory that governs the test-time behavior of the Tip-Adapter. This yields the expressivity of graph reasoning without carrying its cost to deployment. 
+
+## 3. Proposed Method 
+
+Our framework (Fig. 2) comprises three components: (1) a frozen CLIP zero-shot branch (ZS) [ 27 ]; (2) a lightweight student adapter, i.e., the key–value cache model of Tip-Adapter-F [ 43 ]; and (3) TOGA , a heterogeneous image-patch–text graph teacher (highlighted by the dotted red rect-angle). The core novelty is an asymmetric supervision scheme: the student adapter is optimized under the guid-ance of the high-capacity graph teacher, which injects fine-grained, cross-modal relational cues during training. In in-ference, the teacher is entirely discarded. This implies that the deployment path, latency, and memory remain the same as in the Tip-Adapter-F. 
+
+3.1. Problem Formulation: Zero-Shot/Tip-Adapter 
+
+Given a K-shot dataset with C classes and N = K × C
+
+labeled supports, we adapt a frozen CLIP model with image encoder fv (.) ∈ RD and text encoder ft(.) ∈ RD , where 
+
+D is the embedding dimension. Let T = {ft(tc)}Cc=1 be class prompt embeddings and x is a query image with global feature z = fv (x). The zero-shot logit LZS = cos (z, T ) is computed using cosine similarity. The Tip-Adapter extends this by constructing a few-shot cache (visualized in supplementary) from the supports 
+
+{(xj , y j )}Nj=1 using keys K ∈ RN ×D where Kj = fv (xj ),and values V ∈ { 0, 1}N ×C as one-hot labels. A lightweight adapter A : RD → RD maps the query feature; cache affinities use cosine similarity sj = cos (A(z), Kj ). Fol-lowing [ 43 ], cache logits are computed as LCache (x) =
+
+exp (−β(1 − s)) T V, where s = [ s1, . . . , s N ]T with β is a temperature-like hyperparameter that controls the sharp-ness of the cosine similarity. At inference, the final logits are: 
+
+Ltest (x) = LZS (x) + α · LCache (x), where α ∈ R+ controls the relative importance of the cache prediction versus the CLIP prior. The only learnable parameter is A. Our goal is to improve the representational power of A leaving this test-time path unchanged. 
+
+3.2. Train-Time Asymmetric supervision 
+
+During training, we use a teacher that performs structured, cross-modal reasoning to supervise the student adapter A:
+
+Ltrain (x) = LZS (x) + α · LCache (x) + δ · LGraph (x) (1) where LGraph are teacher logits (Sect. 3.3) and δ balance the supervision. The mixture in (1) is used only for the training classification loss; gradients update both the student and the teacher, refining the latter as an expert during training. At test time, we use the above Ltest and discard the teacher. 
+
+3.3. Teacher: Image –Patch –Text Graph Topology 
+
+Our asymmetric supervision framework comes from its novel auxiliary teacher. As shown in Figure 2, it is a graph-driven model designed to transfer knowledge into the student’s adapter A by exploring fine-grained visual cues and image-patch–text alignments that are invisible to global vectors 
+
+fv . Unlike the student, which operates on a single global feature fv , the teacher processes a rich, multi-scale patch representation of the image. 
+
+Multi-Scale Patch Extraction: To construct the teacher’s input, we generate a set of M multi-scale patches from the input image x. This set is the union of five distinct views: (1) global view (entire image), (2) local grid 3 × 3 (9 patches), (3) medium grid 2 × 2 (4 patches), (4) vertical halves (2 patches) and (5) horizontal halves (2 patches). We resize all crops to CLIP’s resolution ( 224 × 224 ) and pass them through the frozen CLIP image encoder to obtain normalized 3CN                 
+
+> Linear Projection of Patches
+> Transformer Encoder
+> APhoto of a[Class]
+> CLASS LABELS
+> Token Embedding Layer
+> Transformer Encoder
+> Train Only Pipeline
+> Cls 1
+> Cls 2
+> Cls 3
+> Image Patches Clip Image Encoder
+> Clip Text Encoder Modality-aware Graph Transformer Split Graph Topology Filtering Top-K Visual Nodes Unimodal Feature Enrichment Few Shot Training Images
+> 001
+> 010
+> 001
+> 100
+> 100
+> 010
+> Onehot Encoding
+> Clip Image Encoder
+
+x( ) 
+
+> Cache Model
+> C
+> Test Image
+> Clip's Knowledge
+> Learnable Frozen
+> Training Path
+
+Figure 2. Our Training-Only Graph Adapter ( TOGA ) is an asymmetric supervision pipeline. At train time (red dotted region and →
+
+denote training only), we use a three-branch ensemble: (1) a frozen LZS branch, (2) a lightweight student (Cache Model) LCache , and (3) our powerful, auxiliary graph teacher LGraph . The teacher enriches multi-scale patches and text embeddings via unimodal Transformers, then constructs a modality-aware graph transformer to perform cross-modal reasoning. A dual-loss objective regularizes the teacher’s knowledge into the student’s adapter A. At test time , the entire teacher branch is discarded, resulting in zero additional inference cost. 
+
+features V (0)  
+
+> vis
+
+= {fp}Mp=1 , fp ∈ RD , || fp|| 2 = 1 . Similarly, we use the frozen text encoder to obtain normalized class prompts V (0)  
+
+> text
+
+= {tc}Cc=1 , tc ∈ RD , || tc|| 2 = 1 .
+
+Modality-Specific Projections and Tokens: Before cross-modal reasoning, we learn lightweight projections with a Transformer [ 32 ] (Fig. 2) to adapt frozen CLIP spaces to a task-specific latent dh. This lets our graph nodes 
+
+V (0)  
+
+> vis
+
+and V (0)  
+
+> text
+
+first gather within-modality context (e.g., patch ↔patch co-occurrence; prompt ↔prompt semantics) before any image-patch-text interaction. Given node fea-tures H(l) ∈ Rn×dh at layer l = 1 , · · · , L , multi-head self-attention H heads compute query Q(l) 
+
+> j
+
+= H(l)W jQ,key K(l) 
+
+> j
+
+= H(l)W jK , and value V (l) 
+
+> j
+
+= H(l)W jV , with 
+
+W jQ, W jK , W jV ∈ Rdh×dk , dk = dh/H. The attention and head outputs are ˜A(l) 
+
+> j
+
+= softmax (Q(l) 
+
+> j
+
+(K(l) 
+
+> j
+
+)T /√dk),
+
+Z(l) 
+
+> j
+
+= ˜A(l) 
+
+> j
+
+V (l) 
+
+> j
+
+. The heads are concatenated Z(l) =
+
+Concat (Z(l)1 , ..., Z (l) 
+
+> H
+
+), then passed through residual, layer normalization (LN), a feed-forward network (FFN): 
+
+H′(l) = LN (H(l) + Z(l))
+
+H(l+1) = LN (H′(l) + FFN (H′(l)))  (2) Applying this stack independently to both modalities ( V (0) 
+
+> vis
+
+and V (0)  
+
+> text
+
+) yields a contextualized unimodal output that pre-serves CLIP priors while exposing the local structure. The final outputs V (L) 
+
+> vis
+
+= H(L) 
+
+> vis
+
+= {hvis p }Mp=1 and V (L) 
+
+> text
+
+=
+
+H(L) 
+
+> text
+
+= {htext  
+
+> c
+
+}Cc=1 , which serve as inputs to subsequent cross-modal graph reasoning. 
+
+Modality-aware Graph Transformer (MGT): Given the enriched unimodal sequences V (L) 
+
+> vis
+
+and V (L) 
+
+> text
+
+, we con-struct our modality-aware graph topology G = (N , E)
+
+with node types ϕ(v) ∈ { patch , text } and relation (edge) types ψ(e) ∈ R: V = V (L)
+
+> vis
+
+S V (L) 
+
+> text
+
+, ϵ = {(s r
+
+−→
+
+t)}, r ∈ { pp , pt , tp }. Edges pp captures patch ↔patch, image ↔patch, and patch ↔image affinity; pt and tp bind patches/image with textual prompts. s ∈ N and t ∈ N are the source and target nodes. Inspired by inductive bias [ 14 ], we use type-specific pro-jections and relation-specific parameters to advance the transformer model for our MGT. Let HG be the number of heads and dGk = dh/H G. At layer l = 1 , · · · , L G for a target node t and its neighbors s ∈ N (t) connected via relation r = ψ(s → t), head h ∈ { 1, · · · , H G} uses: (1) Node-type projection: query Q(h) 
+
+> t
+
+= W (h,ϕ (t))  
+
+> Q
+
+h(l) 
+
+> t
+
+, key 4K(h) 
+
+> s
+
+= W (h,ϕ (s))  
+
+> K
+
+h(l) 
+
+> s
+
+, and value V (h) 
+
+> s
+
+= W (h,ϕ (s))  
+
+> V
+
+h(l) 
+
+> s
+
+. (2) Relational-specific transforms and priors (MGT’s relation-aware keys/values and attention bias): ˜K(h) 
+
+> s→t
+
+= W (h)
+
+> K,r
+
+K(h) 
+
+> s
+
+,
+
+˜V (h) 
+
+> s→t
+
+= W (h) 
+
+> V,r
+
+V (h) 
+
+> s
+
+, b(h) 
+
+> r
+
+∈ R. Here W (h)(.),r are small relation-type adapters; b(h) 
+
+> r
+
+is an attention bias. (3) Attention with relation bias, relation-gated message aggregation: 
+
+e(h) 
+
+> s→t
+
+= Q(h)Tt ˜K(h)
+
+> s→t
+
+q
+
+dGk
+
++ b(h) 
+
+> r
+
+, α (h) 
+
+> s→t
+
+= softmax s∈N (t)(e(h)
+
+> s→t
+
+)
+
+m(h) 
+
+> t
+
+= X 
+
+> s∈N (t)
+
+μ(h) 
+
+> r
+
+α(h) 
+
+> s→t
+
+˜V (h)
+
+> s→t
+
+, m t = Concat X
+
+> rHG
+
+X
+
+> h=1
+
+m(h)
+
+> t
+
+!
+
+h(l+1)  
+
+> t
+
+= LN (h(l) 
+
+> t
+
++ F F N (ϕ(t)) (mtW (ϕ(t))  
+
+> O
+
+)
+
+(3) where μ(h) 
+
+> r
+
+∈ R+ is a learned relation-level scaling coeffi-cient that captures the relative importance of each type of relation r (e.g., patch-patch vs. patch-text) for head h. the type-specific W (h,ϕ ) 
+
+> {Q,K,V }
+
+, W (ϕ) 
+
+> O
+
+, and FFN (ϕ) preserve modal-ity characteristics (visual patches vs. text prompts), while the relation-specific W (h)(.),r , b(h) 
+
+> r
+
+, and μ(h) 
+
+> r
+
+let the transformer weight pp vs pt /tp interactions differently. After layers 
+
+LG, we obtained deeply contextualized node embeddings 
+
+V ′ 
+
+> vis
+
+= {h(LG) 
+
+> i
+
+: ϕ(i) = patch/image }, V ′ 
+
+> text
+
+= {h(LG) 
+
+> c
+
+:
+
+ϕ(c) = text }. These V ′ 
+
+> vis
+
+and V ′ 
+
+> text
+
+feed our discriminative readout and asymmetric supervision objectives. 
+
+Discriminative Node Filtering: We need to combine the final refined visual nodes (patches) V ′ 
+
+> vis
+
+= {hi}Pi=1 from the MGT to represent a final embedding for the given image x.Global pooling treats all patches equally and can dilute fine-grained evidence. We therefore perform selective pooling to keep only the most discriminative patches. We learn to filter for the most discriminating nodes using a learnable projection p ∈ Rdh and score each node/patch as si =
+
+⟨hi · p⟩/∥p∥2∥hi∥2, We rank these nodes using si and select the top N nodes/patches: V N 
+
+> vis
+
+= TopN  {si}Pi=1 , N. The features in the selected nodes are aggregated to produce the final teacher’s visual feature fgraph . The teacher’s logits are then computed in a CLIP-consistent way: LGraph (x)c =
+
+cos  fgraph , ˆtc
+
+, c = 1 , · · · , C and V ′ 
+
+> text
+
+= {ˆtc}Cc=1 .
+
+3.4. Dual-Objective Co-Training 
+
+We ensure the training-only teacher remains a strong expert while its relational signal is transferred online to the stu-dent adapter A without collapsing into the strong ZS branch. The different logits (ZS, Cache, and Graph) and their com-bination into final logits Ltrain are given in Eqn (1) in Sec. 3.2. We compute the total loss LTotal by combining a pri-mary asymmetric supervision term (on the mixture) with a teacher-forcing term (on the teacher alone): 
+
+LTotal = LCE (Ltrain , y )
+
+| {z }
+
+> joint ensemble loss
+
++λ · L Focal (LGraph , y )
+
+| {z }
+
+> teacher forcing
+
+(4) Here λ ≥ 0 sets the strength of teacher forcing on the stu-dent’s adapter A. We use the standard cross-entropy to compute LCE and the gradients ∇L CE propagate to both the student and the teacher. To prevent the teacher from “coasting” on ZS/student predictions, we apply Focal Loss 
+
+[ 23 ] to the teacher logits alone: pt = softmax (LGraph )y ,
+
+LFocal = −(1 − pt)γ log( pt) with focusing parameter γ ≥ 0.This down-weights easy examples ( pt → 1) and forces the teacher to allocate capacity to hard, fine-grained cases, im-proving the quality and stability of the supervisory signal. The testing pipeline matches the Tip-Adapter baseline (Sec. 3.1). Each test image is encoded by CLIP into a single global feature, and the final prediction is computed as Ltest =
+
+LZS + α · LCache (Eqn. 1, Sec. 3.2). 
+
+## 4. Experimental Results and Discussion 
+
+Datasets and Protocols. We evaluate on 11 standard bench-marks spanning fine-grained, texture, scene, object, satellite and action categories: FGVC-Aircraft [ 24 ], Flowers102 [ 25 ], SUN397 [ 35 ], Food101 [ 2], CalTech101 [ 7], UCF101 [ 31 ], StanfordCars [ 20 ], DTD [ 4], Imagenet [ 5], OxfordPets [ 26 ]and EuroSAT [ 11 ]. Consistent with previous works, we evaluate performance under standard k-shot settings [ 43 ]. For each dataset, we sample K ∈ { 1, 2, 4, 8, 16 } labeled instances per class for training and use the official test/val splits for evaluation. The AdamW optimizer is used with an initial learning rate of 1 × 10 −3, which decreases according to a cosine annealing schedule. Following the protocols in [ 43 , 47 ], we repeat the training runs independently three times for each shot configuration and report the average clas-sification accuracy. All experiments were executed on an RTX PRO 6000 (98 GB). 
+
+Implementation Details. We implement in PyTorch. The backbone is CLIP ViT-B/16 [ 27 ] with frozen weights, results with other backbones are in supplementary. Data prepro-cessing follows [ 9 , 43 ] standard augmentations. Our model depends on four experimentally optimized hyperparameters (α, β, γ, N); sensitivity and computational complexity analy-ses are detailed in the supplementary material. 
+
+Comparison with State-of-the-Art (SOTA). Table 1 com-pares our method to leading adapter families, including global-feature (TIP-Adapter-F [ 43 ], TaskRes [ 38 ]), patch-based (GraphAdapter [ 22 ]), and prompt learning methods (compared in supplementary). Our method establishes a new SOTA across all 11 benchmarks and shot settings while preserving the exact inference path, latency, and parameter count of Tip-Adapter-F. In contrast, patch-level methods like GraphAdapter require permanent test-time computation; our training-only graph teacher avoids this trade-off. 5Table 1. Comparison of few-shot classification accuracy (%) on 11 benchmark datasets. We evaluate our method against several SOTA adapter-based approaches. The best performance in each shot-group is marked in bold . Our results are highlighted in blue. Dataset abbreviations: INet (ImageNet), SUN (SUN397), Air (FGVC-Aircraft), Euro (EuroSAT), Cars (Stanford Cars), Food (Food101), Pets (OxfordPets), Flow (Flowers102), Cal (Caltech101), DTD (Describable Textures), UCF (UCF101). 
+
+Shots Method Venue INet SUN Air Euro Cars Food Pets Flow Cal DTD UCF Avg 0 CLIP [27] ICML’22 60.3 58.5 17.1 37.5 55.7 77.3 89.1 66.0 85.9 42.2 61.5 59.2 1TIP-Adapter-F [43] ECCV’22 61.1 62.5 20.2 59.5 58.9 77.5 87.0 80.0 89.3 49.6 64.9 64.6 TaskRes [38] CVPR’23 61.9 62.3 21.4 61.7 59.1 74.0 83.6 79.2 88.8 50.2 64.8 64.3 GraphAdapter [22] NeurIPs’23 61.5 61.9 20.9 63.3 59.7 75.4 84.4 80.0 88.9 51.8 64.9 64.8 CLIP-Adapter [9] IJCV’24 61.2 61.3 17.5 61.4 55.1 76.8 86.0 73.5 88.6 45.8 62.2 62.7 CLAP [30] CVPR’24 58.5 61.1 20.6 59.2 56.3 73.0 83.6 79.9 88.4 47.5 62.5 62.8 CCA [18] ICCV’25 61.5 63.8 22.5 67.0 60.0 77.8 86.9 81.0 89.9 51.0 66.3 66.3 
+
+TOGA (Ours) - 69.2 68.1 31.0 67.4 69.1 86.2 91.2 88.2 94.3 55.2 74.5 72.2 
+
+2TIP-Adapter-F [43] ECCV’22 61.7 63.6 23.2 66.1 61.5 77.8 87.0 82.3 89.7 53.7 66.4 66.6 TaskRes [38] CVPR’23 61.9 64.9 24.1 65.8 63.7 75.2 84.6 86.6 90.3 55.1 70.0 67.5 GraphAdapter [22] NeurIPs’23 62.3 64.6 23.8 67.3 63.2 76.3 86.3 85.6 90.2 55.7 69.5 67.7 CLIP-Adapter [9] IJCV’24 61.5 63.3 20.1 63.9 58.7 77.2 86.7 81.6 89.4 51.5 67.1 65.5 CLAP [30] CVPR’24 58.5 63.3 23.2 65.6 61.4 74.9 84.9 84.2 89.8 53.0 67.8 66.1 CCA [18] ICCV’25 62.1 66.3 25.0 70.0 64.0 77.9 87.9 88.0 91.0 55.0 69.3 68.9 
+
+TOGA (Ours) - 69.9 70.7 34.8 74.9 72.8 86.5 92.2 91.9 95.0 58.4 77.9 75.0 
+
+4TIP-Adapter-F [43] ECCV’22 62.5 66.2 25.8 74.1 64.6 78.2 87.5 88.8 90.6 57.4 70.6 69.7 TaskRes [38] CVPR’23 63.6 67.3 25.7 73.8 67.4 76.1 86.3 90.2 91.0 60.7 70.9 70.3 GraphAdapter [22] NeurIPs’23 63.1 66.7 27.0 75.2 66.5 76.8 86.6 89.9 91.0 59.6 71.5 70.3 CLIP-Adapter [9] IJCV’24 62.7 66.0 22.6 73.4 62.4 77.9 87.5 87.2 90.0 56.9 69.1 68.7 CLAP [30] CVPR’24 60.7 65.9 25.6 73.1 65.5 75.9 86.5 87.6 90.6 58.8 69.8 69.1 CCA [18] ICCV’25 63.3 69.0 29.0 80.1 68.0 78.2 88.1 91.1 92.0 63.0 72.1 72.2 
+
+TOGA (Ours) - 71.0 73.2 38.3 80.3 76.7 86.7 92.7 96.4 95.7 64.5 81.7 77.9 
+
+8TIP-Adapter-F [43] ECCV’22 64.0 68.9 30.2 77.9 69.2 78.6 88.1 91.5 91.4 62.7 74.2 72.4 TaskRes [38] CVPR’23 64.7 68.7 31.5 79.3 71.8 76.4 87.2 94.7 92.4 64.8 75.3 73.3 GraphAdapter [22] NeurIPs’23 64.2 68.9 31.4 80.2 70.5 77.7 87.6 94.1 92.4 64.5 75.7 73.4 CLIP-Adapter [9] IJCV’24 62.7 67.5 26.2 77.9 67.9 78.0 87.6 91.7 91.4 61.0 73.3 71.4 CLAP [30] CVPR’24 62.9 68.6 28.9 76.7 70.3 77.4 87.7 92.1 91.4 63.2 73.3 72.1 CCA [18] ICCV’25 64.9 71.0 35.0 83.1 74.3 79.2 89.0 94.4 92.5 65.0 77.5 75.0 
+
+TOGA (Ours) - 71.5 75.1 44.2 84.1 78.2 86.8 93.4 97.3 95.8 69.6 83.9 80.0 
+
+16 TIP-Adapter-F [43] ECCV’22 65.5 71.5 35.6 84.5 75.7 79.4 89.7 94.8 92.9 65.6 78.0 75.7 TaskRes [38] CVPR’23 63.7 70.7 36.3 84.0 76.8 77.6 87.8 96.0 93.4 67.1 78.0 75.8 GraphAdapter [22] NeurIPs’23 65.7 71.2 36.9 85.3 76.2 78.6 88.6 96.2 93.3 67.6 78.8 76.2 CLIP-Adapter [9] IJCV’24 63.6 69.6 32.1 84.4 74.0 78.2 87.8 93.9 92.5 66.0 76.8 74.4 CLAP [30] CVPR’24 65.0 70.8 33.6 80.1 75.1 78.5 88.5 94.2 91.9 66.4 76.3 74.6 CCA [18] ICCV’25 66.0 72.2 42.0 85.3 79.0 79.8 90.9 95.2 93.5 70.0 80.0 77.6 
+
+TOGA (Ours) - 72.3 76.2 48.4 89.4 85.3 87.5 93.4 98.3 96.3 73.6 84.9 82.3 0 1 2 4 8 16    
+
+> Training Samples per class
+> 55
+> 60
+> 65
+> 70
+> 75
+> 80
+> 85
+> 90
+> Accuracy  (%)
+
+(a) Average 0 1 2 4 8 16    
+
+> Training Samples per class
+> 10
+> 15
+> 20
+> 25
+> 30
+> 35
+> 40
+> 45
+> 50
+> 55
+> 60
+> Accuracy  (%)
+
+(b) Aircraft 0 1 2 4 8 16    
+
+> Training Samples per class
+> 65
+> 70
+> 75
+> 80
+> 85
+> 90
+> 95
+> 100
+> Accuracy  (%)
+
+(c) Flowers102 0 1 2 4 8 16    
+
+> Training Samples per class
+> 40
+> 45
+> 50
+> 55
+> 60
+> 65
+> 70
+> 75
+> Accuracy  (%)
+
+(d) DTD 
+
+Figure 3. Comparison of few-shot accuracy (%) on three benchmarks and the 11-dataset average. More results in the sup-plementary. 
+
+Extreme Low-Shot Regime (1-4 Shots). Strongest gains when data are scarcest. The largest separations emerge in the low-data regime, where global adapters struggle to form stable prototypes. Relative to the nearest strong competi-tor (a cache-centric adapter we denote CCA), our method improves the 1-shot average by +5.9% (72.2% vs 66.3%), 2-shot by +6.1% (75.0% vs 68.9%), and 4-shot by +5.7% (77.9% vs 72.2%). Fine-grained categories amplify the ef-fect: on Aircraft, we improve over CCA by +8.5% (1-shot), +9.8% (2-shot; 34.8% vs 25.0%), and +9.3% (4-shot; 38.3% vs 29.0%). This consistent pattern indicates that relying on a single global vector makes prototypes highly sensitive to sample bias in few-shot settings. Our image-patch–text graph provides relational supervision (Sect. 3.3), yielding prototypes that better capture class-defining local evidence, even from one labeled example. 
+
+Generalization and Scalability. Datasets like Stanford Cars and Flowers102 demand attention to parts and tex-tures that global pooling dilutes. Through asymmetric su-pervision by a patch-aware, cross-modal teacher, we close this gap. For example, on Flowers102 (16-shot) we reach 98.3%, approaching saturation. Furthermore, on EuroSAT 
+
+(satellite imagery), our method scales to 89.4% (16-shot), while TIP-Adapter-F plateaus at 84.5% , GraphAdapter/CCA plateaus at 85.3%. This indicates that our bi-modal graph reasoning provides a more robust feature alignment when 6Table 2. Out-of-distribution (OOD) robustness accuracy (%) on ImageNet and its shifted variants; Avg: mean across five datasets.                                                       
+
+> Method ImageNet -R -A -V2 -Sketch Avg
+> CLIP [27] 66.7 74.0 47.8 60.8 46.2 59.1 CoOp [47] 71.5 75.2 49.7 64.2 48.0 61.1 CoCoOp [46] 71.0 76.2 50.6 64.1 48.8 62.1 MaPLe [19] 70.7 77.0 50.9 64.1 49.2 62.4 ProGrad [48] 72.2 74.6 49.4 64.7 47.6 61.7 KgCoOp [37] 71.2 76.7 50.7 64.1 49.0 62.3 TransCLIP [40] 70.3 75.0 49.5 62.3 49.7 61.4
+> TOGA (Ours) 72.3 77.4 49.8 65.9 49.9 63.1
+
+the downstream task diverges significantly from CLIP’s pre-training distribution. Finally, comparing directly with GraphAdapter [ 22 ], our method consistently achieves higher accuracy (e.g., 82.3% vs. 76.2% average at 16-shot) without requiring explicit graph computation at test time. This con-firms that our asymmetric supervision strategy effectively “compiles” the relational knowledge of modality-aware graph into the lightweight student adapter, achieving superior per-formance that is fundamentally more efficient at inference. 
+
+OOD Generalization Analysis. We further evaluate the robustness on ImageNet and four standard distribution-shift benchmarks: ImageNet-R, ImageNet-A, ImageNet-V2, and ImageNet-Sketch. Table 2 shows that our method achieves the best overall average (63.1 ), improving zero-shot CLIP by +4.0% (59.1 →63.1) and outperforms the strong prompt-learning baselines. In particular, we obtain the best results on IN (72.3) , R (77.4) , V2 (65.9) , and Sk (49.9) , while remaining competitive on A (49.8) . These results indicate that our few-shot adaptation does not overfit the support set or erode CLIP’s robustness under shift. We attribute this to the fact that the CLIP backbone is frozen and inference retains the zero-shot prior, Ltest =
+
+LZS + αL Cache . The graph teacher is used only during train-ing to distill patch-level and cross-modal relational knowl-edge into the cache adapter, and is fully discarded at test time. Thus, our method improves the adaptation perfor-mance while preserving a strong OOD generalization. 
+
+4.1. Ablation Study 
+
+Effectiveness of Dual-Objective Co-Training. Table 3 ablates the teacher’s graph-based objective, LGraph . With only LCE , the teacher merely tracks the ZS+student mixture and provides a weak supervisory signal with limited low-shot gains. Adding a standard LGraph CE strengthens low-shot performance but creates gradient conflicts at higher shots as the teacher overfits easy examples. Our proposed LGraph F ocal 
+
+mitigates this by down-weighting easy instances, forcing the teacher to focus on hard, fine-grained cases. This produces a more stable, distinctive supervisory signal and the most consistent gains across all shots, especially on domains far from the pre-training distribution. 
+
+Effectiveness of Discriminative Node Filtering. We val-
+
+Table 3. Ablation of the dual-objective co-training strategy. LCE 
+
+denotes the cross-entropy loss on the final logits. LGraph CE and 
+
+LGraph F ocal are the auxiliary losses applied to the teacher. Dataset abbreviation follows the same as table 1.                                                               
+
+> Loss Objective 1 Shot 2 Shot 4 Shot 8 Shot 16 Shot
+> Euro  LCE 65.1 73.1 77.9 83.2 88.1
+> LCE +LGraph CE 67.1 74.5 79.3 82.2 87.5
+> LCE +LGraph F ocal 67.4 74.9 80.3 84.1 89.4
+> Cal  LCE 94.0 94.3 95.4 95.5 95.8
+> LCE +LGraph CE 94.0 94.6 95.4 95.5 96.1
+> LCE +LGraph F ocal 94.3 95.0 95.7 95.8 96.3
+> Food  LCE 86.0 86.2 86.5 86.6 87.3
+> LCE +LGraph CE 86.0 86.2 86.5 86.7 87.3
+> LCE +LGraph F ocal 86.2 86.5 86.7 86.8 87.5
+
+Table 4. Global pooling ( P
+
+> All
+
+) vs Top-N filtering ( P
+
+> Top-N
+
+). The Top-N strategy explicitly filters out non-discriminative patches.                                                                     
+
+> Pooling Strategy 1 Shot 2 Shot 4 Shot 8 Shot 16 Shot
+> EuroSAT  P
+> All (Global) 63.4 72.2 79.5 83.4 88.7 P
+> Top-N=25 65.3 73.3 79.9 83.7 88.9
+> P
+> Top-N=50 67.4 74.9 80.3 84.1 89.4
+> P
+> Top-N=75 64.9 73.0 79.6 83.4 88.8
+> Caltech  P
+> All (Global) 94.1 94.6 95.5 95.6 96.2 P
+> Top-N=25 94.2 94.8 95.6 95.8 96.1
+> P
+> Top-N=50 94.3 95.0 95.7 95.8 96.3
+> P
+> Top-N=75 94.3 95.1 95.6 95.9 96.2
+> Food
+> P
+> All (Global) 86.1 86.4 86.6 86.6 87.4 P
+> Top-N=25 86.1 86.5 86.7 86.8 87.4
+> P
+> Top-N=50 86.2 86.5 86.7 86.8 87.5
+> P
+> Top-N=75 86.2 86.4 86.7 86.8 87.6
+
+idate our aggregation mechanism in Table 4, comparing global sum pooling ( P
+
+> All
+
+) against our Top-N filtering. The P 
+
+> All
+
+baseline is non-discriminative; it aggregates all node features, allowing background noise to dilute the signal from small foreground targets, which is particularly detrimental in low-shot settings on datasets like EuroSAT. Our P
+
+> Top-N
+
+filtering resolves this by learning to retain discriminative foreground patches while suppressing background noise (see Figure 4). This yields a cleaner, more robust signal for asym-metric supervision. The performance peak at N = 50% 
+
+supports this and highlights a key trade-off: limited fil-tering ( N = 75% ) retains noise, while excessive filtering (N = 25% ) discards relevant features. 
+
+Impact of Multi-Scale Patch Hierarchy. We analyze the teacher’s visual granularity in Table 5 (multi-scale patch count ablation in supplementary). Any fixed-scale patch strategy, such as 3 × 3 or 4 × 4, introduces an inherent trade-off. On datasets with heterogeneous scales like EuroSAT, fine-grained grids (e.g., 4 × 4) are effective for local tex-tures but fail to capture larger semantic structures, while coarse grids (e.g., 3 × 3) break the context of small-scale objects. Our MultiScale approach is designed to resolve this. By providing the teacher with a heterogeneous set of 7Figure 4. Qualitative visualization of Discriminative Node Filter-ing. Our Top-N filtering learns to retain high-scoring, discrimina-tive foreground patches (Green) while suppressing non-informative background nodes (Blue). This resolves feature dilution inherent in global pooling, yielding a cleaner signal by focusing on key object parts (e.g., ant’s head, flower pistil, cat’s eyes). Samples from Caltech-101; more visualizations in supplementary. Table 5. Ablation of patch grid granularity. Comparison of fixed-scale grids vs MultiScale strategy (18 patches).                                                                                             
+
+> Patch Strategy 1 Shot 2 Shot 4 Shot 8 Shot 16 Shot
+> Euro  Grid 2×265.0 72.9 80.0 83.7 88.8 Grid 3×361.7 72.5 78.8 83.6 88.8 Grid 4×466.6 74.5 77.9 83.7 88.9
+> MultiScale 67.4 74.9 80.3 84.1 89.4
+> Cal  Grid 2×293.7 94.5 95.5 95.6 96.2 Grid 3×393.8 94.6 95.6 95.6 96.0 Grid 4×494.2 94.7 95.6 95.6 95.9
+> MultiScale 94.3 95.0 95.7 95.8 96.3
+> Food  Grid 2×286.0 86.3 86.5 86.6 87.3 Grid 3×386.1 86.4 86.6 86.6 87.3 Grid 4×486.0 86.4 86.6 86.6 87.4
+> MultiScale 86.2 86.5 86.7 86.8 87.5
+
+Table 6. Impact of Modality-aware Graph Transformer (MGT).                                    
+
+> Configuration 1 Shot 2 Shot 4 Shot 8 Shot 16 Shot
+> Euro  w/o MGT 61.9 71.5 77.2 80.3 85.7 w/ MGT 67.4 74.9 80.3 84.1 89.4
+> Cal  w/o MGT 94.0 94.6 95.4 95.2 95.8 w/ MGT 94.3 95.0 95.7 95.8 96.3
+> Food  w/o MGT 86.0 86.3 86.5 86.4 87.2 w/ MGT 86.2 86.5 86.7 86.8 87.5
+
+views, spanning fine-grained patches to coarse and global views, it can reason about local details and global context simultaneously. This yields a more comprehensive feature representation for asymmetric supervision, validated by its superior performance, especially in low-shot scenarios. 
+
+Impact of Modality-aware Graph Transformer (MGT). 
+
+Table 6 isolates the contribution of the proposed MGT. Re-moving MGT leaves only unimodal features and consistently degrades performance, especially on the domain-shifted Eu-roSAT benchmark (e.g., 67.4 →61.9 at 1-shot, 89.4 →85.7 at 16-shots). The gains on Caltech and Food101 show that MGT offers a structural cross-modal benefit beyond low-shot initialization, enabling visual nodes to attend to semantic text cues and resolve ambiguities. 
+
+Teacher internal design ablations. Table 7 shows that the teacher components are complementary. Removing MGT 
+
+M causes the largest drop, confirming that relation-aware cross-modal reasoning is the main driver (e.g., EuroSAT: 67.4 →61.9, Aircraft: 31.0 →25.6, UCF101: 74.5 →69.9 at 1-shot). Removing patch–text connections P also signifi-cantly degrades performance, showing that unimodal patch interactions alone are insufficient. In contrast, unimodal Transformer enrichment T and TopK filtering F provide smaller but consistent gains by refining local features and suppressing noise. Overall, M+P contributes the most, while 
+
+T+F further stabilizes the teacher signal. 
+
+Table 7. Internal teacher ablation. T: unimodal Transformer, M: 
+
+MGT, F: TopK filtering, P: patch–text edges. Cross-modal graph reasoning is the primary contributor ( M+P), while T and F offer smaller complementary gains.                                                                                                                                 
+
+> TMFP1-shot 2-shot 4-shot 8-shot 16-shot
+> EuroSAT  ✓✓✓✓67.4 74.9 80.3 84.1 89.4
+> ✓✓✓✗64.1 71.3 76.8 81.0 86.7
+> ✓✓✗✓63.4 72.2 79.5 83.4 86.5
+> ✓✗✓✓61.9 71.5 77.2 80.3 85.7
+> ✗✓✓✓66.2 72.6 78.9 81.8 87.4
+> Aircraft  ✓✓✓✓31.0 34.8 38.3 44.2 48.4
+> ✓✓✓✗28.2 31.6 35.2 42.1 45.9
+> ✓✓✗✓26.4 29.2 32.6 40.0 42.8
+> ✓✗✓✓25.6 28.4 31.3 38.2 41.5
+> ✗✓✓✓27.1 30.4 33.9 41.4 44.7
+> UCF101  ✓✓✓✓74.5 77.9 81.7 83.9 84.9
+> ✓✓✓✗71.8 74.7 78.8 79.5 81.6
+> ✓✓✗✓71.2 74.1 78.3 78.8 80.8
+> ✓✗✓✓69.9 72.8 76.6 76.5 78.1
+> ✗✓✓✓73.3 76.8 80.4 83.2 83.1
+
+## 5. Conclusion 
+
+We introduce TOGA , an asymmetric supervision framework for few-shot VLM adaptation that balances efficiency and capability. It leverages a training-only, high-capacity Het-erogeneous Image-Patch-Text Graph teacher, employing a Modality-aware Graph Transformer (MGT) to model fine-grained cross-modal relations. This structural knowledge is transferred to a lightweight student adapter via a cache-aware dual-objective strategy, utilizing Focal Loss for teacher regu-larization. Crucially, this adapter incurs zero extra latency or memory overhead at deployment, as the complex graph teacher is discarded. Our approach establishes new state-of-the-art results across 11 benchmarks, with significant gains in the 1- to 4-shot regimes over global-feature and patch-based baselines. We validate that transferring complex relational reasoning into simple, efficient cache-based prototypes is a highly effective strategy for few-shot VLM adaptation. 8Acknowledgement 
+
+This work was supported by UK Research and In-novation (UKRI) through the Engineering and Phys-ical Sciences Research Council (EPSRC) grant ATRACT (EP/X028631/1 ), the Economic and Social Research Council (ESRC) grant SCAnDi (ES/Y010655/1 ), and Cancer Research UK (CRUK) grants EDDISA-May21 \100001 and 
+
+EDDPMA-May22 \100028 .
+
+## References 
+
+[1] Asish Bera, Zachary Wharton, Yonghuai Liu, Nik Bessis, and Ardhendu Behera. Sr-gnn: Spatial relation-aware graph neural network for fine-grained image categorization. IEEE Transactions on Image Processing , 31:6017–6031, 2022. 3 [2] Lukas Bossard, Matthieu Guillaumin, and Luc Van Gool. Food-101–mining discriminative components with random forests. In European conference on computer vision , pages 446–461. Springer, 2014. 5 [3] Guangyi Chen, Weiran Yao, Xiangchen Song, Xinyue Li, Yongming Rao, and Kun Zhang. Prompt learning with optimal transport for vision-language models. In Proceedings of the ICLR , 2023. 2, 1, 3 [4] Mircea Cimpoi, Subhransu Maji, Iasonas Kokkinos, Sammy Mohamed, and Andrea Vedaldi. Describing textures in the wild. In Proceedings of the IEEE conference on computer vision and pattern recognition , pages 3606–3613, 2014. 5 [5] Jia Deng, Wei Dong, Richard Socher, Li-Jia Li, Kai Li, and Li Fei-Fei. Imagenet: A large-scale hierarchical image database. In 2009 IEEE conference on computer vision and pattern recognition , pages 248–255. Ieee, 2009. 5 [6] Matteo Farina, Massimiliano Mancini, Giovanni Iacca, and Elisa Ricci. Rethinking few-shot adaptation of vision-language models in two stages. In Proceedings of the Com-puter Vision and Pattern Recognition Conference , pages 29989–29998, 2025. 3 [7] Li Fei-Fei, Rob Fergus, and Pietro Perona. Learning gener-ative visual models from few training examples: An incre-mental bayesian approach tested on 101 object categories. In 
+
+2004 conference on computer vision and pattern recognition workshop , pages 178–178. IEEE, 2004. 5 [8] Jianlong Fu, Heliang Zheng, and Tao Mei. Look closer to see better: Recurrent attention convolutional neural network for fine-grained image recognition. In Proceedings of the IEEE conference on computer vision and pattern recognition , pages 4438–4446, 2017. 1 [9] Peng Gao, Shijie Geng, Renrui Zhang, Teli Ma, Rongyao Fang, Yongfeng Zhang, Hongsheng Li, and Yu Qiao. Clip-adapter: Better vision-language models with feature adapters. 
+
+International Journal of Computer Vision , 132(2):581–595, 2024. 2, 5, 6 [10] Ju He, Jie-Neng Chen, Shuai Liu, Adam Kortylewski, Cheng Yang, Yutong Bai, and Changhu Wang. Transfg: A trans-former architecture for fine-grained recognition. In Proceed-ings of the AAAI conference on artificial intelligence , pages 852–860, 2022. 1 [11] Patrick Helber, Benjamin Bischke, Andreas Dengel, and Damian Borth. Eurosat: A novel dataset and deep learning benchmark for land use and land cover classification. IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing , 12(7):2217–2226, 2019. 5 [12] Neil Houlsby, Andrei Giurgiu, Stanislaw Jastrzebski, Bruna Morrone, Quentin De Laroussilhe, Andrea Gesmundo, Mona Attariyan, and Sylvain Gelly. Parameter-efficient transfer learning for nlp. In International conference on machine learning , pages 2790–2799. PMLR, 2019. 2 [13] Edward J Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, Weizhu Chen, et al. Lora: Low-rank adaptation of large language models. ICLR , 1(2):3, 2022. 2 [14] Ziniu Hu, Yuxiao Dong, Kuansan Wang, and Yizhou Sun. Heterogeneous graph transformer. In Proceedings of the web conference 2020 , pages 2704–2710, 2020. 4 [15] Fanding Huang, Jingyan Jiang, Qinting Jiang, Hebei Li, Faisal Nadeem Khan, and Zhi Wang. Cosmic: Clique-oriented semantic multi-space integration for robust clip test-time adaptation. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 9772–9781, 2025. 3 [16] Chao Jia, Yinfei Yang, Ye Xia, Yi-Ting Chen, Zarana Parekh, Hieu Pham, Quoc Le, Yun-Hsuan Sung, Zhen Li, and Tom Duerig. Scaling up visual and vision-language representation learning with noisy text supervision. In International confer-ence on machine learning , pages 4904–4916. PMLR, 2021. 1[17] Menglin Jia, Luming Tang, Bor-Chun Chen, Claire Cardie, Serge Belongie, Bharath Hariharan, and Ser-Nam Lim. Visual prompt tuning. In European conference on computer vision ,pages 709–727. Springer, 2022. 2 [18] Tianjiao Jiang, Zhen Zhang, Yuhang Liu, and Javen Qinfeng Shi. Causal disentanglement and cross-modal alignment for enhanced few-shot learning. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 890– 900, 2025. 6 [19] Muhammad Uzair Khattak, Hanoona Rasheed, Muhammad Maaz, Salman Khan, and Fahad Shahbaz Khan. Maple: Multi-modal prompt learning. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 19113–19122, 2023. 2, 7, 1, 3 [20] Jonathan Krause, Michael Stark, Jia Deng, and Li Fei-Fei. 3d object representations for fine-grained categorization. In Pro-ceedings of the IEEE international conference on computer vision workshops , pages 554–561, 2013. 1, 5 [21] Rongjie Li, Songyang Zhang, Dahua Lin, Kai Chen, and Xuming He. From pixels to graphs: Open-vocabulary scene graph generation with vision-language models. In Proceed-ings of the IEEE/CVF conference on computer vision and pattern recognition , pages 28076–28086, 2024. 3 [22] Xin Li, Dongze Lian, Zhihe Lu, Jiawang Bai, Zhibo Chen, and Xinchao Wang. Graphadapter: Tuning vision-language models with dual knowledge graph. Advances in Neural Information Processing Systems , 36:13448–13466, 2023. 1, 2, 3, 5, 6, 7 [23] Tsung-Yi Lin, Priya Goyal, Ross Girshick, Kaiming He, and Piotr Doll ´ar. Focal loss for dense object detection. In Pro-
+
+9ceedings of the IEEE international conference on computer vision , pages 2980–2988, 2017. 2, 5 [24] Subhransu Maji, Esa Rahtu, Juho Kannala, Matthew Blaschko, and Andrea Vedaldi. Fine-grained visual clas-sification of aircraft. arXiv preprint arXiv:1306.5151 , 2013. 5[25] Maria-Elena Nilsback and Andrew Zisserman. Automated flower classification over a large number of classes. In 2008 Sixth Indian conference on computer vision, graphics & image processing , pages 722–729. IEEE, 2008. 5 [26] Omkar M Parkhi, Andrea Vedaldi, Andrew Zisserman, and CV Jawahar. Cats and dogs. In 2012 IEEE conference on computer vision and pattern recognition , pages 3498–3505. IEEE, 2012. 5 [27] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learning transferable visual models from natural language supervi-sion. In International conference on machine learning , pages 8748–8763. PmLR, 2021. 1, 3, 5, 6, 7 [28] Li Ren, Chen Chen, Liqiang Wang, and Kien Hua. Da-vpt: Semantic-guided visual prompt tuning for vision transformers. In Proceedings of the Computer Vision and Pattern Recogni-tion Conference , pages 4353–4363, 2025. 2 [29] Arindam Sikdar, Yonghuai Liu, Siddhardha Kedarisetty, Yi-tian Zhao, Amr Ahmed, and Ardhendu Behera. Interweaving insights: High-order feature interaction for fine-grained visual recognition. International Journal of Computer Vision , 133 (4):1755–1779, 2025. 3 [30] Julio Silva-Rodriguez, Sina Hajimiri, Ismail Ben Ayed, and Jose Dolz. A closer look at the few-shot adaptation of large vision-language models. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pages 23681–23690, 2024. 6 [31] Khurram Soomro, Amir Roshan Zamir, and Mubarak Shah. Ucf101: A dataset of 101 human actions classes from videos in the wild. arXiv preprint arXiv:1212.0402 , 2012. 5 [32] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszko-reit, Llion Jones, Aidan N Gomez, Ł ukasz Kaiser, and Illia Polosukhin. Attention is all you need. Advances in neural information processing systems , 30, 2017. 4 [33] Catherine Wah, Steve Branson, Peter Welinder, Pietro Perona, and Serge Belongie. The caltech-ucsd birds-200-2011 dataset. 2011. 1 [34] Zizhao Wu, Haohan Li, Gongyi Chen, Zhou Yu, Xiaoling Gu, and Yigang Wang. 3d question answering with scene graph reasoning. In Proceedings of the 32nd ACM International Conference on Multimedia , pages 1370–1378, 2024. 3 [35] Jianxiong Xiao, James Hays, Krista A Ehinger, Aude Oliva, and Antonio Torralba. Sun database: Large-scale scene recog-nition from abbey to zoo. In 2010 IEEE computer society conference on computer vision and pattern recognition , pages 3485–3492. IEEE, 2010. 5 [36] Chuanguang Yang, Zhulin An, Libo Huang, Junyu Bi, Xin-qiang Yu, Han Yang, Boyu Diao, and Yongjun Xu. Clip-kd: An empirical study of clip model distillation. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 15952–15962, 2024. 1 [37] Hantao Yao, Rui Zhang, and Changsheng Xu. Visual-language prompt tuning with knowledge-guided context op-timization. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 6757–6767, 2023. 2, 3, 7, 1 [38] Tao Yu, Zhihe Lu, Xin Jin, Zhibo Chen, and Xinchao Wang. Task residual for tuning vision-language models. In Proceed-ings of the IEEE/CVF conference on computer vision and pattern recognition , pages 10899–10909, 2023. 2, 3, 5, 6 [39] Maxime Zanella and Ismail Ben Ayed. Low-rank few-shot adaptation of vision-language models. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 1593–1603, 2024. 2 [40] Maxime Zanella, Beno ˆıt G ´erin, and Ismail Ayed. Boosting vision-language models with transduction. Advances in Neu-ral Information Processing Systems , 37:62223–62256, 2024. 7[41] Runjia Zeng, Cheng Han, Qifan Wang, Chunshu Wu, Tong Geng, Lifu Huangg, Ying Nian Wu, and Dongfang Liu. Vi-sual fourier prompt tuning. Advances in Neural Information Processing Systems , 37:5552–5585, 2024. 2 [42] Xiaohua Zhai, Xiao Wang, Basil Mustafa, Andreas Steiner, Daniel Keysers, Alexander Kolesnikov, and Lucas Beyer. Lit: Zero-shot transfer with locked-image text tuning. In Proceed-ings of the IEEE/CVF conference on computer vision and pattern recognition , pages 18123–18133, 2022. 1 [43] Renrui Zhang, Wei Zhang, Rongyao Fang, Peng Gao, Kun-chang Li, Jifeng Dai, Yu Qiao, and Hongsheng Li. Tip-adapter: Training-free adaption of clip for few-shot classifi-cation. In European conference on computer vision , pages 493–510. Springer, 2022. 1, 2, 3, 5, 6 [44] Renrui Zhang, Xiangfei Hu, Bohao Li, Siyuan Huang, Han-qiu Deng, Yu Qiao, Peng Gao, and Hongsheng Li. Prompt, generate, then cache: Cascade of foundation models makes strong few-shot learners. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 15211–15222, 2023. 3 [45] Wenbo Zhang, Yifan Zhang, Yuyang Deng, Wenlong Zhang, Jianfeng Lin, Binqiang Huang, Jinlu Zhang, and Wenhao Yu. Ta-adapter: Enhancing few-shot clip with task-aware encoders. Pattern Recognition , 153:110559, 2024. 2 [46] Kaiyang Zhou, Jingkang Yang, Chen Change Loy, and Ziwei Liu. Conditional prompt learning for vision-language models. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 16816–16825, 2022. 2, 7, 1, 3 [47] Kaiyang Zhou, Jingkang Yang, Chen Change Loy, and Ziwei Liu. Learning to prompt for vision-language models. Interna-tional Journal of Computer Vision , 130(9):2337–2348, 2022. 1, 2, 5, 7, 3 [48] Beier Zhu, Yulei Niu, Yucheng Han, Yue Wu, and Hanwang Zhang. Prompt-aligned gradient for prompt tuning. In Pro-ceedings of the IEEE/CVF international conference on com-puter vision , pages 15659–15669, 2023. 2, 3, 7, 1 
+
+10 Training-Only Heterogeneous Image-Patch-Text Graph Supervision for Advancing Few-Shot Learning Adapters 
+
+# Supplementary Material 
+
+To support the findings presented in the main paper, this document details more experiments, ablation studies, and visualizations. Specifically, we cover: 1. A comparative analysis of few-shot classification perfor-mance against several state-of-the-art (SOTA) prompt-based methods. (Section S1) 2. Additional visualization of the dataset for few-shot accu-racy curves comparing various adapter-based methods. 3. t-SNE visualizations comparing the feature distributions of Zero-shot CLIP logits, Tip-Adapter-F logits, and Graph logits. (Section S2) 4. More qualitative visualizations of discriminative node filtering. (Section S3) 5. Ablation studies evaluating different backbone architec-tures compared to Tip-Adapter-F [43]. (Section S4) 6. A detailed analysis of computational complexity, feature dimensionality, and model parameters. (Section S5) 7. Hyperparameter sensitivity analysis. (Section S6) 8. An investigation into the impact of varying the number of multiscale patches/nodes. (Section S7) 9. Quantitative visualizations of the Cache and graph model. (Section S8) 10. Ablation studies evaluating text nodes in the graph topol-ogy and MGT vs. Transformer performance. (Section S9) 
+
+## S1. Comparison with SotA Prompt Learning 
+
+While the main manuscript focuses on adapter-based base-lines, we provide here a comprehensive comparison against SOTA prompt learning methods, including static (CoOp [ 47 ]), conditional (CoCoOp [ 46 ], KgCoOp [ 37 ]), and gradient-aligned (ProGrad [ 48 ], MaPLe [ 19 ], PLOT++ [ 3]) approaches. Table S1 details the performance across 11 benchmarks. 
+
+Low-Shot Robustness (1-4 Shots). Prompt-based methods often struggle in extreme low-data regimes due to the diffi-culty of optimizing continuous vectors without overfitting. Our method significantly mitigates this issue. • 1-Shot: We achieve an average accuracy of 72.2% , estab-lishing a new SOTA by surpassing the optimal-transport method PLOT++ (70.7%) by +1.5% and the multi-modal MaPLe (69.3%) by +2.9% .• 2-Shot: The gap widens against trajectory-constrained methods like ProGrad (72.4%) and MaPLe (72.6%), with our method reaching 75.0% . This indicates that our 
+
+Modality-aware Graph Teacher extracts robust prototypes even from singular examples, whereas prompt gradients often settle into sharp, non-generalizable minima when supervised by sparse data. • 4-Shot: This performance advantage is sustained as sup-port size increases. Our method achieves 77.9% , main-taining a clear lead over PLOT++ (76.9%) and MaPLe (75.8%). This demonstrates that even as sufficient data becomes available to stabilize prompt optimization, our structure-aware supervision yields superior feature align-ment compared to global prompt tuning. 
+
+High-Shot Scalability and Fine-Grained Tasks (8-16 Shots) Our method exhibits sustained superiority in high-shot regimes, achieving an average accuracy of 82.3% at the 16-shot level, marginally leading the strongest competitor, PLOT++ (82.1%). This advantage is most pronounced in fine-grained tasks requiring high local discriminative power. For instance, on Aircraft dataset, we reach 48.4% (match-ing MaPLe and outperforming ProGrad’s 43.0%), and on Stanford Cars, we achieve 85.3% (surpassing PLOT++’s 84.5%). This consistent edge is maintained across the full fine-grained suite, posting 98.3% on Flowers and a competi-tive 73.6% on the challenging task in DTD (outperforming MaPLe’s 71.3 
+
+Zero-Overhead Inference Crucially, while top-performing prompt methods like MaPLe and PLOT++ incur significant overhead due to deep prompt coupling or optimal transport problems, our method distills these performance gains into a static key-value cache. This innovative design allows us to maintain the zero-overhead inference speed of a standard Tip-Adapter-F, effectively outperforming computationally heavier prompt baselines without sacrificing efficiency. 
+
+## S2 . Qualitative Analysis of Embedding Separa-bility via t-SNE 
+
+To qualitatively validate the effectiveness of our asymmet-ric supervision, we visualize the logit distributions using t-Distributed Stochastic Neighbor Embedding (t-SNE). We compare the feature manifolds of our method against the baseline Zero-shot CLIP [ 36 ] and Tip-Adapter-F [ 43 ] in a 
+
+16 -shot setting. To ensure a rigorous evaluation of decision boundary refinement, we selected a subset of 8 randomly selected classes per dataset. The resulting visualizations (Figures S2, S3, and S4), illustrate the impact of our Training-Only modality-aware Graph Teacher. While global-feature baselines (CLIP and Tip-Adapter-F) often exhibit diffuse clustering and signif-icant inter-class overlap among semantically similar cate-gories, our method achieves superior intra-class compactness 1Ours CAA Ta-Adapter TIP-Adapter-F TaskRes GraphAdapter CLIP-Adapter CLAP Zero-shot CLIP 0 1 2 4 8 16    
+
+> Training Samples per class
+> 55
+> 60
+> 65
+> 70
+> 75
+> 80
+> Accuracy  (%)
+
+(a) Sun397 0 1 2 4 8 16     
+
+> Training Samples per class
+> 55
+> 60
+> 65
+> 70
+> 75
+> 80
+> 85
+> 90
+> Accuracy  (%)
+
+(b) Stanford Cars 0 1 2 4 8 16     
+
+> Training Samples per class
+> 73
+> 78
+> 83
+> 88
+> 93
+> Accuracy  (%)
+
+(c) Food101 0 1 2 4 8 16     
+
+> Training Samples per class
+> 85
+> 90
+> 95
+> Accuracy  (%)
+
+(d) Caltech 0 1 2 4 8 16    
+
+> Training Samples per class
+> 60
+> 65
+> 70
+> 75
+> 80
+> 85
+> 90
+> Accuracy  (%)
+
+(e) UCF101 0 1 2 4 8 16     
+
+> Training Samples per class
+> 55
+> 60
+> 65
+> 70
+> 75
+> Accuracy  (%)
+
+(f) Imagenet 0 1 2 4 8 16     
+
+> Training Samples per class
+> 35
+> 40
+> 45
+> 50
+> 55
+> 60
+> 65
+> 70
+> 75
+> 80
+> 85
+> 90
+> 95
+> Accuracy  (%)
+
+(g) EuroSAT 0 1 2 4 8 16     
+
+> Training Samples per class
+> 80
+> 85
+> 90
+> 95
+> Accuracy  (%)
+
+(h) Oxford Pets 
+
+Figure S1. Performance trajectories of different adapter-based architectures. The curves show the few-shot accuracy of the model on several additional datasets, complementing the main results presented in the paper. 
+
+and inter-class separability. This improvement confirms that the fine-grained, cross-modal reasoning performed by the Modality-aware Graph Transformer (MGT) is successfully distilled into the student adapter’s key-value cache. The quantitative improvement is evidenced by the Silhouette scores; for example, on the EuroSAT dataset, our approach achieves a score of 0.522 compared to the baseline’s −0.043 ,indicating that our graph-guided teacher forcing effectively rectifies decision boundaries even in domain-shifted remote sensing tasks. 
+
+## S3 . Qualitative Visualization of Discriminative Node Filtering 
+
+The provided visualization further confirms the necessity of discriminative node filtering to ensure the quality of the teacher’s supervisory signal. Our Top-N filtering mecha-nism is designed to mitigate the inherent feature dilution that occurs when aggregating raw patch features, which is especially critical when dealing with object-centric datasets like Caltech-101 that contain diverse object scales and clut-tered backgrounds. The visualization (Figure S5) shows that the learned filtering weights, applied after cross-modal reasoning by the GNN Teacher, effectively differentiate be-tween foreground and background elements. Patches cov-ering the central object and defining features, such as the scorpion’s body and claws, the scissors’ blades and handles, and the distinct outline of the starfish, receive high activation scores (highlighted in Green). Conversely, non-informative patches encompassing uniform background areas are sup-pressed (highlighted in Blue). This selective mechanism consolidates contextualized information into the final visual characteristic ( fgraph ) of the teacher’s classification head, concentrating primarily on discriminative foreground cues. By generating a cleaner, foreground-centric representation, the filtering enhances the discriminative power of the graph logits, leading to a more robust knowledge transfer during asymmetric supervision. 
+
+## S4. Backbone Scaling and Efficiency Analysis 
+
+We validate the scalability of our approach by evaluat-ing its few-shot classification accuracy across four distinct CLIP backbones: ResNet-101 ( RN101 ) and the ViT-B/32 ,ViT-B/16 , and ViT-L/14 Vision Transformer variants, com-paring our method against the Tip-Adapter-F baseline (Base). As shown in Table S2, TOGA consistently improves accu-racy over the Base model across all architectures and shot settings, demonstrating its broad applicability and robust use of features from diverse encoder structures. As the backbone capacity increases from ViT-B/32 to ViT-L/14 , the overall accuracy of our method increases progressively. The high-est performance is achieved by the ViT-L/14 model, which obtains an 8-shot average accuracy of 86 .9%. The gains are particularly significant on challenging tasks, such as improv-ing Aircraft accuracy from 53 .0% (Base) to 57 .0% (Ours) in 8-shot with ViT-L/14. 
+
+## S5 . Computational Profile and Asymmetric Cost 
+
+The efficiency of our approach comes from its asymmetric supervision design, which minimizes the deployment cost. 2Table S1. Comparison of few-shot classification accuracy (%) on 11 benchmark datasets. We evaluate our method against several SOTA prompt-based approaches. The best performance in each shot-group is marked in bold . Our results are highlighted in gray. Dataset abbreviations: INet (ImageNet), SUN (SUN397), Air (Aircraft), Euro (EuroSAT), Cars (Stanford Cars), Food (Food101), Pets (OxfordPets), Flow (Flowers102), Cal (Caltech101), DTD (Describable Textures), UCF (UCF101). 
+
+Shots Method Venue INet SUN Air Euro Cars Food Pets Flow Cal DTD UCF Avg 0 CLIP [27] ICML’22 66.7 62.6 24.7 47.5 65.3 86.1 89.1 71.4 92.9 43.6 66.7 65.1 1CoOp [47] IJCV’22 68.0 67.3 26.2 50.9 67.1 82.6 90.3 72.7 93.2 50.1 70.7 67.2 CoOp [47] IJCV’22 65.7 67.0 20.8 56.4 67.5 84.3 90.2 78.3 92.5 50.1 71.2 67.6 CoCoOp [46] CVPR’22 69.4 68.7 28.1 55.4 67.6 84.9 91.9 73.4 94.1 52.6 70.4 68.8 PLOT++ [3] ICLR’23 66.4 66.7 28.6 65.4 68.8 86.1 91.8 80.4 94.3 54.5 74.3 70.7 KgCoOp [37] CVPR’23 68.9 68.4 26.8 61.9 66.7 86.4 92.1 74.7 94.2 52.7 72.8 69.6 MaPLe [19] CVPR’23 62.6 64.7 26.7 71.8 66.6 80.5 89.1 83.3 92.5 52.1 71.8 69.3 ProGrad [48] ICCV’23 67.0 67.0 28.8 57.0 68.2 84.9 91.4 80.9 93.5 52.8 73.3 69.5 
+
+TOGA (Ours) - 69.2 68.1 31.0 67.4 69.1 86.2 91.2 88.2 94.3 55.2 74.5 72.2 
+
+2CoOp (4) [47] IJCV’22 68.7 68.0 28.1 66.2 70.5 82.6 89.9 80.9 93.0 53.7 73.5 70.5 CoOp (16) [47] IJCV’22 67.0 67.0 25.9 65.1 70.4 84.4 89.9 88.0 93.1 54.1 74.1 70.8 CoCoOp [46] CVPR’22 70.1 69.4 29.3 61.8 68.4 85.9 91.9 77.8 94.4 52.3 73.4 70.4 PLOT++ [3] ICLR’23 68.2 68.0 31.1 76.8 73.1 86.3 92.2 89.8 94.6 56.7 76.7 74.0 KgCoOp [37] CVPR’23 69.6 69.6 28.0 69.2 68.2 86.6 92.3 79.8 94.5 55.3 74.6 71.6 MaPLe [19] CVPR’23 65.1 67.1 30.9 78.3 71.6 81.4 90.8 88.9 93.9 55.5 74.6 72.6 ProGrad [48] ICCV’23 69.1 69.0 31.1 66.3 72.4 84.8 91.5 87.5 93.6 56.0 75.6 72.4 
+
+TOGA (Ours) - 69.9 70.7 34.8 74.9 72.8 86.5 92.2 91.9 95.0 58.4 77.9 75.0 
+
+4CoOp [47] IJCV’22 69.7 70.6 29.7 65.8 73.4 83.5 92.3 86.6 94.5 58.5 78.1 73.0 CoOp [47] IJCV’22 70.6 69.7 30.9 69.7 74.4 84.5 92.5 92.2 94.5 59.5 77.6 74.2 CoCoOp [46] CVPR’22 70.8 70.4 30.6 61.7 69.5 86.3 92.7 81.5 94.8 55.7 75.3 71.8 PLOT++ [3] ICLR’23 70.4 71.7 35.2 83.2 76.2 86.4 92.5 92.9 95.1 62.4 79.7 76.9 KgCoOp [37] CVPR’23 70.2 71.5 32.2 71.8 69.5 86.9 92.6 87.0 95.0 58.7 77.6 73.9 MaPLe [19] CVPR’23 67.7 70.6 34.8 84.5 75.3 81.7 91.9 92.6 94.4 61.0 78.4 75.8 ProGrad [48] ICCV’23 71.3 71.7 34.1 69.6 75.0 85.4 92.1 91.1 94.4 59.7 77.9 73.9 
+
+TOGA (Ours) - 71.0 73.2 38.3 80.3 76.7 86.7 92.7 96.4 95.7 64.5 81.7 77.9 
+
+8CoOp (4) [47] IJCV’22 70.8 72.4 37.0 74.7 76.8 83.3 92.1 95.0 94.7 63.7 79.8 76.4 CoOp (16) [47] IJCV’22 70.6 71.9 38.5 77.1 79.0 82.7 91.3 94.9 94.5 64.8 80.0 76.8 CoCoOp [46] CVPR’22 70.8 71.5 32.4 69.1 70.4 87.0 93.3 86.3 94.9 60.1 75.9 73.8 PLOT++ [3] ICLR’23 71.3 73.9 41.4 88.3 81.2 86.5 93.0 95.4 95.5 66.4 82.8 79.6 KgCoOp [37] CVPR’23 70.2 72.6 34.8 73.9 72.8 87.0 93.0 91.5 95.1 65.6 80.0 76.0 MaPLe [19] CVPR’23 70.3 73.2 42.0 87.7 79.4 83.6 92.5 95.8 95.2 66.5 81.3 78.9 ProGrad [48] ICCV’23 71.3 73.0 37.7 77.8 78.7 86.1 92.2 95.0 94.8 63.9 80.5 77.4 
+
+TOGA (Ours) - 71.5 75.1 44.2 84.1 78.2 86.8 93.4 97.3 95.8 69.6 83.9 80.0 
+
+16 CoOp [47] IJCV’22 71.5 74.6 40.1 83.5 79.1 85.1 92.4 96.4 95.5 69.2 81.9 79.0 CoOp (16) [47] IJCV’22 71.9 74.9 43.2 85.0 82.9 84.2 92.0 96.8 95.8 69.7 83.1 80.0 CoCoOp [46] CVPR’22 71.1 72.6 33.3 73.6 72.3 87.4 93.4 89.1 95.1 63.7 77.2 75.3 PLOT++ [3] ICLR’23 72.6 76.0 46.7 92.0 84.5 87.1 93.5 97.5 96.0 71.4 85.3 82.1 KgCoOp [37] CVPR’23 70.4 73.3 36.5 76.2 74.8 87.2 93.2 93.4 95.2 68.7 81.7 77.3 MaPLe [19] CVPR’23 72.3 75.5 48.4 92.3 83.5 85.3 92.8 97.0 96.0 71.3 85.0 81.8 ProGrad [48] ICCV’23 72.1 75.1 43.0 83.6 82.9 85.8 92.8 96.6 95.9 68.8 82.7 79.9 
+
+TOGA (Ours) - 72.3 76.2 48.4 89.4 85.3 87.5 93.4 98.3 96.3 73.6 84.9 82.3 
+
+3(a) Baseline CLIP        
+
+> Silhouette: 0.618
+> (b) Tip-Adapter-F
+> Silhouette: 0.592
+> (c) Ours
+> Silhouette: 0.693
+> stop sign sunflower strawberry wheelchair starfish windsor chair crocodile brontosaurus
+
+Figure S2. t-SNE visualization of logits on the Caltech101 dataset ( 16 -shot). The plots depict the separation of 8 object categories, ranging from distinct objects like stop sign to complex shapes like windsor chair. (a) Baseline CLIP provides a strong initial separation ( 0.618 ). (b) Tip-Adapter-F introduces minor variance, slightly reducing the score to 0.592 . (c) Ours further refines the manifold, tightening the clusters for difficult classes (e.g., crocodile and brontosaurus) and achieving the highest distinctiveness with a Silhouette score of 0.693 .This highlights the benefit of our discriminative node filtering in suppressing background noise. (a) Baseline CLIP        
+
+> Silhouette: 0.587
+> (b) Tip-Adapter-F
+> Silhouette: 0.584
+> (c) Ours (ViT B/16)
+> Silhouette: 0.732
+> pho ramen pizza lasagna macaroni and cheese cup cakes macarons oysters
+
+Figure S3. This visualization highlights the model’s ability to distinguish between fine-grained culinary categories. (a) Baseline CLIP and (b) Tip-Adapter-F show comparable performance ( ≈ 0.58 ), with noticeable overlap between visually similar classes (e.g., macarons and cup cakes). (c) Ours (ViT-B/16) significantly enhances class purity, leading to superior clustering of features and raising the Silhouette score to 
+
+0.732 . This confirms that our MGT-guided distillation effectively transfers local ingredient-level details into the student cache. 
+
+During training, the total parameter count ( GNN + Cache )remains lightweight; for ViT-B/16 , only 21 .7 million param-eters are trained, significantly reducing memory and time costs compared to full fine-tuning. Since the GNN teacher module is omitted in inference, the proposed approach does not produce additional latency or memory overhead relative to the Tip-Adapter-F baseline. As shown in Table S3 and Figure S7, the total cost of inference computation ( GFLOPs )for our approach is primarily defined by the fixed cost of the frozen backbone (e.g. 155 .7 GFLOPs for ViT-L/14 ) plus a marginal overhead introduced by the lightweight Cache Adapter. This overhead is minimal, increasing the total inference cost by only 6.1% for the high-capacity model ViT-L/14 . The Accuracy vs. Efficiency graph confirms this cost-benefit trade-off, showing that high accuracy is achieved with the ViT-L/14 model at its inherent computational cost, demonstrating that graph-guided knowledge transfer effec-tively maximizes the performance return on the hardware investment. 4(a) Baseline CLIP 
+
+> Silhouette: -0.043
+> (b) Tip-Adapter-F
+> Silhouette: 0.211
+> (c) Ours
+> Silhouette: 0.522
+> Residential Buildings
+> Industrial Buildings
+> Pasture Land
+> Sea or Lake
+> Permanent Crop Land
+> River
+> Herbaceous Vegetation Land
+
+Figure S4. t-SNE visualization of logits on the EuroSAT dataset ( 16 -shot). We visualize the embedding space for 8 randomly selected categories. (a) Baseline CLIP fails to form distinct clusters for texture-heavy classes, resulting in a negative Silhouette score of −0.043 . (b) Tip-Adapter-F improves separability ( 0.211 ) but retains ambiguity between vegetation classes. (c) Ours demonstrates that the asymmetric graph supervision effectively disentangles complex spectral signatures, achieving a Silhouette score of 0.522 and showing clear separation between semantically adjacent classes like Pasture Land and Herbaceous Vegetation Land. 
+
+## S6 . Reproducibility and Hyperparameter Tun-ing 
+
+We are committed to the full reproducibility of our results. In this section, we detail the exact experimental protocols, code availability, and hyperparameter tuning strategies that ensure our method’s performance is stable and reproducible across diverse visual domains. 
+
+S6.1. Unified Network Architecture 
+
+To demonstrate that our performance gains stem from topo-logical reasoning rather than architecture engineering, we uti-lize a strictly unified model architecture across all datasets, ranging from fine-grained Flowers to satellite imagery (Eu-rosat). We do not alter the model depth or width per task. Specifically, we first employ a 3-layer Transformer encoder with a feed-forward multiplier of 2× to refine the initial fea-tures. This is followed by our Modality-aware Graph Trans-former (MGT) module with L = 3 layers and H = 16 atten-tion heads. The final feature dimension is fixed at D = 512 
+
+to align perfectly with the CLIP ViT-B/16 backbone. 
+
+S6.2. Validation Protocol and Search Space 
+
+Consistent with standard few-shot learning protocols [ 43 ,47 ], we strictly utilize the provided few-shot validation set for hyperparameter selection and explicitly avoid tun-ing on the test set. We acknowledge that different visual domains require different optimization dynamics. For in-stance, fine-grained tasks (FGVC) often require stronger contrastive regularization ( λcon ) to separate visually similar classes, whereas satellite domains (Eurosat) may require dis-tinct graph scaling ( γ) due to the large semantic shift from the pre-training data. Therefore, rather than claiming a sin-gle scalar value works for all domains, we perform a grid search on the validation set within the ranges specified in Table S4. 
+
+S6.3. Sensitivity and Landscape Analysis 
+
+To verify the stability of our method, we analyze test accu-racy trends across random hyperparameter sweeps on six dataset configurations, including Flowers (1/2/16-shot), Air-craft (2/8-shot), and Eurosat (2-shot). As visualized in Fig-ure S8, we observe three critical technical insights: 1. Robustness to Hardness Focus ( γf ocal ): The perfor-mance curves for the Focal Loss parameter γf ocal (Fig-ure S8a, right) remain relatively flat across all datasets. This indicates that while hard-negative mining is ben-eficial, the method is optimization-stable and does not require precise tuning of this parameter. 2. Regularization vs. Shot Density ( λcon ): We observe a distinct shift in the need for regularization as the number of shots increases. In the extreme low-shot regime (Air-craft 2-shot), we find a strong positive correlation ( +0 .63 )between λcon and accuracy, suggesting that heavy regu-larization is required to prevent overfitting to noisy pro-totypes. However, as the support set grows (Aircraft 8-shot), this correlation inverts ( −0.34 ), indicating that as prototypes become more reliable, the model benefits from relaxing the contrastive constraint. 3. Domain-Specific Optimization Landscapes: Fig-5Figure S5. Extended Qualitative Visualization of Discriminative Node Filtering. This figure provides additional samples demonstrating the efficacy of our Top-N filtering across various Caltech-101 classes. The learned filter successfully identifies and retains high-scoring, discriminative foreground patches (Green) covering key object features (e.g., the segmented body of the scorpion, the silhouette of the scissors, and the spike pattern of the stegosaurus). Concurrently, it suppresses non-informative background regions (Blue). This mechanism ensures that the GNN Teacher’s final visual feature is robust against feature dilution, yielding a high-fidelity relational signal for cache supervision. 
+
+ure S8b illustrates the bivariate optimization landscape (γ vs. λcon ) for different domains. While natural im-age datasets (Flowers, Aircraft) exhibit overlapping high-performance regions, the Eurosat dataset (satellite im-agery) displays a distinct landscape topology. This con-firms that the optimal balance between the pre-trained prior (CLIP) and the graph adaptation is sensitive to the semantic distance between the target domain and the pre-training data. 6Table S2. Comparison of few-shot classification accuracy (%). The table compares the baseline Tip-Adapter-F (denoted as Base ) against the Proposed method (denoted as Ours ) across various CLIP backbones. Distinct blocks represent different shot settings ( K = {1, 2, 4, 8}). Best results are highlighted in bold .
+
+Shots Backbone Method Datasets 
+
+SUN Air Euro Cars Food Pets Flowers Calt DTD UCF 
+
+1
+
+ResNet-101 Base 60.9 19.9 38.7 64.2 80.6 87.1 64.8 91.0 43.4 63.4 
+
+Ours 63.5 22.7 62.1 66.1 81.0 87.8 81.1 91.9 50.5 68.0 ViT-B/32 Base 63.8 20.8 49.9 61.1 80.3 87.2 67.8 91.5 48.2 65.9 
+
+Ours 66.2 24.3 60.8 62.9 81.0 88.5 84.5 92.6 52.5 70.2 ViT-B/16 Base 65.0 25.9 53.4 67.1 85.0 89.2 69.7 93.6 47.1 70.9 
+
+Ours 68.1 31.0 67.4 69.1 86.2 91.2 88.2 94.3 55.2 74.5 ViT-L/14 Base 70.7 37.5 65.3 79.1 92.0 93.1 86.1 93.8 57.0 78.5 
+
+Ours 75.5 43.4 71.0 93.1 88.4 93.7 92.1 97.4 66.5 78.8 2
+
+ResNet-101 Base 63.7 20.4 41.3 66.2 80.0 87.2 71.9 92.0 47.8 67.4 
+
+Ours 66.5 25.0 58.8 69.8 81.4 88.8 87.7 93.0 53.9 72.6 ViT-B/32 Base 66.4 20.6 52.6 63.0 80.2 88.0 74.9 92.7 51.7 68.6 
+
+Ours 68.4 26.3 70.1 65.8 81.0 89.3 88.2 95.0 56.4 73.5 ViT-B/16 Base 68.2 28.7 55.6 69.4 85.0 90.3 82.1 94.0 51.0 74.6 
+
+Ours 70.7 34.8 74.9 72.8 86.5 92.2 91.9 95.0 58.4 77.9 ViT-L/14 Base 73.3 37.2 70.1 80.2 92.1 93.4 88.8 95.4 61.1 81.0 
+
+Ours 76.6 49.0 75.5 93.6 88.6 94.1 95.2 97.0 67.0 81.8 4
+
+ResNet-101 Base 67.8 23.5 59.9 71.6 80.3 88.4 85.5 92.5 58.2 73.0 
+
+Ours 68.9 29.8 77.0 73.4 81.3 90.0 92.5 93.4 62.0 75.2 ViT-B/32 Base 69.3 25.7 63.4 67.0 80.5 88.7 86.5 94.5 57.8 74.6 
+
+Ours 70.2 29.1 79.8 69.4 81.3 89.8 92.1 94.8 61.4 77.0 ViT-B/16 Base 70.6 33.9 67.6 74.2 85.6 91.0 92.4 95.2 61.6 79.2 
+
+Ours 73.2 38.3 80.3 76.7 86.7 92.7 96.4 95.7 64.5 81.7 ViT-L/14 Base 76.2 45.9 76.1 84.0 92.1 94.9 96.1 96.3 68.3 83.1 
+
+Ours 78.2 52.0 83.2 93.5 90.5 94.4 97.7 97.8 73.6 85.8 8
+
+ResNet-101 Base 69.8 29.2 67.2 75.1 81.0 89.0 91.4 93.1 64.2 77.1 
+
+Ours 70.9 36.1 83.0 75.9 81.7 90.2 95.1 93.9 65.4 78.5 ViT-B/32 Base 69.9 30.6 74.2 71.8 80.8 88.9 92.0 94.7 64.3 78.1 
+
+Ours 72.5 35.4 82.6 73.1 81.3 89.7 95.2 95.1 65.9 80.2 ViT-B/16 Base 73.1 38.8 77.4 77.1 86.7 92.0 95.6 95.3 67.7 81.3 
+
+Ours 75.1 44.2 84.1 78.2 86.8 93.4 97.3 95.8 69.6 83.9 ViT-L/14 Base 78.5 53.0 78.9 86.5 92.3 94.5 97.6 97.2 72.0 86.2 
+
+Ours 79.5 57.0 83.6 94.3 90.7 94.6 98.2 97.7 76.0 86.9 
+
+## S7 . Ablation of Multi-Scale Patch Hierarchy Granularity 
+
+We conduct an ablation study on the visual granularity of the Graph Teacher by varying the number and combina-tion of multi-scale patches provided as input nodes (Table S5). This analysis validates the optimal configuration for capturing both fine-grained details and global context neces-sary for robust asymmetric supervision. The results confirm that the performance of the graph-guided approach is sen-sitive to the diversity of input views, with the established 18-Node MultiScale configuration yielding the best overall performance. This configuration is composed of a hetero-geneous set of views: the global image, a 2 × 2 grid (4 patches), a 3 × 3 grid (9 patches), and vertical/horizontal 7Figure S6. Accuracy vs. Efficiency Trade-off (8-Shot Average). We compare the total inference cost (GFLOPs) against average few-shot accuracy across 10 benchmark datasets. Our method demonstrates strong scaling efficiency : while the transition from ViT-B/16 to ViT-L/14 incurs higher computational cost (due to the larger backbone resolution and depth), it yields a massive +5.1% performance gain , reaching a state-of-the-art average accuracy of 85.9%. This highlights that our GNN-based adaptation module effectively leverages the capacity of stronger backbones without hitting a saturation point. Table S3. Efficiency Analysis. We report GFLOPs (billions) and Parameters (millions) for the Backbone, our GNN module, and the Cache Adapter. Note that our GNN introduces marginal overhead compared to the backbone. 
+
+Backbone Res. Dim Backbone GNN (Ours) Cache GFLOPs Param GFLOPs Param GFLOPs Param 
+
+RN101 224 512 19.6 56.3 4.5 13.5 0.02 8.2 ViT-B/32 224 512 8.7 87.9 4.5 13.5 0.02 8.2 ViT-B/16 224 512 33.7 86.2 4.5 13.5 0.02 8.2 ViT-L/14 224 768 155.7 304.0 10.2 30.4 0.03 12.3 
+
+Table S4. Hyperparameter Optimization Space. Optimization parameters are tuned on the validation set to adapt to domain gran-ularity and shot availability.                          
+
+> Hyperparameter Symbol Search Range Scale
+> Learning Rate η[10 −5,5×10 −2]Log-Uniform Contrastive Weight λcon [0 .1,1.0] Uniform Graph Logit Scale γ[0 .1,5.0] Uniform Focal Loss Gamma γf ocal [0 .5,3.0] Uniform Tip-Adapter Alpha α[1 .0,10 .0] Uniform
+
+halves (4 patches). For the Caltech dataset, increasing the node count beyond the optimal 18 (e.g., to 21 or 30 nodes) leads to marginal performance degradation across all shot settings. The lowest performance is observed when using extremely fine-grained granularity, such as the 30 -node setup (Global +2 × 2 + 3 × 3 + 4 × 4 grids), which introduces additional visual noise or redundancy in the patches, slightly reducing accuracy in the 1-shot and 16 -shot regimes.On the EuroSAT dataset, which demands reasoning over complex, heterogeneous scales, the performance variance is more pro-nounced. While the 18 -node configuration achieves the highest accuracy in 1-shot ( 67 .4% ), 8-shot ( 84 .1% ), and 16 -shot ( 89 .4%), the addition of a 4 × 4 grid (in the 21 -node configuration) offers competitive performance at 2-shot and 
+
+4-shot. This suggests that while fine-grained grids are bene-ficial for distinguishing certain local textures, the inclusion of intermediate-scale splits (halves in the 18-node setup) 8Figure S7. Efficiency Profile: Inference vs. Training. Left: Breakdown of inference computational cost (GFLOPs). Our method (GNN + Cache) introduces only marginal overhead compared to the pre-trained backbone, scaling efficiently to larger models (e.g., only +6.1% overhead for ViT-L/14). Right: Analysis of trainable parameters. By keeping the massive backbone frozen (grey), our approach requires optimizing only a lightweight set of parameters ( ∼21M–43M) for the GNN and Adapter, significantly reducing training memory and time costs compared to full fine-tuning. 
+
+is more effective for maintaining larger semantic structure, particularly important for complex satellite imagery.This ab-lation demonstrates that a judicious balance of multi-scale views is crucial, confirming that our 18 -node MultiScale strategy provides the most comprehensive feature represen-tation for knowledge distillation by avoiding the inherent trade-offs associated with single, fixed-scale grid strategies. 
+
+## S8 . Comparision between Cache and Graph model 
+
+Quantitative comparisons between the Baseline (Tip-Adapter) and our Graph-Refined model on Caltech-101 are presented in Figure S9. Each example includes the ground-truth label, the input image, and the top-5 predicted classes with their corresponding confidence scores. The baseline often exhibits uncertainty or produces incorrect top-1 predictions, while our method consistently yields cor-rect and higher-confidence outputs. In the first and third examples, the baseline misclassifies the input, whereas the graph-refined model correctly identifies the target category with a clear confidence margin. In the second and fourth examples, although the baseline selects the correct class, its probability mass remains distributed across competing categories; our approach suppresses these distractors and concentrates the distribution on the correct label. These re-sults highlight the effectiveness of incorporating inter-class relationships through graph propagation, leading to more stable and discriminative predictions, particularly in chal-lenging or ambiguous cases. 
+
+> Table S5. Few-shot classification accuracy (in %) for the model across varying numbers of Nodes (rows) and Shots per class (columns) on the Caltech and EuroSAT datasets.
+
+Nodes 1-Shot 2-Shot 4-Shot 8-Shot 16-Shot 
+
+Caltech101 
+
+5 94.0 94.7 95.7 95.7 96.0 9 94.0 94.7 95.6 95.7 96.0 14 94.1 94.7 95.6 95.7 96.1 
+
+18 94.3 95.0 95.7 95.8 96.3 
+
+21 94.1 94.8 95.6 95.7 96.2 30 93.8 94.9 95.6 95.6 96.0 
+
+EuroSAT 
+
+5 64.5 72.6 79.6 83.6 88.4 9 66.2 73.5 79.4 81.8 86.2 14 62.6 74.7 76.9 81.2 86.8 
+
+18 67.4 74.9 80.3 84.1 89.4 
+
+21 66.8 75.3 81.1 83.0 88.5 30 65.4 72.6 77.0 83.0 88.6 9(a) Comprehensive Sensitivity Trends. LOWESS smoothed curves show the impact of hyperparameters across 6 datasets. Note the varying slopes for λcon 
+
+depending on shot count. 
+
+(b) Landscape Evolution. We compare the optimization landscape ( γ vs. λcon ) across different shots and domains. High-shot settings (e.g., Flowers 16-shot) and distinct domains (Eurosat) exhibit different optimality regions compared to low-shot natural images. 
+
+Figure S8. Hyperparameter Sensitivity Analysis. We visualize the impact of key hyperparameters on test accuracy, highlighting the necessity of our validation-based tuning protocol. 
+
+10 Figure S9. Quantitative comparison between the Baseline (Tip-Adapter) and Ours (Graph Refined) models on four test examples from the Caltech-101 dataset. Each panel displays the ground truth (GT) label, the input image, and the top-5 classifications with their associated probabilities. Green bars denote the correct class, while red bars indicate an incorrect top-1 prediction. The results demonstrate that the graph-based method corrects the baseline’s misclassifications (e.g., in the first and third panels) and significantly improves confidence in correct predictions (e.g., in the second panel). 
+
+11 S9. Additional Ablation Studies 
+
+> Table S6. Impact of Text Nodes in MGT.
+
+Configuration 1 Shot 2 Shot 4 Shot 8 Shot 16 Shot 
+
+EuroSAT 
+
+w/o Text 64.6 70.5 75.5 79.8 84.2 w/ Text 67.4 74.9 80.3 84.1 89.4 
+
+Caltech101 
+
+w/o Text 93.6 93.6 95.1 95.2 95.7 w/ Text 94.3 95.0 95.7 95.8 96.3 
+
+Food101 
+
+w/o Text 85.8 86.1 86.3 86.3 87.1 w/ Text 86.2 86.5 86.7 86.8 87.5                                             
+
+> Table S7. Comparison of MGT vs. Transformer architectures across different datasets and shot configurations.
+> MGT Trans 1 Shot 2 Shot 4 Shot 8 Shot 16 Shot
+> EuroSAT
+> ✗✓62.9 72.1 77.4 80.8 87.5
+> ✓✗67.4 74.9 80.3 84.1 89.4
+> Aircraft
+> ✗✓27.4 31.6 34.9 41.5 45.7
+> ✓✗31.0 34.8 38.3 44.2 48.4
+> UCF101
+> ✗✓71.8 74.6 78.3 80.2 80.5
+> ✓✗74.5 77.9 81.7 83.9 84.9
+
+Impact of Text Nodes in Graph Topology. We evaluate the contribution of text embeddings as structural nodes in Table S6. A baseline (“w/o Text”) constructs a visual-only graph can aggregate patch features but lacks semantic guid-ance during the reasoning process. This is insufficient for disentangling complex spectral signatures, as seen on Eu-roSAT. Our proposed method (“w/ Text”) explicitly incor-porates text nodes, enabling visual features to attend to and align with high-level semantic concepts layer-by-layer. This “steers” the visual representation toward the correct prototype before the final classification stage. The importance of this mechanism is validated by the substantial and widening per-formance gap at higher shots, indicating that this semantic guidance remains critical even as visual data increases. 
+
+Ablation on Architecture: MGT vs. Standard Trans-former. As detailed in Table S7, we evaluate the few-shot generalization capabilities of our proposed MGT architecture against a standard Transformer baseline across three diverse visual domains: remote sensing (EuroSAT), fine-grained object classification (Aircraft), and video action recogni-tion (UCF101). The empirical results demonstrate that the MGT consistently outpaces the standard Transformer across all shot configurations ( K ∈ { 1, 2, 4, 8, 16 }). Notably, the MGT architecture exhibits pronounced sample efficiency in highly constrained data regimes, yielding substantial abso-lute performance gains of +4.5% on EuroSAT and +3.6% on FGVC-Aircraft under the extreme 1-shot setting. This consistent performance advantage across distinct modalities and varying data availability highlights the superior feature representation and robustness of the MGT framework when compared to traditional Transformer counterparts. 12

@@ -1,0 +1,429 @@
+Title: TacLoc: Global Tactile Localization on Objects from a Registration Perspective
+
+URL Source: https://arxiv.org/pdf/2603.10565v1
+
+Published Time: Thu, 12 Mar 2026 00:53:20 GMT
+
+Number of Pages: 8
+
+Markdown Content:
+# TacLoc: Global Tactile Localization on Objects from a Registration Perspective 
+
+Zirui Zhang, Boyang Zhang, Fumin Zhang and Huan Yin 
+
+Abstract — Pose estimation is essential for robotic manipu-lation, particularly when visual perception is occluded during gripper-object interactions. Existing tactile-based methods gen-erally rely on tactile simulation or pre-trained models, which limits their generalizability and efficiency. In this study, we propose TacLoc, a novel tactile localization framework that for-mulates the problem as a one-shot point cloud registration task. TacLoc introduces a graph-theoretic partial-to-full registration method, leveraging dense point clouds and surface normals from tactile sensing for efficient and accurate pose estimation. Without requiring rendered data or pre-trained models, TacLoc achieves improved performance through normal-guided graph pruning and a hypothesis-and-verification pipeline. TacLoc is evaluated extensively on the YCB dataset. We further demon-strate TacLoc on real-world objects across two different visual-tactile sensors. 
+
+I. I NTRODUCTION 
+
+Global pose estimation is fundamental to robotic auton-omy. For mobile robots, global localization methods enable pose estimation from scratch on a known map [1]. For robotic manipulators, global pose estimation involves determining the pose of the object relative to the robot base, which is critical for ensuring the success of subsequent manipulation tasks. When the end effector is in contact with an object, the object pose can be decomposed as: 
+
+Tobj base = Tee base · Tobj ee (1) where Tobj base ∈ SE(3) denotes the object pose in the robot base frame, Tee base is the end-effector pose in the base frame, readily available through forward kinematics of the manip-ulator, and Tobj ee represents the object pose expressed in the end-effector frame. Since Tee base is known, the core problem reduces to estimating Tobj ee from sensory measurements at the end effector. During manipulation, however, the interactions between the end effector and the object easily occlude visual per-ception, making tactile sensing an increasingly popular modality for contact-based pose estimation. Tactile-based global localization thus focuses on estimating Tobj ee from the first touch. Existing studies [2]–[4] typically involve rendering tactile data onto the object model and computing the similarity with real sensing, which essentially serves as a tactile measurement model for estimating the pose distri-bution. This distribution is then incorporated into a Monte Carlo localization (MCL) framework [3] or used for precise matching [4]. However, these methods rely on well-trained networks for codebook building [3] and rendering [4], which limits their generalization to different types of tactile sensors or new objects. The efficiency of similarity computation is Real Scene  Zoomed View       
+
+> Tactile Image
+> TacLoc
+> CAD Model as Prior
+> 2.55 cm
+> Fig. 1. Real-world demonstration using TacLoc. A GelSight Mini sensor touches a textureless 3D-printed object (left), producing a tactile image that is converted into a dense point cloud and registered to a prior CAD model (right). The zoomed view shows the tactile point cloud (blue) aligned on the CAD model (red).
+
+influenced by the discretization resolution of the se (3) space. Furthermore, sequential-based estimation might fail if the finger loses contact with the object. One-shot global localization enables direct pose estimation on a given map without sequential filtering in the mobile robotics community [5], [6], i.e., aligning partial measure-ments to the full map via global matching, without the similarity comparison. Inspired by this, we aim to answer the question: Is it feasible to achieve one-shot global localization for contact-based tactile sensing? If so, how can it be done? Compared to field-level matching for mobile robots, there are two practical challenges for in-hand tactile-based localization: 1) the tactile sensing is fundamentally different from the object model (CAD); 2) deviations between as-designed models and as-is objects introduce challenges in pose estimation. In this study, we propose a novel registration method for global tactile localization, named TacLoc 1, to mitigate the impact of the above challenges. Overall, the novelties and contributions can be summarized as follows:  
+
+> •
+
+We explore the feasibility of tactile pose estimation from a point cloud registration perspective, different from relying on rendering or pre-trained models as in existing methods.  
+
+> •
+
+We design a graph-theoretic partial-to-full registration method for global tactile localization. This reduces the number of edges and computation time by approxi-mately 52% and 93% , respectively.  
+
+> 1Code and data are released at https://anonymous.4open.science/r/Dev-TacLoc-2257.
+> arXiv:2603.10565v1 [cs.RO] 11 Mar 2026 •
+
+TacLoc is successfully deployed on three different visual-tactile sensors: DIGIT, GelSight, and Daimon. We conduct in-depth analyses on simulated YCB datasets and test TacLoc on 5 real-world household objects, achieving a success rate of 33/50. II. R ELATED WORK 
+
+We first discuss the related work on tactile-based localiza-tion. Following this, we review recent trends in point cloud registration. 
+
+A. Tactile Pose Estimation 
+
+Visual-tactile sensors typically provide 2D images on fingers [7], [8]. Early work [9] performed 3 degrees of freedom (DoF) pose estimation by utilizing visual keypoints and applying RANSAC for correspondence estimation, fol-lowing a typical image matching pipeline. 2D occupancy grid map has also been a basic representation for tactile localization [10]. Robotic manipulation tasks are generally conducted in 
+
+SE(3) space, requiring 6 DoF object pose estimation relative to the end effector. Image-to-3D conversion is achieved by recovering depth maps from tactile images [7]. In the robotics community, MCL has emerged as a powerful Bayesian framework for pose estimation at the back end. Petrovskaya and Khatib [2] incorporated MCL for global tactile localiza-tion, demonstrating its applicability on five common objects. Specifically, the object model provides expected contact geometries for building an analytical measurement model, i.e., predicting what the object surface should feel like under various touch configurations. Suresh et al. [3] leveraged a measurement model based on a tactile code network learned from tactile simulation. This model is adapted from LiDAR place recognition [11]. In the work by Bauza et al. [4], 2D contact shapes are rendered via simulation and compared with real tactile images to compute the pose distribution. Ota 
+
+et al. [12] further enhanced particle filtering with an active action-planning strategy, enabling the robot to minimize observation time while efficiently identifying and localizing the peg part in assembly tasks. The key aspect of the above works is to render or simulate tactile sensing given the object. Subsequently, the rendered images are fed into convolutional neural networks (CNN) [4], [13] or point cloud networks [3] for similarity computation. In this study, the proposed TacLoc achieves tactile pose estimation through one-shot global registration, offering a different perspective compared to existing studies. Recent advances have also introduced multimodal fusion, where visual inputs provide an initial pose, and tactile sensing refines this estimate while complementing the shape of the object [14], [15]. While multiple sensors offer richer measurements, it falls outside the scope of our study. 
+
+B. Global Point Cloud Registration 
+
+Global registration estimates the relative pose between measured point clouds and a given model. It is typically clas-sified into correspondence-free and correspondence-based approaches [1]. Correspondence-free methods are applicable in pseudo-2D settings, such as the branch-and-bound (BnB) approach in [16]. Extending these methods to full 3D sce-narios significantly increases computational complexity. For correspondence-based methods, a critical component is the use of local descriptors, like Fast Point Feature Histograms (FPFH) [17], to build correspondences. While learning-based descriptors [18], [19] have shown strong performance, they require large-scale training data and face generalization chal-lenges across different modalities and environments. These challenges are further exacerbated in tactile sensing due to the lack of a well-labeled dataset. The initial correspondence set derived from descriptors often contains many outliers due to noise or repetitive struc-tures, making effective outlier rejection crucial for accurate transformation estimation. Traditional methods, such as Ran-dom Sample Consensus (RANSAC) [20], rely on consensus maximization, but their performance degrades significantly under high outlier ratios. Recent graph-theoretic pruning approaches construct a compatibility graph, where nodes represent correspondences and edges encode mutual consis-tency. Lusk et al. [21] identified the maximum clique for outlier rejection, while Yang et al. [22] relaxed the maximum clique to maximal cliques, allowing broader exploration of local consensus for more accurate pose hypotheses. Qiao 
+
+et al. [23] relaxed the compatibility graph and proposed a distrust-and-verify scheme to select the best hypotheses. This scheme leveraged both sparse features and dense point clouds for the pose verification. The proposed TacLoc is inspired by existing studies on global registration [21]–[23]. We extract FPFH descriptors from tactile-reconstructed point clouds and design a robust backend for outlier rejection. Specifically, considering the nature of tactile sensing, we introduce a normal-guided graph pruning strategy that enforces sparsity and accelerates the clique search process. The designed pipeline does not require additional training data. III. P ROBLEM FORMULATION 
+
+The global localization of mobile robots [1] involves estimating the most probable pose x ∈ SE(3) , given obser-vations z and a known map m. This estimation is typically formulated within the framework of Bayesian inference as follows: 
+
+p( x|z, m) ∝ p( z|x, m)
+
+| {z }
+
+> observation
+
+· p( x|m)
+
+| {z }
+
+> prior
+
+(2) For in-hand tactile localization, z represents tactile images captured by the sensor, while m corresponds to the object model that the robot interacts with. For the prior distribution, a common approach involves employing recursive Bayesian filtering [3]. Other approaches [4], [24] avoid explicit priors by assuming a uniform distribution over the entire SE(3) 
+
+pose space, thus performing exhaustive search. Regarding the measurement model, it can be formulated based on geometric residuals [2] or derived from place recognition results [3]. Pose        
+
+> Estimation
+> Distance
+> Consistency
+> Point Clouds
+> 3D Features
+> 3D Features
+> Point Clouds
+> Scoring &
+> Refinement
+> Normal
+> Consistency
+> Maximal
+> Cliques
+> Pose
+> Candidates
+> Clique
+> Solver
+> Visual -Tactile Images
+> Object Fig. 2. Overview of the TacLoc pipeline for one-shot global tactile localization. The process starts with feature extraction to establish initial correspondences. A compatibility graph is constructed based on distance and normal consistency, and maximal cliques are identified for pose hypothesis generation. Finally, a hypothesis-and-verification approach is applied to refine the pose estimation, achieving partial-to-full tactile localization. It is worth noting that a CAD model is indispensable as a prior map and end-effector poses are required to build submaps during sliding touch.
+
+Different from the methods above, we model the global localization problem as a one-shot localization problem, without the sequential Bayesian inference. Moreover, we formulate a tactile registration pipeline for one-shot pose estimation, guided by a hypothesis-and-verification scheme, which proceeds as follows: 
+
+p( x|z, m) = 
+
+Z
+
+p( x|θ, z, m)
+
+| {z }
+
+> verification
+
+· p( θ|z, m)
+
+| {z }
+
+> hypothesis
+
+dθ
+
+≈ 1
+
+PKk=1 wk
+
+·
+
+> K
+
+X
+
+> k=1
+
+wk · p( θk) (3) in which we approximate the posterior via K candidate poses 
+
+{θk}Kk=1 and its corresponding weight term wk, i.e., the multiple hypotheses and their confidences. More specifically, the term θk is a transformation matrix Tk ∈ SE(3) in prac-tice; the weight term is estimated in the verification phase. In the proposed TacLoc, the candidate with the maximum likelihood is selected as the final result. More details of the TacLoc are presented in the following section. IV. M ETHODOLOGY 
+
+We introduce TacLoc by following the pose estimation pipeline, which encompasses both front-end processing and back-end estimation. The front end begins with the raw data obtained from the sensor, while the back end concludes with the pose estimation relative to the object frame. 
+
+A. From Raw Data to Initial Correspondence 
+
+For visual-tactile sensors, raw images are initially pro-cessed to recover the height map H and gradient maps 
+
+∇H = (Gx, Gy ) of the contacted surface. These maps are subsequently converted into point clouds with associ-ated normals to facilitate pose estimation. The method of recovering height maps varies depending on the tactile sensor in use. For instance, the high-resolution DIGIT sensor [8] directly recovers the height map using a fully convolutional residual network [25], and gradient maps are derived via partial differentiation of the height map. In contrast, the GelSight Mini (shown in Figure 1) estimates gradient angle maps [tan −1(Gx), tan −1(Gy )] using a fully connected neu-ral network that processes five-dimensional features: RGB illumination and XY coordinates. The height map is then computed by solving a Laplacian equation using the discrete cosine transform (DCT) [7]: 
+
+∆H = ∂2H
+
+∂x 2 + ∂2H
+
+∂y 2 = ∂Gx
+
+∂x + ∂Gy
+
+∂y (4) in which ∆ is the Laplacian operator. Generally, the height recovery involves learned regressors provided by the SDK 2.The points and their associated normals are derived element-wise using the height map and gradient maps. Given end-effector poses (e.g., obtained through forward kinematics from the manipulator), a point cloud submap can be con-structed from a sequence of measurements. Alternatively, a single-shot measurement can also be utilized for one-shot pose estimation. To ensure computational efficiency during pose estimation, voxel grid downsampling is applied to the point clouds. Keypoints are then detected using the Intrinsic Shape Signatures (ISS) [26] algorithm and are encoded using FPFH [17] for each keypoint (depicted in Figure 3). Finally, initial correspondences are established by performing Manhattan distance matching in the feature space. One might argue that learning-based keypoint and de-scriptor extraction could be a better choice. While we agree that data-driven approaches can improve front-end perfor-mance, there are two key considerations: first, there is a lack of publicly available datasets to support learning-based tactile perception, when compared to the extensive datasets available for mobile robots; second, one key contribution of this study is the implementation of the hypothesis-and-verification scheme. We will demonstrate that ISS and FPFH are simple yet effective within this framework. 
+
+B. Multiple Pose Hypotheses Generation 
+
+We first perform graph-theoretic pruning to refine the initial correspondences. Following this, we solve for maximal        
+
+> 2For example, height/depth recovery for the GelSight sensor is available at https://github.com/GelSightinc/gsrobotics Submap Voxelized
+> Map
+> Keypoints
+> &Features
+> Tactile Image Heightmap Point Cloud
+> End -Effector
+> Poses Fig. 3. For each frame captured by the tactile sensor, we first convert it into a point cloud with normals. Then we construct a submap representing either a sliding touch or multi-time retouch by integrating end-effector poses. This submap is then processed using our front-end preprocessing pipeline. Best viewed zoomed in and in color.
+
+cliques within the pruned graph to generate multiple pose hypotheses. 
+
+1) Pairwise Consistency: Given two corresponded feature points, the feature points from the target and source point clouds are denoted as Ptar = {ptar  
+
+> i
+
+∈ R3} and Psrc =
+
+{psrc  
+
+> i
+
+∈ R3}, respectively. The associated surface normals are denoted as N tar = {ntar  
+
+> i
+
+∈ R3} and N src = {nsrc  
+
+> i
+
+∈
+
+R3}, respectively. We assume that the interacted object is a rigid body , meaning that its shape and structure remain unchanged during the manipulation. Consequently, the two correspondences are considered pairwise consistent if they satisfy the following three conditions. 
+
+Distance Consistency. We set the Euclidean difference be-tween two feature points to remain within bounds δd :
+
+∥psrc  
+
+> i
+
+− psrc  
+
+> j
+
+∥ − ∥ ptar  
+
+> i
+
+− ptar  
+
+> j
+
+∥ < δ d (5) 
+
+Normal Consistency. Visual-tactile sensing is naturally dense, enabling much more precise surface normal estimation compared to other measurement modalities. We also propose that the absolute angular difference between consistent cor-respondences lies within a limited range: 
+
+∠(nsrc  
+
+> i
+
+, nsrc  
+
+> j
+
+) − ∠(ntar  
+
+> i
+
+, ntar  
+
+> j
+
+) < δ α (6) 
+
+Injective Consistency. Each source point can map to at most one target point, and each target point can also map to at most one source point: 
+
+∀ (i, j ), i ̸ = j, psrc 
+
+> i
+
+̸ = psrc  
+
+> j
+
+∧ ptar 
+
+> i
+
+̸ = ptar  
+
+> j
+
+(7) 
+
+2) Maximal Cliques: A compatibility graph is constructed based on these consistency check criteria above, where nodes represent individual correspondences and edges encode pair-wise geometric consistency. Then, maximal cliques are ex-tracted and ranked by size using a modified Bron–Kerbosch algorithm [27]. The graph operations and clique extraction are implemented using the NetworkX library [28]. A fixed number of top cliques are selected for the following pose estimation and verification. Figure 4 shows a case study of the candidate extraction pipeline. The sparse point clouds reconstructed by range sensing (e.g., laser scanners and radar) often lack sufficient density for consistent normal estimation. In contrast, the dense point clouds obtained from tactile sensors enable robust and accurate normal vector computation. This differs from the distance-only consistency check used in prior methods, such as [23]. It is worth mentioning that 3DMAC [22] also                    
+
+> (a) Initial Corr. (b) Graph Constr. (c) Clique 1 (d) Clique 2 Fig. 4. Visualization of candidate extraction pipeline with a minimal example (best viewed in color). (a) Three points in the source point cloud (blue) and three points in the target point cloud (orange), connected by six initial correspondences (gray lines). (b) The correspondences form an undirected graph G, with nodes V={ξ1,1, ξ 1,2, ξ 2,1, ξ 2,2, ξ 2,3, ξ 3,3}
+> and edges E={{ ξ1,1, ξ 2,2},{ξ1,1, ξ 3,3},{ξ1,2, ξ 2,1},{ξ2,2, ξ 3,3}, con-structed via pairwise consistency checks. (c) The first maximal clique C1=
+> {ξ1,1, ξ 2,2, ξ 3,3}. (d) The second maximal clique C2={ξ1,2, ξ 2,1}.
+
+incorporates normal consistency for graph pruning through a condition | sin ∠(nsrc  
+
+> i
+
+, nsrc  
+
+> j
+
+) − sin ∠(ntar  
+
+> i
+
+, ntar  
+
+> j
+
+)| < t α. Our approach differs fundamentally and has superiority in time cost. Specifically, while 3DMAC performs post-hoc nor-mal consistency checks, our method conducts preemptive verification, thus ensuring graph sparsity and reducing the complexity of clique extraction. 
+
+3) Pose Estimation: For each selected clique, we estimate its transformation Tk = (Rk, tk) by minimizing both point-to-point and normal-to-normal residuals. The rotation component is estimated as:            
+
+> Rk= arg min
+> Rk
+> X
+> (i,j )∈Ck
+>  ∥q′
+> j−Rkp′
+> i∥2+α·arccos 2⟨mj,Rkni⟩
+> (8)
+
+where p′ 
+
+> i
+
+and q′ 
+
+> j
+
+represent centered points from the source and target clouds, respectively; ni and mj denote their corresponding normals. The term α balances the weight between distance and normal differences; while we observe that the balancing effect is not significant because the two differences are very close. For small angular deviations, where cos ⟨mj , Rkni⟩ ≈ 1, we utilize the approximation 
+
+arccos 2⟨mj , Rkni⟩ ≈ ∥ mj − Rkni∥2, based on chordal distance scaling [29]. This formulation yields a closed-form solution for Equation 8 using the Kabsch Algorithm [30]. Please refer to the cited references for further details. The translation component is then estimated follow-ing [31]: 
+
+tk = arg min 
+
+> tk
+
+X
+
+> (i,j )∈Ck
+
+∥tk − (qj − Rkpi)∥2 (9) Finally, we generate K pose candidates based on the pruned correspondences, which are obtained from the maximal cliques used for multiple hypotheses generation. 
+
+C. Pose Verification and Refinement 
+
+We utilize a point-to-plane loss function for geometric verification and refinement. This function, which is based on spatial proximity rather than feature descriptors, is expressed as follows: 
+
+L(δRk, δ tk) = X
+
+> i
+
+⟨δRk ˆpsrc  
+
+> i
+
+− ˜qi + δtk, ˜mi⟩2 (10) TABLE I KEY PARAMETERS OF TAC LOC FOR YCB-R EG                
+
+> Module Parameters Value Feature Extraction Voxel size 1mm Radii 5mm Corr. Pruning Distance threshold/bound δd6mm Angular threshold/bound δα30 ◦
+> Pose Estimation Number of pose candidates K300
+> Weight balance α1
+
+where ˆpsrc  
+
+> i
+
+= Rkpsrc  
+
+> i
+
++ tk, ˜qi denotes the closest point to the transformed source point ˆpsrc  
+
+> i
+
+in the downsampled target cloud, and ˜mi represents the associated normal of 
+
+˜qi. The refined solution T∗ 
+
+> k
+
+= ( δR∗
+
+> k
+
+Rk, δ R∗
+
+> k
+
+tk + δt∗
+
+> k
+
+) is regarded as the hypothesis θk for clique Ck. And the weight is granted by wk = exp[ −L (δR∗
+
+> k
+
+, δ t∗
+
+> k
+
+)] . The transformations achieving lower residual errors receive higher weights, with the highest-scoring estimate selected as the final pose T∗,which corresponds to the transformation Tobj ee in Equation (1). It is worth mentioning the generation of target features and points (also referred to as the map in the field of simultaneous localization and mapping (SLAM)). In this study, we sample points based on the CAD model of the objects. Although the modalities of tactile sensing and CAD differ, the sampled points are close to the recovered tactile submaps. This similarity makes one-shot tactile localization feasible. We will validate and evaluate TacLoc in the following section. V. E XPERIMENTS 
+
+We first present the setup and results, analyze robustness and efficiency, and conclude with real-world demonstrations. 
+
+A. Set Up and Baselines 1) Datasets: Inspired by the benchmark in [3], we select a subset of ten objects from the Yale-CMU-Berkeley (YCB) dataset [32]. Using the high-fidelity simulator TACTO [33], we simulate sliding motions of 10 cm across the surface of each object using the DIGIT sensor [8]. The resulting submaps are generated under a noise-free motion model. Each object is touched ten times, with random starting points, resulting in a total of one hundred motion sequences. We refer to this dataset as the YCB-Reg dataset. The key parameters of TacLoc are shown in Table I. In addition to the simulation, we also conduct real-world evaluation on real-world objects. The introduction of real-world tests is presented in Section V-F. 
+
+2) Baseline Methods: We compare TacLoc against state-of-the-art registration methods at both the front end and back end. Specifically, the front-end comparisons involve two advanced learning-based descriptors: SpinNet [18] and DIP [19]. The back-end comparisons include three outlier pruning approaches: RANSAC [20], TEASER++ [34], and 3D MAC [22]. For front-end baselines, we use the open-source implementations, while for the back-end baselines, exhaustive parameter tuning is performed by varying the inlier thresholds.                                          
+
+> Fig. 5. Selected samples from the YCB-Reg benchmark. From left to right are ten objects from the YCB dataset [32]. Gray semi-transparent objects represent the target models, while green point clouds correspond to tactile-based point clouds using the pre-processing approach in Section IV-A. Zoomed views of these sliding samples are also presented at the bottom. TABLE II PERFORMANCE COMPARISON ON TACTILE REGISTRATION
+> Front-end Back-end RE ( ◦)TE ( mm )Time ( sec )FPFH RANSAC 128.62 99.94 1.66 FPFH TEASER++ 19.89 8.46 13.04 FPFH 3DMAC 19.07 9.54 2.06 FPFH TacLoc 0.94 0.69 1.40
+> SpinNet RANSAC 118.63 55.89 0.05 ⋆
+> SpinNet TacLoc 130.37 28.50 0.92 ⋆
+> DIP RANSAC 137.91 66.49 0.09 ⋆
+> DIP TacLoc 158.17 58.74 1.14 ⋆
+> ⋆Time measurements exclude feature extraction.
+
+B. Quantitative Results and Analyses 
+
+The quantitative results on the YCB-Reg benchmark are presented in Table II. With the FPFH front end, TacLoc outperforms other methods across RE and TE. This superior performance can be attributed to two key factors: First, the normal consistency-aided graph effectively maintains graph sparsity while preserving the geometric consistency within each clique, thereby improving the efficiency of clique ex-traction. Second, the point-to-plane approach, which unifies verification and refinement into a single equation, enhances both rotational and translational accuracy. Additionally, we vary the thresholds for the criterion of successful registration, and present the recall rate in Figure 6. The results align consistently with those shown in Table II. We observe that TacLoc does not achieve perfect registration in all cases. From the failure cases, we select two representative examples as case studies, shown in Figure 7. 
+
+C. Parameter Sensitivity Analysis 
+
+In addition to the comparisons above, we conduct an in-depth analysis of the proposed TacLoc. Specifically, we evaluate our algorithm on multiple sliding sequences with varying sliding lengths and noise levels in the end-effector pose. For each combination of sliding length and noise level, five sequences are collected using the same procedure as employed in the YCB-Reg benchmark. We first assume a noise-free end-effector pose condition while varying the sliding length on objects. Figure 8(a) presents the median pose error across all five sequences, (a) Varying Rotation Threshold (b) Varying Translation Threshold Fig. 6. Recall rate evaluated on the YCB-Reg using the FPFH descriptor for different back-end approaches under varying criterion of successful registration. The results demonstrate that the proposed TacLoc consistently achieves better performance across all tested conditions.      
+
+> (a) Adjustable Wrench (b) Sugar Box
+> Fig. 7. Failure case studies on YCB-Reg benchmark. In each subfigure, the left shows the ground truth while the right displays the misalignment. TacLoc fails in (a) due to the extremely low inlier ratio; the failure in (b) is caused by repetitive patterns in symmetric objects.
+
+along with the error range (shaded region). The results demonstrate that the pose error reduces rapidly as the slid-ing length increases, aligning with the findings reported in MidasTouch [3]. Then we vary the pose noise level and sliding length simultaneously. Figure 8(b) reports the median translation error, normalized by the object’s diagonal length. Intuitively, longer sliding sequences and more accurate end-effector poses lead to more precise results. The results highlight the robustness of TacLoc under conditions with significant noise. On the other hand, the method remains vulnerable to failure when exposed to extreme noise levels. 
+
+D. Efficacy of Normal-guided Pruning 
+
+To validate the efficiency improvements achieved through normal-guided pruning, we adjust the normal consistency threshold δα across four different values ranging from 180 ◦
+
+to 30 ◦. For each threshold setting, we conduct 100 registra-tion trials on the YCB-Reg dataset while maintaining iden-tical front-end processing pipeline that consistently selected the same 500 correspondences to construct the consistency graph. As shown in Figure 9(a), tightening δα consistently resulted in significant reductions in both edge density and the number of maximal cliques, leading to a pronounced decrease in computation time. We further visualize the data distributions for δα = 180 ◦
+
+and δα = 30 ◦ in Figure 9(b). Theoretically, maximal clique search has an exponential worst-case complexity of 
+
+O(3 n/ 3) with respect to the number of graph nodes [35]. On the other hand, after applying normal-guided pruning, our results demonstrate an approximately polynomial rela-tionship between the number of edges and computational cost. These findings indicate that normal-guided pruning effectively reduces the computational complexity of maximal     
+
+> (a) Scissors
+> (b) Power Drill
+> Fig. 8. Parameter analysis on two YCB-Reg objects. A longer sliding length enhances the performance of tactile localization, aligning with human intuition. Additionally, the accuracy of the end-effector pose is critical: a more precise end-effector pose results in a more consistent submap, thereby improving the performance of TacLoc.
+
+clique search, thereby improving the efficiency of tactile localization. 
+
+E. Computational Efficiency Analysis 
+
+We conduct a detailed per-stage computational profile to analyze the computational efficiency of TacLoc. All timing experiments were performed under CPU-serialized condi-tions on a portable computing device equipped with an Intel processor and 32GB of RAM. Figure 11 provides a statistical breakdown of time consumption across the different stages of TacLoc, revealing that FPFH-based initial correspondence and transformation verification are the most time-intensive stages. In addition, we evaluate the efficiency and effectiveness of the method under varying δd and δα in the consistency check. Theoretically, larger threshold values result in denser graph constructions, leading to longer computation times, while an increased number of incorrect correspondences introduces larger estimation errors. This analysis aligns with the conclusions drawn from Figure 10. 
+
+F. Evaluation on Real-world Objects 
+
+To validate the generalization beyond simulation, we conduct exploratory tests on household objects using the GelSight Mini sensor. As shown in Figure 12(b), we deploy TacLoc on a knife, spoon, fork, tangram, and phone case 3.                                 
+
+> 3The CAD models used can be found at https://makerworld.com (a) Graph sparsification with varying δα
+> (b) Scattered points Fig. 9. Experimental results demonstrate the efficacy of normal-guided pruning. (a) Graph density, number of cliques, and computation time decrease as δαvaries; (b) The number of edges and computation time exhibit an approximately polynomial relationship. When δαis 30 ◦or 180 ◦, the average number of edges and computation times are 7,473 .82 edges with
+> 0.20 s and 15 ,476 .75 edges with 2.87 s, respectively.
+> (a) δd(b) δα
+> Fig. 10. Rotation error and time cost with varying thresholds δdand δα.
+
+ICP [36] or NormalFlow [37] is used to obtain end-effector poses (forward kinematics is optional if a robot arm is used). Obtaining ground truth for tactile localization in the real world is challenging, so we consider the method to achieve successful localization if it produces visually plausible registrations. The overall success rate is 33/50 for the sliding touches on these five objects. We observe a higher success rate when the contact regions contain sufficient geometric features, with particularly clear alignments on objects exhibiting distinctive curvatures. One might ask how partial or incorrect CAD models impact performance. When touching missing or incorrect      
+
+> Fig. 11. Per-stage computational profile. FPFH-based initial data associa-tion and transformation verification are the most time-intensive stages. GelSight Mini
+> Daimon DM -Tac
+> (a) (b) Fig. 12. (a) TacLoc is deployed on two real-world sensors beyond the DIGIT used in YCB simulation, despite these sensors having different characteristics. The right side shows the visual-tactile images obtained from the sensors. (b) Evaluation on five real-world objects using the GelSight Mini. We perform sliding touches on the objects 50 times, and the proposed TacLoc achieves a success rate of 33/50. Note that the red object is used for the single-touch demonstration shown in Figure 1. The right side displays the successful cases, where the yellow points represent the submaps.
+
+parts, deviations between the actual tactile sensing and the designed CAD models will lead to incorrect correspondences and localization failures. Therefore, accurate CAD models are critical for tactile pose estimation. On the other hand, the proposed TacLoc could achieve tactile localization, though manufacturing defects exist in Figure 12(b). Until now, we have tested DIGIT [8] in simulation and GelSight [7] on real-world objects. Additionally, we explore deploying TacLoc using a new Daimon sensor (Figure 12). We carefully tune the sensing component (like the scale) to obtain point clouds and successfully deploy TacLoc to achieve global tactile localization. These sensors exhibit dif-ferent resolution characteristics, confirming the fundamental compatibility of proposed method across various sensing technologies. Notably, we observe that varying noise profiles and spatial resolutions can influence correspondence density, suggesting that sensor-specific tuning could further enhance performance. VI. C ONCLUSION 
+
+In this study, we design a normal-aided graph pruning-based point cloud registration method for global tactile localization. We analyze and evaluate the proposed method in both simulation and real-world experiments. We consider two promising directions for future work. First, the fusion of tactile data from multiple tactile measurements [38] could be explored to enhance the accuracy and robustness of pose estimation through collaborative perception. Second, investigating strategies for active tactile exploration [12] could enable robots to interact with specific object regions while refining pose estimation. REFERENCES [1] H. Yin, X. Xu, S. Lu, X. Chen, R. Xiong, S. Shen, C. Stachniss, and Y. Wang, “A survey on global lidar localization: Challenges, advances and open problems,” International Journal of Computer Vision , vol. 132, no. 8, pp. 3139–3171, 2024. [2] A. Petrovskaya and O. Khatib, “Global localization of objects via touch,” IEEE Transactions on Robotics , vol. 27, no. 3, pp. 569–585, 2011. [3] S. Suresh, Z. Si, S. Anderson, M. Kaess, and M. Mukadam, “Midas-touch: Monte-carlo inference over distributions across sliding touch,” in Conference on Robot Learning . PMLR, 2023, pp. 319–331. [4] M. Bauza, A. Bronars, and A. Rodriguez, “Tac2pose: Tactile object pose estimation from the first touch,” The International Journal of Robotics Research , vol. 42, no. 13, pp. 1185–1209, 2023. [5] R. Dub´ e, D. Dugas, E. Stumm, J. Nieto, R. Siegwart, and C. Cadena, “Segmatch: Segment based place recognition in 3d point clouds,” in 2017 IEEE international conference on robotics and automation (ICRA) . IEEE, 2017, pp. 5266–5272. [6] W. Ma, H. Yin, P. J. Wong, D. Wang, Y. Sun, and Z. Su, “Tripletloc: One-shot global localization using semantic triplet in urban environ-ments,” IEEE Robotics and Automation Letters , 2024. [7] W. Yuan, S. Dong, and E. H. Adelson, “Gelsight: High-resolution robot tactile sensors for estimating geometry and force,” Sensors , vol. 17, no. 12, p. 2762, 2017. [8] M. Lambeta, P.-W. Chou, S. Tian, B. Yang, B. Maloon, V. R. Most, D. Stroud, R. Santos, A. Byagowi, G. Kammerer et al. , “Digit: A novel design for a low-cost compact high-resolution tactile sensor with application to in-hand manipulation,” IEEE Robotics and Automation Letters , vol. 5, no. 3, pp. 3838–3845, 2020. [9] R. Li, R. Platt, W. Yuan, A. Ten Pas, N. Roscup, M. A. Srinivasan, and E. Adelson, “Localization and manipulation of small parts using gelsight tactile sensing,” in 2014 IEEE/RSJ International Conference on Intelligent Robots and Systems . IEEE, 2014, pp. 3988–3993. [10] Z. Pezzementi, C. Reyda, and G. D. Hager, “Object mapping, recognition, and localization from tactile geometry,” in 2011 IEEE International Conference on Robotics and Automation . IEEE, 2011, pp. 5942–5948. [11] J. Komorowski, “Minkloc3d: Point cloud based large-scale place recognition,” in Proceedings of the IEEE/CVF winter conference on applications of computer vision , 2021, pp. 1790–1799. [12] K. Ota, D. K. Jha, H.-Y. Tung, and J. B. Tenenbaum, “Tactile-filter: Interactive tactile perception for part mating,” arXiv preprint arXiv:2303.06034 , 2023. [13] M. Bauza, O. Canal, and A. Rodriguez, “Tactile mapping and local-ization from high-resolution tactile imprints,” in 2019 International Conference on Robotics and Automation (ICRA) . IEEE, 2019, pp. 3811–3817. [14] H. Li, S. Dikhale, S. Iba, and N. Jamali, “Vihope: Visuotactile in-hand object 6d pose estimation with shape completion,” IEEE Robotics and Automation Letters , vol. 8, no. 11, pp. 6963–6970, 2023. [15] J. Lee and N. Fazeli, “ViTaSCOPE: Visuo-tactile Implicit Representa-tion for In-hand Pose and Extrinsic Contact Estimation,” in Robotics: Science and Systems 2025 , 2025. [16] K. Aoki, K. Koide, S. Oishi, M. Yokozuka, A. Banno, and J. Meguro, “3d-bbs: Global localization for 3d point cloud scan matching using branch-and-bound algorithm,” in 2024 IEEE International Conference on Robotics and Automation (ICRA) . IEEE, 2024, pp. 1796–1802. [17] R. B. Rusu, N. Blodow, and M. Beetz, “Fast point feature histograms (fpfh) for 3d registration,” in 2009 IEEE international conference on robotics and automation . IEEE, 2009, pp. 3212–3217. [18] S. Ao, Q. Hu, B. Yang, A. Markham, and Y. Guo, “Spinnet: Learning a general surface descriptor for 3d point cloud registration,” in Pro-ceedings of the IEEE/CVF conference on computer vision and pattern recognition , 2021, pp. 11 753–11 762. [19] F. Poiesi and D. Boscaini, “Distinctive 3d local deep descriptors,” in 
+
+2020 25th International conference on pattern recognition (ICPR) .IEEE, 2021, pp. 5720–5727. [20] M. A. Fischler and R. C. Bolles, “Random sample consensus: a paradigm for model fitting with applications to image analysis and automated cartography,” Communications of the ACM , vol. 24, no. 6, pp. 381–395, 1981. [21] P. C. Lusk, K. Fathian, and J. P. How, “Clipper: A graph-theoretic framework for robust data association,” in 2021 IEEE International Conference on Robotics and Automation (ICRA) . IEEE, 2021, pp. 13 828–13 834. [22] J. Yang, X. Zhang, P. Wang, Y. Guo, K. Sun, Q. Wu, S. Zhang, and Y. Zhang, “Mac: Maximal cliques for 3d registration,” IEEE Transactions on Pattern Analysis and Machine Intelligence , 2024. [23] Z. Qiao, Z. Yu, B. Jiang, H. Yin, and S. Shen, “G3reg: Pyramid graph-based global registration using gaussian ellipsoid model,” IEEE Transactions on Automation Science and Engineering , vol. 22, pp. 3416–3432, 2024. [24] Y. Dou, F. Yang, Y. Liu, A. Loquercio, and A. Owens, “Tactile-augmented radiance fields,” in Proceedings of the IEEE/CVF Confer-ence on Computer Vision and Pattern Recognition , 2024, pp. 26 529– 26 539. [25] I. Laina, C. Rupprecht, V. Belagiannis, F. Tombari, and N. Navab, “Deeper depth prediction with fully convolutional residual networks,” in 2016 Fourth international conference on 3D vision (3DV) . IEEE, 2016, pp. 239–248. [26] Y. Zhong, “Intrinsic shape signatures: A shape descriptor for 3d object recognition,” in 2009 IEEE 12th international conference on computer vision workshops, ICCV Workshops . IEEE, 2009, pp. 689–696. [27] C. Bron and J. Kerbosch, “Algorithm 457: finding all cliques of an undirected graph,” Communications of the ACM , vol. 16, no. 9, pp. 575–577, 1973. [28] A. Hagberg, P. J. Swart, and D. A. Schult, “Exploring network struc-ture, dynamics, and function using networkx,” Los Alamos National Laboratory (LANL), Los Alamos, NM (United States), Tech. Rep., 2008. [29] A. Eriksson, C. Olsson, F. Kahl, and T.-J. Chin, “Rotation averaging with the chordal distance: Global minimizers and strong duality,” IEEE Transactions on Pattern Analysis and Machine Intelligence , vol. 43, no. 1, pp. 256–268, 2019. [30] W. Kabsch, “A discussion of the solution for the best rotation to relate two sets of vectors,” Foundations of Crystallography , vol. 34, no. 5, pp. 827–828, 1978. [31] Y. Liu, C. Wang, Z. Song, and M. Wang, “Efficient global point cloud registration by matching rotation invariant features through translation search,” in Proceedings of the European Conference on Computer Vision (ECCV) , 2018, pp. 448–463. [32] B. Calli, A. Singh, J. Bruce, A. Walsman, K. Konolige, S. Srini-vasa, P. Abbeel, and A. M. Dollar, “Yale-cmu-berkeley dataset for robotic manipulation research,” The International Journal of Robotics Research , vol. 36, no. 3, pp. 261–268, 2017. [33] S. Wang, M. Lambeta, P.-W. Chou, and R. Calandra, “Tacto: A fast, flexible, and open-source simulator for high-resolution vision-based tactile sensors,” IEEE Robotics and Automation Letters , vol. 7, no. 2, pp. 3930–3937, 2022. [34] H. Yang, J. Shi, and L. Carlone, “Teaser: Fast and certifiable point cloud registration,” IEEE Transactions on Robotics , vol. 37, no. 2, pp. 314–333, 2020. [35] E. Tomita, A. Tanaka, and H. Takahashi, “The worst-case time complexity for generating all maximal cliques and computational experiments,” Theoretical computer science , vol. 363, no. 1, pp. 28– 42, 2006. [36] P. J. Besl and N. D. McKay, “Method for registration of 3-d shapes,” in Sensor fusion IV: control paradigms and data structures , vol. 1611. Spie, 1992, pp. 586–606. [37] H.-J. Huang, M. Kaess, and W. Yuan, “Normalflow: Fast, robust, and accurate contact-based object 6dof pose tracking with vision-based tactile sensors,” IEEE Robotics and Automation Letters , 2024. [38] H. Yu, J. Liu, and D. Ma, “Multi-tactile sensor calibration via motion constraints with tactile measurements,” The International Journal of Robotics Research , vol. 44, no. 7, pp. 1217–1230, 2025.

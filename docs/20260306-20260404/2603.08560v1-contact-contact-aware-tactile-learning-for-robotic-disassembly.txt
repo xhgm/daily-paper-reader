@@ -1,0 +1,297 @@
+Title: CONTACT: CONtact-aware TACTile Learning for Robotic Disassembly
+
+URL Source: https://arxiv.org/pdf/2603.08560v1
+
+Published Time: Tue, 10 Mar 2026 02:43:12 GMT
+
+Number of Pages: 9
+
+Markdown Content:
+# CONTACT: CONtact-aware TACTile Learning for Robotic Disassembly 
+
+Yosuke Saka ∗, Jyun-Chi Hu ∗, Adeesh Desai ∗, Zhiyuan Zhang ∗, Bihao Zhang, Quan Khanh Luu, Md Rakibul Islam Prince, Minghui Zheng, Yu She †
+
+Abstract — Robotic disassembly involves contact-rich inter-actions in which successful manipulation depends not only on geometric alignment but also on force-dependent state transitions. While vision-based policies perform well in struc-tured settings, their reliability often degrades in tight-tolerance, contact-dominated, or deformable scenarios. In this work, we systematically investigate the role of tactile sensing in robotic disassembly through both simulation and real-world experiments. We construct five rigid-body disassembly tasks in simulation with increasing geometric constraints and extraction difficulty. We further design five real-world tasks, including three rigid and two deformable scenarios, to evaluate contact-dependent manipulation. Within a unified learning framework, we compare three sensing configurations: Vision Only, Vision + tactile RGB (TacRGB), and Vision + tactile force field (TacFF). Across both simulation and real-world experiments, TacFF-based policies consistently achieve the highest success rates, with particularly notable gains in contact-dependent and deformable settings. Notably, naive fusion of TacRGB and TacFF underperforms either modality alone, indicating that simple concatenation can dilute task-relevant force information. Our results show that tactile sensing plays a critical, task-dependent role in robotic disassembly, with structured force-field representations being particularly effective in contact-dominated scenarios. 
+
+I. INTRODUCTION Robotic disassembly is a critical capability for recycling, maintenance, and remanufacturing. Robotic disassembly is a critical capability for recycling, maintenance, and reman-ufacturing. Unlike many pick-and-place tasks that primarily rely on free-space motion and geometric positioning, disas-sembly often requires breaking existing contact constraints, overcoming frictional resistance, and disengaging interlock-ing geometries. Successful execution therefore depends not only on geometric alignment but also on detecting force-dependent state transitions. These characteristics make dis-assembly fundamentally sensitive to contact transitions and force modulation. Classical model-based approaches have achieved success in structured insertion tasks such as peg-in-hole assembly [1], [2], but rely on accurate modeling of geometry and contact conditions. In real-world disassembly 
+
+This work was partially supported by the United States Department of Agriculture (USDA) under Grant Nos. 2023-67021-39072 and 2024-67021-42878, and by the National Science Foundation (NSF) under Grant Nos. 2423068 and 2520136. 
+
+> ∗
+
+These authors contributed equally. †Corresponding author. Yosuke, Jyun-Chi, Adeesh, Zhiyuan, Quan, Prince, and Yu are with the Department of Industrial Engineering, Purdue University, West Lafayette, IN 47907, USA {ysaka, hu1148, desai274, zhan5570, luu15, prince26, shey }@purdue.edu 
+
+Bihao and Minghui are with the Department of Mechanical Engineering, Texas A&M University, College Station, TX 77843, USA {bhzhang, mhzheng }@tamu.edu Success Rates (%)  Simulation Real-World  
+
+> 60.5 61.2 65.0 52.0 37.0 68.0
+
+TacRGB TacFF Vision (Front) Vision (Wrist) Modalities  Design 
+
+Fig. 1. Structured task design and multimodal evaluation for robotic disassembly. Representative tasks span increasing contact complexity. We compare three sensing configurations: Vision Only, Vision + tactile RGB images (TacRGB), and Vision + tactile force-field representations (TacFF). Across both simulation and real-world experiments, TacFF achieves the highest overall success rates, highlighting the importance of structured force encoding in contact-rich and deformable disassembly. 
+
+scenarios, objects exhibit significant variations in geometry, wear conditions, and material properties [3], limiting the robustness of purely analytical methods. Recent advances in learning-based policies have demon-strated strong performance in structured manipulation tasks [4]–[11]. Among these approaches, reinforcement learning (RL) has been applied to force-sensitive disassem-bly behaviors such as twist-pull operations [12], enabling robots to learn complex contact interactions through trial and error [13], [14]. However, RL-based methods are often sen-sitive to contact dynamics and reward design, and typically require extensive domain randomization or shaping to gener-alize across variations in geometry and resistance, which are common in real-world disassembly scenarios [15]. Diffusion-based policies model action generation as a denoising process conditioned on observations, enabling flexible multi-modal conditioning [5], [6]. These approaches have recently been extended to disassembly tasks, including compliant object prying and language-guided manipulation [16], [17]. Despite these advances, most existing systems rely predominantly on vision. While high-capacity visual en-                 
+
+> arXiv:2603.08560v1 [cs.RO] 9 Mar 2026 ①Pinch ②
+> Original Disassembled Edge Original Disassembled Original Disassembled Edge Hook
+> ①Pinch ②
+> Original Disassembled
+> ①
+> (a) Task S1/R1
+> Original Disassembled
+> ①
+> Tight
+> (b) Task S2/R2 (c) Task S3 (d) Task S4
+> Original Disassembled Lid
+> ②①Slide Original Disassembled
+> ①Slide
+> ②
+> Barb (Flat) Original Disassembled
+> ①Slide
+> ②
+> (e) Task S5 (f) Task R3 (g) Task R4 (h) Task R5
+> Lid
+> ②①Slide Barb (Spike) Fig. 2. Object geometries and interaction primitives of simulation and real-world disassembly tasks. Each task consists of an initial (Original) and goal (Disassembled) configuration. S1/R1 and S2/R2 share identical shapes. S3/R3 are similar but exhibit minor geometric differences (S3 is larger than R3). S4–S5 (simulation) and R4–R5 (real-world) represent distinct tasks without direct correspondence. The tasks involve diverse interaction modes including pulling, sliding, and pinching disengagement.
+
+coders [18]–[21] and large-scale demonstration datasets [22], [23] often make vision-only policies appear sufficient, visual observations alone may fail to capture subtle force interac-tions and contact transitions in contact-rich scenarios [24]– [26]. In disassembly tasks where resistance changes, tight tol-erances, or deformable releases are present, these unobserved contact dynamics can critically affect policy robustness. Tactile sensing has therefore emerged as a complemen-tary modality for contact-dominated manipulation [27]–[33]. Recent work has integrated tactile feedback into learning-based policies [24], [34], demonstrating improved robustness in force-sensitive tasks. However, tactile observations can be represented in multiple forms, ranging from high-resolution deformation images to compact force-field encodings [35], [36]. While these representations have shown promise in general manipulation settings, their relative advantages in structured robotic disassembly remain under-explored. In this work, we systematically investigate the role of tactile sensing in robotic disassembly by addressing two central questions: 1. When does tactile sensing significantly improve perfor-mance over vision alone? 2. Which tactile representation is most effective for contact-rich disassembly? To answer these questions, we design a structured evalua-tion framework spanning both simulation and real-world set-tings. In simulation, we construct five rigid-body disassembly tasks with progressively increasing geometric constraints and contact dependencies under controlled physical assumptions. In the real world, we introduce five additional tasks, in-cluding deformable mechanisms that require compliance-dependent release and precise force modulation. This pro-gression, from loose extraction to tight tolerances, interlock-ing constraints, and deformable release, enables systematic analysis of sensing modalities across increasing contact complexity. Within a unified policy learning framework, we evaluate three sensing configurations: Vision Only, Vision + tactile RGB images (TacRGB), and Vision + tactile force-field representations (TacFF). By training policies under identical conditions, we directly compare modality effects across tasks in both simulation and real-world experiments. Our results reveal a clear task-dependent pattern. In geometry-dominant scenarios, vision-only policies perform competitively. As constraints tighten or deformable interac-tions are introduced, TacFF consistently improves robustness in both simulation and real-world experiments. Notably, naive fusion of TacRGB and TacFF does not yield further gains, suggesting that structured force representations, rather than increased observation dimensionality, are critical for contact-dominated disassembly. In summary, this work makes three main contributions: 1. We introduce a structured set of disassembly task suites spanning rigid and deformable interactions with progres-sively increasing contact complexity. 2. We provide a systematic comparison of visual and tactile representations under a unified policy framework across simulation and real-world settings. 3. We identify task-dependent modality effects, showing that compact force-field representations outperform high-dimensional tactile imagery in contact-dominated disassem-bly, and that naive multimodal fusion can even degrade performance. II. S TRUCTURED DISASSEMBLY TASKS AND 
+
+MULTIMODAL POLICY LEARNING 
+
+A. Disassembly Task Suite 
+
+Disassembly tasks inherently involve contact-rich inter-actions, geometric constraints, and force-dependent state transitions. To systematically evaluate the contribution of tactile sensing under varying physical conditions, we design both simulation and real-world task sets with progressively increasing physical complexity. The simulation tasks involve only rigid-body interactions, while the real-world tasks in-corporate deformable components and compliance-induced contact dynamics beyond rigid-body modeling. These struc-tured simulation and real-world task suites form a unified evaluation framework spanning rigid extraction, tolerance-sensitive insertion, asymmetric resistance, multi-stage re-lease, and deformable interactions. 
+
+1) Simulation Tasks: In simulation, we construct five rigid-body disassembly tasks (S1–S5) under controlled phys-ical assumptions. Deformable geometries, material com-pliance, and deformation-induced contact-state transitions are not modeled. Instead, each task isolates key structural aspects of disassembly, such as extraction tolerance and staged release, within a fully observable and deterministic setting. The simulation environment enables precise control of geometric alignment, allowing us to evaluate policy be-havior in geometry-dominant scenarios without additional uncertainties from deformable objects or unmodeled contact dynamics. The object geometries are shown in Fig. 2(a)–(e). Al-though all tasks involve rigid components, they progressively increase in geometric and interaction complexity:  
+
+> •
+
+S1 (Vertical Pull, Loose Socket): A simple extraction task with generous clearance, primarily evaluating geo-metric alignment and grasp stability.  
+
+> •
+
+S2 (Vertical Pull, Tight Socket): Reduced tolerance compared to S1, requiring more precise alignment and friction-aware force control.  
+
+> •
+
+S3 (Loose Plug with Lid): A multi-stage task where the agent must first disengage a lid-like constraint before completing extraction. The object is slightly enlarged relative to its real-world counterpart to simplify grasp acquisition.  
+
+> •
+
+S4 (Vertical Pull, Flat Barb): Introduces directional resistance through a flat barb structure, creating asym-metric contact forces during extraction.  
+
+> •
+
+S5 (Vertical Pull, Spike Barb): Incorporates a spike-shaped barb that requires careful motion to avoid colli-sion during extraction. Together, S1–S5 span increasing levels of geometric con-straint and resistance asymmetry while remaining within rigid-body assumptions, forming a controlled setting for evaluating modality contributions in simplified disassembly scenarios. 
+
+2) Real-World Tasks: To evaluate policy performance under physically richer and less controlled conditions, we design five real-world disassembly tasks (R1–R5). Compared to the simulation setting, these tasks incorporate friction variability and selectively include deformable components that introduce compliance-induced contact-state transitions. The real-world object geometries are shown in Fig. 2(a), (b), and (f)–(h). Tasks R1 and R2 share identical geometries with S1 and S2, respectively. Task R3 is structurally similar to S3, although the simulation version is slightly enlarged to simplify grasp acquisition. The five real-world tasks progressively increase in physical interaction complexity:  
+
+> •
+
+R1 (Vertical Pull, Loose Socket): Rigid-body extrac-tion with sufficient clearance.  
+
+> •
+
+R2 (Vertical Pull, Tight Socket): Tight extraction requiring friction-aware force control and precise align-ment under realistic contact variability.  
+
+> •
+
+R3 (Loose Plug with Lid): A multi-stage rigid-body task requiring sustained contact and sequential disen-gagement.  
+
+> •
+
+R4 (Vertical Push Tab): A deformable tab that must be compressed prior to release, introducing compliance-dependent state transitions.  
+
+> •
+
+R5 (Vertical Clip): An elastic clip mechanism requiring controlled deformation and localized force application to disengage a hook. Unlike the purely rigid simulation setting, R4 and R5 in-troduce deformable structures in which successful manip-ulation depends on detecting subtle contact-state changes and force redistribution. These tasks particularly highlight the importance of tactile sensing for capturing compliance effects and incipient release events that are difficult to infer from vision alone. Together, R1–R5 extend the controlled simulation tasks toward realistic physical variability, enabling systematic analysis of modality contributions across rigid and deformable interaction regimes. 
+
+B. Multimodal Observations 
+
+Our system integrates visual and tactile sensing to capture complementary information during disassembly. Visual input is provided by a front-view camera for global context and a wrist-mounted camera for local gripper observations. Tactile sensing is obtained from a GelSight sensor mounted on the end-effector. We represent the tactile signal in two complementary forms. TacRGB preserves high-resolution surface deforma-tion images. TacFF encodes a compact force-field represen-tation computed from optical flow and depth reconstruction, consisting of spatially distributed shear components and normal force over a grid. In TacFF, arrow direction and length represent shear direction and magnitude, while color (green to red) indicates increasing normal force. Fig. 3 illustrates the temporal evolution of multimodal observations during disassembly, comparing simulation (left) and real-world execution (right). Despite different physical regimes, both exhibit consistent force-dependent tactile pat-terns. Prior to contact, tactile signals remain near zero. Upon grasp, localized normal forces and directional shear emerge. During sliding and pulling, shear patterns redistribute across the contact surface, reflecting evolving contact constraints. Start Align Grasp Pull Release Time 
+
+Start Align Grasp Slide Pull 
+
+Simulation Front Wrist TacFF TacRGB Real-World Fig. 3. Comparison of multimodal observations over time in simulation (left) and real-world (right) disassembly. Columns denote task stages, and rows correspond to the front view, wrist view, TacFF, and TacRGB. TacFF visualizes distributed shear (arrow length) and normal force (color, green to red), highlighting contact-state evolution during manipulation. All modalities are recorded at 10 Hz. (a) Centered grasp (b) Tilted/Corner grasp 
+
+Fig. 4. Visual ambiguity versus tactile disambiguation during grasp in Task R5. Despite similar RGB appearance due to low contrast and self-occlusion, TacRGB and TacFF clearly reveal grasp quality: corner or tilted contacts produce localized indentation in TacRGB and concentrated shear patterns in TacFF. 
+
+These structured force patterns directly encode contact-state transitions that are not explicitly visible in RGB images. Despite rich visual input, grasp quality can remain am-biguous due to low contrast and self-occlusion. As shown in Fig. 4, a centered grasp and a tilted corner grasp appear visually similar. However, tactile sensing reveals clear dif-ferences: TacRGB shows localized indentation, and TacFF exhibits asymmetric shear concentration in the tilted case. This demonstrates the importance of tactile feedback for resolving contact conditions in disassembly. 
+
+C. Vision–Tactile Policy Learning 
+
+We build upon the Diffusion Policy [5] framework and extend it to incorporate multimodal visuotactile observations. Front Wrist Robot State TacRGB TacFF ResNet-18 ResNet-18 ResNet-18 ResNet-18 1D U-Net CConcatenate *Dashed: optional modalities Noisy Action Clean Action Diffusion Step 𝑘   
+
+> After 𝑘 steps
+
+Fig. 5. Overview of the visuotactile policy learning pipeline. The policy conditions on a two-step observation history consisting of front- and wrist-view RGB images, the end-effector pose, and optional tactile inputs (TacRGB or TacFF; dashed). Encoded features are concatenated at node C (feature concatenation) and fed into a 1D U-Net–based diffusion model, which iteratively denoises action sequences to produce clean action chunks for execution. 
+
+The resulting policy is trained via supervised imitation learning. As illustrated in Fig. 5, the policy conditions on a two-step observation history Ot = {Ot−1, O t}. At time t, the multimodal observation is defined as 
+
+Ot = {Ifront  
+
+> t
+
+, I wrist  
+
+> t
+
+, I tac  
+
+> t
+
+, I ff  
+
+> t
+
+, pt},
+
+where Ifront  
+
+> t
+
+, I wrist  
+
+> t
+
+∈ R3×240 ×320 denote RGB images cap-tured by the front-view and wrist-mounted cameras, Itac  
+
+> t
+
+∈
+
+R3×240 ×160 is the TacRGB image, Iff  
+
+> t
+
+∈ R3×10 ×14 repre-sents the TacFF, and pt ∈ R7 denotes the end-effector state, consisting of 3D position and 4D quaternion orientation. Each image-like modality is encoded using a ResNet-18 backbone, producing feature embeddings zfront  
+
+> t
+
+, zwrist  
+
+> t
+
+, ztac  
+
+> t
+
+,and zff  
+
+> t
+
+. To incorporate temporal context, features from the two-step history {t − 1, t } are concatenated along the feature dimension. The end-effector pose history is appended to form the fused conditioning embedding: 
+
+z = Concat 
+
+
+
+zfront 
+
+> t−1: t
+
+, zwrist 
+
+> t−1: t
+
+, ztac 
+
+> t−1: t
+
+, zff 
+
+> t−1: t
+
+, pt−1: t
+
+
+
+.
+
+Tactile features are included according to the selected sensing configuration. For controlled comparison, we train separate policies under three settings: (i) Vision Only, (ii) Vision + TacRGB, and (iii) Vision + TacFF. Since the disassembly tasks primarily involve vertical pulling motions, the action space is restricted to 3D transla-tion and yaw rotation. Each action is defined as a 5D relative command consisting of position increments (∆ x, ∆y, ∆z),a rotation increment about the world-frame z-axis ∆θz , and a gripper command g.Given the conditioning embedding z, a 1D U-Net param-eterizes the denoising network of the diffusion model to generate an action sequence at:t+H−1 ∈ RH×5 with horizon 
+
+H = 16 . At inference time, DDIM sampling with K = 10 
+
+denoising steps produces an action chunk, of which only the first 8 actions are executed before replanning. III. EXPERIMENTS 
+
+A. Experimental Setup 
+
+We evaluate our approach in both simulation and real-world settings under a unified sensing and policy framework. At each control step, the policy receives multimodal obser-vations consisting of front and wrist RGB images, tactile sensing (TacRGB and TacFF), and the end-effector state. All RGB images are resized to 240 × 320 , while TacRGB is cropped to 240 × 160 . TacFF is represented as a 10 × 14 
+
+grid, where each cell encodes shear-x, shear-y, and normal components. All modalities are synchronized at 10 Hz and normalized to [−1, 1] prior to feature encoding. 
+
+1) Simulation Environment: All simulated tasks are im-plemented in IsaacGym [37] with TacSL [38] for vision-based tactile rendering. The simulated agent mirrors the real-world sensing setup, including front and wrist cameras and an end-effector tactile sensor. During evaluation, object and socket positions are random-ized within ±5 cm in the x–y plane, and in-hand orientations are perturbed by up to 10 ◦ [24]. A rollout is deemed successful if the target component is fully extracted and lifted above a predefined height threshold. Success rates are averaged over the final 10 training epochs across three ran-dom seeds. For each seed and epoch, 50 distinct environment initializations are evaluated, yielding 1500 rollouts per task. Franka Emika Panda  
+
+> Front-facing Camera Wrist-mounted Camera GelSight R1.5 Task Board
+> Fig. 6. Real-world experimental setup, including the Franka Emika Panda manipulator, a wrist-mounted RealSense D415 camera, and a front-facing RealSense D415 camera.
+
+2) Real-World: The real-world setup is shown in Fig. 6. Experiments are conducted using a Franka Emika Panda manipulator equipped with a wrist-mounted RealSense D415 camera and a front-facing RealSense D415 camera. Tactile feedback is provided by a GelSight R1.5 [39] sensor mounted on the right finger. For each task, 50 demonstrations with randomized object poses are collected via teleoperation using a 3Dconnexion SpaceMouse. The recorded multimodal observations are used to train diffusion policies for 400 epochs under each modality configuration. During rollout, we apply DDIM [40] sampling with 10 denoising steps for efficient inference. 
+
+B. Simulation Results 
+
+Table I reports the success rates across all simulated disassembly tasks. Since each configuration is evaluated over 1500 independent rollouts, even modest percentage-point differences reflect statistically meaningful performance trends. 
+
+1) Overall Performance and Geometric Constraints: 
+
+Across the five simulated tasks, incorporating TacFF consis-tently yields the highest success rates. The performance gap between modalities becomes more pronounced as geometric constraints tighten. In Task S1, generous clearance results in a high baseline success rate (81.7% for Vision Only), and tactile inputs provide only marginal gains. In contrast, Task S2 imposes stricter alignment and friction constraints. Here, the Vision Only policy drops to 36.9%, whereas integrating TacFF improves performance to 44.3%. These results suggest that under tighter geometric tolerances, the low-dimensional normal and shear force cues encoded in TacFF help resolve contact ambiguities that are difficult to infer from vision alone. 
+
+2) Asymmetric Resistance and Interlocking Constraints: 
+
+Tasks S4 and S5 introduce asymmetric resistance through flat and spike-shaped barb structures. In these scenarios, direct vertical pulling leads to failure; successful execution requires TABLE I SUCCESS RATES ACROSS DISASSEMBLY TASKS AND SENSING MODALITIES IN SIMULATION .
+
+Task S1 Task S2 Task S3 Task S4 Task S5 Modality Vertical Pull, Vertical Pull, Loose Plug Vertical Pull, Vertical Pull Loose Socket Tight Socket with Lid Flat Barb Spike Barb 
+
+Vision Only 81.7% 36.9% 50.0% 74.6% 59.5% 
+
+Vision + TacRGB 84.4% 37.2% 51.4% 75.1% 57.8% 
+
+Vision + TacFF 86.5% 44.3% 53.5% 78.8% 61.9%   
+
+> We report the mean success rate, computed as the average over the final 10 checkpoints, each evaluated in 50 environment initializations. Results are further averaged over 3 training seeds, yielding 1500 evaluations per policy. Bold indicates the best performance. TABLE II SUCCESS RATES ACROSS DISASSEMBLY TASKS AND SENSING MODALITIES IN REAL -WORLD EXPERIMENTS .
+
+Task R1 Task R2 Task R3 Task R4 Task R5 Modality Vertical Pull, Vertical Pull, Loose Plug Vertical Vertical Loose Socket Tight Socket with Lid Push Tab Clip 
+
+Vision Only 80.0% 55.0% 40.0% 70.0% 15.0% 
+
+Vision + TacRGB 90.0% 30.0% 15.0% 5.0% 45.0% 
+
+Vision + TacFF 95.0% 70.0% 45.0% 75.0% 55.0% 
+
+> Each real-world policy was evaluated over 20 independent trials. TABLE III AVERAGE EXECUTION TIME COMPUTED OVER SUCCESSFUL DISASSEMBLY ROLLOUTS IN REAL -WORLD EXPERIMENTS .
+
+Task R1 Task R2 Task R3 Task R4 Task R5 Modality Vertical Pull, Vertical Pull, Loose Plug Vertical Vertical Loose Socket Tight Socket with Lid Push Tab Clip 
+
+Vision Only 21.1 s 25.4 s 51.4 s 19.9 s 28.3 s Vision + TacRGB 22.4 s 30.2 s 28.0 s 19.0 s 35.9 s 
+
+Vision + TacFF 22.8 s 22.5 s 67.6 s 18.3 s 58.0 s 
+
+first sliding to disengage the barb, followed by controlled upward extraction. In Task S4, TacFF effectively captures shear patterns during the sliding phase, increasing the success rate to 78.8%. In Task S5, the Vision + TacRGB con-figuration slightly underperforms the Vision Only baseline (57.8% vs. 59.5%), whereas TacFF improves performance to 61.9%. This contrast highlights a representation mismatch. TacRGB provides high-resolution surface deformation sig-nals, which may introduce task-irrelevant variability when the key requirement is identifying a directional escape mo-tion. In comparison, TacFF directly encodes distributed shear forces, offering compact and structured cues that facilitate coordinated sliding and pulling without jamming. Overall, the simulation results indicate that in rigid-body disassembly tasks characterized by tight tolerances and interlocking constraints, structured force representations such as TacFF provide more effective guidance than high-dimensional TacRGB. 
+
+C. Real-World Results 
+
+We next evaluate policy performance on physical hard-ware. Each task (R1–R5) is executed for 20 independent rollouts under standard indoor lighting condition, with object poses randomized within the same range used during data collection. 
+
+1) Success Rate: Table II reports success rates across all real-world tasks. The trends observed in simulation largely carry over to the physical setting. For relatively simple tasks (R1, R2), performance remains high across config-urations. In more contact-sensitive scenarios, particularly R4 and R5, differences between sensing modalities become more pronounced. TacFF configuration consistently achieves the strongest performance, including 75.0% success in R4 despite the presence of deformable components. Tasks R3 and R5 exhibit lower overall success rates (45.0% and 55.0%), reflecting their tighter alignment requirements and more complex contact interactions. These results suggest that real-world contact uncertainty and manipulation precision significantly influence performance. Across tasks, structured force feedback provides clearer guidance during extraction compared to purely visual input, especially when visual cues are ambiguous or occluded. In contrast, adding high-resolution TacRGB does not consis-tently yield further improvements, indicating that increasing observation dimensionality alone does not guarantee better performance. 2) Execution Time: Table III reports the average comple-tion time over successful rollouts in real-world experiments. In several tasks, policies equipped with TacFF exhibit longer execution times. This behavior is expected for two reasons. First, incorporating an additional tactile modality increases the computational and perceptual processing involved in decision making. More importantly, TacFF provides fine-grained force feedback, enabling the policy to actively adjust and explore contact states when the initial attempt is unsuc-cessful. As a result, the policy may perform multiple cor-rective adjustments before achieving successful disassembly. In contrast, vision-only and Vision + TacRGB policies rely primarily on visual cues and lack precise force information for fine contact regulation. When an initial manipulation attempt fails, these policies are more likely to terminate unsuccessfully rather than continue corrective exploration. Since the reported time is averaged only over successful rollouts, TacFF policies naturally exhibit longer execution times in cases where additional exploratory adjustments are required. 
+
+D. Robustness and Modality Analysis 1) Dim Lighting Condition: To evaluate robustness under degraded visual perception, we conduct additional experi-ments under dim lighting for Tasks R1 and R5. For this setting, 50 demonstrations are collected with randomized object poses, and separate policies are trained for each sensing configuration using 400 epochs. As shown in Table IV, the effect of reduced illumi-nation varies across tasks. In Task R1, all configurations exhibit a noticeable decrease in success rate. In contrast, for Task R5, the Vision Only policy degrades sharply (from 15.0% to 0.0%), whereas Vision + TacRGB and Vision + TacFF remain comparatively stable. Notably, Vision + TacFF maintains identical performance (55.0%) under both normal and dim lighting. These results indicate that the contribution of tactile sensing is task-dependent. Task R1 appears primarily governed by geometric alignment cues, making it sensitive to visual degradation. In contrast, Task R5 involves contact-driven interactions where tactile feedback provides more reliable information. Under such conditions, tactile-enhanced configurations exhibit improved robustness when visual signals become unreliable. Overall, tactile sensing serves not merely as a supplemen-tary modality but as a stabilizing signal in tasks dominated by contact dynamics. 
+
+2) Modality Variations: To examine whether combining tactile representations yields further gains, we evaluate an additional configuration that incorporates Vision, TacRGB, and TacFF. Experiments are conducted on Tasks R3 and R5 under normal lighting, using the same demonstration datasets and training protocol as the previous configurations. As shown in Table V, the combined configuration does not improve performance. Success rates decrease to 0.0% for Task R3 and 20.0% for Task R5, both substantially lower than those achieved by Vision + TacFF. This result suggests that naive concatenation of heterogeneous sensory inputs                                   
+
+> TABLE IV SUCCESS RATES ACROSS TASKS AND MODALITIES IN REAL -WORLD EXPERIMENTS UNDER NORMAL AND DIM LIGHTING CONDITIONS .
+> Task R1 Task R5 Modality Vertical Pull, Vertical Clip loose socket Lighting Normal Dim Normal Dim
+> Vision Only 80.0% 25.0% 15.0% 0.0%
+> Vision + TacRGB 90.0% 10.0% 45.0% 40.0%
+> Vision + TacFF 95.0% 25.0% 55.0% 55.0%
+> TABLE V EFFECT OF COMBINING TAC RGB AND TAC FF ON REAL -WORLD SUCCESS RATES .
+> Task R3 Task R5 Modality Loose Plug with Lid Vertical Clip
+> Vision Only 40.0% 15.0%
+> Vision + TacRGB 15.0% 45.0%
+> Vision + TacFF 45.0% 55.0% Vision + TacRGB + TacFF 0.0% 20.0%
+
+does not necessarily lead to improved performance. Simply increasing the dimensionality of the observation space may prevent the policy from effectively focusing on task-relevant signals. These findings indicate that effective multimodal fusion requires more than straightforward feature aggregation. More structured fusion strategies, such as modality-aware attention mechanisms or dedicated encoders tailored to each sensing stream, may be necessary to properly integrate heterogeneous tactile representations without diluting task-relevant signals. IV. CONCLUSIONS In this work, we systematically investigated the role of tactile sensing in robotic disassembly through a struc-tured evaluation spanning simulation and real-world settings. Across tasks with increasing geometric constraints, asymmet-ric resistance, and deformable interactions, force-field-based tactile representations consistently improved robustness com-pared to vision-only policies. Our results reveal a clear task-dependent pattern. In geometry-dominant scenarios with sufficient visual cues, tactile sensing provides marginal gains. However, as contact uncertainty increases or visual information becomes unreli-able, structured force representations play a critical role in resolving contact ambiguities and stabilizing manipulation. Importantly, we show that simply increasing observation dimensionality does not guarantee improved performance. Naively combining heterogeneous tactile representations can degrade performance, highlighting the need for more princi-pled multimodal integration strategies. Overall, our findings suggest that in contact-rich disassem-bly, compact and structured force encoding is more effective than high-dimensional tactile imagery, and that effective multimodal learning depends not only on adding modalities but on how they are represented and fused. REFERENCES [1] D. E. Whitney. Quasi-static assembly of compliantly supported rigid parts. Journal of Dynamic Systems, Measurement, and Control ,104(1):65–77, March 1982. [2] Hyeonjun Park, Ji-Hun Bae, Jae-Han Park, Moon-Hong Baeg, and Jae-heung Park. Intuitive peg-in-hole assembly strategy with a compliant manipulator. In IEEE ISR 2013 , pages 1–5. IEEE, 2013. [3] Gwendolyn Foo, Sami Kara, and Maurice Pagnucco. Challenges of robotic disassembly in practice. Procedia CIRP , 105:513–518, 2022. [4] Tony Z Zhao, Vikash Kumar, Sergey Levine, and Chelsea Finn. Learning fine-grained bimanual manipulation with low-cost hardware. In Proceedings of Robotics: Science and Systems , 2023. [5] Cheng Chi, Siyuan Feng, Yilun Du, Zhenjia Xu, Eric Cousineau, Benjamin Burchfiel, and Shuran Song. Diffusion policy: Visuomotor policy learning via action diffusion. In Proceedings of Robotics: Science and Systems , 2023. [6] Yanjie Ze, Gu Zhang, Kangning Zhang, Chenyuan Hu, Muhan Wang, and Huazhe Xu. 3D Diffusion Policy: Generalizable visuomotor policy learning via simple 3d representations. In Proceedings of Robotics: Science and Systems , 2024. [7] Zhiyuan Zhang, Zhengtong Xu, Jai Nanda Lakamsani, and Yu She. Canonical policy: Learning canonical 3d representation for equivariant policy. arXiv preprint arXiv:2505.18474 , 2025. [8] Zhiyuan Zhang and Yu She. Equiform: Noise-robust se(3)-equivariant policy learning from 3d point clouds, 2026. [9] Kaidi Zhang, Do-Gon Kim, Eric T Chang, Hua-Hsuan Liang, Zhan-peng He, Kathryn Lampo, Philippe Wu, Ioannis Kymissis, and Matei Ciocarlie. Vibecheck: Using active acoustic tactile sensing for contact-rich manipulation. In 2025 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , pages 12278–12285. IEEE, 2025. [10] Moo Jin Kim, Karl Pertsch, Siddharth Karamcheti, Ted Xiao, Ashwin Balakrishna, Suraj Nair, Rafael Rafailov, Ethan Foster, Grace Lam, Pannag Sanketi, et al. Openvla: An open-source vision-language-action model. arXiv preprint arXiv:2406.09246 , 2024. [11] Physical Intelligence, Kevin Black, Noah Brown, James Darpinian, Karan Dhabalia, Danny Driess, Adnan Esmail, Michael Equi, Chelsea Finn, Niccolo Fusai, et al. π0.5: a vision-language-action model with open-world generalization. arXiv preprint arXiv:2504.16054 , 2025. [12] Yue Zang, Xiazhen Xu, Yongquan Zhang, Amir M Hajiyavand, Jiaqi Ye, and Yongjing Wang. Augmenting robotic disassembly skill: combining compliance control strategy with reinforcement learning for twist-pulling disassembly. In 2025 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , pages 20297–20302. IEEE, 2025. [13] Heng Zhang, Gokhan Solak, Gustavo J. G. Lahr, and Arash Ajoudani. Srl-vic: A variable stiffness-based safe reinforcement learning for contact-rich robotic tasks. IEEE Robotics and Automation Letters ,9(6):5631–5638, 2024. [14] Heng Zhang, Rui Dai, Gokhan Solak, Pokuang Zhou, Yu She, and Arash Ajoudani. Safe learning for contact-rich robot tasks: A survey from classical learning-based methods to safe foundation models. 
+
+arXiv preprint arXiv:2512.11908 , 2025. [15] Toshiaki Tsuji, Yasuhiro Kato, Gokhan Solak, Heng Zhang, Tadej Petriˇ c, Francesco Nori, and Arash Ajoudani. A survey on imi-tation learning for contact-rich tasks in robotics. arXiv preprint arXiv:2506.13498 , 2025. [16] Jeon Ho Kang, Sagar Joshi, Ruopeng Huang, and Satyandra K. Gupta. Robotic compliant object prying using diffusion policy guided by vision and force observations, 2025. [17] Jeon Ho Kang, Sagar Joshi, Neel Dhanaraj, and Satyandra K Gupta. Task-context-aware diffusion policy with language guidance for multi-task disassembly. In 2025 IEEE 21st International Conference on Automation Science and Engineering (CASE) , pages 609–616. IEEE, 2025. [18] Xueyan Zou, Jianwei Yang, Hao Zhang, Feng Li, Linjie Li, Jianfeng Wang, Lijuan Wang, Jianfeng Gao, and Yong Jae Lee. Segment everything everywhere all at once. Advances in neural information processing systems , 36:19769–19782, 2023. [19] Maxime Oquab, Timoth´ ee Darcet, Th´ eo Moutakanni, Huy Vo, Marc Szafraniec, Vasil Khalidov, Pierre Fernandez, Daniel Haziza, Francisco Massa, Alaaeldin El-Nouby, et al. Dinov2: Learning robust visual features without supervision. arXiv preprint arXiv:2304.07193 , 2023. [20] Oriane Sim´ eoni, Huy V Vo, Maximilian Seitzer, Federico Baldas-sarre, Maxime Oquab, Cijo Jose, Vasil Khalidov, Marc Szafraniec, Seungeun Yi, Micha¨ el Ramamonjisoa, et al. Dinov3. arXiv preprint arXiv:2508.10104 , 2025. [21] Xiaoyang Wu, Li Jiang, Peng-Shuai Wang, Zhijian Liu, Xihui Liu, Yu Qiao, Wanli Ouyang, Tong He, and Hengshuang Zhao. Point transformer v3: Simpler faster stronger. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition ,pages 4840–4851, 2024. [22] Alexander Khazatsky, Karl Pertsch, Suraj Nair, Ashwin Balakrishna, Sudeep Dasari, Siddharth Karamcheti, Soroush Nasiriany, Mohan Ku-mar Srirama, Lawrence Yunliang Chen, Kirsty Ellis, et al. Droid: A large-scale in-the-wild robot manipulation dataset. arXiv preprint arXiv:2403.12945 , 2024. [23] Tianxing Chen, Zanxin Chen, Baijun Chen, Zijian Cai, Yibin Liu, Qiwei Liang, Zixuan Li, Xianliang Lin, Yiheng Ge, Zhenyu Gu, et al. Robotwin 2.0: A scalable data generator and benchmark with strong domain randomization for robust bimanual robotic manipulation. arXiv preprint arXiv:2506.18088 , 2025. [24] Quan Khanh Luu, Pokuang Zhou, Zhengtong Xu, Zhiyuan Zhang, Qiang Qiu, and Yu She. Manifeel: Benchmarking and under-standing visuotactile manipulation policy learning. arXiv preprint arXiv:2505.18472 , 2025. [25] Tim Schneider, Guillaume Duret, Cristiana de Farias, Roberto Calan-dra, Liming Chen, and Jan Peters. Tactile mnist: Benchmarking active tactile perception. arXiv preprint arXiv:2506.06361 , 2025. [26] Zhixian Hu, Yi Cheng, Juan Wachs, and Yu She. Vibrissae-inspired vision-based magnetic-actuated whisker. Nature Communications ,2025. [27] Wenzhen Yuan, Siyuan Dong, and Edward H Adelson. Gelsight: High-resolution robot tactile sensors for estimating geometry and force. 
+
+Sensors , 17(12):2762, 2017. [28] Daniel Fernandes Gomes, Zhonglin Lin, and Shan Luo. Geltip: A finger-shaped optical tactile sensor for robotic manipulation. In 2020 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , pages 9903–9909. IEEE, 2020. [29] Zhiyuan Zhang, Huan Ma, Yulin Zhou, Jingjing Ji, and Hua Yang. Gelroller: A rolling vision-based tactile sensor for large surface reconstruction using self-supervised photometric stereo method. In 
+
+2024 IEEE International Conference on Robotics and Automation (ICRA) , pages 7961–7967. IEEE, 2024. [30] Zhiyuan Zhang, Hua Yang, and Zhouping Yin. Gelflow: Self-supervised learning of optical flow for vision-based tactile sensor displacement measurement. In International Conference on Intelligent Robotics and Applications , pages 26–37. Springer, 2023. [31] Yuhao Zhou, Won Suk Lee, Yan Gu, and Yu She. Tactile-reactive gripper with an active palm for dexterous manipulation. npj Robotics ,4(1):13, 2026. [32] Sheeraz Athar, Gaurav Patel, Zhengtong Xu, Qiang Qiu, and Yu She. Vistac toward a unified multimodal sensing finger for robotic manip-ulation. IEEE Sensors Journal , 23(20):25440–25450, 2023. [33] Sheeraz Athar, Xinwei Zhang, Jun Ueda, Ye Zhao, and Yu She. Vibtac: A high-resolution high-bandwidth tactile sensing finger for multi-modal perception in robotic manipulation. IEEE Transactions on Haptics , 18(3):507–518, 2025. [34] Carolina Higuera, Sergio Arnaud, Byron Boots, Mustafa Mukadam, Francois Robert Hogan, and Franziska Meier. Visuo-tactile world models. arXiv preprint arXiv:2602.06001 , 2026. [35] Yizhe Zhu, Zhang Ye, Boce Hu, Haibo Zhao, Yu Qi, Dian Wang, and Robert Platt. Residual rotation correction using tactile equivariance. 
+
+arXiv preprint arXiv:2511.07381 , 2025. [36] Liang Heng, Haoran Geng, Kaifeng Zhang, Pieter Abbeel, and Jitendra Malik. Vitacformer: Learning cross-modal representation for visuo-tactile dexterous manipulation. arXiv preprint arXiv:2506.15953 ,2025. [37] Viktor Makoviychuk, Lukasz Wawrzyniak, Yunrong Guo, Michelle Lu, Kier Storey, Miles Macklin, David Hoeller, Nikita Rudin, Arthur Allshire, Ankur Handa, and Gavriel State. Isaac gym: High perfor-mance gpu-based physics simulation for robot learning, 2021. [38] Iretiayo Akinola, Jie Xu, Jan Carius, Dieter Fox, and Yashraj Narang. Tacsl: A library for visuotactile sensor simulation and learning. IEEE Transactions on Robotics , 2025. [39] Shaoxiong Wang, Yu She, Branden Romero, and Edward Adelson. Gelsight wedge: Measuring high-resolution 3d contact geometry with a compact robot finger. In 2021 IEEE international conference on robotics and automation (ICRA) , pages 6468–6475. IEEE, 2021. [40] Jiaming Song, Chenlin Meng, and Stefano Ermon. Denoising diffusion implicit models. arXiv preprint arXiv:2010.02502 , 2020.

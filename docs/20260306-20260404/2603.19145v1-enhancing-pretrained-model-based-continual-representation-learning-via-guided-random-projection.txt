@@ -1,0 +1,879 @@
+Title: Enhancing Pretrained Model-based Continual Representation Learning via Guided Random Projection
+
+URL Source: https://arxiv.org/pdf/2603.19145v1
+
+Published Time: Fri, 20 Mar 2026 01:40:29 GMT
+
+Number of Pages: 22
+
+Markdown Content:
+# Enhancing Pretrained Model-based Continual Representation Learning via Guided Random Projection 
+
+## Ruilin Li 1,2,∗, Heming Zou 4,∗, Xiufeng Yan 6, Zheming Liang 5, Jie Yang 1,2, Chenliang Li 1,†,
+
+## Xue Yang 3,†
+
+> 1
+
+Wuhan University , 2Shanghai Innovation Institute , 3Shanghai Jiao Tong University , 4Tsinghua University ,
+
+> 5
+
+University of Science and Technology of China , 6China University of Mining and Technology 
+
+> ∗
+
+Equal contribution , †Corresponding author 
+
+Abstract 
+
+Recent paradigms in Random Projection Layer (RPL)–based continual representation learning have demonstrated superior performance when building upon a pre-trained model (PTM). These methods insert a randomly initialized RPL after a PTM to enhance feature representation in the initial stage. Subsequently, a linear classification head is used for analytic updates in the continual learning stage. However, under severe domain gaps between pre-trained representations and target domains, a randomly initialized RPL exhibits limited expressivity under large domain shifts. While largely scaling up the RPL dimension can improve expressivity, it also induces an ill-conditioned feature matrix, thereby destabilizing the recursive analytic updates of the linear head. To this end, we propose the Stochastic Continual Learner with MemoryGuard Supervisory Mechanism (SCL-MGSM). Unlike random initialization, MGSM constructs the projection layer via a principled, data-guided mechanism that progressively selects target-aligned random bases to adapt the PTM representation to downstream tasks. This facilitates the construction of a compact yet expressive RPL while improving the numerical stability of analytic updates. Extensive experiments on multiple exemplar-free Class Incremental Learning (CIL) benchmarks demonstrate that SCL-MGSM achieves superior performance compared to state-of-the-art methods. 
+
+Project Page: https://rlinl.github.io/SCL/ 
+
+## 1 Introduction 
+
+Although pre-trained models (PTMs) constitute strong representational backbones, their continual adaptation to downstream tasks is severely impeded by catastrophic forgetting [ 6, 11 , 15 ? ]. This challenge is particularly pronounced in exemplar-free CIL, which operates without task IDs or historical samples [ 37 ]. Recently, Random Projection Layer (RPL)-based methods [ 12 , 13 , 16 , 19 , 22 , 39 – 42 ] have emerged as a promising paradigm, particularly for exemplar-free settings. Typically, the PTM is adapted on an initial task and then frozen. For each new task, data are projected through the frozen PTM and RPL, and only the linear head is updated via recursive least squares and its variants, which are algebraically equivalent to joint ridge regression on all observed data [7]. The efficacy of this paradigm is theoretically grounded in the geometry of high-dimensional spaces. As formalized by [ 23 ], scaling up the RPL dimension expands the available null space, thereby providing the necessary geometric degrees of freedom to identify the intersection of task-specific solution spaces and prevent 1
+
+> arXiv:2603.19145v1 [cs.LG] 19 Mar 2026
+
+forgetting. Driven by this “wider-is-better” theoretical insight, existing methods often resort to inflating the RPL to extremely high dimensions (e.g., >10k random bases) to ensure sufficient separability and mitigate the domain gap [22].                     
+
+> Figure 1 Overview of the prior RPL-based CIL paradigm and com-parison of initial-stage RPL construction. (a) Prior Methods: After first stage adaptation, frozen PTM extracts features Zinit , which are projected through a randomly initialized RPL ( WRPL ) to obtain high-dimensional features Hinit , followed by computing classifier weights
+> Wβ.During incremental learning, new features Ztpass through the same frozen WRPL to Ht, and only Wβis updated to W(t)
+> βvia recursive ridge regression. (b) Our Method: We leverage the initial task and PTM to inform MGSM-guided RPL construction. During incremental learning, Wβis updated recursively as in (a).
+
+However, a critical gap exists between this theoretical ideal and its practical realiza-tion. Under a severe domain gap between the pre-trained representations and tar-get domains, unguided random bases are unlikely to cover task-relevant regions in the feature space, causing the RPL to lack the expressivity required for down-stream tasks. While aggressively scaling up the RPL dimension theoretically miti-gates this issue by improving linear separa-bility and expanding the null space to ac-commodate continual learning, practically it yields a highly ill-conditioned random-feature matrix [ 23 ]. This ill-conditioning forces the ridge-regression solver to rely on additional mechanisms to maintain numer-ical stability [ 16 , 21 ]. Stabilizing analytic updates for a classification head with ex-tremely large dimensions incurs substan-tial computational overhead. We posit that such stability and expressivity should arise from the intrinsic quality of the RPL. Currently, a principled way to configure the RPL that maintains high expressivity in a low dimension while preserving the numerical stability required by analytic classifiers is still lacking. To address this dilemma, we draw in-spiration from first-session adaptation (FSA) [ 21 ], where the PTM is fine-tuned on the initial task via Parameter-Efficient Fine-Tuning (PEFT) [ 4 , 10 , 14 ] and then frozen for subsequent tasks to narrow the domain gap. FSA substantially improves performance and has been widely adopted in both RPL-based [ 16 , 19 , 21 ] and prototype-based methods [ 35 , 36 ]. Motivated by this insight, we go beyond adapting only the PTM and use the initial task to also guide the construction of the RPL. We therefore propose the Stochastic Continual Learner with MemoryGuard Supervisory Mechanism (SCL-MGSM). In the initial stage , MGSM constructs the RPL via a principled, data-guided mechanism: candidate random bases are sampled from an adaptively updated distribution and progressively selected by a target-aligned residual criterion. This produces a compact yet expressive RPL whose dimension is adaptively determined rather than fixed a priori. The convergence of this construction process is theoretically guaranteed. 
+
+In continual learning stages , this RPL remains frozen. The compact RPL, with less collinear bases, yields better-conditioned feature matrices, improving the numerical stability required by recursive ridge-regression updates. An overview is provided in Figure 1. The core contributions of this work are as follows: 
+
+1. We propose to go beyond adapting only the PTM and leverage the initial task to also guide the construction of the RPL. This enables an expressive RPL, without resorting to extremely high-dimensional projections. 
+
+2. We introduce the MemoryGuard Supervisory Mechanism (MGSM), a principled, data-guided mechanism that employs a target-aligned residual criterion to progressively select informative and non-redundant random 2bases. With theoretical convergence analysis (Theorem 1), MGSM constructs a compact, well-conditioned random feature space that supports stable recursive ridge-regression updates without external compensations. 
+
+3. Extensive experiments on multiple exemplar-free CIL benchmarks demonstrate that SCL-MGSM achieves superior performance and efficiency. 
+
+## 2 Related Works 
+
+Continual representation learning with Pre-trained Models. Adapting PTMs to learn new classes sequentially without forgetting previous ones is a significant challenge. Recent works primarily follow several strategies: (1) replay-based methods, which store historical exemplars and interleave them with current-task training to mitigate forgetting [ 17 , 32 ]; (2) PEFT-based methods, which freeze the majority of PTM parameters and introduce lightweight trainable modules for task-specific adaptation [ 3 , 24 – 26 , 29 , 33 ]; and (3) prototype-based methods, which incrementally maintain class prototypes or subspace statistics for efficient classifier updates [35, 36]. 
+
+Random Projection Layer based Analytic Continual Learning. Recent RPL-based analytic continual learning has demonstrated strong performance when building upon PTMs. ACIL [ 39 ] and G-ACIL [ 38 ]insert a randomly initialized RPL between the PTM and the classifier to enhance feature representation, and recursively update the classifier via analytic learning. RanPAC [ 16 ] adopts the same RPL strategy and further introduces first-session adaptation (FSA), where the PTM is fine-tuned on the initial task and then frozen for subsequent tasks, to adapt the PTM representations to downstream tasks. This significantly improves performance and is also effective for prototype-based methods. LoRanPAC [ 22 ] further scales up the RPL dimension in the first stage to enhance expressivity, and incorporates an additional mechanism to stabilize recursive updates for subsequent tasks, further improving performance. AnaCP [ 19 ] introduces a contrastive projection layer to adapt features for each task, also yielding notable improvements. Our work follows the RPL-based paradigm. Beyond fine-tuning the PTM on the initial task, we use initial-task data to guide RPL construction. This improves RPL expressivity without resorting to extremely high-dimensional projections, yielding better performance while preserving computational efficiency. 
+
+## 3 Revisiting RPL-based Analytic Continual Learning 
+
+3.1 Exemplar-free Class-Incremental Learning Setting 
+
+In the CIL setting, the model receives a sequence of datasets Dt = {(xi, y i)}Nt 
+
+> i=1
+
+for tasks t = 1 , 2, . . . , T ,where xi ∈ Rc×w×h denotes an input sample and yi ∈ Y t is its label. Class sets are disjoint across tasks, i.e., Yt ∩ Y ˆt = ∅ for t̸ = ˆt, and task identifiers are unavailable during both training and inference. In the exemplar-free setting, no data from previous stages are stored, so only the current-task dataset Dt is accessible at stage t.
+
+3.2 The Supervisory Mechanism of SCNs 
+
+We briefly review the Stochastic Configuration Supervisory Mechanism (SCSM) of [ 28 ], from which our proposed MGSM departs. Consider a single-hidden-layer network with L − 1 hidden units, fL−1 = HL−1WβL−1 , where 
+
+HL−1 = [ h1, . . . , hL−1] ∈ RN ×(L−1) is the hidden output matrix with each random basis hi = g(Xw i + bi) ∈
+
+RN , and WβL−1 ∈ R(L−1) ×m are the output weights. Here X ∈ RN ×d is the input data, g(·) is an activation function, and wi, bi are randomly sampled input weight and bias. For multi-output residuals 
+
+eL−1 = [ eL−1,1, . . . , eL−1,m ], a new random basis hL is accepted only if each output component satisfies: 
+
+⟨eL−1,q , hL⟩2 ≥ ∥ hL∥2δL,q , q = 1 , . . . , m, (1) where δL,q = (1 − r − μL)∥eL−1,q ∥2, with contraction rate r ∈ (0 , 1) and vanishing tolerance 0 ≤ μL ≤ 1 − r,
+
+μL → 0. Under mild regularity conditions, this greedy line-projection criterion guarantees lim L→∞ ∥eL∥ =0 [ 28 ]. In our CIL setting, this criterion often yields compact random features at initialization, but the task-specific selection can bias bases toward current-task residuals and harm cross-stage robustness. To address this limitation, we introduce a novel supervisory mechanism in Section 4. 33.3 Prior RPL-based Continual Representation Learning Methods Framework 
+
+Recent RPL-based methods [16, 39] adopt a three-stage pipeline for exemplar-free CIL. 
+
+(1) Feature Extraction: Given the first-stage dataset D1 = {(xi, y i)}N1
+
+> i=1
+
+, denoted as Dinit (with N := N1), input samples are fed into the PTM (frozen after first-session adaptation) to obtain feature representations: 
+
+Zinit = ϕ(Xinit ; Θ) ∈ RN ×d, (2) where Xinit = [ x1, . . . , xN ]⊤, ϕ(·; Θ) denotes the frozen PTM mapping, and d is the embedding dimension. 
+
+(2) RPL Initialization: A Random Projection Layer is constructed by randomly sampling a weight matrix 
+
+W ∈ Rd×L and a bias vector b ∈ RL from a predefined distribution, yielding the random feature matrix 
+
+Hinit = g(Zinit W +1N b⊤) ∈ RN ×L. Driven by the “wider-is-better” theoretical insight [ 5, 23 ], recent methods often inflate L ≫ N to ensure sufficient linear separability and expand the null space for accommodating continual learning. 
+
+(3) Classifier Analytic Update: Given initial-task random features Hinit and label matrix Yinit = [ y1, . . . , yN ]⊤ ∈{0, 1}N ×Cinit , where yi is the one-hot encoding of yi and Cinit = |Y 1| is the number of initial-task classes, the classifier is first obtained by ridge-regularized least squares: 
+
+W (1)  
+
+> β
+
+= arg min 
+
+> Wβ
+
+∥Hinit Wβ − Yinit ∥2 
+
+> F
+
++ λ ∥Wβ ∥2 
+
+> F
+
+. (3) The corresponding sufficient statistic is 
+
+Pinit = H⊤
+
+> init
+
+Hinit + λI. (4) For subsequent tasks t = 2 , 3, . . . , recursive least squares (RLS) updates [7] are: 
+
+Pt = Pt−1 + H⊤ 
+
+> t
+
+Ht, (5) 
+
+W (t) 
+
+> β
+
+= W (t−1)  
+
+> β
+
++ P −1 
+
+> t
+
+H⊤ 
+
+> t
+
+(Yt − HtW (t−1)  
+
+> β
+
+), (6) which is algebraically equivalent to joint ridge regression on all observed data, requiring only current-task data and the sufficient statistics ( W (t−1)  
+
+> β
+
+, Pt−1). Method-specific variants may modify the update form but follow the same recursive update principle. In practice, this recursion is numerically reliable when Pt
+
+remains well-conditioned. If the RPL dimension is very large, unguided random bases can become highly collinear, which may increase the condition number of H⊤ 
+
+> k
+
+Hk and degrade the conditioning of Pt when regularization is insufficient relative to the spectral spread. Under finite-precision arithmetic, the inverse in Eq. (6) may then amplify numerical errors and destabilize incremental learning. This suggests a practical trade-off in RPL-based continual learning: unguidedly increasing the number of random bases can improve representational expressivity, but it can also reduce the numerical robustness of recursive updates. 
+
+## 4 Method 
+
+We propose SCL-MGSM, whose core is the MemoryGuard Supervisory Mechanism (MGSM), a principled data-guided framework for progressively constructing an expressive yet well-conditioned RPL. Motivated by first-session adaptation (FSA) [ 21 ], MGSM leverages initial-task data and the pretrained model to guide RPL construction, iteratively selecting target-aligned, non-redundant random bases rather than sampling them all at once. The overall framework is illustrated in Fig. 2. In Section 4.1, we detail the algorithmic workflow of MGSM step by step (see Algorithm 1 for the complete procedure). In Section 4.2, we explain how MGSM yields an expressive RPL whose well-conditioned feature matrix ensures numerically stable recursive analytic updates. 
+
+4.1 SCL-MGSM Construction 
+
+Random Sampling of Hidden Units. Let Zt denote the stage-t backbone features obtained via Eq. (2) , with 
+
+Zinit as the initialization-stage instance. Each candidate hidden unit is defined as 
+
+hi = g(Zinit wi + bi) ∈ RN ×1, (7) 4In each iteration, randomly sampled � batches of nodes from a Gaussian distribution   
+
+> Selected
+> {� 1, � 1}{� �, � �}
+> Add to the existing layer Iteratively Build Random Projection Layer until ��< �
+
+Pretrained Model      
+
+> �of nodes �of nodes
+> �of nodes �of nodes
+
+MGSM Theorem 1 
+
+�init 
+
+��
+
+> Label
+> Initial Tasks
+
+Figure 2 Overview of MGSM-guided RPL construction in SCL-MGSM. Data from any stage can serve as the initialization set to build the RPL from scratch. Random hidden units are progressively sampled, evaluated by MGSM, and appended to the RPL only if they satisfy the supervisory criterion. The construction terminates once the residual converges below a predefined threshold ε. See Appendix B for details. 
+
+where wi and bi are the input weight and bias of the i-th hidden unit, both randomly sampled from N (0 , ξ 2)with scaling factor ξ. When a candidate is accepted by MGSM, its activation vector hi is appended as a column of the RPL matrix. 
+
+Incremental Construction of the RPL. SCL-MGSM incrementally constructs the RPL via an iterative forward configuration. After ( L − s) hidden units have been accepted, their activations on Zinit form the current RPL output 
+
+HL−s = [ h1, . . . , hL−s] ∈ RN ×(L−s). (8) The corresponding classifier is 
+
+fL−s(Zinit ) = HL−sWβL−s , (9) where WβL−s ∈ R(L−s)×C are the readout weights mapping the RPL output to the C class scores. To decide whether further expansion is required, we define the current multi-output residual (with label matrix Y ∈ RN ×C )
+
+EL−s = Y − HL−sWβL−s , (10) and monitor its Frobenius norm ∥EL−s∥F . If ∥EL−s∥F ≤ ε for a predefined tolerance ε > 0, the RPL construction completes. Otherwise, we continue to expand the RPL: at each iteration, we draw Bmax candidate blocks. For each 
+
+j ∈ { 1, . . . , B max }, we independently sample s hidden units with parameters drawn from N (0 , ξ 2) and compute their activations on Zinit to obtain a candidate matrix H(j) 
+
+> s
+
+∈ RN ×s. Using the augmented hidden matrix [ HL−s, H(j) 
+
+> s
+
+], we evaluate the j-th candidate block by the MGSM acceptance criterion (formalized in Theorem 1). Among all candidates that satisfy the criterion, we select the one achieving the largest improvement and accept it, so that the output matrix is updated to 
+
+HL = [ HL−s, H(j∗) 
+
+> s
+
+]. (11) 
+
+MGSM Acceptance Criterion. We now formalize the block-wise selection rule used above. Let Hs ∈ RN ×s be the output matrix of a batch of s new hidden units, and define the augmented hidden matrix HL = [ HL−s, Hs]. Set 
+
+S =  H⊤ 
+
+> s
+
+Hs + λIs
+
+ − H⊤ 
+
+> s
+
+HL−s
+
+ H⊤
+
+> L−s
+
+HL−s + λIL−s
+
+−1 H⊤
+
+> L−s
+
+Hs. (12) 5For theoretical conciseness, we next state the criterion for a single-output target column. Let eL−s =
+
+y − HL−sWβL−s , and define 
+
+v = H⊤ 
+
+> s
+
+eL−s. (13) 
+
+Theorem 1. Let y ∈ RN be the target vector, and let HL−s ∈ RN ×(L−s) be the output matrix of the current network fL−s. Suppose WβL−s = [ β1, . . . , β L−s]⊤ is the output weights, and define the current residual: 
+
+eL−s = y − HL−s WβL−s . (14) 
+
+If the batch of new hidden units with output Hs satisfy the following inequality and RL ≥ 0 (Eq. 32): 
+
+2v⊤ S−1 v − v⊤
+
+S−1H⊤ 
+
+> s
+
+Hs S−1
+
+v ≥ (1 − r) ∥eL−s∥2, (15) 
+
+where 0 < r < 1 and the output weights Wβ⋆L = [ β⋆ 
+
+> 1
+
+, . . . , β ⋆L]⊤ are the ridge-regression weights that minimize 
+
+W ⋆βL = arg min  
+
+> W∈RL
+
+y − HLW 22 + λ W 22. (16) 
+
+then lim L→∞ ∥eL∥ = 0 , where eL = y − HLWβ⋆L .Proof. See Appendix A. 
+
+Remark (multi-output extension). For classification with Y ∈ RN ×C , Theorem 1 is applied independently to each output column, which is equivalent to the Frobenius-norm formulation used in our construction. If no candidate block is accepted under the current scaling ξ, we switch to the next value ξ ∈ X ξ =
+
+{ξmin , ξ min + ∆ ξ, . . . , ξ max }, resample Bmax candidate blocks from N (0 , ξ 2), and re-evaluate them by the same criterion. Empirically, exploring this discrete scaling set reliably yields admissible blocks, broadens the effective function space, and improves robustness to diverse task distributions, while keeping the PTM frozen and relying only on forward computations. 
+
+Initial SCL-MGSM Classifier. Let L∗ denote the final number of hidden units in the constructed RPL. The SCL-MGSM classifier at the initial stage is 
+
+fL∗ (Zinit ) = HL∗ Wβ =
+
+> L∗
+
+X
+
+> i=1
+
+hiβ⊤ 
+
+> i
+
+∈ RN ×C , (17) where Wβ is obtained by ridge-regularized least squares. This procedure yields a task-relevant RPL character-ized by the output matrix HL∗ .
+
+Incremental Update of Output Weights. The recursive update rule follows the generic RPL-based CIL formulation in Section 3, i.e., Eqs. (5) – (6) . In our method, Hinit = HL∗ , and thus Eq. (4) initializes the sufficient statistic for subsequent exemplar-free updates. 
+
+4.2 Underlying Rationale 
+
+We now explain how MGSM simultaneously enhances RPL expressivity and preserves the numerical stability required by recursive analytic updates. 
+
+MGSM-guided RPL construction enhances expressivity. First-session adaptation (FSA) adapts PTM representations using initial-task data [ 16 , 21 , 36 ], which presumably provides a useful inductive bias for subsequent tasks that share statistical similarities. Our work goes one step further by using the initial-task data to guide RPL construction. SCL-MGSM incrementally configures the RPL via a block-wise, data-driven procedure: candidate random bases are sampled from an adaptively updated parameter distribution and accepted only if the target-aligned residual criterion is met. Otherwise, the sampling distribution is adjusted 6Figure 3 Gaussian Initialization. Figure 4 Visualization of MGSM Exploration Strategy.  
+
+> Figure 5 Illustration of Random-Basis and Task-Relevant Regions.
+
+and the search is redirected to explore a different scale (Fig. 4). This multi-scale exploration steers the search toward parameter regions better suited for downstream continual learning tasks, producing a more functionally diverse set of random bases that enhances the expressivity of the RPL (Fig. 5). Theorem 1 guarantees the convergence of this construction process. In comparison, fixed-distribution sampling concentrates random bases on a narrow shell in parameter space (Fig. 3), so conventional random initialization can only improve expressivity by inflating the RPL dimension. 
+
+MGSM enables numerically stable analytic updates. MGSM-guided RPL achieves high expressivity without resorting to extremely high-dimensional projections, thereby avoiding the ill-conditioning that compromises analytic updates. Furthermore, compared to the supervisory mechanism of SCSM [ 28 ], which also aims to achieve expressivity in low dimensions, MGSM adopts a relaxed, target-aligned acceptance criterion instead of SCSM’s greedy residual-aligned criterion (Fig. 5). Combined with ridge regularization and block-wise updates, this relaxed criterion admits basis combinations that are not individually optimal but jointly effective, producing less collinear bases and better-conditioned Gram matrices for stable incremental updates. 
+
+Algorithm 1 SCL-MGSM 
+
+Input : Initial Task D1, Incremental Tasks {D t}Tt=2 , predefined error ε, max batches Bmax , number of nodes 
+
+s. 
+
+> 1:
+
+(Optional) First-session adaptation (FSA) of the PTM.  
+
+> 2:
+
+# Modeling RPL During Initial Training  
+
+> 3:
+
+Extract features from frozen PTMs by Eq. (2)  
+
+> 4:
+
+while The predefined residual error is not satisfied do  
+
+> 5:
+
+Recruit randomly generated nodes based on MGSM by Eq. (15)  
+
+> 6:
+
+Update output weights by Eq. (16)  
+
+> 7:
+
+end while  
+
+> 8:
+
+Compute irreversible intermediate matrix Pinit by Eq. (4)  
+
+> 9:
+
+# Update Output Weights During Incremental Learning.  
+
+> 10:
+
+for t = 2 , 3, . . . , T do  
+
+> 11:
+
+Extract features from frozen PTMs by Eq. (2)  
+
+> 12:
+
+Update Output Weights by Eq. (6)  
+
+> 13:
+
+Update irreversible intermediate matrix by Eq. (5)  
+
+> 14:
+
+end for Output : SCL-MGSM 
+
+## 5 Experiments 
+
+5.1 Experiment Setting 
+
+Datasets: We conduct exemplar-free CIL experiments on four datasets, including ImageNet-R [ 8 ], ImageNet-A [ 9 ], ObjectNet [ 1], and Omnibenchmark [ 34 ]. ImageNet-R, ImageNet-A, and ObjectNet each contain 200 classes, while Omnibenchmark contains 300 classes. For brevity, we refer to them as IN-R, IN-A, ObjNet, and OmniB, respectively. 7Table 1 Comparison of CIL Performance Across Methods and Benchmarks. Bold and underline mark the best and second-best results. Alast and Aavg denote final and average accuracy (%). B-m Inc-n (m: initial classes, n:incremental classes; m=0: equal split). Joint linear probe trains only the classifier head on all tasks, while Joint fine-tuning updates the entire PTM on all tasks. 
+
+Method ImageNet-R (B-0) ImageNet-A (B-0) 
+
+Joint linear probe 67.23 ±0.05 50.98 ±0.65 
+
+Joint fine-tuning 83.67 ±0.14 60.99 ±0.32 
+
+Inc-5 Inc-10 Inc-5 Inc-10 
+
+Alast Aavg Alast Aavg Alast Aavg Alast Aavg 
+
+CODA-Prompt 57.52 ±0.68 65.71 ±0.00 68.03 ±0.42 74.57 ±0.74 28.81 ±0.60 41.45 ±0.47 39.21 ±0.83 50.17 ±0.97 
+
+SD-LoRA 66.29 ±1.10 73.67 ±1.19 72.25 ±0.72 78.14 ±0.80 32.92 ±1.07 46.00 ±1.32 45.95 ±0.53 58.41 ±1.01 
+
+SimpleCIL 54.55 ±0.00 61.63 ±0.79 54.55 ±0.00 61.22 ±0.60 48.85 ±0.00 60.49 ±0.91 48.85 ±0.00 59.96 ±0.88 
+
+EASE 70.65 ±0.52 76.69 ±0.24 74.13 ±0.57 80.38 ±0.60 43.27 ±2.55 55.80 ±0.46 45.97 ±1.93 58.09 ±2.42 
+
+APT 70.55 ±0.40 76.46 ±0.71 75.07 ±0.32 79.97 ±0.57 37.19 ±2.11 45.72 ±3.80 51.57 ±0.99 61.72 ±0.44 
+
+KLDA 64.82 ±0.30 71.02 ±0.66 64.82 ±0.30 70.69 ±0.50 51.64 ±0.16 58.23 ±0.76 51.64 ±0.16 57.69 ±0.84 
+
+RanPAC 68.72 ±0.40 74.84 ±0.35 71.25 ±0.45 76.58 ±0.47 53.50 ±1.58 60.56 ±1.20 52.67 ±0.39 61.59 ±0.76 
+
+G-ACIL 67.05 ±0.30 73.95 ±0.44 67.05 ±0.30 73.64 ±0.29 45.05 ±0.46 57.78 ±0.29 45.05 ±0.46 57.26 ±0.37 
+
+LoRanPAC 70.78 ±0.12 76.58 ±0.20 71.81 ±0.09 77.12 ±0.06 54.84 ±0.25 64.57 ±0.38 54.62 ±0.31 64.16 ±0.55 
+
+AnaCP 71.34 ±0.46 76.53 ±0.80 73.60 ±1.15 78.85 ±0.32 53.08 ±0.64 62.80 ±0.55 55.22 ±0.39 63.99 ±0.61 
+
+SCL-MGSM 72.64 ±0.24 77.70 ±0.14 77.12 ±0.21 82.23 ±0.18 55.79 ±0.23 64.93 ±0.31 56.05 ±0.32 65.29 ±0.47 
+
+Method ObjectNet (B-0) OmniBenchmark (B-0) 
+
+Joint linear probe 55.90 ±0.28 78.56 ±0.20 
+
+Joint fine-tuning 67.53 ±0.13 82.27 ±0.26 
+
+Inc-5 Inc-10 Inc-5 Inc-10 
+
+Alast Aavg Alast Aavg Alast Aavg Alast Aavg 
+
+CODA-Prompt 45.17 ±0.49 56.44 ±2.05 53.14 ±0.07 63.68 ±1.88 58.31 ±0.80 69.56 ±0.33 64.17 ±0.58 74.06 ±0.48 
+
+SD-LoRA 50.02 ±1.24 61.95 ±0.60 55.72 ±0.98 66.74 ±1.81 55.90 ±1.55 69.22 ±1.10 64.04 ±0.15 74.25 ±0.92 
+
+SimpleCIL 53.58 ±0.00 63.15 ±2.06 53.58 ±0.00 62.70 ±1.97 73.15 ±0.00 81.10 ±0.58 73.15 ±0.00 80.85 ±0.58 
+
+EASE 54.34 ±0.71 65.30 ±2.67 57.59 ±0.33 68.34 ±2.41 73.02 ±0.20 81.09 ±0.80 73.27 ±0.29 81.04 ±0.59 
+
+APT 56.05 ±0.51 66.41 ±1.02 60.54 ±0.22 70.69 ±1.60 62.99 ±0.20 73.17 ±0.23 66.12 ±0.39 74.97 ±0.04 
+
+KLDA 57.92 ±0.04 67.23 ±1.89 57.92 ±0.04 66.76 ±1.83 75.27 ±0.04 83.48 ±0.43 75.27 ±0.04 83.23 ±0.42 
+
+RanPAC 59.03 ±0.41 69.02 ±1.76 61.90 ±0.41 71.27 ±1.84 77.37 ±0.23 85.33 ±0.59 77.34 ±0.17 85.00 ±0.57 
+
+G-ACIL 57.60 ±0.26 68.64 ±2.39 57.60 ±0.26 68.19 ±2.29 76.41 ±0.19 84.94 ±0.75 76.41 ±0.17 84.70 ±0.73 
+
+LoRanPAC 61.89 ±0.20 71.35 ±1.93 63.57 ±0.30 72.48 ±1.82 76.68 ±0.05 85.04 ±0.80 76.70 ±0.33 84.96 ±0.69 
+
+AnaCP 62.66 ±0.62 72.14 ±0.15 64.68 ±0.17 72.81 ±0.94 78.64 ±0.26 86.27 ±1.08 78.81 ±0.24 86.45 ±0.71 
+
+SCL-MGSM 63.87 ±0.25 73.40 ±0.92 66.45 ±0.45 75.30 ±2.03 79.83 ±0.33 86.79 ±0.60 79.90 ±0.35 86.92 ±0.73 
+
+Compared Methods: We compare our proposed SCL-MGSM with four categories of CIL methods. (1) RPL-based methods: AnaCP [ 19 ], LoRanPAC [ 22 ], G-ACIL [ 38 ], RanPAC [ 16 ], KLDA [ 18 ]. (2) Prototype-based methods: EASE [ 36 ], SimpleCIL [ 35 ]. (3) Prompt-tuning-based methods: CODA-Prompt [ 25 ], APT [ 3 ]. (4) LoRA-based methods: SD-LoRA [31]. 
+
+Evaluation Protocol. We report two metrics for all methods: average accuracy Aavg = 1
+
+t+1 
+
+Pti=1 Ai, where 
+
+Ai is the test accuracy on Dtest 1: i after the i-th incremental session, and final accuracy Alast , which is the test accuracy on all learned tasks after the last incremental session. 
+
+Implementation Details. For fair comparison, all methods are implemented using the frozen ViT-B/16-IN21K [ 30 ] as PTMs. For first-session adaptation and ablation studies, we use AdaptFormer [ 4], SSF [ 14 ], and VPT [ 10 ] as PEFT methods. All results in Table 1 are averaged over 3 random seeds with standard error, where the initial-stage categories are non-overlapping across seeds. Detailed hyperparameter settings can be found in Appendix C. 8Table 2 Performance Comparison of RPL Con-struction Strategies Without FSA.                               
+
+> Dataset RPL ALast (%) AAvg (%)
+> IN-R
+> MGSM 70.09 ±0.13 75.90 ±0.08
+> SCSM 64.78 ±0.09 70.51 ±0.44 RI 63.00 ±0.22 72.05 ±0.39
+> IN-A
+> MGSM 53.63 ±0.74 62.45 ±0.59
+> SCSM 44.85 ±1.47 54.40 ±1.88 RI 47.31 ±0.43 58.21 ±0.37
+> ObjNet
+> MGSM 59.61 ±0.30 69.12 ±2.31
+> SCSM 55.46 ±0.33 64.98 ±2.43 RI 55.91 ±0.14 66.08 ±1.94
+> OmniB
+> MGSM 77.99 ±0.17 85.67 ±0.81
+> SCSM 71.43 ±0.11 79.34 ±0.93 RI 74.91 ±0.04 82.54 ±0.68
+> Figure 6 Comparison of PtNorm Curves.
+
+5.2 Main Results 
+
+As shown in Table 1, RPL-based methods consistently outperform prompt-tuning, LoRA-based, and prototype-based methods on most benchmarks, benefiting from random feature-space expansion. Among all compared methods, SCL-MGSM achieves the best Alast and Aavg across all eight evaluation settings, demonstrating consistent superiority over existing approaches. Specifically, on ImageNet-R with 20 sequential tasks, SCL-MGSM surpasses the second-best method by +2.05% in Alast and +1.85% in Aavg . On ObjectNet with 20 sequential tasks, the margins reach +1.77% and +2.49%, respectively. On ImageNet-A, SCL-MGSM consistently outperforms all competitors under both 40-task and 20-task protocols. Moreover, SCL-MGSM surpasses the joint linear probe on all datasets, and on ObjectNet the gap to joint fine-tuning, which serves as the upper bound, narrows to approximately 1%. Notably, the initial-stage categories are non-overlapping across the three seeds, yet SCL-MGSM yields consistent gains in all cases, confirming that MGSM-guided RPL construction generalizes across different initialization tasks. These gains are primarily attributed to MGSM, a data-guided mechanism in the initial stage that progressively selects target-aligned random bases with convergence guarantees (Theorem 1), constructing a compact yet expressive RPL that enhances the PTM’s representations, even without directly training the PTM on each task. The resulting well-conditioned feature space further benefits the stability of recursive analytic updates during incremental stages. The final hidden sizes of SCL-MGSM are reported in Appendix. 
+
+5.3 Mechanism Analysis 
+
+Expressivity under different RPL construction strategies. To assess whether MGSM improves RPL expressivity, we compare three construction strategies: MGSM, SCSM (the supervisory mechanism in SCNs [ 28 ]), and random initialization (RI). For a fair comparison, all methods yield an RPL with a final hidden size of 10,000 without FSA, and the output weights during incremental stages are computed via recursive ridge regression. As shown in Table 2, MGSM consistently outperforms both alternatives across all four benchmarks, achieving gains of approximately 5%–10% in ALast over SCSM. On datasets with severe domain gaps (e.g.ImageNet-A), RI degrades substantially, confirming that an RPL composed of limited unguided random bases lacks the expressivity required for out-of-distribution data. SCSM, while data-guided, employs an overly strict greedy criterion that over-specializes to the initial task, often underperforming even RI on frozen PTM features. In contrast, MGSM’s relaxed, target-aligned criterion selects diverse, non-redundant bases that enrich RPL expressivity while keeping the projections adapted to downstream tasks. We further visualize the basis quality on ImageNet-A in Figure 7: MGSM produces an almost diagonal cosine-similarity matrix, indicating near-orthogonal basis vectors that enrich the function space, whereas SCSM exhibits pronounced off-diagonal values reflecting high redundancy among bases. This further confirms that MGSM 9Figure 7 Comparison of basis cosine similarity across different strategies. 
+
+Figure 8 Comparison of Condition Num-bers. 
+
+Figure 9 Comparison of Computational Cost. Table 3 Performance Comparison of s
+
+and Bmax on ImageNet-R (B-0 Inc-5). Method s Bmax AAvg (%) TIME (s)                    
+
+> MGSM 10 575.29 ±0.15 92.37 ±1.34 10 75.31 ±0.21 192.21 ±2.64 20 75.90 ±0.18 262.56 ±1.45 100 574.82 ±0.17 63.32 ±0.81 10 74.86 ±0.21 70.37 ±1.59 20 75.17 ±0.29 82.45 ±2.33 SCSM 1569.84 ±0.34 268.61 ±2.86 10 69.89 ±0.47 276.31 ±2.79 20 70.51 ±0.29 332.18 ±2.12
+
+Figure 10 Comparison of Training Time Across Representative CIL Meth-ods. 
+
+constructs a more expressive RPL, which contributes to stronger CIL performance. 
+
+Stability of MGSM-based continual learning. As discussed in Section 3, stable recursive updates require a well-conditioned random feature matrix. On ImageNet-A (Figure 8), we estimate the condition number of the random feature matrix on a randomly sampled subset of samples. Under MGSM-guided RPL, it is comparable to RI, whereas under SCSM-guided RPL it is markedly larger, indicating a substantially more ill-conditioned matrix and weaker numerical stability for recursive updates. We also track ∥Pt∥F over incremental stages (Figure 6): for RI, ∥Pt∥F grows steadily, and suppressing this growth requires an excessively large λ (e.g. λ = 10) that causes severe underfitting. MGSM with a moderate λ = 0 .1 maintains a controlled 
+
+∥Pt∥F comparable to heavily regularized RI. These results confirm that MGSM’s criterion contributes to both expressivity and stability. 
+
+5.4 Hyperparameter Sensitivity 
+
+Analysis of adaptive scaling of ξ. Figure 11 compares two fixed ξ values (0.08 and 0.008) with the adaptive (ADP) strategy on four datasets. ξ is a scaling factor that controls the sampling range for candidate random bases during RPL construction in SCL-MGSM. Both fixed ξ settings yield weaker results than the adaptive strategy (ADP), which outperforms them across all four benchmarks. A fixed ξ keeps the sampling range unchanged throughout the initial construction phase. As the RPL grows and its modeling capacity increases, candidates drawn from the same fixed range become less likely to pass the MGSM acceptance criterion, limiting further effective expansion of the RPL. The adaptive strategy adjusts ξ according to the current RPL state, so that later construction iterations can sample from a range that remains compatible with the MGSM criterion. This allows SCL-MGSM to explore a broader set of function spaces during construction, producing an RPL that better adapts to diverse downstream tasks. 10 IN-R IN-A ObjNet OmniB        
+
+> 50
+> 60
+> 70
+> 80
+> 90
+> AAvg  (%)
+> = 0.08 = 0.008 ADP Figure 11 Parameter Analysis of MGSM on Three Datasets. ADP refers to adaptive ξadjustment.
+> Figure 12 Comparison of Peak GPU Memory.
+
+Analysis of sensitivity to s and Bmax . In Table 3, Bmax is the maximum number of Gaussian-sampled batches, and s is the number of hidden units per batch. Larger s implies more concurrently integrated units, accelerating convergence. The same table indicates that a tenfold variation in s negligibly affects overall performance, allowing s to be increased for substantially faster configuration. Concurrently, a larger Bmax 
+
+enables broader function space exploration, improving optimal hidden unit selection probability. Furthermore, SCSM is significantly slower than MGSM, primarily because: first, its unit-by-unit configuration requires more forward computations, and second, its Moore-Penrose pseudoinverse calculation is computationally expensive. 
+
+5.5 Additional Analysis 
+
+Computational efficiency. Figure 10 reports the end-to-end training time on ImageNet-R (Inc-10). RPL-based methods achieve the best CIL performance while being generally faster than other paradigms. Among them, SCL-MGSM introduces only a minor overhead over other RPL-based baselines, in exchange for notably improved performance. The additional cost of MGSM stems solely from the increased number of recursive inverse updates during RPL construction (Figure 9), which remains far below PEFT. In the extreme case, one can pair a frozen PTM directly with MGSM, bypassing FSA entirely, to eliminate the adaptation cost while still benefiting from data-guided RPL construction. Additional analysis is provided in the appendix. Moreover, during incremental learning, compared with directly enlarging the hidden dimension to improve expressivity, SCL-MGSM is significantly more memory-efficient. For example, constructing a 100,000-dimensional RPL via RI and employing the stabilized recursive solver of [ 22 ] for incremental updates demands tens of times more peak GPU memory across CIL stages (Figure 12), indicating that improving performance by unguidedly enlarging the RPL quickly encounters resource bottlenecks. 
+
+More analysis. We present additional analysis in the appendix, including 1) the efficiency of SCL-MGSM across different PTM architectures, 2) the impact of first-session adaptation on RPL-based methods, and 3) the comparison of average forgetting across methods. 
+
+## 6 Conclusion 
+
+In this work, we propose SCL-MGSM to enhance pretrained model-based continual representation learning via guided random projection. MGSM employs a target-aligned residual criterion to progressively select informative and non-redundant random bases, constructing a compact yet expressive RPL whose dimension is adaptively determined rather than fixed a priori. On this well-conditioned random feature space, the analytic classifier is updated via recursive ridge regression without external stabilization mechanisms. Extensive experiments on seven exemplar-free CIL benchmarks demonstrate that SCL-MGSM achieves superior performance and training efficiency. Moreover, SCL-MGSM is compatible with both first-session adaptation and diverse PTM backbones, demonstrating strong adaptability across training protocols and architectural families. 11 References 
+
+[1] Barbu, A., Mayo, D., Alverio, J., Luo, W., Wang, C., Gutfreund, D., Tenenbaum, J., Katz, B.: Objectnet: A large-scale bias-controlled dataset for pushing the limits of object recognition models. NeurIPS 32 (2019) [2] Blum, K.: Density matrix theory and applications, vol. 64. Springer Science & Business Media (2012) [3] Chen, H., Wang, P., Zhou, Z., Zhang, X., Wu, Z., Jiang, Y.G.: Achieving more with less: Additive prompt tuning for rehearsal-free class-incremental learning. In: Proceedings of the IEEE/CVF International Conference on Computer Vision. pp. 340–349 (2025) [4] Chen, S., Ge, C., Tong, Z., Wang, J., Song, Y., Wang, J., Luo, P.: Adaptformer: Adapting vision transformers for scalable visual recognition. Advances in Neural Information Processing Systems 35 , 16664–16678 (2022) [5] Cover, T.M.: Geometrical and statistical properties of systems of linear inequalities with applications in pattern recognition. IEEE transactions on electronic computers (3), 326–334 (1965) [6] French, R.M.: Catastrophic forgetting in connectionist networks. Trends in cognitive sciences 3(4), 128–135 (1999) [7] Greville, T.: Some applications of the pseudoinverse of a matrix. SIAM review 2(1), 15–22 (1960) [8] Hendrycks, D., Basart, S., Mu, N., Kadavath, S., Wang, F., Dorundo, E., Desai, R., Zhu, T., Parajuli, S., Guo, M., et al.: The many faces of robustness: A critical analysis of out-of-distribution generalization. In: Proceedings of the IEEE/CVF international conference on computer vision. pp. 8340–8349 (2021) [9] Hendrycks, D., Zhao, K., Basart, S., Steinhardt, J., Song, D.: Natural adversarial examples. In: CVPR. pp. 15262–15271 (2021) [10] Jia, M., Tang, L., Chen, B.C., Cardie, C., Belongie, S., Hariharan, B., Lim, S.N.: Visual prompt tuning. In: European conference on computer vision. pp. 709–727. Springer (2022) [11] Kirkpatrick, J., Pascanu, R., Rabinowitz, N., Veness, J., Desjardins, G., Rusu, A.A., Milan, K., Quan, J., Ramalho, T., Grabska-Barwinska, A., et al.: Overcoming catastrophic forgetting in neural networks. Proceedings of the national academy of sciences 114 (13), 3521–3526 (2017) [12] Li, D., Wang, T., Chen, J., Dai, W., Zeng, Z.: Harnessing neural unit dynamics for effective and scalable class-incremental learning. arXiv preprint arXiv:2406.02428 (2024) [13] Li, D., Zeng, Z.: Crnet: A fast continual learning framework with random theory. IEEE Transactions on Pattern Analysis and Machine Intelligence 45 (9), 10731–10744 (2023) [14] Lian, D., Zhou, D., Feng, J., Wang, X.: Scaling & shifting your features: A new baseline for efficient model tuning. Advances in Neural Information Processing Systems 35 , 109–123 (2022) [15] McCloskey, M., Cohen, N.J.: Catastrophic interference in connectionist networks: The sequential learning problem. In: Psychology of learning and motivation, vol. 24, pp. 109–165. Elsevier (1989) [16] McDonnell, M.D., Gong, D., Parvaneh, A., Abbasnejad, E., van den Hengel, A.: Ranpac: Random projections and pre-trained models for continual learning. Advances in Neural Information Processing Systems 36 (2024) [17] Meng, Z., Zhang, J., Yang, C., Zhan, Z., Zhao, P., Wang, Y.: Diffclass: Diffusion-based class incremental learning. In: European Conference on Computer Vision. pp. 142–159. Springer (2025) [18] Momeni, S., Mazumder, S., Liu, B.: Continual learning using a kernel-based method over foundation models. In: Proceedings of the AAAI Conference on Artificial Intelligence. vol. 39, pp. 19528–19536 (2025) [19] Momeni, S., Xiao, C., Liu, B.: Anacp: Toward upper-bound continual learning via analytic contrastive projection. In: The Thirty-ninth Annual Conference on Neural Information Processing Systems [20] Oquab, M., Darcet, T., Moutakanni, T., Vo, H., Szafraniec, M., Khalidov, V., Fernandez, P., Haziza, D., Massa, F., El-Nouby, A., et al.: Dinov2: Learning robust visual features without supervision. arXiv preprint arXiv:2304.07193 (2023) [21] Panos, A., Kobe, Y., Reino, D.O., Aljundi, R., Turner, R.E.: First session adaptation: A strong replay-free baseline for class-incremental learning. In: Proceedings of the IEEE/CVF International Conference on Computer Vision. pp. 18820–18830 (2023) 
+
+12 [22] Peng, L., Elenter, J., Agterberg, J., Ribeiro, A., Vidal, R.: Loranpac: Low-rank random features and pre-trained models for bridging theory and practice in continual learning. arXiv preprint arXiv:2410.00645 (2024) [23] Peng, L., Giampouras, P., Vidal, R.: The ideal continual learner: An agent that never forgets. In: International Conference on Machine Learning. pp. 27585–27610. PMLR (2023) [24] Qiao, J., Tan, X., Chen, C., Qu, Y., Peng, Y., Xie, Y., et al.: Prompt gradient projection for continual learning. In: The Twelfth International Conference on Learning Representations (2023) [25] Smith, J.S., Karlinsky, L., Gutta, V., Cascante-Bonilla, P., Kim, D., Arbelle, A., Panda, R., Feris, R., Kira, Z.: Coda-prompt: Continual decomposed attention-based prompting for rehearsal-free continual learning. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 11909–11919 (2023) [26] Sun, H.L., Zhou, D.W., Zhao, H., Gan, L., Zhan, D.C., Ye, H.J.: Mos: Model surgery for pre-trained model-based class-incremental learning. arXiv preprint arXiv:2412.09441 (2024) [27] Tylavsky, D.J., Sohie, G.R.: Generalization of the matrix inversion lemma. Proceedings of the IEEE 74 (7), 1050–1052 (2005) [28] Wang, D., Li, M.: Stochastic configuration networks: Fundamentals and algorithms. IEEE transactions on cybernetics 47 (10), 3466–3479 (2017) [29] Wang, Z., Zhang, Z., Lee, C.Y., Zhang, H., Sun, R., Ren, X., Su, G., Perot, V., Dy, J., Pfister, T.: Learning to prompt for continual learning. In: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. pp. 139–149 (2022) [30] Wightman, R.: Pytorch image models. https://github.com/rwightman/pytorch-image-models (2019). https://doi.org/10.5281/zenodo.4414861 [31] Wu, Y., Piao, H., Huang, L.K., Wang, R., Li, W., Pfister, H., Meng, D., Ma, K., Wei, Y.: Sd-lora: Scalable decoupled low-rank adaptation for class incremental learning. arXiv preprint arXiv:2501.13198 (2025) [32] Yan, S., Xie, J., He, X.: Der: Dynamically expandable representation for class incremental learning. In: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. pp. 3014–3023 (2021) [33] Yu, J., Zhuge, Y., Zhang, L., Hu, P., Wang, D., Lu, H., He, Y.: Boosting continual learning of vision-language models via mixture-of-experts adapters. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 23219–23230 (2024) [34] Zhang, Y., Yin, Z., Shao, J., Liu, Z.: Benchmarking omni-vision representation through the lens of visual realms. In: ECCV. pp. 594–611. Springer (2022) [35] Zhou, D.W., Cai, Z.W., Ye, H.J., Zhan, D.C., Liu, Z.: Revisiting class-incremental learning with pre-trained models: Generalizability and adaptivity are all you need. International Journal of Computer Vision pp. 1–21 (2024) [36] Zhou, D.W., Sun, H.L., Ye, H.J., Zhan, D.C.: Expandable subspace ensemble for pre-trained model-based class-incremental learning. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 23554–23564 (2024) [37] Zhu, F., Zhang, X.Y., Wang, C., Yin, F., Liu, C.L.: Prototype augmentation and self-supervision for incremental learning. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 5871–5880 (2021) [38] Zhuang, H., Chen, Y., Fang, D., He, R., Tong, K., Wei, H., Zeng, Z., Chen, C.: G-acil: Analytic learning for exemplar-free generalized class incremental learning. arXiv preprint arXiv:2403.15706 (2024) [39] Zhuang, H., Weng, Z., Wei, H., Xie, R., Toh, K.A., Lin, Z.: Acil: Analytic class-incremental learning with absolute memorization and privacy protection. Advances in Neural Information Processing Systems 35 , 11602–11614 (2022) [40] Zou, H., Zang, Y., Ji, X.: Structural features of the fly olfactory circuit mitigate the stability-plasticity dilemma in continual learning. arXiv preprint arXiv:2502.01427 (2025) [41] Zou, H., Zang, Y., Xu, W., Ji, X.: Fly-cl: A fly-inspired framework for enhancing efficient decorrelation and reduced training time in pre-trained model-based continual representation learning. arXiv preprint arXiv:2510.16877 (2025) 
+
+13 [42] Zou, H., Zang, Y., Xu, W., Zhu, Y., Ji, X.: FlyloRA: Boosting task decoupling and parameter efficiency via implicit rank-wise mixture-of-experts. In: The Thirty-ninth Annual Conference on Neural Information Processing Systems (2025) 
+
+14 A Proof of Theorem 1. 
+
+Proof. Throughout, we assume λ > 0 and take WβL−s to be the ridge-regression solution restricted to the first L − s hidden units at the current accepted augmentation step. Consider the matrix decomposition 
+
+HL = [ HL−s, Hs]. The ridge-regularized Gram matrix is given by: 
+
+H⊤ 
+
+> L
+
+HL + λI =
+
+"H⊤
+
+> L−s
+
+HL−s + λIL−s H⊤
+
+> L−s
+
+Hs
+
+H⊤ 
+
+> s
+
+HL−s H⊤ 
+
+> s
+
+Hs + λIs
+
+#
+
+. (18) Using the block inversion formula, the lower-right block S is given by: 
+
+S =  H⊤ 
+
+> s
+
+Hs + λIs
+
+
+
+− H⊤ 
+
+> s
+
+HL−s
+
+ H⊤
+
+> L−s
+
+HL−s + λIL−s
+
+−1 H⊤
+
+> L−s
+
+Hs. (19) Since λ > 0, both diagonal blocks are positive definite, so S is positive definite and invertible. The updated solution for the output weight Wβ⋆L arises from the closed-form solution of ridge regression (Eq. 16), which, when adapted for the block matrix decomposition HL = [ HL−s, Hs] using standard block matrix inversion techniques (general principles in [27], with S in Eq. 19 being the key Schur complement component for this inversion), yields the recursive update presented in Eq. 20. This specific form is a direct consequence of the optimality conditions for block-wise ridge regression and is a well-established result in the context of sequential least squares (for detailed derivations, see e.g., [7] and [2]). 
+
+Wβ⋆L = WβL−s
+
+0
+
+!
+
++ ∆
+
+S−1H⊤
+
+> s
+
+!  y − HL−sWβL−s
+
+, (20) where WβL−s is the solution using the first L − s nodes. The first term in Eq. 20 extends this previous solution with zero-padding for the newly added s nodes. The second term reflects the correction, based on the residual y − HL−sWβL−s . Specifically, the component S−1H⊤ 
+
+> s
+
+computes the optimal update for the weights of the new block Hs, while ∆ adjusts the weights corresponding to HL−s, and ∆ is given by: 
+
+∆ = −(H⊤
+
+> L−s
+
+HL−s + λIL−s)−1
+
+H⊤
+
+> L−s
+
+HsS−1H⊤ 
+
+> s
+
+. (21) When the output weights are updated, the new residual is given by: 
+
+eL = y − HLWβ⋆L . (22) Substituting Eq. 20 into HLWβ⋆L , we obtain: 
+
+HLWβ⋆L = HL−sWβL−s
+
++ HL−s∆ y − HL−sWβL−s
+
+
+
++ HsS−1H⊤ 
+
+> s
+
+(y − HL−sWβL−s ).
+
+(23) Since eL−s = y − HL−sWβL−s , define 
+
+T := HL−s(H⊤
+
+> L−s
+
+HL−s + λIL−s)−1H⊤
+
+> L−s
+
+Hs. (24) Then HL−s∆ = −T S −1H⊤ 
+
+> s
+
+, and hence 
+
+eL = y − HLWβ⋆L
+
+= ( y − HL−sWβL−s ) − HsS−1 H⊤ 
+
+> s
+
+eL−s
+
+
+
++ T S −1 H⊤ 
+
+> s
+
+eL−s
+
+.
+
+(25) 15 Defining v = H⊤ 
+
+> s
+
+eL−s, we obtain: 
+
+eL = eL−s − HsS−1v + T S −1v. (26) For brevity, let z = HsS−1v and u = T S −1v. Then, considering the squared norm of the residual difference: 
+
+∥eL−s∥2 − ∥ eL∥2 = ∥eL−s∥2 − ∥ eL−s − z + u∥2
+
+= e⊤
+
+> L−s
+
+z + z⊤eL−s − z⊤z
+
+− e⊤
+
+> L−s
+
+u − u⊤eL−s + z⊤u + u⊤z − u⊤u. (27) Next, we compute each principal term: 1. Since v = H⊤ 
+
+> s
+
+eL−s, we have: 
+
+e⊤
+
+> L−s
+
+z = e⊤
+
+> L−s
+
+ HsS−1v =  H⊤ 
+
+> s
+
+eL−s
+
+⊤S−1v = v⊤S−1v. (28) 2. Similarly, for z⊤eL−s:
+
+z⊤eL−s = v⊤S−1v. (29) 3. For z⊤z:
+
+z⊤z = v⊤S−1 H⊤ 
+
+> s
+
+Hs
+
+S−1v. (30) Thus, we obtain: 
+
+∥eL−s∥2 − ∥ eL∥2 = 2 v⊤S−1v − v⊤
+
+S−1H⊤ 
+
+> s
+
+HsS−1
+
+v + RL, (31) where 
+
+RL := −e⊤
+
+> L−s
+
+u − u⊤eL−s + z⊤u + u⊤z − u⊤u. (32) The term RL denotes the coupling terms introduced by the re-adjustment of the previously selected block 
+
+HL−s through the Schur-complement correction T S −1v; it is absent in the idealized decoupled case. Since 
+
+RL ≥ 0 by assumption, Eq. (31) and condition (15) imply: 
+
+∥eL∥2 ≤ r ∥eL−s∥2. (33) Let e0 denote the residual before the first accepted block in this construction. Since each accepted expansion appends s hidden units, after k accepted block expansions we have L = ks , and therefore 
+
+∥eL∥2 ≤ rk ∥e0∥2. (34) Since 0 < r < 1, rk → 0 as k → ∞ , and hence lim L→∞ ∥eL∥ = 0. This completes the proof. 16 B Explanation of the MGSM-driven RPL Modeling Process 
+
+Process overview. Fig. 13 illustrates the overall MGSM-driven RPL modeling process. We refer to each randomly parameterized hidden unit ( w, b ) in the RPL as a random basis; its activation g(w⊤z + b) on a PTM feature vector z contributes one column to the RPL feature matrix. These random bases are continually sampled from simple distributions at each iteration, but only those whose induced features satisfy the MGSM acceptance criterion are incorporated into the final RPL. The goal is to ensure that the resulting random features lie as much as possible within the domain of the downstream task, for which the initial-task dataset provides the best available reference at the current stage. Consequently, MGSM can be viewed as a data- and objective-driven exploration procedure: when no candidate random bases drawn from the current sampling distribution are accepted, MGSM automatically adjusts the distribution range so that more sampled bases fall into the admissible region defined by its criterion. This process continues until the residual falls below a predefined threshold, at which point the RPL construction terminates. Although the acceptance criterion in Theorem 1 does not formally guarantee that a candidate block will be accepted within a finite number of trials, in all of our experiments across four benchmarks, multiple PTM architectures, and three independent runs each, at least one candidate block was always accepted before the discrete scaling set Xξ was exhausted. As ξ increases, the sampled random features span increasingly diverse directions, making it progressively easier for a candidate batch to satisfy the criterion.  
+
+> Figure 13 Illustration of the MGSM-driven RPL construction process.
+
+17 C Additional Experiment 
+
+C.1 Hyperparameters 
+
+Our Method. The proposed SCL-MGSM involves the following hyperparameters, all of which are shared across the four benchmarks. The activation function g(·) is sigmoid. The batch size s=50 and maximum number of candidate batches Bmax = 10 mainly affect the construction speed (see Table 3). The contraction rate in Theorem 1 is fixed at r=0.99. The residual tolerance is ε= 0.01. The ridge regularization coefficient 
+
+λ=0.01 is selected by grid search over {0.001 , 0.01 , 0.1, 10 , 100 , 1000 } with a 90%-10% train-validation split on the initial-task data. The adaptive scaling range is ξmin =0.0008, ∆ ξ= 0.0001, ξmax =0.004. For first-session adaptation (FSA), we follow the same protocol as RanPAC [16]. 
+
+Baselines. All compared methods are reproduced using their official codebases. For KLDA, APT, CodaPrompt, and SD-LoRA, we follow the ImageNet-R hyperparameter settings. Methods using first-session adaptation, including LoRanPAC, adopt the same hyperparameters as RanPAC [ 16 ]. All other methods use their default hyperparameters. All experiments are conducted on a single Nvidia A100 GPU with 80GB memory. 
+
+C.2 Final Hidden Size of SCL-MGSM 
+
+Unlike fixed-size RPL methods that require manual tuning of the hidden size, SCL-MGSM determines L∗
+
+automatically via the MGSM residual criterion. Table 4 reports the average final hidden size over three runs. The results show that L∗ varies across datasets, reflecting differences in domain shift: ImageNet-A, which exhibits the largest domain gap from the pre-trained distribution, requires the most hidden units (L∗=15950), whereas ImageNet-R converges with the fewest ( L∗= 14650). This data-driven capacity allocation enhances usability by automating the selection of hidden sizes for different tasks, obviating the need for manual searching.                
+
+> Table 4 Average final hidden sizes ( L∗) of SCL-MGSM across datasets.
+> Dataset Avg. Final Nodes ( L∗)Std. Dev.
+> ImageNet-R 14650 ±106 ImageNet-A 15950 ±313 ObjectNet 15250 ±176 OmniBenchmark 15450 ±248
+
+C.3 Impact of First-Session Adaptation on RPL-based Methods 
+
+To isolate the effect of first-session adaptation (FSA), Fig. 14 compares the gain in Alast over the corresponding 
+
+Joint Linear Probe baseline for representative RPL-based methods under matched evaluation settings. Dark bars denote the variants with FSA, and light bars denote the counterparts without FSA. Positive values indicate that the incremental method surpasses the frozen-backbone oracle that jointly trains only the linear head on all tasks. Across most datasets, enabling FSA enlarges the margin over Joint Linear Probe for RPL-based methods, indicating that adapting the PTM on the initial task yields representations that better capture the statis-tical structure of downstream classes, thereby mitigating the domain gap between pre-training and target distributions. Furthermore, even without FSA, SCL-MGSM consistently outperforms the other RPL-based baselines, suggesting that MGSM-guided subspace modeling itself can partially compensate for the domain gap by leveraging the initial-task statistics to construct a more representative RPL. When FSA is enabled, SCL-MGSM benefits consistently on all four datasets and achieves the largest gains among the compared methods, indicating that the adapted first-session representation and MGSM-guided RPL construction are complementary and can be combined for stronger continual performance. 18 Figure 14 Impact of first-session adaptation on representative RPL-based methods. We report ∆ Alast relative to the corresponding Joint Linear Probe baseline on four datasets. Dark bars indicate variants with FSA, and light bars indicate variants without FSA. Larger positive values mean that the incremental learner exceeds the frozen-backbone joint linear probe by a wider margin. 
+
+C.4 Result on More Backbones 
+
+Result on DINO-v2. As shown in Table 5, with DINO-v2 [ 20 ] as the PTM, SCL-MGSM achieves the best 
+
+Alast and Aavg on ImageNet-R, OmniBenchmark, and ObjectNet under both protocols, and attains the highest 
+
+Alast on ImageNet-A under both protocols. Specifically, on OmniBenchmark Inc-5, SCL-MGSM surpasses the second-best method (AnaCP) by +2.08% in Alast , and on ImageNet-R Inc-10 the margin reaches +0.46% over AnaCP. The only exception is ImageNet-A Aavg Inc-5, where AnaCP leads by a small margin. Notably, on OmniBenchmark SCL-MGSM surpasses the Joint Linear Probe oracle (83.40% vs. 82.41%), despite operating in a strictly incremental setting. Relative to the corresponding results in Table 1 obtained with ViT-B/16-IN21K, DINO-v2 consistently improves all compared methods. SCL-MGSM nevertheless retains its advantage over the other RPL-based baselines, indicating that MGSM-guided subspace modeling continues to benefit from stronger feature representations rather than saturating as the backbone improves. 
+
+Result on non-Transformer Backbone. As shown in Table 6, when replacing the Transformer backbone with ResNet-101, SCL-MGSM ranks first on ImageNet-R, ObjectNet, and OmniBenchmark across both incremental protocols. Specifically, on OmniBenchmark Inc-5, SCL-MGSM outperforms the second-best method (RanPAC) by +3.00% in Alast and +2.61% in Aavg . The exception is ImageNet-A, where LoRanPAC achieves the best results and SCL-MGSM ranks second. A possible reason is that ImageNet-A contains adversarially filtered samples that are inherently challenging for CNN features, limiting the benefit that subspace modeling can extract from relatively weak representations. Nevertheless, across the remaining three datasets SCL-MGSM consistently leads, demonstrating that MGSM-guided RPL construction is architecture-agnostic and not restricted to Transformer-based PTMs. These results confirm that SCL-MGSM serves as a plug-and-play module compatible with diverse PTM architectures. 
+
+C.5 Analysis of Average Forgetting. 
+
+We define the average forgetting as Favg = 1 
+
+> T−1
+
+PT −1
+
+> j=1
+
+ max t∈{ j,...,T −1} at,j −aT,j 
+
+, where T is the total number of stages and at,j denotes the test accuracy on task j after stage t. A lower Favg indicates better retention of previously learned knowledge. Table 7 reports Favg under the same settings as Table 1 for representative RPL-based methods. SCL-MGSM achieves the lowest forgetting in all eight settings, and its margin over the second-lowest method is 0.24/0.72 on ImageNet-R, 0.65/0.58 on ImageNet-A, 0.77/1.18 on ObjectNet, and 0.14/0.44 on OmniBenchmark for Inc-5/Inc-10, respectively. Among the compared RPL-based methods (RanPAC, G-ACIL, LoRanPAC, AnaCP), SCL-MGSM consistently attains the lowest Favg , confirming that 19 Table 5 Comparison of CIL performance across methods with DINO-v2 as the PTM. B-m Inc-n denotes m initial classes and n incremental classes ( m=0: equal split). Alast and Aavg denote final and average accuracy (%), respectively. 
+
+Bold and underline mark the best and second-best incremental results under each protocol. 
+
+Method ImageNet-R (B-0) ImageNet-A (B-0) 
+
+Joint Linear Probe 82.47 ±0.07 69.67 ±0.37 
+
+Inc-5 Inc-10 Inc-5 Inc-10 
+
+Alast Aavg Alast Aavg Alast Aavg Alast Aavg 
+
+SimpleCIL 75.35 ±0.00 80.82 ±0.94 75.35 ±0.00 80.52 ±0.91 68.93 ±0.00 77.58 ±1.13 68.93 ±0.00 77.13 ±1.07 KLDA 75.78 ±0.17 80.76 ±1.15 75.78 ±0.16 80.79 ±0.78 66.91 ±0.63 70.13 ±1.76 66.91 ±0.63 70.15 ±1.49 LoRanPAC 84.06 ±0.10 88.34 ±0.55 84.97 ±0.21 89.11 ±0.55 66.69 ±0.65 73.60 ±1.08 69.23 ±0.44 75.28 ±1.12 AnaCP 84.41 ±0.40 88.93 ±0.48 85.94 ±0.33 89.82 ±0.42 71.05 ±0.72 79.45 ±0.72 71.98 ±0.68 78.28 ±1.18 RanPAC 83.67 ±0.25 87.82 ±0.49 84.56 ±0.41 88.46 ±0.69 48.56 ±2.56 57.55 ±4.60 64.65 ±2.23 70.98 ±1.28 G-ACIL 81.53 ±0.19 86.33 ±0.71 81.53 ±0.19 86.12 ±0.67 67.61 ±0.58 75.91 ±0.88 67.63 ±0.60 75.45 ±0.80 SCL-MGSM 84.61 ±0.79 89.26 ±0.17 86.40 ±0.16 90.18 ±0.45 71.60 ±0.42 78.66 ±0.90 72.42 ±0.52 79.30 ±1.01 Method ObjectNet (B-0) OmniBenchmark (B-0) 
+
+Joint Linear Probe 65.17 ±0.28 82.41 ±0.05 
+
+Inc-5 Inc-10 Inc-5 Inc-10 
+
+Alast Aavg Alast Aavg Alast Aavg Alast Aavg 
+
+SimpleCIL 56.13 ±0.00 66.33 ±2.55 56.13 ±0.00 65.84 ±2.43 73.48 ±0.00 81.02 ±1.06 73.48 ±0.00 80.79 ±1.04 KLDA 59.99 ±0.19 69.66 ±0.68 59.99 ±0.18 67.91 ±1.67 77.50 ±0.14 86.29 ±1.40 77.51 ±0.12 85.03 ±1.23 LoRanPAC 67.82 ±0.26 77.04 ±1.91 69.72 ±0.15 78.25 ±1.82 78.62 ±0.24 86.64 ±0.58 79.22 ±0.41 86.83 ±0.56 AnaCP 71.61 ±0.22 78.74 ±2.10 71.76 ±0.63 79.56 ±1.49 81.32 ±0.27 88.49 ±0.55 81.46 ±0.41 88.42 ±0.56 RanPAC 66.95 ±0.44 75.78 ±2.34 68.78 ±0.46 77.10 ±1.71 79.80 ±0.17 87.21 ±0.70 79.96 ±0.27 87.08 ±0.52 G-ACIL 63.58 ±0.19 73.20 ±2.22 63.58 ±0.18 72.77 ±2.15 80.14 ±0.19 87.58 ±0.44 80.14 ±0.19 87.39 ±0.45 SCL-MGSM 72.04 ±1.32 80.34 ±1.96 72.50 ±0.59 80.23 ±1.76 83.40 ±0.10 89.38 ±0.71 83.43 ±0.20 89.34 ±0.81 
+
+Figure 15 Top-1 accuracy during sequential continual learning using ViT-B/16-IN21K. 
+
+the RPL construction from MGSM preserves previously learned knowledge more effectively than random initialization while maintaining the strongest accuracy in Table 1. Figure 15 further visualizes the stage-wise accuracy under the B-0 Inc-10 setting. 20 Table 6 Comparison of CIL performance across methods with ResNet101 as the PTM. B-m Inc-n denotes m initial classes and n incremental classes ( m=0: equal split). Alast and Aavg denote final and average accuracy (%), respectively. 
+
+Bold and underline mark the best and second-best results under each protocol. 
+
+Method ImageNet-R (B-0) ImageNet-A (B-0) Inc-5 Inc-10 Inc-5 Inc-10 
+
+Alast Aavg Alast Aavg Alast Aavg Alast Aavg 
+
+SimpleCIL 37.28 ±0.00 45.72 ±1.24 37.28 ±0.00 45.13 ±1.07 13.63 ±0.00 23.89 ±0.11 13.63 ±0.00 23.14 ±0.33 KLDA 48.96 ±0.18 55.82 ±0.99 48.89 ±0.40 55.08 ±1.21 15.87 ±0.40 21.75 ±0.62 15.80 ±0.37 20.99 ±1.40 LoRanPAC 53.38 ±0.21 62.18 ±0.84 53.48 ±0.25 61.75 ±0.68 22.03 ±0.45 30.81 ±1.01 21.94 ±0.60 30.15 ±1.24 
+
+AnaCP 52.98 ±0.41 61.63 ±1.00 53.03 ±0.43 61.19 ±0.39 17.86 ±0.17 28.49 ±0.73 17.95 ±1.16 27.65 ±0.89 RanPAC 52.46 ±0.12 60.84 ±0.61 52.87 ±0.32 60.54 ±0.77 19.84 ±0.55 29.00 ±1.31 19.62 ±0.27 29.08 ±0.71 G-ACIL 49.38 ±0.06 58.50 ±0.42 49.38 ±0.07 57.99 ±0.38 20.03 ±0.37 30.03 ±0.71 20.03 ±0.37 29.24 ±0.75 SCL-MGSM 54.19 ±0.84 62.34 ±0.50 54.56 ±0.30 62.11 ±0.61 20.23 ±0.27 30.27 ±0.63 20.08 ±0.24 29.41 ±0.63 
+
+Method ObjectNet (B-0) OmniBenchmark (B-0) Inc-5 Inc-10 Inc-5 Inc-10 
+
+Alast Aavg Alast Aavg Alast Aavg Alast Aavg 
+
+SimpleCIL 29.26 ±0.00 40.07 ±3.17 29.25 ±0.02 39.45 ±3.05 48.44 ±0.00 60.14 ±1.18 48.44 ±0.00 59.66 ±1.26 KLDA 33.42 ±0.34 42.14 ±3.38 33.26 ±0.13 41.84 ±2.96 55.84 ±0.21 67.61 ±1.03 55.97 ±0.29 67.17 ±1.21 LoRanPAC 38.34 ±0.31 50.40 ±2.44 38.47 ±0.32 49.81 ±2.33 58.86 ±0.21 71.65 ±1.08 58.90 ±0.19 71.28 ±1.01 AnaCP 34.69 ±0.51 46.59 ±3.25 34.49 ±0.59 45.96 ±2.62 59.18 ±0.19 70.86 ±0.95 59.39 ±0.20 70.58 ±1.15 RanPAC 37.41 ±0.16 48.72 ±2.70 37.64 ±0.25 47.99 ±2.61 60.38 ±0.08 71.48 ±0.99 60.19 ±0.44 71.32 ±0.80 G-ACIL 35.06 ±0.30 46.91 ±2.32 35.07 ±0.31 46.33 ±2.23 57.24 ±0.09 69.09 ±0.96 57.24 ±0.08 68.71 ±0.99 SCL-MGSM 38.84 ±0.75 51.02 ±2.59 39.15 ±0.11 50.67 ±2.37 63.38 ±0.20 74.09 ±0.94 63.22 ±0.05 73.78 ±0.90 
+
+Table 7 Comparison of Average Forgetting. We report Favg (in %) for representative incremental methods; lower is better. Bold and underline mark the lowest and second-lowest forgetting under each protocol.                                                                   
+
+> Method ImageNet-R (B-0) ImageNet-A (B-0) Inc-5 Inc-10 Inc-5 Inc-10
+> SimpleCIL 8.06 ±0.46 7.73 ±0.26 11.75 ±0.51 11.59 ±0.33
+> KLDA 6.89 ±0.75 6.52 ±0.65 10.15 ±0.49 11.67 ±0.21
+> RanPAC 7.11 ±0.49 6.34 ±0.38 24.83 ±6.31 10.53 ±0.44
+> G-ACIL 7.63 ±0.35 7.21 ±0.43 13.41 ±0.27 12.36 ±0.07
+> LoRanPAC 6.66 ±0.17 6.03 ±0.09 10.98 ±0.32 10.48 ±0.52
+> AnaCP 7.01 ±0.40 6.31 ±0.29 12.12 ±0.22 10.66 ±0.56
+> SCL-MGSM 6.42 ±0.52 5.31 ±0.20 9.50 ±0.59 9.90 ±0.74
+> Method ObjectNet (B-0) OmniBenchmark (B-0) Inc-5 Inc-10 Inc-5 Inc-10
+> SimpleCIL 10.19 ±0.22 9.97 ±0.19 8.15 ±0.08 8.04 ±0.07
+> KLDA 9.96 ±0.23 9.62 ±0.19 8.41 ±0.18 8.25 ±0.12
+> RanPAC 10.85 ±0.67 10.06 ±0.74 8.48 ±0.18 8.19 ±0.27
+> G-ACIL 11.55 ±0.68 11.20 ±0.71 8.84 ±0.38 8.66 ±0.32
+> LoRanPAC 10.25 ±0.18 9.54 ±0.40 8.29 ±0.34 8.29 ±0.22
+> AnaCP 10.25 ±0.51 9.41 ±0.33 9.29 ±0.43 8.69 ±0.33
+> SCL-MGSM 9.19 ±0.43 8.23 ±0.71 8.01 ±0.12 7.60 ±0.57
+
+C.6 Eigenvalue Analysis of the Recursive Matrix Pt
+
+As shown in Eq. (5), Pt accumulates the random-feature Gram matrices across stages. Its conditioning directly governs the numerical stability of the recursive ridge updates. To further investigate, Figure 16 plots the maximum eigenvalue, minimum eigenvalue, and condition number of Pt on ImageNet-A across 20 incremental stages. Under RI, the maximum eigenvalue increases rapidly while the minimum eigenvalue decays, causing the condition number to grow by roughly an order of magnitude. Under MGSM, the maximum eigenvalue grows more slowly and the minimum eigenvalue remains stable, keeping the condition number consistently lower than that of RI. These results further suggest that MGSM supports more stable continual learning by maintaining a better-conditioned Pt, rather than depending primarily on stronger ridge regularization. 21 Figure 16 Eigenvalue and condition number analysis of Pt. Left: maximum eigenvalue. Center: minimum eigenvalue. Right: condition number of Pt.
+
+## D Limitation and Future Work 
+
+SCL-MGSM leverages initial-task data to guide RPL construction via the MGSM criterion, and the resulting RPL is then frozen throughout all subsequent continual learning stages. This is the first paradigm in RPL-based analytic continual learning that uses initial-task supervision to determine which random bases to retain, and it is well suited to scenarios where successive tasks share a certain degree of statistical similarity with the initial task. In practice, this assumption is commonly satisfied: image recognition tasks generally share low-level visual patterns such as edges, textures, and shapes, so even tasks from different domains exhibit non-trivial statistical overlap in the PTM feature space. Our experiments across seven benchmarks with varying domain gaps support this observation. Moreover, as PTMs are trained on increasingly large and diverse datasets, the learned representations become more general, further strengthening this cross-task similarity. However, if the domain gap between the initial task and later tasks is extreme, the RPL constructed from initial-task statistics may not adequately span the feature directions required by subsequent tasks, potentially limiting representational capacity. In future work, we plan to extend SCL-MGSM toward a dynamic RPL paradigm that can progressively adapt the random projection space across continual learning stages, allowing the RPL to incorporate new task-relevant directions as they emerge while preserving the stability of previously learned representations. 22
