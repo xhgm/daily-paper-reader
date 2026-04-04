@@ -1,0 +1,2692 @@
+Title: Tunable Soft Equivariance with Guarantees
+
+URL Source: https://arxiv.org/pdf/2603.26657v1
+
+Published Time: Mon, 30 Mar 2026 01:23:51 GMT
+
+Number of Pages: 32
+
+Markdown Content:
+# Tunable Soft Equivariance with Guarantees 
+
+## Md Ashiqur Rahman 1 Lim Jun Hao 2 Jeremiah Jiang 2 Teck-Yian Lim 2 Raymond A. Yeh 11Purdue University 2DSO National Laboratories   
+
+> Equivariant Soft equivariant Non-equivariant
+
+Weights 
+
+Eq. Error 
+
+Low error High error 
+
+Figure 1. Visualization of the ViT [ 12 ] weights with our soft equivariance layer (w.r.t. 90 ◦ rotation) under different softness levels, along with the corresponding extracted features and the equivariance errors. Our tunable design allows the layers’ weights to transition smoothly from perfectly equivariant to fully non-equivariant behavior in a controlled manner. 
+
+## Abstract 
+
+Equivariance is a fundamental property in computer vision models, yet strict equivariance is rarely satisfied in real-world data, which can limit a model’s performance. Control-ling the degree of equivariance is therefore desirable. We pro-pose a general framework for constructing soft equivariant models by projecting the model weights into a designed sub-space. The method applies to any pre-trained architecture and provides theoretical bounds on the induced equivariance error. Empirically, we demonstrate the effectiveness of our method across multiple pre-trained backbones, including ViT and ResNet, for image classification, semantic segmentation, and human-trajectory prediction. Notably, our approach improves the performance while simultaneously reducing equivariance error on the competitive ImageNet benchmark. 
+
+## 1. Introduction 
+
+A model is equivariant to a transformation if applying that transformation to the input results in a predictable transfor-mation at the output. Consider image segmentation: when an object in an image is shifted, the predicted mask is expected to shift by the same amount; this is known as shift equivari-ance. Although designing models with built-in equivariance has been well studied and shown to be effective in various applications [ 8, 29 , 45 , 46 , 49 , 55 , 63 , 69 ], such architectures remain uncommon in mainstream vision systems. In practice, real-world data only approximately satisfies equivariance, and strictly enforcing it can reduce a model’s expressiveness. This led to the development of soft equivariant mod-els, i.e ., models that are only approximately equivariant. Common approaches include augmentation [ 3, 57 , 59 ] and regularization-based methods [ 14 , 28 , 56 ]. However, these techniques do not offer guarantees on a model’s equivariance properties after training. Another direction [ 16 , 53 , 61 , 62 ]achieves soft equivariance by adding non-equivariant com-ponents into equivariant models, providing a way to trade off between expressiveness and equivariance. Nonetheless, these methods still lack guarantees on the resulting equivari-ance and rely on specialized architectural designs that cannot be easily adapted from off-the-shelf models. To address these challenges, we propose to construct soft-equivariant models through a generalized notion of “blurring” filters, which can be applied to any pre-trained model. This is inspired by the special case of shift-invariance in con-volutional neural networks (CNNs) by Zhang [76] , where anti-aliasing (blurring) filters are used to make CNNs more invariant. Our approach extends this idea beyond shift equiv-ariance to other groups and further provides a bound on the equivariance error. This allows us to systematically tune the trade-off between equivariance and expressiveness in a principled manner; see illustration in Fig. 1. 
+
+> Features
+> arXiv:2603.26657v1 [cs.CV] 27 Mar 2026
+
+In our experiments, we first demonstrate the tunability of the proposed soft equivariant models on small-scale im-age classification. We then incorporate the proposed layer into various pre-trained backbones, including ViT [ 12 ], DI-NOv2 [ 43 ], ResNet [ 21 ], and Segformer [ 71 ] for image classification (CIFAR10/100 [ 31 ], and ImageNet [ 11 ]) and segmentation task (PASCAL VOC [ 15 ]). We demonstrate that utilizing our soft equivariance layer further improves the model’s performance and reduces equivariance errors. Finally, we go beyond image tasks and evaluate our layers on trajectory prediction [ 19 ] and a synthetic O(5) -invariant regression problem [17]. Our main contributions: 
+
+• We introduce a novel framework for constructing soft equivariant layers by restricting the parameters via projec-tions, applicable to any pre-trained model. • We derive bounds on the equivariance error, which guides the design of the tunable soft equivariant layers, allowing a controllable expressiveness-equivariance trade-off. • Extensive experiments on three applications (classifica-tion, segmentation, and trajectory prediction) and four backbones demonstrate the practicality and effectiveness of the proposed approach. 
+
+## 2. Related Work 
+
+Group equivariant architectures. Early work focused on group convolutions [ 2, 8 , 9], while subsequent research ex-tended equivariance to broader architectures, including trans-formers [ 4 , 32 , 60 ] and graph neural networks [ 13 , 35 , 36 ,39 , 42 , 73 ]. Later developments generalized equivariance be-yond rotation and translation [ 5, 51 , 52 , 76 ] to include permu-tations [ 20 , 50 , 75 ], scaling [ 48 , 58 ], and reflections [ 72 ]. Re-cent works have explored ways to finetune pre-trained vision models to be equivariant to specific transformations [ 1 , 27 ]. Despite strong theoretical foundations, strict equivariance assumptions are often misaligned with real-world data and tasks, leading to suboptimal performance [66]. 
+
+Soft equivariance. Several works address misalignment by relaxing strict equivariance constraints. One line of research softens the rigid structure of group convolutions by introduc-ing additional parameters or input-dependent modulation of the convolution operation [53, 54, 61, 64, 67]. Another line employs loss-based regularization to encourage approximate equivariance [ 14 , 28 ]. Residual mixing between equivariant and non-equivariant layers has also been explored, where the mixing weights are learned from data [16, 61, 62]. Recently, there have been works aiming to learn the under-lying group representations directly from data [ 40 ], relating to broader efforts on discovering symmetries in data [ 74 ]. These techniques have been adopted to various applica-tions [ 23 , 26 , 70 ]. However, these approaches are dependent on group equivariant architectures [ 53 , 61 , 64 , 67 ] or rely on kernels defined directly on the symmetry group [ 54 ], thus limiting their applicability to modern large-scale foundation models. In contrast, our framework is architecture-agnostic. While our approach shares conceptual similarities with Finzi et al. [17] , it generalizes the idea beyond exact equivariance, integrates seamlessly with modern pre-trained vision models, and provides explicit control over the level of equivariance. 
+
+Signal processing (SP). Traditional signal processing es-tablishes a tight connection between low-pass filters, ban-dlimited subspaces, and shift-invariance: a bandlimited sub-space remains bandlimited under shifts [ 65 ]. Equivalently, a low-pass (anti-aliasing) filter can be interpreted as a projec-tion operator onto a shift-invariant bandlimited space. This projection viewpoint has been generalized to graph signal processing via the graph Laplacian [ 6 , 7], extended to ar-bitrary discrete groups [ 47 ], and recently adapted to image generative models [78]. 
+
+## 3. Preliminaries 
+
+For readers needing a refresher on the concept of groups, we provide a review in Appendix Sec. B. Here, we will only discuss the most essential background information. 
+
+A group G is a set with a binary operation that is closed, associative, has an identity element e, and every element has an inverse. The group representation ρ : G → GL( V ) maps group elements to linear transformations on a vector space 
+
+V , which describes the action of the group on V .
+
+Lie algebra and Lie group. A Lie group G is a smooth man-ifold whose multiplication and inversion maps are smooth. The associated Lie algebra g is the tangent space at the identity, equipped with the Lie bracket [·, ·] : g × g → g
+
+(bilinear, antisymmetric, and satisfying the Jacobi identity). Let {A1, A 2, . . . , A N } denote a basis of g, then any ele-ment A ∈ g can be written as A = PNi=1 aiAi with real coefficients ai.The exponential map exp : g → G connects the algebra to the group. For a matrix Lie group and A ∈ g, this is given by the matrix exponential 
+
+exp( tA ) = 
+
+> ∞
+
+X
+
+> n=0
+
+(tA )n
+
+n! , (1) where the real parameter t ∈ R controls the magnitude. A group representation ρ induces an Lie algebra represen-tation dρ : g → End( V ) by differentiation at the identity: 
+
+dρ (A) = ddt ρ(exp( tA )) 
+
+> t=0
+
+, A ∈ g. (2) Here, dρ (A) is the infinitesimal generator describing the first-order derivative action near the identity on V .
+
+Generalized Taylor expansion. The Taylor approximation of a smooth function h : R → R around x0 = 0 is given as 
+
+h(x) = h(0) + h′(0) x + O(x2). This can be extended to functions on a compact, connected Lie group f : G → R.Any g ∈ G can be expressed as g = exp( A) for A ∈ g. The first-order Taylor approximation of f around the identity element e, f (exp( Pki=1 tiAi)) is: 
+
+f (e) + 
+
+> k
+
+X
+
+> i=1
+
+ti
+
+∂f (exp( P 
+
+> i
+
+tiAi)) 
+
+∂t i t=0 
+
++ O(∥A∥2
+
+> g
+
+), (3) where ∥ · ∥ g denotes the norm on the Lie algebra. 
+
+Equivariance. A function F : X → Y is equivariant with respect to a group G if 
+
+F (ρX (g)x) = ρY (g)F (x) ∀g ∈ G, x ∈ X , (4) where ρY and ρX are representations (group actions) of G on 
+
+X and Y, respectively. When ρY (g) = ρY (e) = I ∀g ∈ G,then this is a special case called invariance. 
+
+## 4. Towards Soft Equivariant Networks 
+
+Soft equivariance can be viewed as a relaxation of the equal-ity constraints (Eq. (4) ) into inequality constraints, e.g ., the amount of violation measured in norm difference ( a.k.a. 
+
+equivariance error): 
+
+∥F (ρX (g)x) − ρY (g)F (x)∥ ≤ δ. (5) This formulation has been considered in prior work [ 37 , 40 ]. However, such a definition is sensitive to the scale of the output F (x), making it difficult to interpret the significance of the equivariance error δ. Hence, we propose a relative notion of soft equivariance as follows: 
+
+Definition 1 (η-Soft Equivariant) . A function F is η-soft equivariant with respect to a group G if it satisfies: 
+
+∥F (ρX (g)x) − ρY (g)F (x)∥∥JF (x)∥F∥x∥ ≤ η, ∀g ∈ G, x ∈ X. 
+
+(6) 
+
+Here, JF (x) is the Jacobian of F at x, and η ∈ R+ is the soft equivariance constant. When ρY is the identity, then we say F is η-soft invariant. 
+
+Intuitively, the Jacobian ∥JF ∥ represents the scaling lo-cally around x. Hence, Eq. (6) is measuring equivariance relative to F ’s own local output variation, making η easier to interpret. To avoid degeneracy, we assume ∥JF (x)∥F > 0
+
+and ∥x∥ > 0 for all x in the domain (see Sec. D.1 for details). In the following, we will develop soft equivariant linear lay-ers for both continuous and discrete groups. This is followed by practical considerations and guidance on incorporating them into pre-trained models. 
+
+4.1. Soft equivariance for continuous groups 
+
+We describe our proposed soft invariant/equivariance linear layers for continuous groups. For readability, we present the layer for a single generator and a single output channel. 
+
+Soft invariant fully connected layer. A fully connected layer is defined as y = FFC (x; w) ≜ w⊤x; here, we con-sider x, w ∈ Rd. To achieve η-soft invariance, we im-pose a structure on w via a “blurring”/ projection operator 
+
+Binv ∈ Rd×d, i.e ., 
+
+y ≜ (Binv θ)⊤x, with w ≜ Binv θ (7) where θ ∈ Rd is the learnable parameter of the layer. This projection operation is derived from the Lie algebra represen-tation for a given group G. Let’s denote the singular value decomposition (SVD) of the Lie algebra representation as 
+
+A ≜ dρ X (A) = U ΣV ⊤, (8) where singular values are sorted, i.e ., 0 ≤ σ1 ≤ σ2 . . . 
+
+with corresponding left and right singular vectors ui and vi,respectively. We design the projection operator 
+
+Binv ≜ X
+
+> i:σi<b
+
+uiu⊤ 
+
+> i
+
+, (9) where it filters out the components with a cut-off value 
+
+b ∈ R+. Intuitively, this projection operation removes the directions that are highly affected by the group action. We now formalize the soft invariance property of the proposed layer in the following claim. 
+
+Claim 1. For any compact and connected Lie group G
+
+with injective radius rG and nG number of generators, the function FFC (x, Binv θ) is ηb-soft invariant, i.e., 
+
+∥(Binv θ)⊤x − (Binv θ)⊤ρX (g)x∥∥JFFC (·;w)(x)∥F∥x∥ ≤ ηb, ∀g ∈ G (10) 
+
+where ηb = b√nGrG + εG, b ∈ R+ is the cut-off value for the projection operator , and εG is the residual from the first-order Taylor approximation. 
+
+Proof. We use the Taylor expansion in Eq. (3) to express the invariance error in terms of the Lie algebra representation 
+
+dρ . Next, we relate the contribution of each singular vector of dρ (A) to the overall invariance error. Finally, we show that Binv bounds this error by constraining w to lie within a subspace spanned by a selected subset of singular vectors. See proof in Appendix E.1. Claim 1 states that the invariance error is dependent on the cut-off value b and other group properties rG and nG charac-terizing the group’s size and complexity, e.g ., for continuous 
+
+2D rotation, rG = π and nG = 1 .
+
+Remarks. In the case of shift invariance, our construction of Binv yields a blurring filter whose cut-off frequency is determined by the degree of invariance. While Zhang [76] empirically showed that anti-aliasing (blurring filters) im-proves shift invariance in CNNs, our general framework provides a mathematical justification linking bandlimited signals to shift invariance. 
+
+Multiple generators. For groups with multiple generators 
+
+{Ai}ki=1 , we construct the combined projection operator 
+
+Binv by calculating the left singular vectors of the concate-nated generators 
+
+A ≜ [dρ (A1) | dρ (A2) | . . . | dρ (Ak)] . (11) The rest of the design remains the same following Eq. (8) and Eq. (9). See Appendix E.2 for proof. 
+
+Soft equivariant fully connected layer. A vector-valued fully connected layer is defined as y = FFC (x; W ) ≜ W x .Here, we consider x ∈ Rd and W ∈ Rd′×d. Similar to the invariant layer, to achieve η-soft equivariance, we impose a structure on W via a projection operator Beq ∈ Rd·d′×d·d′
+
+as follows: 
+
+vec (W ) ≜ Beq θ, (12) where θ ∈ Rd·d′
+
+is the learnable parameter of the layer and 
+
+vec is the vectorization operator that stacks the columns of a matrix into a vector. Next, the equivariance constraint in Eq. (4) involving the input and output representations can be consolidated using the Kronecker product [ 17 , 24 ]. Similarly, we design a ma-trix L using the Kronecker product of Lie algebra represen-tations, which quantifies deviation from exact equivariance: 
+
+L ≜ (dρ X (A)⊤ ⊗ Id′ − Id ⊗ dρ Y (A)) ∈ Rd·d′×d·d′
+
+. (13) Let the SVD of L be denoted as 
+
+L = U LΣLV L⊤, (14) where the singular values are sorted, i.e ., 0 ≤ σ1 ≤ σ2 . . . 
+
+with corresponding left and right singular vectors uL 
+
+> i
+
+and 
+
+vL 
+
+> i
+
+, respectively. We propose the projection operator for equivariance as 
+
+Beq ≜ X
+
+> i:σi<b
+
+vL 
+
+> i
+
+vL
+
+> i
+> ⊤
+
+, (15) where it filters out the components with a cut-off value b ∈
+
+R+. We now formally state the soft equivariance property of this layer. 
+
+Claim 2. For any compact and connected Lie group G
+
+with injective radius rG and nG generators, let W be defined as in (12) . Then FFC (x, W ) is ηb-soft equivariant, i.e., 
+
+∥W ρX (g)x − ρY (g)W x ∥∥JFFC (·;W )(x)∥F ∥x∥ ≤ ηb, ∀ g ∈ G, (16) 
+
+where ηb = b√nG d′ rG + εG, b ∈ R+ is the cut-off value of the projection operator Beq , d′ is the output dimension, εG is the residual from the first-order Taylor approximation. 
+
+Proof. We use the Taylor expansion in Eq. (3) to express the equivariance error in terms of the Lie algebra representation 
+
+dρ . Using properties of the Kronecker product and singular value decomposition, we separate the contribution of each of the singular vectors in the equivariance error. Complete proof in Appendix E.3. 
+
+Efficient design of soft equivariant layer. The compu-tational complexity of performing the SVD on matrix L
+
+in Eq. (14) is O(( d · d′)3) for a parameter θ ∈ Rd·d′
+
+. While the SVD is precomputed only once per group G before train-ing, it remains computationally expensive for large values of d · d′. To address this, we further propose an alternative design using the Schur decomposition [ 24 ] with time com-plexity of O(max( d, d ′)3) for a group whose Lie algebra representations are normal matrices (commute with conju-gate transpose), e.g ., 2D or 3D rotations. Denote the real Schur decomposition of dρ X and dρ Y as 
+
+dρ X = UX ΣX U ⊤X and dρ Y = UY ΣY U ⊤Y . (17) As dρ X and dρ Y are normal matrices, the ΣX and ΣY are block diagonal, i.e ., ΣX = diag( {Sk}pk=1 ) and ΣY =diag( {Tl}ql=1 ), where {Sk}pk=1 and {Tl}ql=1 are sets of 1×1
+
+or 2 × 2 Schur form blocks. The UX and UY are orthogonal matrices. Let θ be the learnable parameter and Θ ∈ Rd′×d : X → Y with vec (Θ) ≜ θ. We transform Θ into the Schur basis: 
+
+Θ′ = U ⊤Y ΘUX (18) 
+
+Lemma 1. The weight matrix Θ is equivariant if it satis-fies the condition 
+
+ΣY Θ′ − Θ′ΣX = 0 ⇐⇒ TlΘ′ 
+
+> lk
+
+= Θ ′
+
+> lk
+
+Sk ∀l, k, (19) 
+
+where Θ′ 
+
+> lk
+
+are blocks of Θ′ corresponding to the blocks of ΣY and ΣX of dimensions dim( Tl) × dim( Sk).
+
+Proof. We apply the change of basis using UX and UY to the equivariance condition, which results in block diagonal-ization of the Lie algebra representations. Complete proof in Appendix E.4. From Lemma 1, we are motivated to leverage the block-wise diagonal structure in our design. Let the magnitude of the maximum eigenvalue of Sk and Tl be λSk and λTl
+
+respectively. We defined the Schur equivariance projection 
+
+BSchur as W ′ = BSchur [Θ ′] with block-wise operation as 
+
+W ′ 
+
+> lk
+
+=
+
+
+
+0 if Tl̸ ≃ Sk, λ Sk + λTl > b, 
+
+Sym (Θ ′
+
+> lk
+
+) if Tl ≃ Sk, λ Sk + λTl > b, 
+
+Θ′ 
+
+> lk
+
+otherwise (20) where b is the cut-off value, Tl ≃ Sk implies that Tl and 
+
+Sk have common eigenvalues ( Tl̸ ≃ Sk otherwise). For any 
+
+2 × 2 matrix Θ′ 
+
+> lk
+
+=
+
+a bc d
+
+
+
+, we define 
+
+Sym (Θ ′
+
+> lk
+
+) = 
+
+ a+d
+
+> 2
+> b−c
+> 2
+
+− b−c
+
+> 2
+> a+d
+> 2
+
+
+
+. (21) This form is based on the observation from the condition in Lemma 1 that each block Θ′ 
+
+> lk
+
+solves a Sylvester equation. When Tl̸ ≃ Sk only zero matrix satisfies the condition [ 24 ]. When Tl ≃ Sk, by Schur’s Lemma [ 18 ], for 1 × 1 blocks, any unconstrained scalar satisfies the condition. For 2 × 2
+
+blocks, the solutions have the form 
+
+ α β
+
+−β α
+
+
+
+, α, β ∈ R, (22) 
+
+i.e ., it has the weight symmetric form imposed by Sym (·).Our proposed Schur projection eliminates the weight com-ponents that break the equivariance condition, depending on the cut-off value b. We now state the soft equivariance bound. 
+
+Claim 3. For any Lie group G with normal Lie algebra representations with injective radius rG and nG gener-ators. Let W = UY BSchur [Θ ′] U ⊤X , then the function 
+
+FFC (x, W ) is ηb-soft equivariant 
+
+∥W ρX (g)x − ρY (g)W x ∥∥JFFC (·;W )(x)∥F∥x∥ ≤ ηb, ∀g ∈ G (23) 
+
+with ηb = b√nGrG+εG, b is the cut-off value of the Schur filter BSchur and εG is the residual from the first-order Taylor approximation. 
+
+Proof. Complete proof in Appendix E.5. The proof follows the same overall structure as the previous claims. 
+
+4.2. Soft equivariance for discrete groups 
+
+The projection design in Sec. 4.1 builds on the Lie group Tay-lor expansion in Eq. (3) and its Lie algebra representation, which do not apply to discrete groups. We extend this formu-lation by introducing a group forward-difference operator, the discrete analogue of the Lie-algebra representation, and use it to derive the first-order Taylor expansion for discrete groups. 
+
+Taylor approximation for discrete groups. For a finite discrete group G with generating set S (reviewed in Ap-pendix B), we defined the forward difference operator ∆s as action of function f : G → R along generator s ∈ S as 
+
+∆sf (g) = f (sg ) − f (g), ∀g ∈ G. (24) Using the forward difference operator, we can state the first-order Taylor approximation for discrete groups as fol-lows: 
+
+Lemma 2. Let G be a finite discrete group with generat-ing set S = {s1, . . . , s k}, and f : G → R be h-Lipschitz with respect to the word metric dS, then the first-order Tay-lor approximation of f at the identity element e defined as 
+
+ˆf (g) ≜ f (e) + Pki=1 nsi ∆si f (e) satisfies the following point-wise error bound: 
+
+f (g) − ˆf (g) ≤ 2h · dS(e, g ), (25) 
+
+where nsi number of occurrence of si in the canonical word representation of g.
+
+Proof. The error |f (g) − ˆf (g)| decomposes into two terms via the triangle inequality: the global displacement |f (g) −
+
+f (e)| and contribution of each generators P 
+
+> i
+
+ni|∆si f (e)|.Each term is then bounded using the h-Lipschitz condition. The complete proof is in Appendix E.6. With Taylor approximations for discrete groups, the pre-viously introduced designs can be extended to a discrete group by replacing the Lie algebra representation dρ with the forward difference operator ∆s.
+
+4.3. Soft equivariant layers in practice 
+
+The proposed soft equivariant/invariant layers can be seam-lessly integrated into existing architectures, whether pre-trained or trained from scratch, without introducing addi-tional learnable parameters. 
+
+Integration into existing architectures. For vision mod-els, we incorporate soft equivariant and invariant layers to improve consistency under spatial transformations. These layers are applied to operations defined on structured grids, 
+
+e.g ., convolution, patch embedding, positional encoding, and fully connected layers over flattened grids. The point-wise non-linearities ( e.g ., ReLU) are equivariant by design. For other modalities, such as 2D/3D point clouds or geometric inputs ( e.g ., velocity or flow direction), we apply the soft equivariant and invariant layers to the fully connected layers operating on point features. 
+
+Softness control. The degree of softness is controlled by the cut-off value b in the projection operator Binv and Beq .A smaller b results in a stronger bias towards equivariance, while a larger b allows for more flexibility at the cost of increased equivariance error. In practice, we treat b as a hyperparameter that can be tuned based on validation perfor-mance or specific requirements of the task at hand. We defer the multi-generator equivariant layer design, smooth cut-off with soft threshold, and additional implemen-tation details to Appendix C. 
+
+## 5. Experiments 
+
+We empirically validate the effectiveness of our soft equiv-ariance method. In Sec. 5.1, we demonstrate the ability Results on Rotations ˜G10.0 0.2 0.4 0.6 0.8     
+
+> Softness
+> 40
+> 50
+> 60
+> 70
+> 80
+> cAcc (%)
+> Ours
+> RPP 0.0 0.2 0.4 0.6 0.8
+> Softness
+> 0.5
+> 1.0
+> 1.5
+> 2.0
+> 2.5
+> iErr
+> Ours
+> RPP
+
+Results on Roto-Reflection ˜G20.4 0.6 0.8    
+
+> Softness
+> 20
+> 40
+> 60
+> cAcc (%)
+> Ours
+> RPP 0.4 0.6 0.8
+> Softness
+> 0.0
+> 0.5
+> 1.0
+> 1.5
+> iErr
+> 1e 1
+> Ours
+> RPP
+
+Figure 2. Tunable softness results (cAcc & iErr). Compared to RPP, ours achieves comparable performance with better iErr across two groups. 
+
+to control a model’s equivariance error. Next, we show that our method can adapt pre-trained vision models to im-prove their equivariance consistency and performance in image classification (Sec. 5.2) and semantic segmentation (Sec. 5.3). We also showcase an application on human trajec-tory prediction (Sec. 5.4). For experiments in Sec. 5.2, 5.3 and 5.4, we focus on 2D rotation equivariance following prior works [16, 27, 41]. 
+
+5.1. Validating tunable softness level 
+
+Experiment setup. We aim to demonstrate the tunability of our soft equivariance approach. We evaluate on the MNIST classification dataset [ 33 ]. All the models here are trained from scratch. Our model and RPP are trained with varying rotation equivariance ‘softness’ ∈ [0 , 1) , where ‘softness’ of 
+
+1 corresponds to a non-equivariant model and 0 to a fully equivariant model. The ‘softness’ value controls the fraction of the total number of basis vectors in the projection operator by adjusting the cutoff value b. See Appendix G for details. 
+
+Evaluation metric. We report the following metrics: • Test accuracy (Acc): The standard test set’s accuracy. • Augmented test accuracy (aAcc): Accuracy evaluated on augmented test samples, where augmentations are uni-formly drawn from an augmented set ˜G, a subset of the group G to which the model is designed to be equivariant. • Combined accuracy (cAcc): To have a single metric, we report the geometric mean between Acc and aAcc. cAcc ≜ (Acc · aAcc )1/2. (26) • Invariance error (iErr): As the classifiers output probabili-ties, we use the KL divergence to measure the invariance error, i.e ., iErr ≜ Ex∼D ,g ∼ ˜GKL F (x) ∥ F (ρ(g)x). (27) In this experiment, we consider two groups: rotations and roto-reflections to design the models. For evaluation, the augmented set for rotations is ˜G1, which consists of rotations within ±60 ◦, while for the roto-reflection group it is ˜G2,which includes the same range of rotations plus reflections. 
+
+Baseline. We compare with the residual-based soft equiv-ariance method (RPP) [ 16 ]. This approach starts from an equivariant model and introduces a non-equivariant branch through residual connections, roughly doubling the model size. For tunability, we incorporate a scalar parameter on their residual path to balance between equivariance and non-equivariance. 
+
+Results. In Fig. 2, we observe that for both the rotation and the roto-reflection group, on different degrees of softness of equivariance, our method has lower invariance error (iErr) while maintaining higher combined accuracy (cAcc). We also observe that RPP has a worse trade-off between accuracy and invariance error compared to ours. 
+
+5.2. Image classification 
+
+We demonstrate that our proposed method can be effectively incorporated into pre-trained models through fine-tuning. 
+
+Setup. We evaluate on CIFAR10/100 [ 31 ] and ImageNet-1K [ 11 ]. For pre-trained backbones, we use models from PyTorch Image Models [ 68 ], including ViT-B/16 [ 12 ], DINOv2-Base [ 25 , 43 ], and ResNet-50 [ 21 ]. For CIFAR-10/100, the classification head is replaced to match the num-ber of classes, and the image is interpolated to match the expected input size of the pre-trained model. While for ImageNet-1K, we fine-tune the released models without modification. 
+
+Evaluation metric. We follow the same metrics of Acc, aAcc, cAcc, and iErr as described in Sec. 5.1. The main results are reported with the augmentation set ˜G that consists of rotations between ±30 ◦. We also report on ±15 ◦, 45 ◦,
+
+and 60 ◦.
+
+Baselines. Alongside the original model (Base) for which we applied our method, we also compare against the canon-icalizer (Canon.) baseline [ 41 ]. An equivariant network is used to predict the group element that standardizes the im-age before passing it to the base model. Building on prior work, we employ discrete rotations to construct the mod-els [ 9 , 27 , 41 ]. Note that ResEq [ 16 ]’s method builds on top of an equivariant model, so we are unable to adapt a non-equivariant backbone. 
+
+CIFAR10/100 results. In Tab. 1, we present the results on CIFAR10 and CIFAR100. We observe that Ours achieves the best overall performance across CIFAR10/100 and all backbones (ViT, DINOv2, ResNet-50). In every setting, Ours consistently improves both aAcc and cAcc, and reduces iErr relative to the Base model. While Canon. achieved a smaller iErr for DINOv2 or ResNet-50, it does so with a Table 1. Performance on CIFAR10 and CIFAR100 across various backbones. Acc( ∆) is top-1 accuracy with ∆ vs. Base; aAcc is accuracy under augmentation; cAcc is the combined accuracy; iErr is invariance error ( ×10 −2, lower is better). We observe that Ours offers a strong performance while maintaining low invariance error. 
+
+Arch. ViT [12] DINOv2 [43] ResNet-50 [21] Acc( ∆)↑ aAcc ↑ cAcc ↑ iErr ↓ Acc( ∆)↑ aAcc ↑ cAcc ↑ iErr ↓ Acc( ∆)↑ aAcc ↑ cAcc ↑ iErr ↓
+
+> CIFAR10
+
+Base 97.79 (00.00) 96.62 97.20 07.21 98.81 (00.00) 97.27 98.04 08.16 96.32 (00.00) 91.15 93.70 27.29 Canon. 93.23 (-04.56) 92.62 92.92 10.97 97.16 (-01.65) 96.88 97.02 05.58 91.11 (-05.21) 90.66 90.89 10.32 
+
+Ours 97.79 (00.00) 96.69 97.24 07.02 98.82 (00.01) 97.43 98.12 07.03 96.61 (00.29) 91.28 93.91 24.20 
+
+> CIFAR100
+
+Base 86.36 (00.00) 84.09 85.22 23.81 91.01 (00.00) 85.52 88.22 43.02 83.10 (00.00) 73.73 78.28 59.36 Canon. 78.42 (-07.94) 76.83 77.62 24.55 84.39 (-06.62) 83.66 84.02 20.86 72.90 (-10.20) 72.11 72.50 19.07 
+
+Ours 86.60 (00.24) 84.13 85.36 23.80 91.03 (00.02) 86.81 88.90 35.17 83.30 (00.20) 74.27 78.66 58.50 Table 2. ImageNet results with various backbones. Acc( ∆) is top-1 accuracy with ∆ vs. Base; aAcc is accuracy under augmentation; cAcc is the combined accuracy; iErr is invariance error ( ×10 −2, lower is better). 
+
+Arch. ViT [12] DINOv2 [43] ResNet-50 [21] Acc( ∆)↑ aAcc ↑ cAcc ↑ iErr ↓ Acc( ∆)↑ aAcc ↑ cAcc ↑ iErr ↓ Acc( ∆)↑ aAcc ↑ cAcc ↑ iErr ↓
+
+Base 81.67 (00.00) 77.29 79.40 00.36 84.27 (00.00) 82.82 83.52 00.13 77.91 (00.00) 75.12 76.48 00.24 Canon. 76.51 (-05.16) 75.81 76.15 00.15 83.22 (-01.06) 82.54 82.87 00.07 72.07 (-05.84) 70.89 71.46 00.24 Ours 82.28 (00.61) 80.56 81.40 00.15 85.31 (01.04) 84.44 84.87 00.05 77.96 (00.06) 75.52 76.72 00.11 
+
+Table 3. Aug. accuracy (aAcc) with various angles on ImageNet.                        
+
+> Arch. ViT [12] DINOv2 [43] ResNet-50 [21]
+> 15 ◦45 ◦60 ◦15 ◦45 ◦60 ◦15 ◦45 ◦60 ◦
+> Base 79.04 74.83 72.66 83.63 81.78 80.37 75.77 73.42 70.70 Canon. 75.91 76.01 75.92 82.57 82.57 82.42 70.93 71.01 70.78 Ours 81.23 79.36 77.55 84.80 84.08 82.74 76.47 73.70 71.27
+
+substantial drop, roughly 5 to 9%, in performance. We note that Canon. does not achieve zero invariance error due to boundary effects under rotation. When rotating an image, corner pixels move outside the field of view, and these missing pixels can change the canonicalizer prediction. 
+
+ImageNet results. Tab. 2 shows results on ImageNet. As in the CIFAR experiments, we observe that Ours is best across all backbones on ImageNet, both in terms of accuracy and invariance error. Ours achieved the best aAcc and cAcc in every case. At the same time, it matches or improves the invariance error (iErr), tying the best with ViT and out-performing DINOv2 and ResNet. In this case, there is no trade-off between performance and invariance, i.e ., Ours improves both simultaneously. Finally, in Tab. 3 we report additional experiments on different ranges of rotation an-gles. As expected, the performance generally drops when a larger degree of rotation is used. In general, the same trend in Tab. 2 holds for Ours. 
+
+5.3. Semantic segmentation 
+
+Setup. We report on the PASCAL VOC (2012) dataset [ 15 ], which comprises 21 object classes for semantic segmenta-tion. For the pretrained backbones, we choose ViT [ 12 ], DINOv2 [ 43 ] and SegFormer [ 71 ] (trained on the ADE20K dataset [ 77 ]). Following the linear probing experiment in DINOv2, we add a linear classification head on top of fea-tures extracted from ViT and DINOv2. For SegFormer, we replace the output head to match the number of classes. 
+
+Evaluation metrics. We report the standard mean Intersec-tion over Union (mIoU). Analogous to the image classifica-tion setting, we report mIoU on the augmented set (aIoU) and the combined mIoU (cIoU). As segmentation models F
+
+are equivariant, we report the equivariance error (eErr): 
+
+E(u,v ),x,g ∼ ˜GKL 
+
+h
+
+F (ρX (g)x)[ u, v ] ∥ ρY (g)F (x)[ u, v ]
+
+i
+
+, (28) where (u, v ) indexes the set of valid pixels, excluding those that go out of bounds after rotation. A lower eErr. indicates the model is more consistent in its prediction under the aug-mentation. We study ˜G consisting of ±30 ◦ degree rotations. Note, larger rotation leads to significant boundary issues for segmentation, which are less meaningful to study. 
+
+Baselines. Same as in the classification experiment, we compare with the Base model, and with the Canonicalization-based approach [41]. 
+
+Results. Tab. 4 shows segmentation results. Our method improves aIoU, cIoU, and reduces eErr across all settings. For ViT and SegFormer, there is an increase in mIoU, and a mild drop for DINOv2. In contrast, the Canon. baseline reduces mIoU significantly and worsens consistency. We found that the canonicalizer was unable to effectively predict the rotation. In summary, our method offers a better, or even no, trade-off between performance and equivariance error. 
+
+5.4. Human trajectory prediction 
+
+Setup. Beyond image-based tasks, we evaluate our method on human trajectory prediction using the ETH [ 44 ] and UCY [ 34 ] datasets, which together comprise five scenes (ETH, Hotel, Zara1, Zara2, and Univ) with varying crowd Table 4. Segmentation Performance on PASCAL VOC [ 15 ]. mIoU ( ∆) is the mean intersection over union with ∆ vs. Base; aIoU is the augmented mIoU; cIoU is the combined mIoU; eErr is equivariance error ( ×10 −2, lower is better.) 
+
+Arch. ViT [12] DINOv2 [43] SegFormer [71] mIoU( ∆)↑ aIoU ↑ cIoU ↑ eErr ↓ mIoU( ∆)↑ aIoU ↑ cIoU ↑ eErr ↓ mIoU( ∆)↑ aIoU ↑ cIoU ↑ eErr ↓
+
+Base 73.40 (00.00) 70.09 71.73 12.31 89.57 (00.00) 88.10 88.83 04.06 65.34 (00.00) 61.17 63.22 11.03 Canon. 65.36 (-08.03) 61.93 63.62 20.39 83.48 (-06.09) 82.73 83.11 44.93 57.50 (-07.84) 55.23 56.36 24.82 Ours 74.78 (01.38) 71.61 73.18 11.12 89.48 (-00.09) 88.70 89.09 03.70 66.34 (00.99) 62.52 64.40 10.64 
+
+Table 5. Prediction Error on Human Trajectory Datasets. cADE and cFDE are combined metrics. eErr is equivariance error in ×10 −2.
+
+Scenes ETH UNIV ZARA1 ZARA2 HOTEL 
+
+cADE ↓ cFDE ↓ eErr ↓ cADE ↓ cFDE ↓ eErr ↓ cADE ↓ cFDE ↓ eErr ↓ cADE ↓ cFDE ↓ eErr ↓ cADE ↓ cFDE ↓ eErr ↓
+
+Base [19] 4.73 6.15 1.68 7.91 8.16 0.73 3.61 4.68 1.14 3.17 3.79 1.17 5.84 6.67 2.50 EqAuto [10] 5.40 7.33 0.00 8.16 8.33 0.00 3.66 4.98 0.00 2.94 3.63 0.00 6.16 6.78 0.00 
+
+Ours 4.58 6.23 1.42 7.85 8.07 0.69 3.40 4.67 0.39 2.91 3.60 0.24 5.69 6.26 0.41 Table 6. Runtime (s) of Schur vs. SVD to compute the projection operator across input sizes.                   
+
+> Size 4×4 6×6 8×8 10×10 12×12 14×14 SVD 1.7·10 −15.0·10 −11.0·10 14.5·10 12.8·10 28.9·10 2
+> Schur 4.0·10 −31.0·10 −22·10 −25·10 −21.3·10 −12.5·10 −1
+
+densities. The task predicts the next 10 time steps of pedes-trian positions y given the past 10 time steps x, where each position is represented by 2D coordinates. 
+
+Evaluation metrics. Following prior work [ 19 ], we report standard performance metrics of the Average Displacement Error (ADE) and Final Displacement Error (FDE) to quan-tify performance. As with the other tasks, we report the augmented metrics (aADE, aFDE). For the combined met-rics (cADE, cFDE), as these are no longer probabilities, we directly combine the standard and augmented metrics with their average. Next, for equivariance error, as the output y is 2D coordi-nates, we use the ℓ2-loss to capture differences, i.e ., eErr is defined as: 
+
+Ex∼D ,g ∼ ˜G ∥F (ρX (g)x) − ρY (g)F (x)∥2 , (29) where D is the test set and ˜G consists of ±30 ◦ rotations. 
+
+Baselines. We adopt the autoregressive transformer model by Giuliari et al. [19] as our base architecture (Base) and apply our proposed method (Ours) on top of it. We also com-pare against an equivariant baseline (EqAuto), an equivariant autoregressive transformer based on vector neurons [ 10 ]. We adopt continuous rotation to design the models. 
+
+Results. In Tab. 5, we report the quantitative metrics. Our method outperforms both the standard and equivariant trans-former baselines in terms of cADE and cFDE across most scenes. We observe that EqAuto with full equivariance does not necessarily lead to better performance. Our approach achieves the best cADE and cFDE on four of the scenes. 
+
+Table 7. Hard vs. Soft threshold performance for image seg-mentation on PASCAL VOC [15]. Hard Threshold Soft Threshold 
+
+mIoU ↑ aIoU ↑ cIoU ↑ eErr ↓ mIoU ↑ aIoU ↑ cIoU ↑ eErr ↓
+
+73.92 69.70 71.78 11.74 74.78 71.61 73.18 11.12 
+
+5.5. Ablation studies 
+
+Schur decomposition vs. SVD. The runtime comparison between Schur decomposition and SVD is reported in Tab. 6. We observe that the cost of constructing the projection op-erator via SVD grows rapidly, reaching nearly 15 minutes for an input size of 14 × 14 . In contrast, the Schur-based operator requires less than one second. 
+
+Hard threshold vs. smooth cut-off in projection. In Tab. 7, we provide the ablation results comparing the hard vs. smooth thresholding method. The experiment follows the same setup as in the segmentation experiment using the ViT backbone. We observe that using the smooth cut-off in pro-jection leads to improved performance (mIoU, aIoU, cIoU) and lower equivariance error (eErr). We defer additional results and ablations to the Appendix F. 
+
+## 6. Conclusion 
+
+We propose a principled framework for designing soft in-variant and equivariant layers with tunable and theoretically bounded equivariance error. This enables the creation of a family of layers with controllable softness levels. Our layer can be used to adapt existing non-equivariant pre-trained models to soft-equivariant ones. Extensive experiments on image classification, segmentation, trajectory prediction, and synthetic O(5) invariant tasks demonstrate that our approach improves task performance while reducing equivariance er-ror. Notably, our method achieves gains on the competitive ImageNet benchmark. Overall, our framework provides a practical solution for incorporating soft equivariance into modern vision systems with guarantees. References 
+
+[1] Sourya Basu, Prasanna Sattigeri, Karthikeyan Natesan Rama-murthy, Vijil Chenthamarakshan, Kush R Varshney, Lav R Varshney, and Payel Das. Equi-tuning: Group equivariant fine-tuning of pretrained models. In Proc. AAAI , 2023. 2 [2] Erik J Bekkers, Maxime W Lafarge, Mitko Veta, Koen AJ Ep-penhof, Josien PW Pluim, and Remco Duits. Roto-translation covariant convolutional networks for medical image analysis. In Proc. MICCAI , 2018. 2 [3] Gregory Benton, Marc Finzi, Pavel Izmailov, and Andrew G Wilson. Learning invariances in neural networks from training data. In Proc. NeurIPS , 2020. 1 [4] Georg Bökman, David Nordström, and Fredrik Kahl. Flop-ping for flops: Leveraging equivariance for computational efficiency. arXiv preprint arXiv:2502.05169 , 2025. 2 [5] Anadi Chaman and Ivan Dokmanic. Truly shift-invariant convolutional neural networks. In Proc. CVPR , 2021. 2 [6] Siheng Chen, Aliaksei Sandryhaila, and Jelena Kovaˇ cevi´ c. Sampling theory for graph signals. In Proc. ICASSP , 2015. 2 [7] Siheng Chen, Rohan Varma, Aliaksei Sandryhaila, and Jelena Kovaˇ cevi´ c. Discrete signal processing on graphs: Sampling theory. IEEE TSP , 2015. 2 [8] Taco Cohen and Max Welling. Group equivariant convo-lutional networks. In International conference on machine learning , pages 2990–2999. PMLR, 2016. 1, 2 [9] Taco S Cohen and Max Welling. Steerable CNNs. In Proc. ICLR , 2017. 2, 6, 30 [10] Congyue Deng, Or Litany, Yueqi Duan, Adrien Poulenard, Andrea Tagliasacchi, and Leonidas J Guibas. Vector neurons: A general framework for SO(3)-equivariant networks. In Proc. ICCV , 2021. 8, 29, 32 [11] Jia Deng, Wei Dong, Richard Socher, Li-Jia Li, Kai Li, and Li Fei-Fei. ImageNet: A large-scale hierarchical image database. In Proc. CVPR , 2009. 2, 6 [12] Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Syl-vain Gelly, Jakob Uszkoreit, and Neil Houlsby. An image is worth 16x16 words: Transformers for image recognition at scale. In Proc. ICLR , 2021. 1, 2, 6, 7, 8, 12, 30 [13] Yuanqi Du, Limei Wang, Dieqiao Feng, Guifeng Wang, Shui-wang Ji, Carla P Gomes, Zhi-Ming Ma, et al. A new perspec-tive on building efficient and expressive 3D equivariant graph neural networks. In Proc. NeurIPS , 2023. 2 [14] Ahmed A Elhag, T Konstantin Rusch, Francesco Di Giovanni, and Michael Bronstein. Relaxed equivariance via multitask learning. In Proc. LOG , 2025. 1, 2 [15] Mark Everingham, Luc Van Gool, Christopher KI Williams, John Winn, and Andrew Zisserman. The PASCAL visual object classes (VOC) challenge. IJCV , 2010. 2, 7, 8, 30 [16] Marc Finzi, Gregory Benton, and Andrew G Wilson. Residual pathway priors for soft equivariance constraints. In Proc. NeurIPS , 2021. 1, 2, 6, 29 [17] Marc Finzi, Max Welling, and Andrew Gordon Wilson. A practical method for constructing equivariant multilayer per-ceptrons for arbitrary matrix groups. In Proc. ICML , 2021. 2, 4, 29 [18] William Fulton and Joe Harris. Representation theory: a first course . Springer Science & Business Media, 2013. 5 [19] Francesco Giuliari, Irtiza Hasan, Marco Cristani, and Fabio Galasso. Transformer networks for trajectory forecasting. In 
+
+Proc. ICPR , 2021. 2, 8, 29 [20] Jason Hartford, Devon Graham, Kevin Leyton-Brown, and Siamak Ravanbakhsh. Deep models of interactions across sets. In Proc. ICML , 2018. 2 [21] Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun. Deep residual learning for image recognition. In Proc. CVPR ,2016. 2, 6, 7, 30 [22] Kaiming He, Xinlei Chen, Saining Xie, Yanghao Li, Piotr Dollár, and Ross Girshick. Masked autoencoders are scalable vision learners. In Proc. CVPR , 2022. 30 [23] Elyssa Hofgard, Rui Wang, Robin Walters, and Tess Smidt. Relaxed equivariant graph neural networks. arXiv preprint arXiv:2407.20471 , 2024. 2 [24] Roger A Horn and Charles R Johnson. Matrix analysis . Cam-bridge university press, 2012. 4, 5, 15 [25] Hugging Face Model Hub. facebook/dinov2-base-imagenet1k-1-layer. https : / / huggingface . co / facebook/dinov2-base-imagenet1k-1-layer ,2025. Accessed: 2025-11-09. 6, 30 [26] Royina Karegoudra Jayanth, Yinshuang Xu, Ziyun Wang, Evangelos Chatzipantazis, Daniel Gehrig, and Kostas Dani-ilidis. Eqnio: Subequivariant neural inertial odometry. arXiv preprint arXiv:2408.06321 , 2024. 2 [27] Sékou-Oumar Kaba, Arnab Kumar Mondal, Yan Zhang, Yoshua Bengio, and Siamak Ravanbakhsh. Equivariance with learned canonicalization functions. In Proc. ICML , 2023. 2, 6 [28] Hyunsu Kim, Hyungi Lee, Hongseok Yang, and Juho Lee. Regularizing towards soft equivariance under mixed symme-tries. In Proc. ICML , 2023. 1, 2 [29] Thomas N. Kipf and Max Welling. Semi-supervised classi-fication with graph convolutional networks. In Proc. ICLR ,2017. 1 [30] Wilhelm Klingenberg. Riemannian geometry . Walter de Gruyter, 1995. 21 [31] Alex Krizhevsky, Geoffrey Hinton, et al. Learning multiple layers of features from tiny images. 2009. 2, 6 [32] Soumyabrata Kundu and Risi Kondor. Steerable transformers for volumetric data. arXiv preprint arXiv:2405.15932 , 2024. 2[33] Yann LeCun, Léon Bottou, Yoshua Bengio, and Patrick Haffner. Gradient-based learning applied to document recog-nition. Proceedings of the IEEE , 2002. 6, 30 [34] Alon Lerner, Yiorgos Chrysanthou, and Dani Lischinski. Crowds by example. In Computer graphics forum , 2007. 7, 32 [35] Yi-Lun Liao and Tess Smidt. Equiformer: Equivariant graph attention transformer for 3d atomistic graphs. In Proc. ICLR ,2023. 2 [36] Iou-Jen Liu, Raymond A Yeh, and Alexander G Schwing. PIC: permutation invariant critic for multi-agent deep rein-forcement learning. In Proc. CORL , 2020. 2 [37] Andrei Manolache, Luiz FO Chamon, and Mathias Niepert. Learning (approximately) equivariant networks via con-strained optimization. arXiv preprint arXiv:2505.13631 , 2025. 3[38] Dimitris G Manolakis and Vinay K Ingle. Applied digital signal processing: theory and practice . Cambridge university press, 2011. 16 [39] Haggai Maron, Heli Ben-Hamu, Nadav Shamir, and Yaron Lipman. Invariant and equivariant graph networks. In Proc. ICLR , 2019. 2 [40] Daniel McNeela. Almost equivariance via lie algebra convo-lutions. arXiv preprint arXiv:2310.13164 , 2023. 2, 3 [41] Arnab Kumar Mondal, Siba Smarak Panigrahi, Oumar Kaba, Sai Rajeswar Mudumba, and Siamak Ravanbakhsh. Equivari-ant adaptation of large pretrained models. In Proc. NeurIPS ,2023. 6, 7, 30 [42] Christopher Morris, Gaurav Rattan, Sandra Kiefer, and Sia-mak Ravanbakhsh. SpeqNets: Sparsity-aware permutation-equivariant graph networks. In Proc. ICML , 2022. 2 [43] Maxime Oquab, Timothée Darcet, Théo Moutakanni, Huy Vo, Marc Szafraniec, Vasil Khalidov, Pierre Fernandez, Daniel Haziza, Francisco Massa, Alaaeldin El-Nouby, et al. DINOv2: Learning robust visual features without supervision. arXiv preprint arXiv:2304.07193 , 2023. 2, 6, 7, 8, 30 [44] Stefano Pellegrini, Andreas Ess, Konrad Schindler, and Luc Van Gool. You’ll never walk alone: Modeling social behavior for multi-target tracking. In Proc. ICCV , 2009. 7, 32 [45] Charles R Qi, Hao Su, Kaichun Mo, and Leonidas J Guibas. Pointnet: Deep learning on point sets for 3d classification and segmentation. In Proc. CVPR , 2017. 1 [46] Md Ashiqur Rahman and Raymond A Yeh. Truly scale-equivariant deep nets with Fourier layers. In Proc. NeurIPS ,2024. 1 [47] Md Ashiqur Rahman and Raymond A Yeh. Group down-sampling with equivariant anti-aliasing. In Proc. ICLR , 2025. 2[48] Md Ashiqur Rahman, Robert Joseph George, Mogab Ellei-thy, Daniel Leibovici, Zongyi Li, Boris Bonev, Colin White, Julius Berner, Raymond A. Yeh, Jean Kossaifi, Kamyar Aziz-zadenesheli, and Anima Anandkumar. Pretraining codomain attention neural operators for solving multiphysics PDEs. In 
+
+Proc. NeurIPS , 2024. 2 [49] Md Ashiqur Rahman, Chiao-An Yang, Michael N Cheng, Lim Jun Hao, Jeremiah Jiang, Teck-Yian Lim, and Ray-mond A Yeh. Local scale equivariance with latent deep equilibrium canonicalizer. In Proc. ICCV , 2025. 1 [50] Siamak Ravanbakhsh, Jeff Schneider, and Barnabas Poczos. Deep learning with sets and point clouds. In Proc. ICLR workshop , 2017. 2 [51] Renan A Rojas-Gomez, Teck-Yian Lim, Alex Schwing, Minh Do, and Raymond A Yeh. Learnable polyphase sampling for shift invariant and equivariant convolutional networks. In 
+
+Proc. NeurIPS , 2022. 2 [52] Renan A Rojas-Gomez, Teck-Yian Lim, Minh N Do, and Raymond A Yeh. Making vision transformers truly shift-equivariant. In Proc. CVPR , 2024. 2 [53] David W Romero and Suhas Lohit. Learning partial equivari-ances from data. In Proc. NeurIPS , 2022. 1, 2 [54] Ashwin Samudre, Mircea Petrache, Brian D Nord, and Shub-hendu Trivedi. Symmetry-based structured matrices for ef-ficient approximately equivariant networks. arXiv preprint arXiv:2409.11772 , 2024. 2 [55] Arne Schneuing, Charles Harris, Yuanqi Du, Kieran Didi, Arian Jamasb, Ilia Igashov, Weitao Du, Carla Gomes, Tom L Blundell, Pietro Lio, et al. Structure-based drug design with equivariant diffusion models. Nature Computational Science ,2024. 1 [56] Patrice Simard, Bernard Victorri, Yann LeCun, and John Denker. Tangent prop-a formalism for specifying selected invariances in an adaptive network. In Proc. NeurIPS , 1991. 1[57] Karen Simonyan and Andrew Zisserman. Very deep convo-lutional networks for large-scale image recognition. In Proc. ICLR , 2015. 1 [58] Ivan Sosnovik, Michał Szmaja, and Arnold Smeulders. Scale-equivariant steerable networks. In Proc. ICLR , 2020. 2 [59] Christian Szegedy, Wei Liu, Yangqing Jia, Pierre Sermanet, Scott Reed, Dragomir Anguelov, Dumitru Erhan, Vincent Vanhoucke, and Andrew Rabinovich. Going deeper with convolutions. In Proc. CVPR , 2015. 1 [60] Nathaniel Thomas, Tess Smidt, Steven Kearnes, Lusann Yang, Li Li, Kai Kohlhoff, and Patrick Riley. Tensor field networks: Rotation-and translation-equivariant neural networks for 3d point clouds. arXiv preprint arXiv:1802.08219 , 2018. 2 [61] Tycho van der Ouderaa, David W Romero, and Mark van der Wilk. Relaxing equivariance constraints with non-stationary continuous filters. In Proc. NeurIPS , 2022. 1, 2 [62] Tycho van der Ouderaa, Alexander Immer, and Mark van der Wilk. Learning layer-wise equivariances automatically using gradients. In Proc. NeurIPS , 2023. 1, 2 [63] Elise Van der Pol, Daniel Worrall, Herke van Hoof, Frans Oliehoek, and Max Welling. MDP homomorphic networks: Group symmetries in reinforcement learning. In Proc. NeurIPS , 2020. 1 [64] Lars Veefkind and Gabriele Cesa. A probabilistic approach to learning the degree of equivariance in steerable CNNs. arXiv preprint arXiv:2406.03946 , 2024. 2 [65] Martin Vetterli, Jelena Kovaˇ cevi´ c, and Vivek K Goyal. Foun-dations of signal processing . Cambridge University Press, 2014. 2, 16 [66] Dian Wang, Xupeng Zhu, Jung Yeon Park, Mingxi Jia, Gua-nang Su, Robert Platt, and Robin Walters. A general theory of correct, incorrect, and extrinsic equivariance. 2023. 2 [67] Rui Wang, Robin Walters, and Rose Yu. Approximately equivariant networks for imperfectly symmetric dynamics. In 
+
+Proc. ICML , 2022. 2, 29 [68] Ross Wightman. Pytorch image models. https : //github.com/huggingface/pytorch- image-models , 2019. 6, 30 [69] Daniel Worrall and Max Welling. Deep scale-spaces: Equiv-ariance over scale. In Proc. NeurIPS , 2019. 1 [70] Zhiqiang Wu, Yingjie Liu, Hanlin Dong, Xuan Tang, Jian Yang, Bo Jin, Mingsong Chen, and Xian Wei. R2det: Ex-ploring relaxed rotation equivariance in 2d object detection. 
+
+arXiv preprint arXiv:2408.11760 , 2024. 2 [71] Enze Xie, Wenhai Wang, Zhiding Yu, Anima Anandkumar, Jose M Alvarez, and Ping Luo. SegFormer: Simple and efficient design for semantic segmentation with transformers. In Proc. NeurIPS , 2021. 2, 7, 8, 30 [72] Raymond A Yeh, Yuan-Ting Hu, and Alexander Schwing. Chirality nets for human pose regression. In Proc. NeurIPS ,2019. 2 [73] Raymond A Yeh, Alexander G Schwing, Jonathan Huang, and Kevin Murphy. Diverse generation for multi-agent sports games. In Proc. CVPR , 2019. 2 [74] Raymond A Yeh, Yuan-Ting Hu, Mark Hasegawa-Johnson, and Alexander Schwing. Equivariance discovery by learned parameter-sharing. In Proc. AISTATS , 2022. 2 [75] Manzil Zaheer, Satwik Kottur, Siamak Ravanbakhsh, Barn-abas Poczos, Ruslan R Salakhutdinov, and Alexander J Smola. Deep sets. In Proc. NeurIPS , 2017. 2 [76] Richard Zhang. Making convolutional networks shift-invariant again. In Proc. ICML , 2019. 1, 2, 3 [77] Bolei Zhou, Hang Zhao, Xavier Puig, Tete Xiao, Sanja Fidler, Adela Barriuso, and Antonio Torralba. Semantic understand-ing of scenes through the ADE20K dataset. IJCV , 2019. 7 [78] Yifan Zhou, Zeqi Xiao, Shuai Yang, and Xingang Pan. Alias-free latent diffusion models: Improving fractional shift equiv-ariance of diffusion latent space. In Proc. CVPR , 2025. 2 Appendix 
+
+The appendix is organized as follows: • In Sec. A, we provide additional visualizations following Fig. 1’s format. • In Sec. B, we review additional mathematical background. • In Sec. C, we provide additional details on the method. • In Sec. D, we provide clarifications on our design choices and provide examples. • In Sec. E, we provide the complete proofs of the claims and lemma in the main paper. • In Sec. F, we provide additional results on the human trajectory experiment. • In Sec. G, we document the experimental details. Code is available at https://github.com/ashiq24/soft-equivariance 
+
+## A. Additional Visualization following Fig. 1 
+
+Following the format of Fig. 1, we provide more visualization on the model weights, and with respect to different rotations in Fig. 3 and Fig. 4.   
+
+> Equivariant Soft equivariant Non-equivariant
+
+Weights 
+
+Eq. Error 
+
+Low error High error 
+
+Figure 3. Visualization of the ViT [ 12 ] weights with our soft equivariance layer (w.r.t. 90 ◦ rotation) under different softness levels, along with the corresponding extracted features and the equivariance errors. Our tunable design allows the layers’ weights to transition smoothly from perfectly equivariant to fully non-equivariant behavior in a controlled manner. Equivariant Soft equivariant Non-equivariant 
+
+Weights 
+
+Eq. Error 
+
+Low error High error Figure 4. Visualization of the ViT [ 12 ] weights with our soft equivariance layer (w.r.t. 10 ◦ rotation) under different softness levels, along with the corresponding extracted features and the equivariance errors. Our tunable design allows the layers’ weights to transition smoothly from perfectly equivariant to fully non-equivariant behavior in a controlled manner. 
+
+## B. Mathematical Background 
+
+In this section, we review the mathematical preliminaries needed to construct the soft-invariant and soft-equivariant projection operator. 
+
+> Features Features
+
+B.1. Groups 
+
+Group. A group is a set G together with a binary operation · : G × G → G that combines any two elements a, b ∈ G to form another element denoted a · b. And it satisfies the following four requirements: • Closure: For all a, b ∈ G, the result of the operation a · b is also in G.• Associativity: For all a, b, c ∈ G, (a · b) · c = a · (b · c).• Identity element: There exists an element e ∈ G such that for every element a ∈ G, the equation e · a = a · e = a holds. • Inverse element: For each a ∈ G, there exists an element b ∈ G such that a · b = b · a = e, where e is the identity element. The binary operation is often referred to as the group product. 
+
+Generating Set. A subset S ⊆ G is called a generating set of the group G if every element of G can be expressed as product of the elements of the S. So for any element g ∈ G, there exists a sequence of elements s1, s 2, . . . , s m from S such that 
+
+g = sn1 
+
+> 1
+
+· sn2 
+
+> 2
+
+· . . . · snm 
+
+> m
+
+.
+
+Word Metric. Given a generating set S of G, any element g ∈ G can be written as a product g = sn1 
+
+> 1
+
+· sn2 
+
+> 2
+
+· · · snm 
+
+> m
+
+with si ∈ S.The word length of g with respect to S is defined as the minimum number of generator applications required to express g:
+
+ℓS(g) ≜ min 
+
+( mX
+
+> i=1
+
+ni g = sn1 
+
+> 1
+
+· · · snm 
+
+> m
+
+, s i ∈ S
+
+)
+
+. (30) The word metric dS : G × G → Z≥0 is then defined as: 
+
+dS(g, g ′) ≜ ℓS(g−1g′), (31) which measures the minimum number of generator steps needed to reach g′ from g. When S is clear from context, we write 
+
+d(·, ·) and ℓ(·) to denote word metric and word length, respectively. 
+
+Note: In general, the decomposition g = sn1 
+
+> 1
+
+·sn2 
+
+> 2
+
+· · · snm 
+
+> m
+
+is not unique. For this, a fixed minimal-length word representation for each element g ∈ G is chosen, which is called the ‘canonical’ word representation. 
+
+Group Action. The group action or the representation of a group G on space X is a map ρ : G → GL (X ), where GL (X )
+
+is the set of invertible linear transformations on X , such that for any g, h ∈ G and any x ∈ X , we have ρ(e)x = x and 
+
+ρ(gh )x = ρ(g)( ρ(h)x), where e is the identity element of the group G.
+
+Discrete Rotation Group (Cyclic group Cn). Let r denote the planar rotation by angle 2πn . The set 
+
+Cn ≜ { rk | k = 0 , 1, . . . , n − 1 }
+
+With composition as the group product, it is a discrete (finite) group. The generating set is {r} since every element is rk. The 2D linear representation ρ maps rk to 2D rotation matrix R( 2πk n )
+
+where 
+
+R(θ) ≜
+
+cos θ − sin θ
+
+sin θ cos θ
+
+
+
+.
+
+The action on x ∈ R2 is ρ(rk)x = R  2πk n
+
+x.
+
+Lie Group. A Lie group G is a smooth manifold equipped with a group structure such that the group operations—multiplication 
+
+(g, h ) 7 → gh and inversion g 7 → g−1 are smooth maps. 
+
+Lie Algebra. The Lie algebra g associated with a Lie group G is the tangent space at the identity element e, denoted as 
+
+g = TeG. It is a vector space equipped with a bilinear operation [·, ·] : g × g → g called the Lie bracket. For matrix Lie groups (where G ⊆ GL( n, R)), the bracket is defined as the matrix commutator: 
+
+[A, B ] = AB − BA, ∀A, B ∈ g. (32) 
+
+Lie Algebra Basis. A basis for a Lie algebra g of dimension d is a set of linearly independent elements {A1, . . . , A d} such that every element A ∈ g can be uniquely represented as a linear combination A = Pdi=1 ciAi, where ci are scalar coefficients. 
+
+Exponential Map. The exponential map exp : g → G creates a mapping from the tangent space to the manifold. For matrix Lie groups, it is given by the matrix exponential: 
+
+exp( A) = 
+
+> ∞
+
+X
+
+> k=0
+
+Ak
+
+k! . (33) The map satisfies exp(0) = I and ddt exp( tA )|t=0 = A. Crucially, for commutative algebras, exp( A + B) = exp( A) exp( B),though this does not hold generally for non-abelian groups like SO(3) .
+
+Group and Algebra Representations. A group representation is a homomorphism ρ : G → GL( V ) acting on a vector space 
+
+V . This induces a Lie algebra representation dρ : g → gl (V ), derived by differentiating the group action at the identity: 
+
+dρ (A) = ddt ρ(exp( tA )) t=0 
+
+. (34) This map preserves the bracket structure: dρ ([ A, B ]) = [ dρ (A), dρ (B)] .
+
+Case Studies: Rotations in R2 and R3.
+
+We explicitly detail the geometry of 2D and 3D rotations used in the main paper. 
+
+The SO(2) Group. The SO(2) or the special orthogonal group in 2D consists of planar rotation matrices parameterized by an angle θ ∈ [0 , 2π):
+
+R(θ) = 
+
+cos θ − sin θ
+
+sin θ cos θ
+
+
+
+. (35) The corresponding Lie algebra, so (2) , consists of 2 × 2 skew-symmetric matrices. It is 1-dimensional, spanned by the generator 
+
+A:
+
+so (2) = {tA | t ∈ R}, where A =
+
+0 −11 0
+
+
+
+. (36) Since SO(2) is abelian, the exponential map is straightforward: exp( tA ) = R(t). The standard representation acting on 
+
+x ∈ R2 yields the generator action: 
+
+dρ (A)x = Ax =
+
+−x2
+
+x1
+
+
+
+. (37) 
+
+The SO(3) Group . The group of 3D rotations is non-abelian. Its Lie algebra, so (3) , consists of all 3 × 3 skew-symmetric matrices. A general element A ∈ so (3) has the form: 
+
+A =
+
+
+
+0 −c bc 0 −a
+
+−b a 0
+
+ , a, b, c ∈ R. (38) Any such matrix can be written as A = θK , where θ is the rotation angle and K is a skew-symmetric matrix representing the unit rotation axis ( KT = −K and ∥K∥F = √2). The exponential map is given by Rodrigues’ rotation formula: 
+
+exp( θK ) = I + sin θK + (1 − cos θ)K2. (39) For example, the generator for a rotation about the z-axis corresponds to a = b = 0 , c = 1 :
+
+Kz =
+
+0 −1 01 0 00 0 0
+
+ , exp( θK z ) = 
+
+cos θ − sin θ 0sin θ cos θ 00 0 1
+
+ . (40) The Lie algebra action dρ (A) describes the infinitesimal velocity of a point x being rotated. It is computed via matrix-vector multiplication: 
+
+dρ (A)x = Ax =
+
+
+
+0 −c bc 0 −a
+
+−b a 0
+
+
+
+x1
+
+x2
+
+x3
+
+ =
+
+
+
+−cx 2 + bx 3
+
+cx 1 − ax 3
+
+−bx 1 + ax 2
+
+ . (41) This linear action is geometrically equivalent to the cross product v × x, where the vector v = ( a, b, c )⊤ corresponds to the axis of rotation scaled by the angular velocity. 
+
+Lie algebra basis. Since so (3) is a 3-dimensional vector space, any element A can be uniquely expressed as a linear combination of three basis matrices, A = aA x + bA y + cA z . These basis elements correspond to infinitesimal rotations about the standard axes: 
+
+Ax =
+
+
+
+0 0 00 0 −10 1 0
+
+ , Ay =
+
+
+
+0 0 10 0 0
+
+−1 0 0
+
+ , Az =
+
+
+
+0 −1 01 0 00 0 0
+
+ . (42) Real Schur Decomposition. For any real square matrix M ∈ Rn×n, there exists an orthogonal matrix U such that 
+
+U ΣU ⊤ = M , where Σ is upper quasi-triangular. When M is normal, i.e ., M M ⊤ = M ⊤M , Σ is block diagonal with 
+
+1 × 1 and 2 × 2 blocks where the 2 × 2 blocks correspond to pairs of complex conjugate eigenvalues. And the canonical form for a these 2 × 2 block is (see Theorem 2.5.8 by Horn and Johnson [24]): 
+
+ a b
+
+−b a
+
+
+
+,
+
+where the associated eigenvalues are a ± ib . The spectral norm of these 2 × 2 matrices models the scaling factor of the associated basis vectors in U .
+
+## C. Method Details 
+
+In this section, we provide additional explanations and technical details of our proposed technique. 
+
+C.1. Multi-generator Equivariance 
+
+In practice, many Lie groups of interest are generated by multiple generators. For example, the special orthogonal group 
+
+SO (3) is generated by three generators corresponding to rotations about the x, y, and z axes. To design a soft equivariant layer for a group G with multiple Lie algebra generators {Ai}ki=1 , we use the right singular vectors of the combined constraint (following Eq. (13)) as 
+
+¯L =
+
+
+
+Li
+
+...
+
+Lk
+
+ ∈ Rk·d·d′×d·d′
+
+, (43) where, Li = ( dρ X (Ai)⊤ ⊗ Id′ − Id ⊗ dρ Y (Ai)) . The right singular vector of ¯L corresponding is then used to design Beq 
+
+following Eq. (15). 
+
+C.2. Details on Schur Equivariance prediction 
+
+We present two examples showing the implications of Lemma 1 and the constraints on the weights for exact equivariance. 
+
+Example: 4D to 3D Equivariant Map. Consider a map from a 4D input space X to a 3D output space Y. Let the Schur decomposition of their respective Lie algebra representations be: 
+
+dρ X = UX ΣX U ⊤X , dρ Y = UY ΣY U ⊤Y (44) The input and output Schur forms ΣX and ΣY are block diagonal matrices with the following blocks: 
+
+S1 =
+
+ a b
+
+−b a
+
+
+
+, S2 =
+
+ c d
+
+−d c
+
+
+
+(45) 
+
+ΣX = diag( S1, S2) (46) 
+
+T1 =
+
+ c d
+
+−d c
+
+
+
+, T2 =  λ1
+
+ (47) 
+
+ΣY = diag( T1, T2) (48) The transformed weight (in Schur basis) matrix Θ′ is a 3 × 4 matrix. To be equivariant, non-zero blocks Θ′ 
+
+> IJ
+
+can only exist where the representation blocks share eigenvalues, i.e ., TI ≃ SJ . All other blocks must be zero [ 24 ] and the non-zero block must take the form of Eq. (22). The final sparse structure for Θ′ is 
+
+Θ′ =
+
+ 02×2
+
+ α β
+
+−β α
+
+
+
+01×2 01×2
+
+ . (49) This equivariant design reduces the number of learnable parameters from 3 × 4 = 12 in a standard dense layer to just 2, while guaranteeing the desired symmetry. 
+
+Example: 4D to 4D Equivariant Map. Consider a map from a 4D input space X to a 4D output space Y. Let the Schur decomposition of their respective Lie algebra representations be: 
+
+dρ X = UX ΣX U ⊤X , dρ Y = UY ΣY U ⊤Y (50) Let the block diagonal Schur forms ΣX and ΣY be written as: 
+
+ΣX = diag( S1, S2), ΣY = diag( T1, T2) (51) We define the specific structure of these blocks using scalars a, b and c, d as follows: 
+
+S1 =
+
+ a b
+
+−b a
+
+
+
+, S2 =
+
+ c d
+
+−d c
+
+
+
+(52) 
+
+T1 =
+
+ a b
+
+−b a
+
+
+
+, T2 =
+
+ c d
+
+−d c
+
+
+
+(53) The transformed weight matrix Θ′ is a 4 × 4 matrix. Acoording to Lemma 1 W′ 
+
+> IJ
+
+relating input block SJ to output block TI
+
+can be non-zero only if the representations are equivalent ( TI ≃ SJ ). Here, we observe that T1 ≃ S1 and T2 ≃ S2, while cross-pairings (e.g., T1 vs S2) possess distinct eigenvalues. Consequently, the weight matrix allows for learnable parameters (following Eq. (22) ) on the diagonal blocks but enforces zeros elsewhere: 
+
+Θ′ =
+
+ α1 β1
+
+−β1 α1
+
+
+
+02×2
+
+02×2
+
+ α2 β2
+
+−β2 α2
+
+ (54) This constrains the layer to take a block-diagonal structure in Schur basis, reducing the number of learnable parameters from 16 to 4. We illustrate these examples in Fig. 5. S1
+
+# S2
+
+# T1
+
+# T2
+
+𝛼 ! 𝛽 !
+
+−𝛽 ! 𝛼 !
+
+𝛼 " 𝛽 "
+
+−𝛽 " 𝛼 "
+
+Θ′
+
+> 12
+
+Θ′
+
+> 11
+
+Θ′ 
+
+> 21
+
+Θ′
+
+> 22
+
+# =
+
+# ΣY ΣXΘ′ Θ′
+
+𝛼 ! 𝛽 !
+
+−𝛽 ! 𝛼 !
+
+𝛼 " 𝛽 "
+
+−𝛽 " 𝛼 "
+
+Θ′
+
+> 12
+
+Θ′
+
+> 11
+
+Θ′ 
+
+> 21
+
+Θ′
+
+> 22
+
+Figure 5. Visualization of condition of strict equivariance condition on the weight Θ′ which is described in Lemma 1. 
+
+Schur equivariance projection for multiple generators. To design the Schur projection operator for a Lie algebra with multiple generators, we compose the projection operator for each generator, i.e ., BSchur = B1 
+
+> Schur
+
+◦ B2 
+
+> Schur
+
+◦ · · · ◦ BnG
+
+> Schur
+
+,where Bi 
+
+> Schur
+
+is the projection operator design from dρ X (Ai) and dρ Y (Ai). For commuting generators, this yields the exact projection operator. However, for non-commutative generators, this is an approximation of the true projection operator. 
+
+C.3. From hard thresholding to smooth cut-off 
+
+Instead of applying a sharp cut-off (threshold) to the singular values as in Eq. (9) , an alternative design is to use a smooth transition, i.e ., 
+
+Binv ≜ X
+
+> i
+
+γiuiu⊤ 
+
+> i
+
+, (55) where γi ≜ 1 if σi < b , else γi ≜ exp( −σ2 
+
+> i
+
+/s 2). Here, s ∈ R+ is a hyperparameter controlling the decay rate. 
+
+Remarks. For the special case of shift invariance, the smooth cut-off in Eq. (55) is analogous to the concept of “transition band” in filter design [ 38 , 65 ]. A sharp cut-off in the Fourier domain, i.e ., an ideal filter, produces ripples in the time domain, which is undesirable in practice. 
+
+Soft Schur equivariance projection. Instead of following a strict cut-off when designing the projection operator, we follow a smooth cut-off defined as: 
+
+W ′ 
+
+> lk
+
+=
+
+
+
+γlk Θ′ 
+
+> lk
+
+if Tl̸ ≃ Sk, λ Sk + λTl > b, 
+
+Sym (Θ ′
+
+> lk
+
+) + γlk (Θ ′ 
+
+> lk
+
+− Sym (Θ ′
+
+> lk
+
+)) if Tl ≃ Sk, λ Sk + λTl > b, 
+
+Θ′ 
+
+> lk
+
+otherwise (56) Where γlk = exp( − (λSk +λTl ) 
+
+> s2
+
+) is a decay factor based on the eigenvalues of the corresponding representation blocks, with hyperparameters s.
+
+## D. Additional Clarifications 
+
+D.1. Properties of η-Soft Equivariance Metric 
+
+The relative equivariance error in Eq. (6) provides a metric that is unaffected by local rescaling of the function and the input. For linear layers, it is a scale-invariant measure: rescaling the weight ( W → αW ) or the input ( x → βx) does not change the relative equivariance error as 
+
+∥αW ρX (g)βx − ρY (g)αW βx∥∥αW ∥∥ βx∥ = ∥W ρX (g)x − ρY (g)W x ∥∥W ∥∥ x∥ ., (57) This property ensures that the metric captures the intrinsic equivariance error without being influenced by the scale of the weights or inputs. Furthermore, we empirically validate the stability of this metric by analyzing a pre-trained ResNet-18 model. As illustrated in Fig. 6, the norm of the Jacobian of the logits with respect to the input does not vanish, and the relative equivariance error neither explodes nor collapses. This confirms the robustness and reliability of our proposed metric. 
+
+D.2. Example 
+
+Here we will show a worked-out example for constructing a projection operator for weights W ∈ R3×3 working on 3D vectors. We aim to achieve approximate equivariance with respect to rotation about the z-axis, corresponding to the following Lie algebra generator: 
+
+Az =
+
+
+
+0 −1 01 0 00 0 0
+
+ . (58) Here we directly used the matrix form of Az , i.e ., dρ (Az ) = Az
+
+D.2.1. Using SVD 
+
+Following 13, we form the Kronecker product 
+
+L = A⊤ 
+
+> z
+
+⊗ I3 − I3 ⊗ Az ∈ R9×9. (59) When written explicitly, we obtain: 
+
+L =
+
+
+
+0 1 0 1 0 0 0 0 0
+
+−1 0 0 0 1 0 0 0 00 0 0 0 0 1 0 0 0
+
+−1 0 0 0 1 0 0 0 00 −1 0 −1 0 0 0 0 00 0 −1 0 0 0 0 0 00 0 0 0 0 0 0 1 00 0 0 0 0 0 −1 0 00 0 0 0 0 0 0 0 0
+
+
+
+. (60) The singular values of L are {0(×3) , 1(×4) , 2(×2) }.50 100 150 200 250 
+
+## Frobenius Norm of Jacobian 
+
+0.00 
+
+0.01 
+
+0.02 
+
+0.03 
+
+0.04 
+
+0.05 
+
+0.06 
+
+> Probability
+> Jacobian norm (bottom axis)
+> Eq. error (top axis)
+
+0.005 0.010 0.015 0.020 0.025 
+
+## Relative Equivariance Error (Eqn. 6) Figure 6. Distribution of the norm of the Jacobian and the relative equivariance metric (Eq. (6) ) from a pre-trained ResNet-18 model on ImageNet. The relative equivariance error does not collapse or explode. 
+
+The 3-dimensional null space corresponds to singular values of 0, and yields the following 3-parameter family of exactly equivariant weights, i.e., exact equivariance: 
+
+Weq =
+
+
+
+α β 0
+
+−β α 00 0 γ
+
+ , α, β, γ ∈ R. (61) With SVD L = U LΣL(V L)⊤, the projection Beq = P  
+
+> i:σi<b
+
+vLi (vLi )⊤ keeps right singular vectors below cutoff b. For 
+
+b = 1 .5, the 7 vectors with σ ∈ { 0, 1} are retained, yielding a 7-dimensional projected subspace. Reshaping each of the 7 right singular vectors vLi ∈ R9 into 3 × 3 matrices Vi = reshape( vLi ), the projected weight can be written as: 
+
+W =
+
+> 7
+
+X
+
+> i=1
+
+aiVi = a1V1 + a2V2 + a3V3 + a4V4 + a5V5 + a6V6 + a7V7, (62) where the 7 basis matrices are (3 from σ = 0 , 4 from σ = 1 ): 
+
+V1 =
+
+1 0 00 1 00 0 0
+
+ , V2 =
+
+ 0 1 0
+
+−1 0 00 0 0
+
+ , V3 =
+
+0 0 00 0 00 0 1
+
+ ,
+
+V4 =
+
+
+
+0 0 10 0 00 0 0
+
+ , V5 =
+
+
+
+0 0 00 0 10 0 0
+
+ , V6 =
+
+
+
+0 0 00 0 01 0 0
+
+ , V7 =
+
+
+
+0 0 00 0 00 1 0
+
+ .
+
+Here V1, V2, V3 span the exactly equivariant subspace ( σ = 0 ), while V4, V5, V6, V7 correspond to σ = 1 directions that mildly break equivariance by coupling the xy -plane to the z-axis. D.2.2. Schur decomposition approach 
+
+For this example Az is already in real Schur form, UX = UY = I3. Furthermore, ΣX = diag( {Sk}2
+
+> k=1
+
+) = ΣY =diag( {Tl}2
+
+> l=1
+
+) = Az with Az having the following block diagonal structure: 
+
+Az = diag 
+
+0 −11 0
+
+| {z } 
+
+> S1, λ S1=1
+
+, (0) 
+
+|{z}  
+
+> S2, λ S2=0
+
+ . (63) The weight in Schur basis Θ′ = U ⊤Y ΘUX = Θ is partitioned into blocks. Following Lemma 1, each block Θ′ 
+
+> lk
+
+is governed by the Sylvester equation Tl Θ′ 
+
+> lk
+
+= Θ ′ 
+
+> lk
+
+Sk which can be summarized as follows: Block Size λTl + λSk Tl ≃ Sk? Equivariant solution 
+
+Θ′ 
+
+> 11
+
+2×2 2 Yes 
+
+ α β
+
+> −β α
+
+
+
+Θ′ 
+
+> 12
+
+2×1 1 No 0
+
+Θ′ 
+
+> 21
+
+1×2 1 No 0
+
+Θ′ 
+
+> 22
+
+1×1 0 Yes γ
+
+Schur projection with b = 1 .5: Following Eq. (20) , blocks with λTl + λSk > 1.5 are projected; blocks below this threshold are unconstrained. At b = 1 .5:• Θ′ 
+
+> 11
+
+(λ = 2 ≥ 1.5, T1 ≃ S1): symmetrized to 
+
+ α β
+
+> −β α
+
+
+
+form (2 degree of freedom) after projection. • Θ′
+
+> 12
+
+, Θ′ 
+
+> 21
+
+(λ = 1 < 1.5): unconstrained (4 degree of freedom) , i.e ., remain unchanged after projection. • Θ′ 
+
+> 22
+
+(λ = 0 < 1.5): unconstrained (1 degree of freedom). 
+
+Numerical Example: Schur projection in action Let the weights before projection be 
+
+Θ = 
+
+
+
+2 3 1
+
+−1 4 23 −1 5
+
+
+
+.Applying the Schur projection with cutoff b = 1 .5:• Θ′ 
+
+> 11
+
+=
+
+ 2 3
+
+−1 4
+
+ Sym 
+
+−−−→
+
+ 3 2
+
+−2 3
+
+
+
+• Θ′ 
+
+> 12
+
+=
+
+12
+
+
+
+, Θ′ 
+
+> 21
+
+=  3 −1 : unchanged. • Θ′ 
+
+> 22
+
+= (5) : unchanged. The final projected weight matrix is 
+
+W =
+
+ 3 2 1
+
+−2 3 23 −1 5
+
+ .
+
+Remarks. We note that both the SVD and the Schur decomposition approach give rise to the same projection operator. However, computing the projection operator via Schur decomposition is much more efficient. 
+
+## E. Complete Proofs of the Claims and Lemmas 
+
+Reformulation of equivariance constraint. To study deviation of a function F from perfect equivariance at an input x, we define the equivariance residual/error R(g) under the action of group element g ∈ G:
+
+R(g) = F (ρX (g)x) − ρY (g)F (x). (64) For perfect equivariance, ∥R(g)∥ = 0 for all g ∈ G and for soft equivariance the ∥R(g)∥ is bounded for all g ∈ G.Applying the first order Taylor approximation from Eq. (3) around the identity element e ∈ G, we can rewrite the error as: 
+
+R(g) = R(e) + X
+
+> i
+
+ti
+
+∂R (exp( P 
+
+> i
+
+tiAi)) 
+
+∂t i t=0 
+
++ O(∥A∥2
+
+> g
+
+) (65) 
+
+= X
+
+> i
+
+ti
+
+∂R (exp( P 
+
+> i
+
+tiAi)) 
+
+∂t i t=0 
+
++ O(∥A∥2
+
+> g
+
+), (as R(e) = 0) (66) where g = exp( A) with A = P 
+
+> i
+
+tiAi and ∥A∥g ≤ rG, where rG is the injective radius (or injectivity radius) of G. Hence, the Taylor remainder is bounded by 
+
+O(∥A∥2
+
+> g
+
+) ≤ O(r2
+
+> G
+
+) ≤ ϵG,
+
+for some group-dependent constant ϵG. In the following proofs, we first bound the linear term and then add the residual term 
+
+ϵG in the final estimate. 
+
+E.1. Proof of Claim 1 
+
+Claim 1. For any compact and connected Lie group G with injective radius rG and nG number of generators, the function 
+
+FFC (x, Binv θ) is ηb-soft invariant, i.e., 
+
+∥(Binv θ)⊤x − (Binv θ)⊤ρX (g)x∥∥JFFC (·;w)(x)∥F∥x∥ ≤ ηb, ∀g ∈ G (10) 
+
+where ηb = b√nGrG + εG, b ∈ R+ is the cut-off value for the projection operator , and εG is the residual from the first-order Taylor approximation. 
+
+Proof. We apply the Taylor expansion of the equivariance error (Eq. (65) ) on the function FFC = w⊤x with w = Binv θ.Following the convention established in Eq. (65) , we work with the first-order terms and absorb the Taylor residual error ϵG
+
+into the final bound and obtain: 
+
+R(g) = X
+
+> i
+
+ti
+
+∂  w⊤ρX (exp( P 
+
+> i
+
+tiAi)) x − w⊤x
+
+∂t i t=0 
+
+(67) 
+
+= X
+
+> i
+
+tiw⊤ ∂ρ X (exp( P 
+
+> i
+
+tiAi)) x
+
+∂t i t=0 
+
+(68) 
+
+= X
+
+> i
+
+tiw⊤dρ X (Ai)x (using Lie algebra representation) . (69) For FFC the exact invariance condition becomes: 
+
+R(g) = 0 = ⇒ X
+
+> i
+
+tiw⊤dρ X (Ai)x = 0 ∀ti, x, g. (70) This implies that if w is in the left null space dρ X (Ai) for all i, then the exact invariance condition is satisfied. We now derive the bound on the equivariance error when w is not in the null space of dρ X (Ai).We denote the singular value decomposition (SVD) of each Lie algebra representation dρ X (Ai) as: 
+
+dρ X (Ai) = U iΣiV i⊤, (71) where U i and V i are orthonormal matrices and Σi is a diagonal matrix with singular values 0 ≤ σi 
+
+> 1
+
+≤ σi 
+
+> 2
+
+≤ . . . arranged in increasing order. We can express the invariance error norm, ∥R(g)∥, as: 
+
+∥R(g)∥ = X
+
+> i
+
+tiw⊤dρ X (Ai)x (72) 
+
+≤ X
+
+> i
+
+|ti|| w⊤dρ X (Ai)x| (73) 
+
+= X
+
+> i
+
+|ti|| w⊤U iΣiV i⊤x| (74) 
+
+= X
+
+> i
+
+|ti|| (U i⊤w)⊤Σi(V i⊤x)| (75) 
+
+= X
+
+> i
+
+|ti| W i⊤ΣiXi (76) where W i = U i⊤w and Xi = V i⊤x are the coordinates of w and x in the left and right singular vector bases, respectively. As b is the cut-off value of the projection of operator Binv , W ij = 0 for all σij > b (true for all generators by definition). Therefore, we can write: 
+
+∥R(g)∥ ≤ X
+
+> i
+
+|ti| X 
+
+> j:σij<b
+
+σij |W ij || Xij | (as Σi is a diagonal matrix ) (77) 
+
+≤ X
+
+> i
+
+b|ti| X 
+
+> j:σij<b
+
+|W ij || Xij | (78) 
+
+≤ X
+
+> i
+
+b|ti|∥ W i∥∥ Xi∥ (by Cauchy-Schwarz) (79) 
+
+≤ X
+
+> i
+
+b|ti|∥ w∥∥ x∥ (as U i and V i are orthonormal ∥W i∥ = ∥w∥) (80) 
+
+= b∥w∥∥ x∥ X
+
+> i
+
+|ti| (81) For compact and connected Lie groups pP  
+
+> i
+
+t2 
+
+> i
+
+≤ rG (assuming an orthonormal basis for the Lie algebra), where rG is the injective radius of the group G [30]. Applying Cauchy-Schwarz inequality on P 
+
+> i
+
+|ti| gives: 
+
+X
+
+> i
+
+|ti| ≤ √nG
+
+sX
+
+> i
+
+t2 
+
+> i
+
+≤ √nGrG, (82) where nG is the number of Lie algebra basis elements of the group G.For the linear function FFC , the norm of the Jacobian at x is ∥JFFC (; w)(x)∥F = ∥w∥. Lastly, substituting the definition of 
+
+R(g) and w, and reintroducing the Taylor residual error ϵG, we obtain the final bound on the equivariance error: 
+
+∥(Bθ)⊤x − (Bθ)⊤ρX (g)x∥ ≤ b∥w∥∥ x∥√nGrG + ϵG =⇒ ∥(Bθ)⊤x − (Bθ)⊤ρX (g)x∥∥JFFC (; w)(x)∥F∥x∥ ≤ b √nGrG + εG. (83) Here, εG is the Taylor residual normalized by ∥w∥∥ x∥.
+
+E.2. Proof for Multiple Generators. 
+
+We now prove that the Claim 1 also holds for the projection operator Binv designed using the combined SVD of multiple Lie algebra generators. 
+
+Proof. We denote 
+
+A ≜ [dρ X (A1) | dρ X (A2) | · · · | dρ X (AnG )] , (84) where, Ai, . . . , A nG are the basis elements of the Lie algebra. We also denote the SVD of A as A = U ΣV ⊤.We now define an extended input z as 
+
+z ≜
+
+
+
+t1x
+
+t2x
+
+...
+
+tnG x
+
+ , (85) 
+
+i.e ., z is nG times repetition of the input x scaled by parameter associated with the Lie algebra generator. Now following Sec. E.1 we express the invariance error as 
+
+∥R(g)∥ = ∥ X
+
+> i
+
+tiw⊤dρ X (Ai)x∥ (86) 
+
+= ∥w⊤ X
+
+> i
+
+tidρ X (Ai)x∥ (87) 
+
+= ∥w⊤Az ∥ (88) 
+
+= ∥w⊤U ΣV ⊤z∥ (89) 
+
+= ∥(U ⊤w)⊤Σ( V ⊤z)∥ (90) 
+
+= ∥W ⊤ΣZ∥. (91) Following the condition of Binv , Wj = 0 for σj > b . We can rewrite the bound as 
+
+∥R(g)∥ ≤ ∥ X 
+
+> σj<b
+
+bW j Zj ∥ (92) 
+
+≤ b∥w∥∥ z∥ by Cauchy-Schwarz and ∥W ∥ = ∥w∥, ∥Z∥ = ∥z∥ (93) 
+
+≤ b∥w∥
+
+sX
+
+> i
+
+t2 
+
+> i
+
+∥x∥ following the construction of z (94) 
+
+≤ br G∥w∥∥ x∥ using the definition of injective radius (95) 
+
+≤ b√nGrG∥w∥∥ x∥. as nG ≥ 1 (96) Finally, following the definition of R(g), and Jacobian of the linear function FFC , we obtain 
+
+∥(Bθ)⊤x − (Bθ)⊤ρX (g)x∥∥JFFC (; w)(x)∥F∥x∥ ≤ b √nGrG + εG. (97) Thus, the designed projection operator via combined decomposition satisfies Claim 1. 
+
+Note: An alternative approach for designing a projection operator for groups with multiple generators is to design a projection operator Binv ,i for each generator Ai and the final projection operator can be approximated via compositions 
+
+Binv ≈ Binv ,1 ◦Binv ,2 ◦. . . B inv ,nG . For commutative generators, this approximation is exact. For non-commutative generators, better approximations can be obtained by recursive application of these projection operators. 
+
+E.3. Proof of Claim 2 
+
+Claim 2. For any compact and connected Lie group G with injective radius rG and nG generators, let W be defined as in (12) . Then FFC (x, W ) is ηb-soft equivariant, i.e., 
+
+∥W ρX (g)x − ρY (g)W x ∥∥JFFC (·;W )(x)∥F ∥x∥ ≤ ηb, ∀ g ∈ G, (16) 
+
+where ηb = b√nG d′ rG + εG, b ∈ R+ is the cut-off value of the projection operator Beq , d′ is the output dimension, εG is the residual from the first-order Taylor approximation. Proof. Applying the Taylor expansion of the equivariance error Eq. (65) in the function FFC = W x with vec (W ) = B′
+
+> eq
+
+θ ∈
+
+Rd′d and retaining only the linear terms, we obtain: 
+
+R(g) = X
+
+> i
+
+ti
+
+∂ (W ρX (exp( P 
+
+> i
+
+tiAi)) x − ρY (exp( P 
+
+> i
+
+tiAi)) W x )
+
+∂t i t=0 
+
+(98) 
+
+= X
+
+> i
+
+ti (W dρ X (Ai)x − dρ Y (Ai)W x ) (99) 
+
+= X
+
+> i
+
+ti (W dρ X (Ai) − dρ Y (Ai)W ) x (100) 
+
+= X
+
+> i
+
+ti(x⊤ ⊗ Id′ )vec (W dρ X (Ai) − dρ Y (Ai)W )  using the fact M z = ( z⊤ ⊗ Id′ )vec (M ) (101) 
+
+= X
+
+> i
+
+ti(x⊤ ⊗ Id′ )vec (Id′ W dρ X (Ai) − dρ Y (Ai)W I d) (102) 
+
+= X
+
+> i
+
+ti(x⊤ ⊗ Id′ )( dρ X (Ai)⊤ ⊗ Id′ − Id ⊗ dρ Y (Ai)) vec (W )  as vec (ABC ) =  C⊤ ⊗ A vec (B) . (103) We denote Li = dρ X (Ai)⊤ ⊗ Id′ − Id ⊗ dρ Y (Ai) and x = x⊤ ⊗ Id′ and define the SVD of Li as 
+
+Li = U Li ΣLi V Li ⊤, (104) where ULi and VLi are orthogonal matrices and ΣLi is a diagonal matrix with singular values 0 ≤ σ1 ≤ σ2 ≤ . . . arranged in increasing order. We can express the equivariance error norm as: 
+
+∥R(g)∥ = X
+
+> i
+
+tixL ivec (W ) (105) 
+
+≤ X
+
+> i
+
+|ti| · ∥ xL ivec (W )∥ (106) 
+
+= X
+
+> i
+
+|ti|∥ xU Li ΣLi V Li ⊤vec (W )∥ (107) 
+
+= X
+
+> i
+
+|ti|∥ (U Li ⊤x⊤)⊤ΣLi (V Li ⊤vec (W )) ∥ (108) 
+
+= X
+
+> i
+
+|ti|∥ X⊤ 
+
+> i
+
+ΣLi W i∥, (109) where Xi = ( U Li ⊤x⊤) ∈ Rd′d×d′
+
+and W i = V Li ⊤vec (W ) ∈ Rd′d are the coordinates of x and vec (W ) in the left and right singular vector bases, respectively. Here Xi is a matrix with d′ columns, where Xic denotes its c-th column, and Xic,j 
+
+denotes the j-th component of that column. As b is the cut-off value of the projection of operator Beq , W ij = 0 for all σij > b (follows from the definition of the cut-off values and holds for all generators). Therefore, we can write: 
+
+∥R(g)∥ ≤ X
+
+> i
+
+|ti|∥ Xi⊤ΣLi W i∥ (110) 
+
+≤ X
+
+> i
+
+|ti|
+
+> d′
+
+X
+
+> c=1
+
+Xic
+
+> ⊤
+
+ΣLi W i (111) 
+
+≤ X
+
+> i
+
+|ti|
+
+> d′
+
+X
+
+> c=1
+
+X 
+
+> j:σij<b
+
+σij Xic,j W ij (112) 
+
+≤ X
+
+> i
+
+|ti|
+
+> d′
+
+X
+
+> c=1
+
+X 
+
+> j:σij<b
+
+σij |Xic,j || W ij | (113) 
+
+≤ X
+
+> i
+
+|ti|b
+
+> d′
+
+X
+
+> c=1
+
+X 
+
+> j:σij<b
+
+|Xic,j || W ij | (114) 
+
+≤ X
+
+> i
+
+|ti|b
+
+
+
+> d′
+
+X
+
+> c=1
+
+X 
+
+> j:σij<b
+
+|Xic,j |2
+
+ 
+
+> 1/2
+
+ X 
+
+> j:σij≤b
+
+|W ij |2
+
+
+
+> 1/2
+
+(115) 
+
+≤ X
+
+> i
+
+|ti|b∥Xi∥F∥W i∥ (116) 
+
+≤ X
+
+> i
+
+|ti|b∥x∥F∥vec (W )∥ (as ULi and VLi are orthonormal) . (117) Now we compute ∥x∥F where x = x⊤ ⊗ Id′ ∈ Rd′×d′d:
+
+∥x∥2 
+
+> F
+
+= ∥x⊤ ⊗ Id′ ∥2 
+
+> F
+
+(118) 
+
+= tr  (x⊤ ⊗ Id′ )( x⊤ ⊗ Id′ )⊤ (119) 
+
+= tr  (x⊤ ⊗ Id′ )( x ⊗ Id′ ) (120) 
+
+= tr  (x⊤x) ⊗ (Id′ Id′ ) (121) 
+
+= tr  ∥x∥2 ⊗ Id′
+
+ (122) 
+
+= ∥x∥2 · tr (Id′ ) (123) 
+
+= d′∥x∥2. (124) Therefore, ∥x∥F = √d′∥x∥. Substituting the norms, we can rewrite the inequality as: 
+
+∥R(g)∥ ≤ X
+
+> i
+
+|ti|b√d′∥x∥∥ W ∥F (125) as ∥vec (W )∥ = ∥W ∥F.For compact and connected Lie groups pP  
+
+> i
+
+t2 
+
+> i
+
+≤ rG (assuming an orthonormal basis for the Lie algebra), where rG is the injective radius of the group G. Applying Cauchy-Schwarz inequality on P 
+
+> i
+
+|ti| gives: 
+
+X
+
+> i
+
+|ti| ≤ √nG
+
+sX
+
+> i
+
+t2 
+
+> i
+
+≤ rG
+
+√nG, (126) where nG is the number of Lie algebra basis elements of the group G.As the function FFC is linear, the norm of the Jacobian at x is ∥JF (; W )FC (x)∥F = ∥W ∥F. Substituting the definition of R(g) and ∥JF (; W )FC (x)∥, and reintroducing the Taylor residual error ϵG, we obtain the final bound on the equivariance error: 
+
+∥W ρX (g)x − ρY (g)W x ∥ ≤ br G
+
+pnGd′∥JF (; W )FC (x)∥F∥x∥ + ϵG (127) 
+
+=⇒ ∥B′ΘρX (g)x − ρY (g)B′Θx∥∥JF (; W )FC (x)∥F∥x∥ ≤ br G
+
+pnGd′ + εG. (128) Here, εG is the normalized Taylor residual. 
+
+E.4. Proof of Lemma 1 
+
+Lemma 1. The weight matrix Θ is equivariant if it satisfies the condition 
+
+ΣY Θ′ − Θ′ΣX = 0 ⇐⇒ TlΘ′ 
+
+> lk
+
+= Θ ′
+
+> lk
+
+Sk ∀l, k, (19) 
+
+where Θ′ 
+
+> lk
+
+are blocks of Θ′ corresponding to the blocks of ΣY and ΣX of dimensions dim( Tl) × dim( Sk).
+
+Proof. Following Eq. (100), we can write the condition for exact equivariance as for weight Θ ∈ Rd′×d as: 
+
+∥R(g)∥ = 0 = ⇒ X
+
+> i
+
+ti (Θ dρ X (Ai) − dρ Y (Ai)Θ) x = 0 . (129) The above condition holds if 
+
+∥Θdρ X (Ai) − dρ Y (Ai)Θ ∥F = 0 ∀i. (130) As the condition is the same for all Lie algebra generators Ai, we drop the index Ai for readability. We define the Schur decomposition of the Lie algebra representations as: 
+
+dρ X = UX ΣX U ⊤X , dρ Y = UY ΣY U ⊤Y , (131) where UX and UY are orthonormal. And we denote Θ′ = U ⊤Y ΘUX Substituting the Schur decomposition in the equivariance condition, we obtain: 
+
+∥Θdρ X − dρ Y Θ∥F = 0 (132) 
+
+=⇒ ∥ ΘUX ΣX U ⊤X − UY ΣY U ⊤Y Θ∥F = 0 (133) 
+
+=⇒ ∥ U ⊤Y (Θ UX ΣX U ⊤X − UY ΣY U ⊤Y Θ) UX ∥F = 0 (orthonormal matrix preserves norm ) (134) 
+
+=⇒ ∥ U ⊤Y ΘUX ΣX U ⊤X UX − U ⊤Y UY ΣY U ⊤Y ΘUX ∥F = 0 (135) 
+
+=⇒ ∥ Θ′ΣX − ΣY Θ′∥F = 0 (136) This condition holds when 
+
+ΣY Θ′ − Θ′ΣX = 0. (137) Now as dρ X and dρ Y are normal matrices, ΣX and ΣY are block diagonal matrices i.e ., ΣX = diag( {Sk}pk=1 ) and 
+
+ΣY = diag( {Tl}ql=1 ), where {Sk}pk=1 and {Tl}ql=1 are sets of 1 × 1 or 2 × 2 Schur form blocks. We decompose Θ′ into blocks Θ′ 
+
+> lk
+
+corresponding to the blocks of ΣX and ΣY of size dim( Tl) × dim( Sk) i.e ., Θ′ 
+
+> lk
+
+is a submatrix of Θ′ corresponding to the rows associated with block he Tl in ΣY and columns associated with the block Sk in ΣX .As the 0 entries of ΣX and ΣY do not contribute to the matrix multiplication, we can rewrite Eq. (137) as a blockwise condition: 
+
+TlΘ′ 
+
+> lk
+
+− Θ′
+
+> lk
+
+Sk = 0 ∀l, k. (138) E.5. Proof of Claim 3 
+
+Claim 3. For any Lie group G with normal Lie algebra representations with injective radius rG and nG generators. Let 
+
+W = UY BSchur [Θ ′] U ⊤X , then the function FFC (x, W ) is ηb-soft equivariant 
+
+∥W ρX (g)x − ρY (g)W x ∥∥JFFC (·;W )(x)∥F∥x∥ ≤ ηb, ∀g ∈ G (23) 
+
+with ηb = b√nGrG + εG, b is the cut-off value of the Schur filter BSchur and εG is the residual from the first-order Taylor approximation. 
+
+Proof. Applying the Taylor expansion of the equivariance error Eq. (65) for the function FFC (x, W ) = W x and retaining only the linear terms, we obtain: 
+
+R(g) = X
+
+> i
+
+ti
+
+∂ (WρX (exp( tiAi)) x − ρY (exp( tiAi)) Wx)
+
+∂t i t=0 
+
+(139) 
+
+= X
+
+> i
+
+ti (Wdρ X (Ai)x − dρ Y (Ai)Wx) (140) 
+
+= X
+
+> i
+
+ti (Wdρ X (Ai) − dρ Y (Ai)W) x. (141) Now, we denote W i′ = U i
+
+> Y⊤
+
+W U i 
+
+> X
+
+where U i 
+
+> X
+
+and U i 
+
+> Y
+
+are the orthonormal matrices from the Schur decomposition of 
+
+dρ X (Ai) and dρ Y (Ai) respectively. We denote ΣX = diag( {Sik}pk=1 ) and ΣY = diag( {T il }ql=1 ), where {Sik}pk=1 and 
+
+{T il }ql=1 are sets of 1 × 1 or 2 × 2 Schur form blocks corresponding to the Schur decomposition of dρ X (Ai) and dρ Y (Ai).By λSik and λT ll we denote the norm of the highest eigenvalue of the blocks Sik and T ll respectively. We can express the equivariance error norm |R(g)| to be upper-bounded by: 
+
+X
+
+> i
+
+|ti|∥ W dρ X (Ai) − dρ Y (Ai)W ∥2∥x∥ (142) 
+
+= X
+
+> i
+
+|ti|∥ (U i 
+
+> Y
+
+W i′U i
+
+> X⊤
+
+)( U i 
+
+> X
+
+Σi 
+
+> X
+
+U i
+
+> X⊤
+
+) − (U i 
+
+> Y
+
+Σi 
+
+> Y
+
+U i
+
+> Y⊤
+
+)( U i 
+
+> Y
+
+W i′U i
+
+> X⊤
+
+)∥2∥x∥ (143) 
+
+= X
+
+> i
+
+|ti|∥ W i′Σi 
+
+> X
+
+− Σi 
+
+> Y
+
+W i′∥2∥x∥ (spectral norm of orthonormal matrices is 1) (144) 
+
+≤ X
+
+> i
+
+|ti|∥ W i′Σi 
+
+> X
+
+− Σi 
+
+> Y
+
+W i′∥F∥x∥ (145) 
+
+= X
+
+> i
+
+|ti|
+
+X
+
+> l,k
+
+∥W i′
+
+> lk
+
+Sik − T il W i′
+
+> lk
+
+∥2
+
+> F
+
+
+
+> 1/2
+
+∥x∥ (146) 
+
+= X
+
+> i
+
+|ti|
+
+X 
+
+> l,k :λSik
+> +λTil
+> ≤b
+
+∥W i′
+
+> lk
+
+Sik − T il W i′
+
+> lk
+
+∥2
+
+> F
+
+
+
+> 1/2
+
+∥x∥ (as BSchur ,W i′          
+
+> lk Sik−TilWi′
+> lk =0when λSik
+> +λTil
+> >b )
+
+(147) 
+
+≤ X
+
+> i
+
+|ti|
+
+X 
+
+> l,k :λSik
+> +λTil
+> ≤b
+
+(λSik + λT il )2∥W i′
+
+> lk
+
+∥2
+
+> F
+
+
+
+> 1/2
+
+∥x∥ ( maximum scaling is bounded by the highest eigenvalues ) (148) 
+
+≤ X
+
+> i
+
+|ti|
+
+X 
+
+> l,k :λSik
+> +λTil
+> ≤b
+
+b2∥W i′
+
+> lk
+
+∥2
+
+> F
+
+
+
+> 1/2
+
+∥x∥ (149) 
+
+≤ X
+
+> i
+
+|ti|b
+
+X
+
+> l,k
+
+∥W i′
+
+> lk
+
+∥2
+
+> F
+
+
+
+> 1/2
+
+∥x∥ (150) = X
+
+> i
+
+|ti|b∥W i′∥F∥x∥ (151) 
+
+= X
+
+> i
+
+|ti|b∥W ∥F∥x∥ (as U i 
+
+> X
+
+and U i 
+
+> Y
+
+are orthonormal) . (152) For compact and connected Lie groups, applying the Cauchy-Schwarz inequality and using the injective radius property: 
+
+X
+
+> i
+
+|ti| ≤ √nG
+
+sX
+
+> i
+
+t2 
+
+> i
+
+≤ √nGrG. (153) Substituting the definition of R(g) and using ∥JFFC (; W )(x)∥F = ∥W ∥F , and reintroducing the Taylor residual error ϵG,we can state 
+
+∥BsΘρX (g)x − ρY (g)BsΘx∥ ≤ br G
+
+√nG∥W ∥F ∥x∥ + ϵG =⇒ ∥BsΘρX (g)x − ρY (g)BsΘx∥∥JFFC (; W )(x)∥F ∥x∥ ≤ b√nGrG + εG.
+
+(154) Here, εG is the normalized Taylor residual. 
+
+E.6. Proof of Lemma 2 
+
+Lemma 2. Let G be a finite discrete group with generating set S = {s1, . . . , s k}, and f : G → R be h-Lipschitz with respect to the word metric dS, then the first-order Taylor approximation of f at the identity element e defined as 
+
+ˆf (g) ≜ f (e) + Pki=1 nsi ∆si f (e) satisfies the following point-wise error bound: 
+
+f (g) − ˆf (g) ≤ 2h · dS(e, g ), (25) 
+
+where nsi number of occurrence of si in the canonical word representation of g.
+
+Proof. By definition of ˆf , the approximation error is: 
+
+f (g) − ˆf (g) = f (g) − f (e) −
+
+> k
+
+X
+
+> i=1
+
+nsi ∆si f (e) . (155) Applying the triangle inequality: 
+
+f (g) − ˆf (g) ≤ | f (g) − f (e)|
+
+| {z }
+
+> (I)
+
++
+
+> k
+
+X
+
+> i=1
+
+ni |∆si f (e)|
+
+| {z }
+
+> (II)
+
+. (156) Recall that the word metric dS(g, g ′) counts the minimum number of generator from S needed to reach g′ from g; in particular, for g = sn1 
+
+> 1
+
+· · · snm 
+
+> m
+
+, the word metric can be expressed as dS(e, g ) = Pmi=1 ni = Pki=1 nsi , where nsi is the total number of occurrence of si in sn1 
+
+> 1
+
+· · · snm 
+
+> m
+
+the canonical word representation of g .
+
+Bounding (I). Since dS(e, g ) = Pki=1 ni and f is h-Lipschitz: 
+
+|f (g) − f (e)| ≤ h · dS(e, g ). (157) 
+
+Bounding (II). Each generator si satisfies dS(e, s i) = 1 , so by h-Lipschitz: 
+
+|∆si f (e)| = |f (si · e) − f (e)| ≤ h · dS(e, s i) = h. (158) Summing over all generators: kX
+
+> i=1
+
+ni |∆si f (e)| ≤ h
+
+> k
+
+X
+
+> i=1
+
+ni = h · dS(e, g ). (159) Combining the two bounds: 
+
+f (g) − ˆf (g) ≤ h · dS(e, g ) + h · dS(e, g ) = 2 h · dS(e, g ), (160) which completes the proof. Table 8. Human Trajectory Prediction Results (ETH/UCY). All metrics are lower is better.                                                                                                                             
+
+> Method ETH UNIV ZARA1 ZARA2 HOTEL
+> ADE ↓aADE ↓cADE ↓FDE ↓aFDE ↓cFDE ↓ADE ↓aADE ↓cADE ↓FDE ↓aFDE ↓cFDE ↓ADE ↓aADE ↓cADE ↓FDE ↓aFDE ↓cFDE ↓ADE ↓aADE ↓cADE ↓FDE ↓aFDE ↓cFDE ↓ADE ↓aADE ↓cADE ↓FDE ↓aFDE ↓cFDE ↓
+> Base [19] 4.67 4.80 4.73 6.04 6.27 6.15 7.90 7.92 7.91 8.16 8.17 8.16 3.57 3.65 3.61 4.63 4.73 4.68 3.18 3.15 3.17 3.83 3.76 3.79 5.83 5.85 5.84 6.64 6.71 6.67 EqAuto [10] 5.40 5.40 5.40 7.33 7.33 7.33 8.16 8.16 8.16 8.33 8.33 8.33 3.66 3.66 3.66 4.98 4.98 4.98 2.94 2.94 2.94 3.63 3.63 3.63 6.16 6.16 6.16 6.78 6.78 6.78 Ours 4.50 4.66 4.58 6.10 6.35 6.23 7.82 7.88 7.85 8.04 8.09 8.07 3.39 3.41 3.40 4.65 4.68 4.67 2.91 2.91 2.91 3.60 3.60 3.60 5.69 5.69 5.69 6.26 6.25 6.26
+
+## F. Additional Experiments and Results 
+
+F.1. Synthetic O(5) benchmark 
+
+We follow the setup of [17] to create a synthetic benchmark for O(5) invariant learning. 
+
+Task Description Given two vectors x1, x 2 ∈ R5, the task is to predict the following O(5) invariant quantity f (x1, x 2) = sin( ∥x1∥) − ∥ x2∥3/2 + x⊤  
+
+> 1x2
+> ∥x1∥∥ x2∥
+
+. To induce a more challenging learning problem, we deviate from the strict invariant target function f and reformulate the target function as 
+
+˜f (x1, x 2) = sin( ∥x1∥) − ∥ x2∥3/2 + x⊤ 
+
+> 1
+
+x2
+
+∥x1∥∥ x2∥ + γ |x11| + |x21| + |x12| + |x22||x31| + |x41| + |x32| + |x42| + ε
+
+| {z }
+
+> non-invariant term
+
+, (161) where γ is a hyperparameter that controls the degree of deviation from strict invariance and xkj denotes the kth component of the vector xj . When γ = 0 , the target function is strictly invariant, and as γ increases, the target function becomes less invariant. We present the results in Tab. 9, which show that our method outperforms the baselines, with EMLP-RPP [ 16 ] being the second-best. 
+
+Table 9. Relative MSE ( 10 −1) for varying γ on Synthetic O(5) benchmark. Model γ = 0 .3 γ = 0 .4 γ = 0 .5
+
+EMLP [17] 0.78 0.88 1.00 EMLP-RPP [16] 0.79 0.81 0.84 MLP 1.21 1.20 1.29 Ours 0.72 0.74 0.81 
+
+F.2. Additional ablation studies and extended results 
+
+We evaluate the benefits of soft equivariant models we also report the performance of full equivariant models. However, fully equivariant pretrained models with architectures and parameter counts similar to ViT or DINOv2 are not publicly available. So we use our projection operator to create a full equivariant model from a pretrained non-equivariant model. We present the results in Tab. 10 on the classification and segmentation tasks following the setup of Sec. 5.2 and Sec. 5.3. We observe that the full equivariance constraint degrades the performance (see Tab. 1 and Tab. 4). 
+
+Table 10. Performance of full equivariant models 
+
+Task Dataset ViT DINOv2 ResN/Seg 
+
+Class. (cAcc) CIFAR-10 84.10 93.07 73.21 †
+
+CIFAR-100 66.98 81.99 58.85 †
+
+Segmen. (cIoU ) Pascal VOC 63.45 68.87 29.20 ‡†ResNet-50, ‡SegFormer 
+
+Table 11. Wang et al. [67] vs Ours. 
+
+Wang et al. [67] Ours # Filter Bank cAcc (%) Softness cAcc (%) 
+
+2 83.08 0.7 85.52 3 81.25 0.8 85.22 4 82.74 0.9 85.11 
+
+We also compare our method with the group convolution-based soft equivariant model proposed by Wang et al. [67] on the MNIST digits classification task. We follow the setup of Sec. 5.1 and report the results in Tab. 11. We observe that across different levels of softness, which is controlled by the number of filter banks in Wang et al. [67] , our method maintains stable performance, outperforming the baseline. We provide the full results on the human trajectory prediction task in Tab. 8. We observe that, across most datasets, our method outperforms both strict-equivariant and non-equivariant baselines on both standard metrics (ADE, FDE) and Table 12. Segmentation Performance on PASCAL VOC [ 15 ]. Results reported as mean ± std over multiple runs. eErr is in ×10 −2.                                                                 
+
+> Arch. ViT [12] DINOv2 [43] Segformer [71] cIoU ↑eErr ↓cIoU ↑eErr ↓cIoU ↑eErr ↓
+> Base 72 .99 ±0.95 11 ±01 87 .97 ±1.02 04 ±00 63 .67 ±0.98 11 ±00
+> Canon. 64 .37 ±0.75 19 ±00 82 .83 ±0.18 38 ±07 55 .90 ±1.26 24 ±02
+> Ours 73 .25 ±0.38 10 ±00 88 .61 ±0.18 03 ±00 63 .87 ±0.67 10 ±00
+
+Table 13. Performance on CIFAR10/100 across various back-bones. Results reported as mean ± std over multiple runs. iErr is in 
+
+×10 −2.                                                                                                                       
+
+> Arch. ViT [12] DINOv2 [43] ResNet-50 [21] cAcc ↑iErr ↓cAcc ↑iErr ↓cAcc ↑iErr ↓
+> CIFAR10  Base 97 .47 ±0.05 06 ±00 98 .63 ±0.06 04 ±00 94 .88 ±0.17 21 ±01
+> Canon. 93 .42 ±0.22 13 ±02 97 .78 ±0.22 03 ±00 91 .00 ±0.26 11 ±01
+> Ours 97 .49 ±0.14 06 ±00 98 .70 ±0.05 04 ±00 95 .05 ±0.27 19 ±03
+> CIFAR100  Base 85 .63 ±0.22 24 ±00 91 .62 ±0.20 25 ±01 79 .78 ±0.18 51 ±02
+> Canon. 78 .41 ±0.44 25 ±02 88 .64 ±0.65 16 ±01 74 .18 ±1.02 27 ±03
+> Ours 85 .67 ±0.28 23 ±01 91 .90 ±0.12 23 ±00 80 .13 ±0.24 45 ±00
+
+augmented metrics (aADE, aFDE). While 1 and 4 reports results for a single run, Tab. 13 and Tab. 12 report mean ± std over 5 random seeds following the exact setup of Sec. 5.2 and Sec. 5.3. We observe that our method consistently outperforms the baselines. 
+
+## G. Experiment Details 
+
+G.1. Validating tunable softness level 
+
+We use a two-layer MLP trained with a batch size of 512 for 30 epochs. The MLPs take flattened images as input. The models are trained on the standard MNIST [33] training set with 10% held out for validation. We choose the best-performing model on the validation set for final evaluation on the test set. We use Adam optimizer with a learning rate of 1e−3 and a weight decay of 1e−4. The input images are padded to prevent the boundary artifact during rotation. We use the Adam optimizer with linear learning rate decay. 
+
+G.2. Image Classification 
+
+CIFAR-10 and CIFAR-100. We use the pretrained ViT-B/16 model from [ 12 ] as the backbone which is pretrained in ImageNet-1k dataset for classification task. We replace the final classification layer to match the number of classes in the CIFAR-10 and CIFAR-100 datasets. The ResNet-50 [ 21 ] backbone is also pretrained on ImageNet-1k, and only the final classification is replaced. The DINOv2 [ 43 ] is trained on the large-scale LVD-142M dataset. We add a single-layer classification head with the DINOv2 backbone. For the Canon. [ 41 ] baseline we use a 3 layer C18 equivariant steerable (a 20 ◦ rotation equivariant) CNN architecture [ 9]as the canonicalization network. The model is trained from scratch with random initialization. We also use the prior loss as described in [ 41 ] to stabilize the canonicalization network. We use the same rotation group for designing our projection operators. See Sec. G.5 for details on the choice of the cutoff value for the projection operator. All the models are finetuned for 30 epochs. Images are interpolated to 224 × 224 resolution to match the input size of the pretrained models. We use a larger learning rate of 1e−3 for the classification head and 1e−5 and 5e−5 for the ViT/DINOv2 and ResNet backbone, respectively. Models are trained with random rotation augmentation. We use the AdamW optimizer and a cosine learning rate scheduler. 20% of the training data is held out for validation. The best model on the validation set is used for final evaluation on the test set. 
+
+ImageNet-1k. We use publicly available pretrained ViT-B/16 [ 12 ], DINOv2-base [ 25 , 43 ], and ResNet-50 [ 21 ] models. We directly evaluate the models on the ImageNet-1k validation set. We use the same architecture for the canonicalization module for the Canon. [ 41 ] baseline as described above. We use the training script from Pytorch Image Models (timm) library [ 68 ] for finetuning and evaluation. We train all the models on a single GPU with a batch size of 128 for 15 epochs with 4
+
+warmup epochs. We use a cosine learning rate scheduler with a learning rate of 1e−4. We use standard data augmentation techniques from ImageNet training [ 12 , 22 ], with mixup, cutmix, random erasing, and RandAugment. The hyperparameters are summarized in Tab. 14. 
+
+G.3. Semantic segmentation 
+
+We use the PASCAL VOC 2012 [ 15 ] dataset for the semantic segmentation task. Following the DINOv2 [ 43 ], we use a linear classifier over the pre-trained DINOv2-base and ViT-B/16 backbones. For SegFormer [ 71 ], we change the final classification layer of the decoder head to match the number of classes in the PASCAL VOC dataset. We use the same canonicalization network architecture as described above for the Canon. baseline. The SegFormer and DINOv2 models are trained with images of size 512 × 512 following their original setup. For ViT-B/16, we use an image size of 224 × 224 . All the models are trained Table 14. Training Hyperparameters for ImageNet-1k 
+
+Hyperparameter Value 
+
+Optimization 
+
+Optimizer AdamW Learning Rate 1e − 4
+
+Weight Decay 0.05-0.04 Epochs 15 Gradient Clipping 1.0 
+
+Learning Rate Schedule 
+
+Scheduler Cosine Annealing Warmup Epochs 4Warmup LR 1e − 6
+
+Layer-wise LR Decay 0.65 
+
+Augmentation 
+
+Mixup α 0.8 CutMix α 1.0 Random Erasing 0.25 RandAugment rand-m9-mstd0.5-inc1 
+
+Regularization 
+
+Label Smoothing 0.1 Drop Path Rate 0.1 Model EMA 0.99 0 2 4 6 8 10 12 14         
+
+> X Axis (meters)
+> 0
+> 2
+> 4
+> 6
+> 8
+> 10
+> 12
+> 14
+> Y Axis (meters)
+> Input (Observed)
+> Target (Future)
+> Start Point 0246810 12 14 16
+> X Axis (meters)
+> 0
+> 2
+> 4
+> 6
+> 8
+> 10
+> 12
+> 14
+> Y Axis (meters)
+> Input (Observed)
+> Target (Future)
+> Start Point
+
+Figure 7. Sample trajectories from the ETH/UYC dataset. Solid circles indicate observed past positions, and hollow circles show the future. Square markers denote starting points. Each line with a distinct color corresponds to a different pedestrian in the scene. 
+
+for 100 epochs with a batch size of 32 . We use a cosine annealing learning rate scheduler with 8 warmup epochs. The learning rate is set to 5e−5 for ViT-B/16, 1e−5 for DINOv2, and 1e−4 for SegFormer baselines. We use standard data augmentation techniques, including random scaling, cropping, horizontal flipping, and rotation. (a) cIoU vs softness level for SegFormer 0.0 0.2 0.4 0.6 0.8 1.0       
+
+> Softness
+> 30
+> 35
+> 40
+> 45
+> 50
+> 55
+> 60
+> 65
+> cIoU (%)
+> SegFormer (b) cIoU vs high softness level for different pretrained models 0.70 0.75 0.80 0.85 0.90 0.95
+> Softness
+> 65
+> 70
+> 75
+> 80
+> 85
+> 90
+> cIoU (%)
+> ViT
+> DINO
+> SegFormer
+
+G.4. Human trajectory prediction 
+
+We use the human trajectory datasets from ETH [ 44 ] and UCY [ 34 ], consisting of five subsets with the number of subjects (humans) varying from 5 − 57 across different scenes and datasets. We visualize two samples from the dataset in Fig. 7, illustrating the task and the dataset’s complexity. We use an auto-regressive transformer model with 4 transformer layers, each with 4 attention heads. We follow the technique of Vector neurons [ 10 ] for designing an equivariant auto-regressive (EqAuto) transformer. Models are trained for 100 epochs with a learning rate of 5e−4 with a weight decay of 1e−5. The models are trained with mean squared error. The best-performing model on the validation set is used for the final evaluation on the test set. We use the Lie algebra representation of the 2D rotation group to design the projection operators. The combined ADE (cADE) and combined FDE (cFDE) are calculated as cADE = ADE + aADE 
+
+2 , cFDE = FDE + aFDE 
+
+2 , (162) 
+
+G.5. Softness level selection 
+
+In Sec. 5.1, we show that when training from scratch, the level of ‘softness’ can be selected depending on the trade-off between performance and consistency. However, when using pretrained models, smaller softness levels (i.e., more aggressive projection) can lead to a significant drop in performance because they deviate further from the pretrained weights. As we see in Fig. 8a, the performance of SegFormer drops significantly when the softness level is smaller than 0.6, and we do not see any benefit from pretraining. So, when adapting pretrained models, we use higher softness levels ( > 0.7) to retain the benefits of pretraining. As we see in Fig. 8b, across all architectures, this range of softness levels leads to effective fine-tuning and better performance.

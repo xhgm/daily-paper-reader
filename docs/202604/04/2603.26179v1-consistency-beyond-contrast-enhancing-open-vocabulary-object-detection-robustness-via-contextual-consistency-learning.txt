@@ -1,0 +1,690 @@
+Title: Consistency Beyond Contrast: Enhancing Open-Vocabulary Object Detection Robustness via Contextual Consistency Learning
+
+URL Source: https://arxiv.org/pdf/2603.26179v1
+
+Published Time: Mon, 30 Mar 2026 00:47:34 GMT
+
+Number of Pages: 20
+
+Markdown Content:
+# Consistency Beyond Contrast: Enhancing Open-Vocabulary Object Detection Robustness via Contextual Consistency Learning 
+
+## Bozhao Li 1,2, Shaocong Wu 2, Tong Shao 1, Senqiao Yang 3
+
+## Qiben Shan 2, Zhuotao Tian 1*, Jingyong Su 1,2*
+
+> 1
+
+## Harbin Institute of Technology, Shenzhen 2Pengcheng Laboratory 3CUHK 
+
+{23B951035, shaotong }@stu.hit.edu.cn, {wushc, shanqb }@pcl.ac.cn senqiaoyang@link.cuhk.edu.hk, {tianzhuotao, sujingyong }@hit.edu.cn 
+
+## Abstract 
+
+Recent advances in open-vocabulary object detection focus primarily on two aspects: scaling up datasets and lever-aging contrastive learning to align language and vision modalities. However, these approaches often neglect in-ternal consistency within a single modality, particularly when background or environmental changes occur. This lack of consistency leads to a performance drop because the model struggles to detect the same object in different scenes, which reveals a robustness gap. To address this is-sue, we introduce Contextual Consistency Learning (CCL), a novel framework that integrates two key strategies: Contex-tual Bootstrapped Data Generation (CBDG) and Contextual Consistency Loss (CCLoss). CBDG functions as a data generation mechanism, producing images that contain the same objects across diverse backgrounds. This is essential because existing datasets alone do not support our CCL framework. The CCLoss further enforces the invariance of object features despite environmental changes, thereby im-proving the model’s robustness in different scenes. These strategies collectively form a unified framework for ensur-ing contextual consistency within the same modality. Our method achieves state-of-the-art performance, surpassing previous approaches by +16.3 AP on OmniLabel and +14.9 AP on D3. These results demonstrate the importance of enforcing intra-modal consistency, significantly enhancing model generalization in diverse environments. Our code is publicly available at: https://github.com/bozhao-li/CCL. 
+
+## 1. Introduction 
+
+Object detection has made significant strides in recent years. However, two advanced tasks based on this technology con-tinue to present considerable challenges: open-vocabulary 
+
+> *Corresponding authors.
+
+object detection (OVOD) and descriptive textual object de-tection, such as referring expression comprehension (REC) and visual grounding (VG). Open-vocabulary object detec-tion aims to detect previously unseen objects in dynamic environments. Recent works [ 8, 12 , 16 , 26 , 28 , 38 , 59 , 63 ]have advanced training strategies for such tasks, others [17 , 21 , 37 , 47 ] have focused on enhancing model architec-tures. In parallel, tasks involving referring expressions and visual grounding, which require detecting objects based on complex natural language descriptions, have shown advances in training methodologies [ 5, 29 , 40 , 52 , 66 ], architectural improvements [ 30 , 54 , 55 ] and the use of the capabilities of large models [46, 53, 61]. Despite these advancements, there is still a crucial gap in addressing the internal consistency within each input im-age and query. We identify an issue in existing models [ 8, 25 , 26 ]: the features of the same object tend to vary significantly across different scenes, which indicates that current models may overfit to specific training backgrounds. This inconsistency not only affects the detection stability but might also degrade the model’s generalization ability, raising an important question: Can we obtain object features that are robust to environmental changes? To validate this, we con-struct the D3 
+
+> BC
+
+test set by applying background replacement to the original D3 dataset. Detailed in Section 4.3, baseline methods suffer notable performance drops under this setting, highlighting their limited robustness to contextual changes. In contrast, our method maintains performance comparable to that on the original benchmark. As shown in Figure 1, our experimental results demonstrate that addressing this issue significantly improves model performance. To address this issue, we propose the CCL framework that enforces invariance of object features across different scenes, as shown in Figure 2. However, existing datasets exhibit a notable limitation: they lack comprehensive data pairs that depict the same object in diverse contextual set-tings. This data gap is crucial because CCL requires models 
+
+> arXiv:2603.26179v1 [cs.CV] 27 Mar 2026
+
+## (a)  (b)  (c) Figure 1. Performance and robustness comparison of different methods. (a) Our approach, with Contextual Consistency Learning, achieves the best overall results, reaching a normalized score of 1 in all metrics. (b,c) Benchmark backgrounds are altered to test robustness. Tested on D3BC , baseline methods degrade, while ours remains stable. See Section 4.3 for details. 
+
+to encounter and learn from variations of the same object in different environments or scenarios. Without such di-verse representations, models struggle to generalize under varying real-world conditions. To overcome this limitation, we introduce CBDG, which first increases the number of categories and then leverages SAM [ 19 ] and the Stable Dif-fusion model [ 43 ] to generate data pairs across different scenes while ensuring consistent foreground objects, thus improving both category variation and background diversity in training data. Our experimental results demonstrate significant improve-ments on two challenging benchmarks, D3 [51 ] and Omni-Label [ 44 ], achieving +16.3 AP on OmniLabel and +14.9 AP on D3. The proposed CBDG and CCLoss are comple-mentary components that collectively form a robust training paradigm. Specifically, the CBDG improves feature learn-ing through diverse scene-object compositions, while the CCLoss ensures robust feature representation across varying backgrounds. Furthermore, our approach is fundamentally model-agnostic, enabling seamless integration into a wide range of existing architectures, such as [ 8, 26 ], with consis-tent performance gains across different frameworks. In summary, the contributions are as follows. • This study identifies an issue where object features are highly susceptible to environmental changes, leading to potential overfitting and poor generalization to unseen scenarios. • To ensure feature robustness to context changes, we pro-pose CCL, which enforces object consistency across back-grounds via CBDG and CCLoss. • Our method is simple, efficient, and model-agnostic, im-posing no additional inference overhead while consis-tently delivering performance improvements across di-verse datasets and models. Moreover, despite working with a much smaller subset of the original dataset, we achieve state-of-the-art results on two descriptive open-vocabulary detection benchmarks. 
+
+## 2. Related work 
+
+Vision language localization tasks. Open-vocabulary ob-ject detection (OVOD) aims to enable models to recog-nize novel objects or unseen categories during inference [12 , 38 , 60 ] , extending beyond traditional categorical detec-tion. However, this ability is typically limited to detecting object categories based on labels, rather than understanding long descriptions. In contrast, referring expression compre-hension (REC) involves understanding and localizing objects in an image based on natural language descriptions that re-fer to specific instances of objects [ 34 , 49 , 56 ], making it inherently more flexible and context-aware. While OVOD and REC both address the challenge of understanding ob-jects in images, we focus on simultaneously handling novel categories and complex natural language descriptions. We opt for described object detection (DOD) [ 51 ] and Omni-Label [ 44 ] as robust solutions to these challenges, as they incorporate both the recognition of novel categories and the understanding of intricate descriptions. 
+
+Diffusion models for scenario generation. Stable Diffu-sion [ 43 ] marks a shift in text-to-image synthesis by oper-ating in a compressed latent space using iterative denois-ing. Unlike GANs [ 10 ] or VAEs [ 18 ] that generate im-ages in pixel space, it uses a VAE to encode images into low-dimensional latents, allowing efficient training and high-resolution output. Guided by a pre-trained CLIP text encoder, the model aligns generated images with complex textual de-scriptions, from concrete objects to abstract scenes. Recent diffusion-based methods have shown strong per-formance in image inpainting, enabling object and scene edit-Original Dataset 
+
+> Categorical Augmentation
+
+Contextual Bootstrapped Data Generation (CBDG) 
+
+> Background Generation
+> Background Replacement
+> Augmented Dataset D j
+> Baseline
+> L=L cls +L loc +L cons
+> Text Image
+> : Post Training
+
+CCL Training Figure 2. Overview of our approach. CBDG generates Dj via Categorical Augmentation, Background Generation and Background Replacement. CCL training uses Dj with CCLoss added to total loss. 
+
+ing via text or spatial inputs. GLIDE [ 39 ] enables text-guided object replacement while preserving scene consistency, and GLIGEN [ 27 ] extends this by incorporating bounding boxes for more precise control over object placement. For back-ground replacement, IAM [ 57 ] integrates segmentation with diffusion to regenerate regions based on textual prompts. Despite their effectiveness, these methods often suffer from boundary artifacts due to over-smoothing during denoising. We evaluate GLIDE, IAM, and Stable Diffusion [ 43 ] in CBDG and ultimately choose Stable Diffusion for back-ground generation. 
+
+Cross-modal object detection models. With the advance-ment of multimodal vision language models, such as CLIP [ 42 ] and ALIGN [ 15 ], the development of methods that integrate vision and language to address visual recog-nition tasks has emerged as a prominent trend. GLIP [ 26 ], based on CLIP [ 42 ], leverages free-form language supervi-sion during training and frames object detection as visual localization, constructing a foundation for semantically en-riched pre-trained models. Building on this, FIBER [ 8]employs a two-stage training approach, transitioning from coarse-grained to fine-grained, enhancing the adaptability of the pre-trained model to a broad spectrum of downstream tasks at both image-level and region-level. In our work, we use GLIP [ 26 ] and FIBER [ 8] as baseline models and incorporate our CCL method to validate the experimental results. 
+
+## 3. Method 
+
+3.1. Overview 
+
+We introduce CCL, a novel framework designed to address the challenge of maintaining detection and grounding consis-tency when models encounter diverse and unseen object cat-egories across varying contextual backgrounds. To achieve this goal, we address two fundamental aspects of the prob-lem: the lack of appropriate training data and the need for effective consistency-preserving mechanisms. In Section 3.2, we describe our CBDG pipeline, which leverages advanced segmentation and generative models to create a rich and varied dataset. This data preparation process is specifically designed to support our consistency learning objectives. Following this, in Section 3.3, we detail our CCLoss formulation, which ensures that the model learns to maintain object identity across different backgrounds. CBDG and CCLoss serve complementary but distinct roles. CBDG is not a generic augmentation module, in-stead, it constructs identity-preserving paired samples in which the same object appears under different contextual backgrounds. These pairs define the supervision signal for consistency learning, but do not enforce invariance by them-selves. CCLoss is the objective that ties these paired views and drives the model to learn background-invariant repre-sentations. In this sense, CBDG provides the data structure, while CCLoss converts it into consistency-aware learning. 
+
+3.2. Contextual Bootstrapped Data Generation 
+
+Current open-set visual grounding methods struggle to main-tain robustness across diverse real-world scenarios, particu-larly when objects appear in unfamiliar contextual settings. This limitation stems from a fundamental data scarcity: ex-isting datasets rarely capture the full spectrum of object-background interactions, leading to biased model perfor-mance. To overcome this, we propose a multistage data augmentation framework that synthesizes diverse and realis-tic object-context compositions by combining SAM-based object manipulation with text-guided background genera-tion, as shown in Figure 3. Our method constructs a com-positionally diverse joint dataset Dj that mitigates common inpainting artifacts and improves model generalization. 
+
+Categorical augmentation. In our approach, we use the Flickr30k Entities visual grounding dataset [ 41 ] alongside a subset of the Objects365 object detection dataset [ 45 ] to create a combined training dataset. The selected subset of Objects365 tends to contain images dominated by a few categories, with multiple instances of that category present. Details are discussed in Supplementary Section D.4 and Section D.6. For images with a single object, we aim to enhance the diversity of object categories within each image by intro-ducing objects from different categories while maintaining spatial and contextual coherence. To achieve this, we lever-age the SAM model [ 19 ] to extract precise objects Oi and the corresponding position (xo, y o) for each image I, where 
+
+i means the category ID to which the object belongs. The object masks allow us to identify individual objects and their Diffusion 
+
+Dataset   
+
+> LLM
+> Image with multiple objects
+> Image with single object
+
+SAM  
+
+> Random
+> select
+
+Overlap  Placeable 
+
+> False
+
+Resize 
+
+> True
+> : Frozen
+
+Categorical Augmentation 
+
+Background Generation  Background Replacement 
+
+> IiOcar
+> Otable
+> Operson
+> I' i
+
+## t t' 
+
+b1
+
+b2 IjIj*
+
+Ii*
+
+Background 
+
+description 
+
+Prompts Figure 3. CBDG Pipeline. We use ChatGPT to generate background prompts for a diffusion model, enabling diverse background synthesis. For single-class images, CBDG augments object categories before background replacement. For multi-class images, CBDG replaces only the background. 
+
+spatial locations. Based on these masks, we randomly select objects Oi / ∈C from other images within the same subset but belonging to different categories, where C represents the category set. Then these objects are positioned in the current image at carefully chosen locations. Specifically, we define 
+
+P = {(x1, y 1), (x2, y 2), ..., (xN , y N )} the potential place-ment position set for the new object, N is the number of can-didate locations. From these positions, we randomly select 
+
+(x, y ) ∈ P \(xo, y o) that does not overlap with the existing objects in the image, ensuring a clean and non-interfering insertion of the new object. This process of placement can be formalized as: 
+
+Augmentation : ( xok , y ok ) ∈ P \(xo, y o), o k ∈ Oi / ∈C ,
+
+(1) where k represents the category of selected object, (xok , y ok )
+
+denotes the position randomly chosen from the set of candi-date locations according to the above rule. After categorical augmentation, the original image I becomes I′.In scenarios where no suitable empty position is available, such as when the current image contains large objects or a large number of dispersed objects, which results in limited available space, we adopt a resizing strategy. In these cases, we reduce the size of the new object to 1/α of its original size and attempt to place it again, where α is a scaling factor. This process is repeated until an empty placement area is found or the number of resizing attempts exceeds a threshold 
+
+NR. If resizing attempts fail to find a suitable location, we abandon the current image and instead select another image to enhance the diversity of object categories, thus ensuring a broader range of category representation in the final dataset. 
+
+Background generation. With more object categories added, the foreground dataset now includes images with varied labels and their corresponding bounding boxes. To reduce model overfitting and improve generalization, we next generate diverse background images, placing the same objects in different scenes. Image inpainting methods [ 27 , 39 , 57 ] often struggle with blurred edges and back-grounds that still reflect foreground features, making realis-tic scene changes difficult (see Supplementary Section B.5). To avoid these issues, we use a simpler alternative that better separates foreground from background. Instead of relying on limited original image content, we generate new and simple backgrounds directly. Using a Large Language Model (LLM) [ 4 ], denoted as G, we create text prompts in three categories: Seasonal, Sky, and Natural Landscape , to ensure variety and relevance. Details of these prompts are provided in Supplementary Section D.2. These prompts are input into Stable Diffusion D [43 ], which gener-ates matching background images. This method allows us to build a diverse, context-aware background dataset without the limitations of inpainting: 
+
+Generation : b = D(t′), t ′ = G(t), (2) where t ∈ { Seasonal, Sky, Natural Landscape }, t′ is the background description generated by ChatGPT, and b repre-sents the background image generated by stable Diffusion, which constitutes the background dataset Dbg . We start with visually clean and semantically neutral backgrounds to isolate the effect of contextual variation on object-level consistency. Beyond the three primary prompt families, we Figure 4. Four groups of images are shown, each composed of four sub-images: the leftmost sub-image in every group is the original, while the remaining three display background replacements. 
+
+further analyze urban/indoor/architectural scenes in Supple-mentary Section B.3 and Section D.5. 
+
+Background replacement. At this stage, we have the gen-erated background dataset Dbg and the foreground dataset 
+
+Df g covering various object categories. To construct new contextual variations, we randomly pair each foreground im-age with background images sampled from Dbg . Given the ground-truth bounding boxes, we use the SAM model S [19 ]to extract foreground objects. To ensure compositing quality, we filter out samples whose SAM-derived mask produces a bounding box with an IoU below a predefined threshold with respect to the ground-truth box. Implementation details are provided in Supplementary Section D.3. After isolating the foreground, we replace the original background with a selected one, generating multiple new images per original. The foreground stays the same, while the backgrounds vary, producing diverse scenes with consistent object content. The replacement process is defined as: 
+
+Replacement : I∗ = S(I′, bbox ) ⊕ b, b ∈ Dbg , (3) where bbox represents the bounding boxes of objects in the image I′ after categorical augmentation, ⊕ denotes the com-position of foreground and background, I∗ represents the image with replaced background. CBDG enables us to significantly augment the dataset with diverse background settings while maintaining the in-tegrity of the foreground objects, providing a more robust foundation for training our model. As shown in Figure 4, after CBDG, for each original image, several additional im-ages are generated with replaced backgrounds. This results in a total of K images per original, all sharing the same foreground objects, but differing in their backgrounds. K
+
+represents the batch size used during training. Alternative data generation schemes are also compared, see Supplemen-tary Section B.2. The augmented images are then utilized for the subsequent consistency constraints in our approach. 
+
+3.3. Contextual Consistency Loss 
+
+Given that after CBDG, we now have access to a dataset 
+
+Dj in which each group of images shares the same fore-ground object but varies in background. We introduce the Contextual Consistency Loss (CCLoss), a novel training objective designed to enforce representation invariance for the same object category across varying contextual environ-ments. As illustrated in Figure 5, our method uses CCLoss to maintain the consistency of foreground object representa-tions across different backgrounds. By constructing training batches that contain instances of the same object under dif-ferent contextual settings, CCLoss encourages the model to focus on semantically meaningful foreground features rather than background-dependent or spurious cues. This section elaborates on the underlying model architecture, the detailed formulation of consistency loss, and its integration into the overall training objective. 
+
+Model architecture. We employ a language-based object detector [ 8, 26 ] as the backbone for feature extraction and object detection, taking advantage of its strong capability in bridging vision and language representations. Specifically, images and textual descriptions are first encoded to obtain their respective feature embeddings, ensuring a comprehen-sive understanding of both modalities. These extracted fea-tures are subsequently processed through a Feature Pyramid Network (FPN), which effectively refines and integrates mul-tiscale representations, thereby enhancing detection perfor-mance across various object sizes and contexts. To further improve localization accuracy, the refined image features are then passed on to DynamicHead, a dedicated module designed to predict a set of candidate regions where objects are most likely to be located. This hierarchical and adap-tive processing pipeline ensures robust and efficient object detection. 
+
+Consistency loss. During the training phase, we organize each batch by grouping images that share identical fore-ground objects but exhibit diverse background settings. This arrangement enables the computation of the CCLoss func-tion, which serves as a critical mechanism for training the model to preserve invariant representations of foreground objects across varying contextual environments. The total loss function, as depicted in Eq. 4, comprises three fundamental components: localization loss, classifi-cation loss, and contextual consistency loss ( Lcons ). Each of these components contributes to optimizing the model performance in different aspects: precise object localization, accurate category classification, and robust feature repre-sentation that maintains foreground consistency irrespective of background variations. The first two components of the loss function are detailed in GLIP [ 26 ]. The integration of these loss terms ensures a balanced optimization process that addresses discriminative and invariant feature learning. 
+
+L = Lcls + Lloc + Lcons , (4) Eq. 5 provides the formulation of CCLoss. CCLoss com-bines the text and image modality losses with weighting Visual        
+
+> encoder
+> CBDG
+> Image Augmented images Regional features CAAF
+> Text inputs
+> Car Person Table
+> Text features
+> Positive Negative
+> Visual Consistency
+> : Trainable
+> Textual
+> encoder
+> Cross
+> attention
+> Positive Negative
+> Textual Consistency
+> Feature alignment
+
+Figure 5. CCL Framework. Visual and textual features are encoded, with regional features pooled into CAAF. Consistency loss is applied within each modality. 
+
+factors. λT and λI are weighting parameters to balance the loss contributions in the text and the image modality. 
+
+Lcons = λT · L T + λI · L I, (5) For image features obtained from the image encoder, we first perform a pooling operation on them to obtain the Context-Aware Aggregated Feature (CAAF), denoted as f , followed by applying a consistency loss among the CAAF. Given a batch with C categories and K images, the contrastive loss for the vision modality is defined as: 
+
+LI = − 1
+
+CK 
+
+> C
+
+X
+
+> c=1
+> K
+
+X
+
+> k=1
+
+log exp  sim( fck , fc)/τ 
+
+> C
+
+P
+
+> c′=1
+> K
+
+P
+
+> k′=1
+
+exp  sim( fck , fc′k′ )/τ  ,
+
+(6) where fck is the k-th image feature of the c-th category. fc′k′
+
+is the k′-th image feature of the c′-th category. fc is the cen-troid of the image features for the c-th category, calculated as the mean of the K image features. sim( ·, ·) is cosine similarity. τ is the temperature parameter. Similarly, for text features, we implement a contrastive learning objective that promotes feature clustering within the same category while enforcing separation among different categories. However, the application of this text contrastive loss is contingent upon the baseline architecture: When us-ing FIBER as the baseline, where cross-modal interactions between image and text encoders are enabled, we fully uti-lize this loss term. In contrast, when employing GLIP as the baseline, which processes image and text modalities indepen-dently, we effectively disable this component by setting its weight λT to zero. Given a batch with C categories and K
+
+images, the contrastive loss for the text modality is defined as: 
+
+LT = − 1
+
+CK 
+
+> C
+
+X
+
+> c=1
+> K
+
+X
+
+> k=1
+
+log exp  sim( tck , tc)/τ 
+
+> C
+
+P
+
+> c′=1
+> K
+
+P
+
+> k′=1
+
+exp  sim( tck , tc′k′ )/τ  ,
+
+(7) where tck is the k-th text feature of the c-th category. 
+
+tc′k′ is the k′-th text feature of the c′-th category. tc is the centroid of the text features for the c-th category, calculated as the mean of the K text features. The design of our CCLoss follows a progressive evolution, with the detailed process provided in Supplementary Section B.6. 
+
+## 4. Experiments 
+
+4.1. Experimental Design 
+
+Training setup. To evaluate the generalizability of our proposed method, we use two baseline models, GLIP [ 26 ]and FIBER [ 8]. These models serve as benchmarks for comparison. The datasets used to train the baseline models are 1) Objects365 (O365) [ 45 ] and 2) GoldG, including Flickr30K [ 41 ], VG Caption [ 20 ], and GQA [ 14 ], which together contain 0.8 million images, providing a diverse and large-scale training set. In contrast, for our method, we work with a smaller subset of the original dataset, with only 0.25 million images as the initial joint dataset for CBDG. Specifically, we incorporate the Flickr30k Entities [ 41 ] dataset along with only 0.22M images of the Objects365 dataset [ 45 ], which is much smaller than the full dataset used for the baselines. We generate three main categories of background images in CBDG: seasonal, sky, and natural landscape. In total, we have 13,185 unique descriptions, resulting in 144,654 generated images. The breakdown of categories and the corresponding number of images is as follows: seasonal (3387 descriptions, 48,156 images), sky (3399 descriptions, 48,210 images), and natural landscape (3399 descriptions, 48,288 images). For training, we use publicly available pre-trained model checkpoints of both GLIP [ 26 ] and FIBER [ 8]. These pre-trained weights serve as the starting point for fine-tuning. We fine-tune the model for one epoch on our dataset Dj .After this fine-tuning process, we obtain the final results, Table 1. Performance of our method compared with SOTA methods. 
+
+OmniLabel D3
+
+Method AP AP-c AP-d AP-dP AP-dS AP-dM AP-dL FULL PRES ABS Detic [65] 8.0 15.6 5.4 8.0 5.7 5.4 6.2 - - -OFA-DOD [51] - - - - - - - 21.6 23.7 15.4 RelationLLM-L [52] - - - - - - - 24.3 24.6 23.4 GN-GLIP [64] 22.2 27.2 18.8 29.0 - - - 21.4 20.6 23.7 GN-FIBER [64] 28.1 32.1 25.1 36.5 - - - 26.0 25.2 28.1 ROD-MLLM [54] - - 25.3 30.9 31.8 24.5 21.0 29.7 30.0 28.7 Real-Model [5] - - 36.5 52.1 54.4 33.2 25.5 34.1 34.4 33.2 GLIP-T [26] 19.3 23.6 16.4 25.8 29.4 14.8 8.2 19.1 18.3 21.5 +ours 32.2 36.1 28.8 39.8 43.3 26.5 17.6 30.0 29.2 32.3 FIBER-B [8] 25.7 30.3 22.3 34.8 38.6 19.5 12.4 22.7 21.5 26.0 +ours 42.0 44.1 39.2 50.8 53.7 38.2 32.3 37.6 37.2 38.8 
+
+which demonstrate the effectiveness of our method when applied to a smaller and more constrained dataset. The implementation details and computational cost can be found in Supplementary Section A. We report the choice and tuning of hyperparameters in Supplementary Section B.1. 
+
+Benchmark selection. We choose OmniLabel [ 44 ] and 
+
+D3 [ 51 ] as benchmark evaluation methods, both of which use Average Precision (AP) as the evaluation metric. The reason we select these two benchmarks is that they not only provide object category labels but also include a rich diver-sity of textual descriptions, which place a greater emphasis on the model’s ability to understand and interpret language. This aspect makes these benchmarks particularly valuable for evaluating the model’s performance in tasks involving both visual and linguistic information. Compared to other REC [ 34 , 49 , 56 ] and OVOD [ 13 ] benchmarks, D3 [51 ]and OmniLabel [ 44 ] offer a broader evaluation of object detection capabilities. These benchmarks include negative samples and more precisely defined bounding boxes corre-sponding to textual descriptions, which can refer to zero, one, or multiple objects in the image. This makes the tasks more challenging and forces the model to effectively localize and recognize objects based on a range of different descrip-tions and contexts, offering a more comprehensive test of its generalization and performance in diverse scenarios. 
+
+4.2. Comparison with SOTA Methods 
+
+Table 1 presents a comparison between our method and the current SOTA methods on the OmniLabel [ 44 ] and D3 [51 ]benchmarks. The first column lists various model methods, followed by seven columns representing the seven AP met-rics on OmniLabel. These metrics include: plain categories (AP-c) and free-form descriptions (AP-d). AP-dP evaluates only positive descriptions. AP-dS/M/L assess descriptions of varying lengths (up to 3 words, 4-8 words, and more than 8 words). The last three columns represent the AP metrics on 
+
+D3: FULL, PRES, and ABS, which evaluate all descriptions, only presence descriptions, and only absence descriptions, respectively. We use GLIP-T [ 26 ] and FIBER-B [ 8 ] as baselines and fine-tune them on our method. With the integration of our proposed CCL method, significant improvements are ob-served across multiple benchmarks. Specifically, when ap-plied to the FIBER baseline, the method achieves a notable increase of +16.3 AP on the OmniLabel benchmark and +14.9 AP on the D3 benchmark. Similarly, when imple-mented with the GLIP baseline, our method demonstrates consistent performance gains, achieving +12.9 AP on the OmniLabel benchmark and +10.9 AP on the D3 benchmark. These results underscore the effectiveness of our approach in improving contextual understanding and consistency across diverse datasets. We further evaluate our method on phrase grounding tasks to demonstrate broader applicability (see Supplementary Section B.4). 
+
+4.3. Robustness Evaluation under Background Variations 
+
+To quantitatively assess the robustness of OVOD models un-der contextual and domain variations, we conduct two com-plementary evaluations based on the D3 benchmark. First, to isolate the effect of background shifts, we construct a new benchmark derived from D3. For each of the 10,578 original images in D3, we generate three additional variants by re-placing the background using the CBDG pipeline proposed in this work. These new background images are generated Figure 6. Examples of D3C Perturbations. 
+
+independently of the training data, ensuring no overlap or information leakage. The resulting dataset, termed D3BC ,consists of the original images and their background-altered counterparts, totaling 42,312 samples. We evaluate two rep-resentative baseline models, GLIP-T and FIBER-B, on both 
+
+D3 and D3BC , and further examine their performance when enhanced with our proposed CCL method. This yields four experimental settings. As summarized in Table 2, both base-lines exhibit substantial performance degradation on D3BC ,revealing their susceptibility to background shifts. How-ever, models incorporating our CCL approach demonstrate significantly improved robustness with small performance drops, demonstrating that our method improves robustness to contextual background changes. To further verify that CBDG + CCL does not increase sensitivity to non-contextual domain shifts, we additionally construct D3C by following the COCO-C [ 36 ] protocol and applying four perturbations to the original D3 images, in-cluding Gaussian Noise, Contrast, Saturation, and Lighting. Following prior robustness evaluation practice, we report both the mean corrupted performance and the relative robust-ness: 
+
+mFULL = 1
+
+K
+
+> K
+
+X
+
+> k=1
+
+FULL k, rFULL = mFULL FULL × 100% ,
+
+(8) where K denotes the number of corruption types. As shown in Table 2, CCL achieves substantially higher absolute perfor-mance than the corresponding baselines on D3C, while main-taining comparable relative degradation, indicating back-ground robustness is improved without sacrificing stability under other domain shifts. Taken together, these results show that CCL not only improves robustness under explicit background variations, but also preserves stability under other common domain shifts, indicating that the gains are not limited to the specific contextual perturbations introduced by CBDG. 
+
+4.4. Ablation Study on CBDG and CCLoss 
+
+Given that our method is fundamentally grounded in consis-tency and incorporates a certain degree of data generation, we perform a series of ablation experiments to evaluate the contribution of each individual component. In particular, we conduct two distinct experimental setups to assess the impact of both CBDG and CCLoss. The first experiment introduces CBDG to the baseline model, followed by fine-tuning the model for one epoch on Dj . To ensure a fair comparison,                                                                               
+
+> Table 2. Performance comparison on D3BC and D3C.
+> D3BC D3C
+> Method FULL PRES ABS FULL mFULL rFULL GLIP-T 16.8 15.8 20.4 19.1 13.6 71.2 +ours 29.6 28.9 31.9 30.0 21.7 72.3 FIBER-B 20.1 18.7 24.7 22.7 16.7 73.6 +ours 33.1 32.8 34.0 37.6 27.5 73.1
+> Table 3. Ablation study on the effects of Contextual Boot-strapped Data Generation (CBDG) and Contextual Consistency Loss (CCLoss). “+data” denotes using CBDG without CCLoss, “+ours” combines both components.
+> OmniLabel D3
+> Method AP AP-c AP-d FULL PRES ABS GLIP-T 19.3 23.6 16.4 19.1 18.3 21.5 +data 24.8 29.2 21.8 23.2 22.5 25.3 +ours 32.2 36.1 28.8 30.0 29.2 32.3 FIBER-B 25.7 30.3 22.3 22.7 21.5 26.0 +data 32.7 35.8 29.6 29.1 28.3 31.2 +ours 42.0 44.1 39.2 37.6 37.2 38.8
+
+we keep the training parameters consistent with those used in the baseline experiment. The second experiment repre-sents our complete experimental setup, adding CBDG and CCLoss to the baseline model and fine-tuning the model for one epoch. As shown in Table 3, both CBDG and CCLoss play an essential role in enhancing the model’s performance. CBDG increases the diversity of training data, improving the model’s robustness across varying conditions. Meanwhile, the CCLoss reinforces object consistency across different contexts, ensuring that the model can reliably detect and localize objects regardless of their surrounding environment. The combined effects of these two components contribute significantly to the observed performance improvements. We further analyze the impact of dataset scale in Section B.7. 
+
+## 5. Conclusion 
+
+Summary. We propose CCL, a simple and effective framework for descriptive open-vocabulary object detection. By combining CBDG for contextual data generation and CCLoss for feature consistency learning, CCL improves gen-eralization under contextual variation with less data and no extra inference cost. The framework is model-agnostic, easy to integrate, yielding consistent gains across benchmarks. 
+
+Limitation & Future Work. Our method relies on the quality of SAM-based segmentation. Imperfect masks can introduce artifacts during CBDG. Although post-processing alleviates these effects, developing more artifact-free genera-tion pipelines remains important for future work. Acknowledgments 
+
+This work was supported by the project of Pengcheng Laboratory (PCL2025A14), by National Natural Science Foundation of China (grant No. 62350710797), by Guangdong Basic and Applied Basic Research Founda-tion (grant No. 2023B1515120065, 2025A1515011546) and by the Shenzhen Science and Technology Program (JCYJ20240813105901003, KJZD20240903102901003, ZDCY20250901113000001). 
+
+## References 
+
+[1] Malik Javed Akhtar, Rabbia Mahum, Faisal Shafique Butt, Rashid Amin, Ahmed M El-Sherbeeny, Seongkwan Mark Lee, and Sarang Shaikh. A robust framework for object detection in a traffic surveillance system. Electronics , 11(21):3425, 2022. 5 [2] Codruta O Ancuti, Cosmin Ancuti, and Radu Timofte. Nh-haze: An image dehazing benchmark with non-homogeneous hazy and haze-free images. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition work-shops , pages 444–445, 2020. 6 [3] Muhammad Awais, Weiming Zhuang, Lingjuan Lyu, and Sung-Ho Bae. Frod: Robust object detection for free. CoRR ,2023. 5 [4] Tom Brown, Benjamin Mann, Nick Ryder, Melanie Sub-biah, Jared D Kaplan, Prafulla Dhariwal, Arvind Neelakantan, Pranav Shyam, Girish Sastry, Amanda Askell, et al. Language models are few-shot learners. Advances in neural information processing systems , 33:1877–1901, 2020. 4 [5] Yuming Chen, Jiangyan Feng, Haodong Zhang, Lijun Gong, Feng Zhu, Rui Zhao, Qibin Hou, Ming-Ming Cheng, and Yibing Song. Re-aligning language to visual objects with an agentic workflow. arXiv preprint arXiv:2503.23508 , 2025. 1, 7[6] Marius Cordts, Mohamed Omran, Sebastian Ramos, Timo Rehfeld, Markus Enzweiler, Rodrigo Benenson, Uwe Franke, Stefan Roth, and Bernt Schiele. The cityscapes dataset for semantic urban scene understanding. In Proceedings of the IEEE conference on computer vision and pattern recognition ,pages 3213–3223, 2016. 5 [7] Yuexiong Ding, Ming Zhang, Jia Pan, Jinxing Hu, and Xi-aowei Luo. Robust object detection in extreme construction conditions. Automation in Construction , 165:105487, 2024. 5[8] Zi-Yi Dou, Aishwarya Kamath, Zhe Gan, Pengchuan Zhang, Jianfeng Wang, Linjie Li, Zicheng Liu, Ce Liu, Yann Le-Cun, Nanyun Peng, et al. Coarse-to-fine vision-language pre-training with fusion in the backbone. Advances in neural information processing systems , 35:32942–32956, 2022. 1, 2, 3, 5, 6, 7 [9] Qi Fan, Mattia Segu, Yu-Wing Tai, Fisher Yu, Chi-Keung Tang, Bernt Schiele, and Dengxin Dai. Towards robust ob-ject detection invariant to real-world domain shifts. In The Eleventh International Conference on Learning Representa-tions (ICLR 2023) . OpenReview, 2023. 5 [10] Ian Goodfellow, Jean Pouget-Abadie, Mehdi Mirza, Bing Xu, David Warde-Farley, Sherjil Ozair, Aaron Courville, and Yoshua Bengio. Generative adversarial nets. Advances in neural information processing systems , 27, 2014. 2 [11] Stephen Gould, Richard Fulton, and Daphne Koller. Decom-posing a scene into geometric and semantically consistent regions. In 2009 IEEE 12th international conference on com-puter vision , pages 1–8. IEEE, 2009. 5 [12] Xiuye Gu, Tsung-Yi Lin, Weicheng Kuo, and Yin Cui. Open-vocabulary object detection via vision and language knowl-edge distillation. arXiv preprint arXiv:2104.13921 , 2021. 1, 2[13] Agrim Gupta, Piotr Dollar, and Ross Girshick. Lvis: A dataset for large vocabulary instance segmentation. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 5356–5364, 2019. 7 [14] Drew A Hudson and Christopher D Manning. Gqa: A new dataset for real-world visual reasoning and compositional question answering. In Proceedings of the IEEE/CVF con-ference on computer vision and pattern recognition , pages 6700–6709, 2019. 6 [15] Chao Jia, Yinfei Yang, Ye Xia, Yi-Ting Chen, Zarana Parekh, Hieu Pham, Quoc Le, Yun-Hsuan Sung, Zhen Li, and Tom Duerig. Scaling up visual and vision-language representation learning with noisy text supervision. In International confer-ence on machine learning , pages 4904–4916. PMLR, 2021. 3, 5 [16] Sheng Jin, Xueying Jiang, Jiaxing Huang, Lewei Lu, and Shijian Lu. Llms meet vlms: Boost open vocabulary ob-ject detection with fine-grained descriptors. arXiv preprint arXiv:2402.04630 , 2024. 1 [17] Aishwarya Kamath, Mannat Singh, Yann LeCun, Gabriel Syn-naeve, Ishan Misra, and Nicolas Carion. Mdetr-modulated detection for end-to-end multi-modal understanding. In Pro-ceedings of the IEEE/CVF international conference on com-puter vision , pages 1780–1790, 2021. 1, 5 [18] Diederik P Kingma, Max Welling, et al. Auto-encoding variational bayes, 2013. 2 [19] Alexander Kirillov, Eric Mintun, Nikhila Ravi, Hanzi Mao, Chloe Rolland, Laura Gustafson, Tete Xiao, Spencer White-head, Alexander C Berg, Wan-Yen Lo, et al. Segment any-thing. In Proceedings of the IEEE/CVF international con-ference on computer vision , pages 4015–4026, 2023. 2, 3, 5[20] Ranjay Krishna, Yuke Zhu, Oliver Groth, Justin Johnson, Kenji Hata, Joshua Kravitz, Stephanie Chen, Yannis Kalan-tidis, Li-Jia Li, David A Shamma, et al. Visual genome: Connecting language and vision using crowdsourced dense image annotations. International journal of computer vision ,123:32–73, 2017. 6 [21] Weicheng Kuo, Yin Cui, Xiuye Gu, AJ Piergiovanni, and Anelia Angelova. F-vlm: Open-vocabulary object detection upon frozen vision and language models. arXiv preprint arXiv:2209.15639 , 2022. 1 [22] Yejun Lee and Jaejun Yoo. Improving contrail detection via diffusion-based data augmentation framework. age , 8000: 12000, 2025. 5 [23] Boyi Li, Wenqi Ren, Dengpan Fu, Dacheng Tao, Dan Feng, Wenjun Zeng, and Zhangyang Wang. Benchmarking single-image dehazing and beyond. IEEE transactions on image processing , 28(1):492–505, 2018. 6 [24] Jizhizi Li, Jing Zhang, Stephen J Maybank, and Dacheng Tao. Bridging composite and real: towards end-to-end deep image matting. International Journal of Computer Vision , 130(2): 246–266, 2022. 5 [25] Liunian Li, Zi-Yi Dou, Nanyun Peng, and Kai-Wei Chang. Desco: Learning object recognition with rich language de-scriptions. Advances in Neural Information Processing Sys-tems , 36:37511–37526, 2023. 1 [26] Liunian Harold Li, Pengchuan Zhang, Haotian Zhang, Jian-wei Yang, Chunyuan Li, Yiwu Zhong, Lijuan Wang, Lu Yuan, Lei Zhang, Jenq-Neng Hwang, et al. Grounded language-image pre-training. In Proceedings of the IEEE/CVF con-ference on computer vision and pattern recognition , pages 10965–10975, 2022. 1, 2, 3, 5, 6, 7 [27] Yuheng Li, Haotian Liu, Qingyang Wu, Fangzhou Mu, Jian-wei Yang, Jianfeng Gao, Chunyuan Li, and Yong Jae Lee. Gligen: Open-set grounded text-to-image generation. In Pro-ceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 22511–22521, 2023. 3, 4 [28] Chuang Lin, Peize Sun, Yi Jiang, Ping Luo, Lizhen Qu, Gho-lamreza Haffari, Zehuan Yuan, and Jianfei Cai. Learning object-language alignments for open-vocabulary object detec-tion. arXiv preprint arXiv:2211.14843 , 2022. 1 [29] Chuang Lin, Yi Jiang, Lizhen Qu, Zehuan Yuan, and Jianfei Cai. Generative region-language pretraining for open-ended object detection. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 13958– 13968, 2024. 1 [30] Ziyi Lin, Chris Liu, Renrui Zhang, Peng Gao, Longtian Qiu, Han Xiao, Han Qiu, Chen Lin, Wenqi Shao, Keqin Chen, et al. Sphinx: The joint mixing of weights, tasks, and visual embeddings for multi-modal large language models. arXiv preprint arXiv:2311.07575 , 2023. 1 [31] Chengxin Liu, Kewei Wang, Hao Lu, Zhiguo Cao, and Ziming Zhang. Robust object detection with inaccurate bounding boxes. In European Conference on Computer Vision , pages 53–69. Springer, 2022. 5 [32] Shilong Liu, Zhaoyang Zeng, Tianhe Ren, Feng Li, Hao Zhang, Jie Yang, Qing Jiang, Chunyuan Li, Jianwei Yang, Hang Su, et al. Grounding dino: Marrying dino with grounded pre-training for open-set object detection. In European con-ference on computer vision , pages 38–55. Springer, 2024. 5[33] Nesma Talaat Abbas Mahmoud, Indrek Virro, AGM Zaman, Tormi Lillerand, Wai Tik Chan, Olga Liivapuu, Kallol Roy, and J ¨uri Olt. Robust object detection under smooth perturba-tions in precision agriculture. AgriEngineering , 6(4):4570– 4584, 2024. 5 [34] Junhua Mao, Jonathan Huang, Alexander Toshev, Oana Cam-buru, Alan L Yuille, and Kevin Murphy. Generation and comprehension of unambiguous object descriptions. In Pro-ceedings of the IEEE conference on computer vision and pattern recognition , pages 11–20, 2016. 2, 7 [35] Ze-Yu Mi and Yu-Bin Yang. Add: Attribution-driven data augmentation framework for boosting image super-resolution. In Proceedings of the Computer Vision and Pattern Recogni-tion Conference , pages 23101–23110, 2025. 5 [36] Claudio Michaelis, Benjamin Mitzkus, Robert Geirhos, Evge-nia Rusak, Oliver Bringmann, Alexander S Ecker, Matthias Bethge, and Wieland Brendel. Benchmarking robustness in object detection: Autonomous driving when winter is coming. 
+
+arXiv preprint arXiv:1907.07484 , 2019. 8 [37] Matthias Minderer, Alexey Gritsenko, Austin Stone, Maxim Neumann, Dirk Weissenborn, Alexey Dosovitskiy, Aravindh Mahendran, Anurag Arnab, Mostafa Dehghani, Zhuoran Shen, et al. Simple open-vocabulary object detection. In 
+
+European conference on computer vision , pages 728–755. Springer, 2022. 1, 5 [38] Matthias Minderer, Alexey Gritsenko, and Neil Houlsby. Scal-ing open-vocabulary object detection. Advances in Neural Information Processing Systems , 36:72983–73007, 2023. 1, 2 [39] Alex Nichol, Prafulla Dhariwal, Aditya Ramesh, Pranav Shyam, Pamela Mishkin, Bob McGrew, Ilya Sutskever, and Mark Chen. Glide: Towards photorealistic image generation and editing with text-guided diffusion models. arXiv preprint arXiv:2112.10741 , 2021. 3, 4 [40] Zhiliang Peng, Wenhui Wang, Li Dong, Yaru Hao, Shaohan Huang, Shuming Ma, and Furu Wei. Kosmos-2: Ground-ing multimodal large language models to the world. arXiv preprint arXiv:2306.14824 , 2023. 1 [41] Bryan A Plummer, Liwei Wang, Chris M Cervantes, Juan C Caicedo, Julia Hockenmaier, and Svetlana Lazebnik. Flickr30k entities: Collecting region-to-phrase correspon-dences for richer image-to-sentence models. In Proceedings of the IEEE international conference on computer vision ,pages 2641–2649, 2015. 3, 6 [42] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learning transferable visual models from natural language supervi-sion. In International conference on machine learning , pages 8748–8763. PmLR, 2021. 3, 5 [43] Robin Rombach, Andreas Blattmann, Dominik Lorenz, Patrick Esser, and Bj ¨orn Ommer. High-resolution image synthesis with latent diffusion models. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 10684–10695, 2022. 2, 3, 4 [44] Samuel Schulter, Yumin Suh, Konstantinos M Dafnis, Zhix-ing Zhang, Shiyu Zhao, Dimitris Metaxas, et al. Omnilabel: A challenging benchmark for language-based object detection. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 11953–11962, 2023. 2, 7 [45] Shuai Shao, Zeming Li, Tianyuan Zhang, Chao Peng, Gang Yu, Xiangyu Zhang, Jing Li, and Jian Sun. Objects365: A large-scale, high-quality dataset for object detection. In Pro-ceedings of the IEEE/CVF international conference on com-puter vision , pages 8430–8439, 2019. 3, 6 [46] Haozhan Shen, Peng Liu, Jingcheng Li, Chunxin Fang, Yibo Ma, Jiajia Liao, Qiaoli Shen, Zilun Zhang, Kangjia Zhao, Qianqian Zhang, et al. Vlm-r1: A stable and generaliz-able r1-style large vision-language model. arXiv preprint arXiv:2504.07615 , 2025. 1 [47] Sanjay Subramanian, William Merrill, Trevor Darrell, Matt Gardner, Sameer Singh, and Anna Rohrbach. Reclip: A strong zero-shot baseline for referring expression comprehen-sion. arXiv preprint arXiv:2204.05991 , 2022. 1 [48] Anh-Khoa Nguyen Vu, Quoc-Truong Truong, Vinh-Tiep Nguyen, Thanh Duc Ngo, Thanh-Toan Do, and Tam V Nguyen. Multi-perspective data augmentation for few-shot object detection. arXiv preprint arXiv:2502.18195 , 2025. 5 [49] Chenyun Wu, Zhe Lin, Scott Cohen, Trung Bui, and Subhransu Maji. Phrasecut: Language-based image segmenta-tion in the wild. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 10216– 10225, 2020. 2, 7 [50] Jianxiong Xiao, James Hays, Krista A Ehinger, Aude Oliva, and Antonio Torralba. Sun database: Large-scale scene recog-nition from abbey to zoo. In 2010 IEEE computer society conference on computer vision and pattern recognition , pages 3485–3492. IEEE, 2010. 5 [51] Chi Xie, Zhao Zhang, Yixuan Wu, Feng Zhu, Rui Zhao, and Shuang Liang. Described object detection: Liberating object detection with flexible expressions. Advances in Neural Information Processing Systems , 36:79095–79107, 2023. 2, 7, 5 [52] Chi Xie, Shuang Liang, Jie Li, Zhao Zhang, Feng Zhu, Rui Zhao, and Yichen Wei. Relationlmm: Large multimodal model as open and versatile visual relationship generalist. 
+
+IEEE Transactions on Pattern Analysis and Machine Intelli-gence , 2025. 1, 7 [53] Shiyu Xuan, Qingpei Guo, Ming Yang, and Shiliang Zhang. Pink: Unveiling the power of referential comprehension for multi-modal llms. In Proceedings of the IEEE/CVF Con-ference on Computer Vision and Pattern Recognition , pages 13838–13848, 2024. 1 [54] Heng Yin, Yuqiang Ren, Ke Yan, Shouhong Ding, and Yong-tao Hao. Rod-mllm: Towards more reliable object detection in multimodal large language models. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 14358–14368, 2025. 1, 7 [55] Haoxuan You, Haotian Zhang, Zhe Gan, Xianzhi Du, Bowen Zhang, Zirui Wang, Liangliang Cao, Shih-Fu Chang, and Yinfei Yang. Ferret: Refer and ground anything anywhere at any granularity. arXiv preprint arXiv:2310.07704 , 2023. 1 [56] Licheng Yu, Patrick Poirson, Shan Yang, Alexander C Berg, and Tamara L Berg. Modeling context in referring expres-sions. In Computer Vision–ECCV 2016: 14th European Conference, Amsterdam, The Netherlands, October 11-14, 2016, Proceedings, Part II 14 , pages 69–85. Springer, 2016. 2, 7 [57] Tao Yu, Runseng Feng, Ruoyu Feng, Jinming Liu, Xin Jin, Wenjun Zeng, and Zhibo Chen. Inpaint anything: Seg-ment anything meets image inpainting. arXiv preprint arXiv:2304.06790 , 2023. 3, 4, 9 [58] Sangdoo Yun, Dongyoon Han, Seong Joon Oh, Sanghyuk Chun, Junsuk Choe, and Youngjoon Yoo. Cutmix: Regu-larization strategy to train strong classifiers with localizable features. In Proceedings of the IEEE/CVF international con-ference on computer vision , pages 6023–6032, 2019. 5 [59] Yuhang Zang, Wei Li, Jun Han, Kaiyang Zhou, and Chen Change Loy. Contextual object detection with mul-timodal large language models. International Journal of Computer Vision , pages 1–19, 2024. 1 [60] Alireza Zareian, Kevin Dela Rosa, Derek Hao Hu, and Shih-Fu Chang. Open-vocabulary object detection using captions. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 14393–14402, 2021. 2 [61] Yufei Zhan, Yousong Zhu, Zhiyang Chen, Fan Yang, Ming Tang, and Jinqiao Wang. Griffon: Spelling out all object locations at any granularity with large language models. In 
+
+European Conference on Computer Vision , pages 405–422. Springer, 2024. 1 [62] Hongyi Zhang, Moustapha Cisse, Yann N Dauphin, and David Lopez-Paz. mixup: Beyond empirical risk minimization. 
+
+arXiv preprint arXiv:1710.09412 , 2017. 5 [63] Shiyu Zhao, Zhixing Zhang, Samuel Schulter, Long Zhao, BG Vijay Kumar, Anastasis Stathopoulos, Manmohan Chan-draker, and Dimitris N Metaxas. Exploiting unlabeled data with vision and language models for object detection. In 
+
+European conference on computer vision , pages 159–175. Springer, 2022. 1 [64] Shiyu Zhao, Long Zhao, Yumin Suh, Dimitris N Metaxas, Manmohan Chandraker, Samuel Schulter, et al. Generating enhanced negatives for training language-based object detec-tors. In Proceedings of the IEEE/CVF Conference on Com-puter Vision and Pattern Recognition , pages 13592–13602, 2024. 7 [65] Xingyi Zhou, Rohit Girdhar, Armand Joulin, Philipp Kr ¨ahenb ¨uhl, and Ishan Misra. Detecting twenty-thousand classes using image-level supervision. In European confer-ence on computer vision , pages 350–368. Springer, 2022. 7[66] Yongshuo Zong, Qin Zhang, Dongsheng An, Zhihua Li, Xi-ang Xu, Linghan Xu, Zhuowen Tu, Yifan Xing, and Onkar Dabeer. Ground-v: Teaching vlms to ground complex instruc-tions in pixels. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 24635–24645, 2025. 1Consistency Beyond Contrast: Enhancing Open-Vocabulary Object Detection Robustness via Contextual Consistency Learning 
+
+# Supplementary Material 
+
+This document supplements the main paper as follows. A. Details • Sect. A.1 presents the implementation details and compu-tational cost. B. Additional Experiments • Sect. B.1 presents the choice of hyperparameters. • Sect. B.2 presents the choice of generation scheme. • Sect. B.3 presents the analysis on CBDG scene diversity. • Sect. B.4 presents additional experiments on phrase grounding. • Sect. B.5 presents an analysis of inpainting methods for background change. • Sect. B.6 presents the progressive design of the intra-modal consistency loss. • Sect. B.7 presents the analysis on data scale. C. Related Work • Sect. C.1 presents the related work of robust object detec-tion. • Sect. C.2 presents the related work of data augmentation for detectors. • Sect. C.3 presents the related work of cross-modal object detection models. • Sect. C.4 presents the survey of existing background datasets. D. CBDG Further Analysis • Sect. D.1 discusses the semantic conflicts and object-background decoupling. • Sect. D.2 presents the prompts used for background gener-ation with LLM. • Sect. D.3 presents the post-processing techniques during background replacement stage of CBDG. • Sect. D.4 provides an analysis of the processing procedures for different datasets. • Sect. D.5 presents the analysis on background generation. • Sect. D.6 provides an analysis of image selection and category augmentation. • Sect. D.7 presents the pseudocode of the CBDG pipeline. 
+
+## A. Details 
+
+A.1. Implementation Details and Computational Cost 
+
+Our CCL framework consists of two main components: CBDG and training with CCLoss. The experimental details are as follows: For Categories Augmentation, we select P potential ob-ject placement locations, setting the number of positions 
+
+N = 100 . If the number of available placement locations is fewer than 5, the object’s width and height are scaled down by a factor of 1/α , where α = 2 . If the number of scaling operations exceeds a threshold NR , we switch to another object, with NR = 2 .For model fine-tuning, we initialize GLIP and FIBER with their official checkpoints, which are trained on large-scale and diverse datasets such as GoldG and Objects365. We then fine-tune these models on our augmented dataset, generated via the CBDG pipeline. To ensure the models can adapt effectively to our domain-shifted data, we reset the learning rate to 1e-4 and use the Adam optimizer. This rela-tively high learning rate facilitates optimization toward new minima that are better aligned with our objective of contex-tual robustness, rather than preserving the prior distribution learned from the baseline training set. Both baseline models are fine-tuned with a batch size of 4, while all other training hyperparameters remain unchanged. The weight settings for CCLoss during training are as follows: When using FIBER as the baseline, λT is set to 0.05, and λI is set to 0.15. When using GLIP as the baseline, λT is set to 0, and λI is set to 0.15. The temperature parameter τ in the loss function is set to 1 by default. While our method introduces an additional data gener-ation step (CBDG), it is important to note that our overall training efficiency remains significantly higher than that of baseline methods. Within the CBDG stage, the most time-consuming part is the background generation step. We gen-erated a total of 144,654 unique background images, which takes about 101 hours on 4 A100 GPUs. However, this step is conducted only once, and the generated data is reused across models and experiments. Other steps in CBDG (e.g., foreground segmentation and compositing) are relatively fast and negligible in cost. The CCL post-training stage is lightweight. On 4 NVIDIA A100-SXM4-40G GPUs, it takes approximately 7 hours for FIBER and 9 hours for GLIP. This is significantly lower than the 540 GPU-hours reported for FIBER’s origi-nal fine-grained pretraining. In our case, we only perform a single-epoch fine-tuning, which highlights the data efficiency enabled by our framework. The following results are measured with an input image resolution of 224×224. When using GLIP as the baseline, the model has 54.81 GFLOPs and 195.19M parameters. When using FIBER as the baseline, it has 51.98 GFLOPs and 200.02M parameters. In both cases, our method introduces less than 1% additional FLOPs and parameters relative to the baseline, resulting in negligible overhead. This demonstrates that our framework preserves computational efficiency while delivering consistent performance gains. 
+
+## B. Experiment 
+
+B.1. Choices of Hyperparameters 
+
+In our experiments, we perform systematic tuning on the FIBER baseline to optimize the performance of the proposed CCLoss. Our tuning procedure is conducted in two stages. First, we fix the temperature parameter τ to its commonly used default value of 1.0, following prior contrastive learning literature, such as in CLIP and SimCLR. This choice has been widely validated to provide a good balance between hard and easy negatives without introducing instability in the optimization process. Moreover, we find that performance is relatively insensitive to minor variations in τ , so we opt to retain the default value and focus our tuning efforts on the loss weight parameters. As shown in Table 4, we begin by tuning λI , the weight of loss of consistency on the image side. We vary this parameter while holding λT = λI , and find that a value around 0.15 yields the best trade-off between stability and performance gain. Once λI is fixed to 0.15, we then tune λT , the weight of loss of consistency on the text side. A value near 0.05 proves to be most effective when applied with the FIBER baseline, which supports cross-modal interactions. Note that for the GLIP baseline, we set the same λI = 0 .15 and set 
+
+λT =0 since GLIP decouples visual and textual modalities, rendering this loss component ineffective in that context. 
+
+> Table 4. Tuning on the FIBER baseline
+
+Tuning λI λT OmniLabel (AP) D3 (FULL) 0 0 0 32.7 29.2 1 0.5 0.5 35.8 31.5 2 0.2 0.2 38.2 34.0 3 0.1 0.1 39.9 36.1 4 0.15 0.15 41.2 37.1 5 0.15 0.1 41.7 37.4 6 0.15 0.05 42.0 37.6 
+
+B.2. Choice of Generation Scheme 
+
+Additional Experiment on BBox Copy-Paste Method. 
+
+To further explain our choice of generation scheme, we conduct an additional study comparing our pipeline to a standard copy-paste baseline. In this experiment, we use FIBER-B as the backbone and retain the same training sched-ule, and hyperparameters. The only difference lies in how foreground objects are extracted: instead of using SAM-generated masks, we directly use the bounding boxes from the training set and paste the entire box region onto new back-grounds. The results are shown in Table 5, in comparison with FIBER-B+ours from Table 1 of the main paper. As seen in Table 5, the simple bbox copy-paste ap-proach performs significantly worse than our full method. Although it does decouple foreground and background to some extent, the pasted bbox regions inevitably contain substantial non-foreground pixels, leading to impure rep-resentations. This degrades the model’s ability to learn true background-invariant features—even with the added consis-tency loss—since the model tends to focus on the entire bbox region rather than the precise shape of the object. 
+
+Discussion on Style-Transfer Methods. Regarding the alternative of style-transfer methods: these approaches typi-cally require an additional style reference image and a dedi-cated style-transfer model (either CNN-based or diffusion-based) to generate stylized outputs, which introduces com-parable or even greater complexity. More critically, most style-transfer methods alter not only the background but also distort the appearance of foreground objects, making them unsuitable for learning background-invariant represen-tations. Some methods also require re-segmentation (e.g., using SAM) on the stylized images to recover object masks, which introduces noise and inconsistency—as discussed in Sect.B.5. This is especially unacceptable for object detection tasks, where precise annotations are essential. Most importantly, typical style-transfer methods take both a content image and a style image as input, and may par-tially remove foreground objects during the transfer process. While some mask-aware methods attempt to mitigate this by treating the task as image inpainting, we have analyzed the theoretical limitations of applying inpainting-based tech-niques within our pipeline in the main paper, and provided supporting experimental results in Sect.B.5. These results show that inpainting methods perform poorly in our context.                   
+
+> Table 5. Comparison Between Our Method and Simple BBox Copy-Paste Based on the FIBER Baseline
+> Method AP Ap-c Ap-d FULL PRES ABS FIBER-B+ours 42.0 44.1 39.2 37.6 37.2 38.8 FIBER-B + BBox copy-paste 23.3 27.0 20.6 20.9 20.4 22.6
+
+B.3. Analysis on CBDG Scene Diversity 
+
+While our current prompt set primarily focuses on Seasonal, Sky, and Natural Landscape categories, our goal is to begin with visually clean and semantically neutral backgrounds in order to isolate the effect of background variation on object-level consistency. We conduct an experiment targeting urban, indoor, and architectural scenes. Specifically, we extract a subset of images from the D3 test set that depict cityscapes and in-door urban environments. This subset includes the following categories: accidents, apples, auto salon girls, bakery, ba-nanas, bedroom, boxing, cable car, cafe, chess, classroom, cooking, dining table, gymnastics, interview, kendo, library, living room, meeting, Olympic torch, origami, oven kitchen, pizza restaurant, refrigerator, restaurant, sandwich restau-rant, snooker, street performers, street vendors food carts, study, supermarket cart, surgery hospital, toilet toothbrush, toy, traffic, and traffic accident, totaling 2,304 images. We evaluate our model on this subset. As shown in Ta-ble 6, our method achieves results comparable to those on the full D3 test set. This indicates that the learned represen-tations generalize well even to previously less frequent scene types.   
+
+> Table 6. Results on 2,304 D3Images from Cityscapes and Indoor Urban Environments
+
+Method FULL PRES ABS GLIP-T+ours 29.7 28.9 32.1 FIBER-B+ours 37.5 37.1 38.6 
+
+B.4. Experiments on phrase grounding 
+
+To test whether our fine-tuning affects the baselines’ object grounding capabilities, we revisit a key benchmark used in both the GLIP and FIBER papers: phrase grounding on the Flickr30K Entities dataset. This benchmark requires precise spatial localization of objects given natural language descriptions, and thus reflects the model’s fine-grained visual grounding ability. We report Recall@K metrics for both GLIP-T and FIBER-B before and after applying our method:                                
+
+> Table 7. Recall@K metrics for both GLIP-T and FIBER-B before and after applying our method
+> Model Val Test R@1 R@5 R@10 R@1 R@5 R@10 GLIP-T 85.7 95.4 96.9 85.7 95.8 97.2 GLIP-T+ours 88.5 95.9 97.2 88.8 96.2 97.2 FIBER-B 87.1 96.1 97.4 87.4 96.4 97.6 FIBER-B+ours 89.9 96.6 97.7 90.0 96.8 97.7
+
+The performance is overall better than the original base-lines. Notably, GLIP-T + ours achieves consistent gains on R@1 for both validation and test sets, while FIBER-B + ours also improves across several metrics. These results confirm that our consistency-driven fine-tuning not only pre-serves but can even enhance the grounding capabilities of the baselines. It is notable that this evaluation serves as a preliminary validation, since our model is currently fine-tuned on only a 250K subset of the training data, which is significantly smaller than the full datasets used to train GLIP and FIBER. We expect that with larger-scale training, our approach has strong potential to further surpass the baselines on phrase grounding benchmarks like Flickr30K Entities. In general, these additional experiments demonstrate that our method maintains or improves the original capabilities of the base-lines while simultaneously enhancing robustness under do-main shifts. 
+
+B.5. Analysis on Inpainting Methods for Back-ground Changing 
+
+In our background replacement approach, we initially adopt different methods. We explore models such as Glide [ 39 ]and Inpaint Anything [ 57 ] to integrate the original image with newly generated backgrounds using image-to-image techniques. Our process involves providing three inputs to the image-to-image model: the original image, the bounding box of the foreground object as a prompt, and a simple textual description of the desired background. The model then selectively modifies the non-foreground regions of the image. However, the results are unsatisfactory, presenting three major issues, as shown in Figure 8.a) Blurry Transition: the transition between the foreground and the generated back-ground is often blurry, making the composite image appear unnatural. b) Extraneous Objects: the model tends to in-troduce extraneous objects into the background based on the foreground elements, which significantly disrupts the accuracy of subsequent object detection tasks. c) Logical Inconsistency: the generated images frequently contain logi-cal inconsistencies that deviate from real-world plausibility, further diminishing their usability in our experiments. We begin our investigation into synthetic data augmenta-tion by utilizing the text-conditional inpainting capabilities of the GLIDE [ 39 ] model to modify image backgrounds according to textual prompts. However, initial experiments reveal that training with GLIDE-generated data leads to a notable drop in detection performance compared to the base-line, indicating limited utility of the inpainted samples. To improve data quality, we then experiment with the IAM [ 57 ]model and introduce filtering strategies aimed at reducing noise and artifacts. It is worth noting that, unlike the exper-iments in the main paper, where we fine-tune with 0.25M images, here we used 0.09M images during this experiment to enable faster iteration at the early design stage. Conse-quently, the absolute performance numbers in Table 8 are lower than those in the main results, but the relative improve-ments between different generation methods remain valid. As presented in Table 8, even with filtering, the addition of IAM-generated data still results in a performance decline. Nevertheless, across all settings, our proposed CCLoss con-sistently demonstrates its effectiveness in enhancing model robustness. Inpainting-based approaches such as GLIDE and IAM fre-quently produce visual artifacts or semantically inconsistent elements in the generated backgrounds. These imperfections compromise data quality and limit generalization during training. To overcome these issues, we transition to using the Stable Diffusion model [ 43 ] and adopt the full Context-aware Background Diversification and Generation (CBDG) pipeline detailed in our methodology. This revision yields a significant performance boost, affirming that high-quality synthetic data generated through our CBDG framework is critical for effective training and robust model behavior.                          
+
+> Table 8. Experiments on different generation method.
+> Method(Baseline) OmniLabel D3
+> AP AP-c AP-d FULL PRES ABS IAM(FIBER-B) 20.5 24.6 18.0 18.4 17.8 20.3 +ours(FIBER-B) 26.1 31.2 22.2 23.5 22.8 26.1 CBDG+ours(FIBER-B) 32.4 34.6 29.4 30.3 30.0 31.4
+
+B.6. Progressive Design of the Intra-Modal Consis-tency Loss 
+
+The design of our intra-modal consistency loss is motivated by related work in self-supervised learning and domain adap-tation, where preserving feature consistency under varying conditions has proven effective. In our framework, the development of the final loss function, CCLoss, follows a progressive and iterative design process. We begin by constructing a pairwise similarity matrix for the feature set 
+
+F = f1, f 2, ..., f n corresponds to the same object instance presented under different background conditions. In the ini-tial formulation, we minimize the mean squared error (MSE) between the lower triangular part of this similarity matrix and an all-ones target matrix, encouraging uniform similarity among all feature representations. This variant is referred to as Matrix(FIBER-B) in Table 9. For each object in the same batch n, the loss is defined as follows: 
+
+LMatrix = 2
+
+n(n + 1) 
+
+> n
+
+X
+
+> i=1
+> i
+
+X
+
+> j=1
+
+(S(fi, f j ) − 1) 2 , (9) where S(fi, f j ) represents the similarity between the fea-ture vectors fi and fj , which is computed using dot product. To further enhance consistency, we incorporate the con-cept of variance reduction inspired by Variance Consistency Loss. Specifically, we minimize the variance among the features in F , promoting tighter feature clustering under intra-object background shifts. This second variant is de-noted as Variance(FIBER-B) in Table 9. For each object in the same batch n, the loss is defined as follows: 
+
+LVariance = 1
+
+n
+
+> n
+
+X
+
+> i=1
+
+∥fi − fc∥2 , (10) where fc is the centroid of the image features for the c-th category object. Building upon these two approaches, we finally adopt a contrastive learning framework to enforce discriminative yet consistent representation learning. This final version, termed CCLoss, outperforms the earlier variants and demonstrates superior robustness across all experimental benchmarks. It is worth noting that, unlike the experiments in the main paper, where we fine-tune with 0.25M images, here we used 0.09M images during this ablation to enable faster iteration at the early design stage. Consequently, the absolute performance numbers in Table 9 are lower than those in the main results, but the relative improvements between different loss func-tions remain valid. The progressive improvements reflected in Table 9 validate the effectiveness of each stage in the design of our loss function.                          
+
+> Table 9. Experiments on different consistency loss.
+> Method(Baseline) OmniLabel D3
+> AP AP-c AP-d FULL PRES ABS Matrix(FIBER-B) 29.8 32.4 27.5 27.9 26.8 30.0 Variance(FIBER-B) 30.2 33.2 28.6 28.8 28.1 30.5 CCLoss(FIBER-B) 32.4 34.6 29.4 30.3 30.0 31.4
+
+B.7. Analysis on Data Scale 
+
+To further explore the impact of data scale, we conduct an additional experiment where we systematically modify the size of Dj . In this experiment, we reduce the dataset size and evaluate the model’s performance to determine how much the consistency-based approach can still contribute under these conditions. The reduction scale factor is Kr . As shown in Table 10, even when the dataset size is reduced by 0.8 or even 0.6, the consistency method continues to provide a substantial performance improvement, demonstrating that the proposed consistency approach remains effective even with limited data. This result underscores the robustness of our method. The findings suggest that our approach holds significant promise for scenarios where data availability is constrained, offering an effective solution to improve model generalization and performance even when working with smaller datasets. This insight could be particularly valuable in real-world applications where large-scale labeled data may not be easily accessible. Table 10. Impact of dataset size of the CCL approach, where Kr is the dataset reduction scaling factor.                                                
+
+> Method(Baseline) OmniLabel D3
+> AP AP-c AP-d FULL PRES ABS GLIP-T 19.3 23.6 16.4 19.1 18.3 21.5 +ours( Kr=0.6) 27.2 30.4 24.7 26.2 25.2 29.3 +ours( Kr=0.8) 30.1 34.1 27.4 28.9 28.1 31.3 FIBER-B 25.7 30.3 22.3 22.7 21.5 26.0 +ours( Kr=0.6) 35.6 38.3 34.0 32.4 32.0 33.6 +ours( Kr=0.8) 39.5 41.6 36.7 35.8 35.5 37.0
+
+## C. Related Work 
+
+C.1. Robust Object Detection 
+
+Robust object detection focuses on maintaining reliable per-formance under diverse challenging conditions, including occlusion, adverse weather, low-resolution inputs, domain shifts, and adversarial attacks. While traditional object detec-tors operate under idealized data assumptions, robust detec-tion methods target the inherent variability of real-world envi-ronments. The field has seen significant progress through in-novations in model architectures, training paradigms, and do-main adaptation methodologies. Current research advances tackle robustness challenges through multiple directions: Adversarial training, where FROD [ 3] improves detector robustness via modified backbones and lightweight compo-nents. Extreme condition adaptation, with UIA-YOLOv5 [ 7]enhancing construction site detection through unified image adaptation. Noisy bounding box handling, as OA-MIL [31] refines localization using classification guidance. Domain generalization, where Normalization Perturbation [ 9 ] syn-thesizes feature styles for autonomous driving. Small object detection, with DenseNet-201 [ 1 ] boosting YOLOv2 for traffic surveillance. Agricultural robustness, where smooth perturbations [ 33 ] improve YOLOv5 for root collar detection. These methods span adversarial resilience, environmental adaptability, and annotation noise tolerance. 
+
+C.2. Data Augmentation for Detectors 
+
+Recent advancements in detector-specific data augmenta-tion address limitations in classic methods like Mixup [ 62 ]and CutMix [ 58 ], which primarily enhance diversity in fully supervised settings. Diffusion-based frameworks generate diverse contrail masks and scenes to improve detection ro-bustness [ 22 ], while attribution-driven methods leverage saliency maps to preserve critical features in low-level vi-sion tasks [ 35 ]. For few-shot object detection, MPAD [ 48 ]integrates in-context object synthesis and hard sample gen-eration via diffusion models. Nevertheless, persistent chal-lenges—such as edge fidelity issues (e.g., blurred boundaries in diffusion-generated regions) and computational ineffi-ciency—have led to renewed interest in hybrid augmentation strategies combining classical and modern techniques. Our proposed CBDG method uniquely integrates SAM (Segment Anything Model) and Stable Diffusion to generate semanti-cally coherent, background-diverse images while minimizing label noise for consistency training. Unlike prior augmen-tation approaches, CBDG is designed to facilitate robust object-level feature learning across diverse environments in open-vocabulary scenarios, effectively mitigating common artifacts such as blurred boundaries. 
+
+C.3. Cross-Modal Object Detection Models 
+
+Cross-modal object detection develops rapidly with ad-vances in vision–language pretraining and grounding. Early frameworks such as CLIP [ 42 ] and ALIGN [ 15 ] establish the foundation by learning scalable image–text representa-tions, which inspire a series of detection-oriented exten-sions. MDETR [ 17 ] aligns objects and textual queries through a transformer-based design, while OWL-ViT [ 37 ]enables open-vocabulary detection with vision transform-ers. Subsequent models, including G-DINO [ 32 ] and OFA-DOD [ 51 ], further advance grounding accuracy and gen-eralization across diverse tasks. Among these, GLIP [ 26 ]and FIBER [ 8] emerge as representative and widely adopted frameworks. GLIP introduces a scalable region-level vi-sion–language pretraining formulation, whereas FIBER adopts a two-stage coarse-to-fine strategy that improves alignment at both image and region levels. Both models provide strong baselines for language-supervised object de-tection, support text-based grounding tasks, and are publicly available, which makes them ideal foundations for evaluat-ing and extending consistency-based improvements. Their popularity and architectural compatibility also highlight the model-agnostic nature of our proposed approach. 
+
+C.4. Survey of Existing Background Datasets 
+
+To assess the suitability of existing datasets for our method, we conduct a detailed survey of publicly available back-ground datasets. We find that nearly all of them contain varying degrees of foreground objects, which fundamen-tally conflicts with our training objective: pasting finely segmented foregrounds (via SAM) onto clean backgrounds to enforce background-invariance. 
+
+Foreground contamination. Many background datasets include objects that should not appear in background-only scenes. For instance, when sampling 200 random im-ages from BG-20k [ 24 ]—often cited as a background-only dataset—we found that 36% contained recognizable fore-grounds such as roses, dolphins, butterflies, and other clearly foreground elements. Other datasets (e.g., SUN09 [ 50 ], Stan-ford Background [ 11 ], Cityscapes [ 6 ]) often include pedestri-ans, vehicles, or other labeled objects, introducing semantic confusion. This undermines the consistency objective by entangling background pixels with foreground semantics. 
+
+Domain-specificity. Some datasets (e.g., NH-HAZE [ 2 ], RESIDE [ 23 ]) are restricted to specific conditions such as hazy weather, making them unsuitable for general-purpose training. 
+
+Scale limitations. Many datasets are too small to sup-port large-scale pretraining or fine-tuning. For example, the Stanford Background Dataset contains only 715 images, Cityscapes provides 2,975 training images within a single urban domain, and NWPU VHR-10 has merely 150 back-ground images. For methods that explicitly separate foreground and back-ground, dataset purity is crucial. Existing background datasets either suffer from foreground contamination, do-main bias, or insufficient scale, and therefore cannot fully meet the requirements of our approach. 
+
+## D. CBDG 
+
+D.1. Semantic Conflicts and Object-Background Decoupling 
+
+While natural object–background correlations exist, they of-ten induce over-reliance on spurious contextual cues. CBDG intentionally decouples objects from their original back-grounds to promote object-centric and robust representa-tions. Although this may introduce semantically uncommon combinations, our model consistently outperforms baselines on D3, D3 
+
+> BC
+
+and D3C, indicating improved generalization rather than degraded learning. Potential failure cases from imperfect extraction are mitigated via post-processing filter-ing (Supplementary Section D.3) and visualized in Figure 8. 
+
+D.2. Prompt to LLM for Background Generation                                                                                                                                                                                                                                               
+
+> Listing 1. Example prompts for generating natural landscape back-ground images with seasonal variations, time of day, and weather conditions.
+> Generate alist of diverse prompts for
+> ,→background image generation, focusing
+> ,→on natural landscapes (sky and
+> ,→atmosphere) with seasonal variations.
+> ,→Provide varied descriptions covering
+> ,→different times of day, weather
+> ,→conditions, and visual elements. The
+> ,→prompts should be clear, creative,
+> ,→and specific for use in diffusion
+> ,→models. Generated examples: 1. Avibrant spring meadow with tall grass
+> ,→and colorful wildflowers, where bees
+> ,→and butterflies flit from bloom to
+> ,→bloom under the warm sun. 2. Afrozen river cutting through asnowy
+> ,→valley, with ice floes floating on
+> ,→the surface and snow-capped trees
+> ,→lining the banks. 3. Atropical waterfall plunging down into
+> ,→acrystal-clear pool, surrounded by
+> ,→dense jungle and mist rising from the
+> ,→water below. 4. Agolden autumn forest at sunset, with
+> ,→leaves in shades of red and orange
+> ,→covering the ground and acrisp chill
+> ,→in the air. 5. Astormy summer beach scene with dark
+> ,→clouds overhead, waves crashing
+> ,→against the shore, and seagulls
+> ,→fighting the strong winds. 6. Amisty morning in abamboo forest, with
+> ,→soft sunlight filtering through the
+> ,→tall green stalks and dew on the
+> ,→leaves. 7. Apanoramic view of rolling hills under
+> ,→atwilight sky, with the first stars
+> ,→appearing and acrescent moon rising. 8. Adesert oasis at high noon, with palm
+> ,→trees surrounding asmall pool of
+> ,→water and heat waves distorting the
+> ,→distant horizon. 9. Acherry blossom grove in full bloom,
+> ,→with pink petals floating on a gentle
+> ,→breeze and covering aquiet pathway. 10. Anorthern lights display over a frozen
+> ,→lake, with vibrant green and purple
+> ,→streaks reflected in the icy surface.
+
+We employ three distinct prompts to generate background descriptions for three different categories using ChatGPT. While the templates for these prompts are identical, they vary slightly in terms of the generated content, as illustrated in Listing 1. The primary difference lies in the type of content generated, tailored to each category. 
+
+D.3. Effect of IoU Thresholding on Training Quality 
+
+To address the issue of incomplete or inaccurate foreground object segmentation by SAM, which is unacceptable for downstream object detection tasks, we implement a post-processing step to filter out problematic segmentation results. Specifically, we calculate the bounding box (BBox) of each segmented mask and compare it with the corresponding ground truth BBox by computing the Intersection over Union (IoU). Only segmentation results with an IoU greater than a predefined threshold TIoU are retained. Otherwise, they are discarded. The threshold TIoU we take is 0.75. This post-processing step mitigates the impact of noisy BBox labels caused by potentially inaccurate SAM-generated masks, thereby improving the quality of training (a) Type: S ky   
+
+> Prompt: A thunderstorm sky with
+> dark, rolling clouds and the
+> occasional flash of lightning, set
+> against a vast, empty desert.
+> (b) Type: L andscape
+> Prompt: A rocky coastline at low
+> tide, with tide pools exposed and
+> seaweed-covered rocks, as the
+> waves slowly return.
+> (c) Type: S eason
+> Prompt: A serene forest of snow-
+> covered pine trees, with a light
+> dusting of snow falling from the
+> branches and the ground blanketed
+> in white.
+
+Figure 7. Three types of background images we generate. Given a prompt from LLM, we use stable diffusion to generate random background images. 
+
+data and enhancing model performance. 
+
+D.4. Analysis on the Processing Procedures of Dif-ferent Datasets 
+
+In our CBDG process, we apply two different augmentation strategies to our combined dataset of Flickr30k and Ob-jects365. For images with more than one class in them, we leverage the prior knowledge of category labels and bound-ing box information to directly extract the foreground objects using the SAM model. Once the foreground is segmented, we proceed to replace the background, ensuring that the core object remains intact while the surrounding context is altered. This method allows us to generate diverse augmented images while maintaining object consistency. For images with only one class in them, we begin by aug-menting the number of object categories within the images, expanding the variety and complexity of the scenes. After this, we apply the same background replacement technique as used for the Flickr30k dataset, using the extracted fore-ground objects and swapping the background accordingly. This dual augmentation approach helps us enrich the dataset, enhancing its diversity and challenging the model to adapt to a wider range of visual contexts. By utilizing both the category label and bbox priors in conjunction with the SAM model, we can effectively augment the datasets in a way that introduces meaningful variation while preserving object relevance, which is crucial for improving model robustness and generalization across different scenarios. In the process of category augmentation, to minimize the impact of dataset size, the augmented objects are exclusively selected from 0.22M images from the Objects365 dataset, excluding objects from the images we did not select within the original Objects365 dataset. 
+
+D.5. Analysis on Background Generation 
+
+As shown in Figure 7, the background images we gener-ate are both rich and diverse, with significant variation in elements such as scene types, lighting conditions, weather changes and texture details. These images are created by pro-viding prompts derived from various language descriptions generated by a large language model (LLM) to the Stable Diffusion model. The prompts are designed to capture differ-ent scenes, ensuring that the generated backgrounds exhibit a high degree of diversity. There are three main categories of background images: seasonal, sky, and natural landscape. In total, we have 13,185 unique descriptions, resulting in 144,654 generated images. The breakdown of categories and the corresponding number of images is as follows: seasonal (3387 descriptions, 48,156 images), sky (3399 descriptions, 48,210 images), and natural landscape (3399 descriptions, 48,288 images). As shown in Figure 7, even for the same language description, the generated images demonstrate a strong diversity in terms of their visual appearance, making each one unique in its own right. This diversity is key to enhancing the quality and variabil-ity of the generated datasets, allowing us to better capture the complexity of real-world scenes and improve the robustness of subsequent tasks, such as OVOD and REC. Moreover, the diversity in the backgrounds plays a crucial role in support-ing the consistency constraints we impose on the images. Unlike traditional data augmentation methods, which may lead to homogenized backgrounds, our approach ensures that the model is exposed to a wide range of backgrounds across different contexts. This enhances the model’s robustness, making it more adaptable and effective in diverse scenar-ios, and ultimately improving its performance on tasks that require consistency across varying environments. 
+
+D.6. Analysis on Image Selection and Categorical Augmentation 
+
+For the Objects365 dataset, we initially select 0.22M images, ensuring that all categories are covered to support more com-prehensive model training and evaluation. During the data selection process, we track the categories and the correspond-ing number of objects (bounding boxes) in each image. To ensure category balance, we first analyze the distribution of categories across the dataset and set a minimum coverage requirement, ensuring that each category is represented by at least one image. Subsequently, we introduce a priority strategy based on category diversity and object count to sort and select the images. The core idea behind this priority strategy is to prioritize images that contain a larger number of categories while favoring those with a higher number of objects. This approach allows for more efficient category coverage within a limited dataset and ensures that the dataset has an adequate number of objects to support robust object detection model training. For each image, we define its priority score as: 
+
+S(I) = Nbbox (I) + Ncat (I) (11) where S(I) represents the priority score of image I, Nbbox (I)
+
+denotes the number of objects (bounding boxes) in image I,
+
+Ncat (I) refers to the number of categories in image I.We sort the images by priority score and gradually select them. While ensuring category coverage, we further opti-mize the data selection based on object count and category diversity, such that the final subset contains both rich cate-gory information and reasonable object density. This strategy significantly enhances the representativeness of the dataset, providing more challenging and generalizable training data for subsequent object detection tasks. 
+
+D.7. Pseudo Code of CBDG 
+
+The overall process of contextual bootstrapping data genera-tion is summarized in the Algorithm 1. 
+
+Algorithm 1 Contextual Bootstrapping Data Generation 
+
+Require:  
+
+> 1:
+
+I: Original image with objects and bounding boxes.  
+
+> 2:
+
+Df g : External dataset for object augmentation.  
+
+> 3:
+
+N : Number of potential placement positions.  
+
+> 4:
+
+NR: Maximum resizing attempts.  
+
+> 5:
+
+α: Resizing factor.  
+
+> 6:
+
+Themes : Background themes ( Seasonal, Sky, Natural Landscape ). 
+
+Ensure:  
+
+> 7:
+
+I∗: Augmented image with diverse objects and back-grounds.  
+
+> 8:
+
+Extract object using SAM S: foreground objects ←S(I). 
+
+> 9:
+
+for each object in I do  
+
+> 10:
+
+Randomly select an object o from Df g . 
+
+> 11:
+
+Attempt placement at P positions:  
+
+> 12:
+
+(xok , y ok ) ∈ P \(xo, y o), o k ∈ Oi / ∈C . 
+
+> 13:
+
+category augmentation: I′ ← I 
+
+> 14:
+
+if no valid placement found then  
+
+> 15:
+
+Resize o: o ← o × 1/α . 
+
+> 16:
+
+Repeat placement attempts up to NR times.  
+
+> 17:
+
+if still no valid placement then  
+
+> 18:
+
+Skip and select another image.  
+
+> 19:
+
+end if  
+
+> 20:
+
+end if  
+
+> 21:
+
+end for  
+
+> 22:
+
+Generate background prompts using LLM G: 
+
+> 23:
+
+t′ = G(t). 
+
+> 24:
+
+Generate background images using Stable Diffusion D: 
+
+> 25:
+
+b = D(t′). 
+
+> 26:
+
+Replace background in I′: 
+
+> 27:
+
+Extract foreground and compose new image: I∗ =
+
+S(I′
+
+> box
+
+) ⊕ b, b ∈ Dbg . 
+
+> 28: 29:
+
+return I∗.Figure 8. Failure cases of background replacement using inpainting method [ 57 ]. Each case consists of paired images: the left image shows the original input, while the right image demonstrates the replaced background with corresponding artifacts. Cases are presented in a two-per-row layout for comparison.

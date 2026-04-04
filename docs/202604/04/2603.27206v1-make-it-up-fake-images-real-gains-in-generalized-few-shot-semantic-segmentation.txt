@@ -1,0 +1,568 @@
+Title: Make It Up: Fake Images, Real Gains in Generalized Few-shot Semantic Segmentation
+
+URL Source: https://arxiv.org/pdf/2603.27206v1
+
+Published Time: Tue, 31 Mar 2026 00:33:41 GMT
+
+Number of Pages: 11
+
+Markdown Content:
+> 1
+
+# Make It Up: Fake Images, Real Gains in Generalized Few-shot Semantic Segmentation 
+
+Guohuan Xie, Xin He, Dingying Fan, Le Zhang, Ming-Ming Cheng, Senior Member, IEEE and Yun Liu 
+
+Abstract —Generalized few-shot semantic segmentation (GFSS) is fundamentally limited by the coverage of novel-class appear-ances under scarce annotations. While diffusion models can synthesize novel-class images at scale, practical gains are often hindered by insufficient coverage and noisy supervision when masks are unavailable or unreliable. We propose Syn4Seg, a generation-enhanced GFSS framework designed to expand novel-class coverage while improving pseudo-label quality. Syn4Seg first maximizes prompt-space coverage by constructing an embedding-deduplicated prompt bank for each novel class, yielding diverse yet class-consistent synthetic images. It then performs support-guided pseudo-label estimation via a two-stage refinement that i) filters low-consistency regions to obtain high-precision seeds and ii) relabels uncertain pixels with image-adaptive prototypes that combine global (support) and local (image) statistics. Finally, we refine only boundary-band and unlabeled pixels using a constrained SAM-based update to improve contour fidelity without overwriting high-confidence interiors. Extensive experiments on PASCAL-5i and COCO-20 i
+
+demonstrate consistent improvements in both 1-shot and 5-shot settings, highlighting synthetic data as a scalable path for GFSS with reliable masks and precise boundaries. 
+
+Index Terms —Generalized few-shot semantic segmentation, synthetic data augmentation, diverse data generation, pseudo-label enhancement, boundary refinement 
+
+I. I NTRODUCTION 
+
+Few-shot semantic segmentation (FSS) enables models to segment unseen classes with only a few annotated support examples, reflecting real-world scenarios where pixel-level annotations are expensive and scarce. However, conventional FSS frameworks depend on class-specific support sets: each novel class requires a dedicated support set and separate inference passes [1]–[6], which severely limits scalability and efficiency. To address these issues, Generalized Few-shot Se-mantic Segmentation (GFSS) [7] has been proposed to jointly segment both base and novel classes within a single inference 
+
+This work is supported in part by the Fundamental Research Funds for the Central Universities (Nankai University, No. 070-63253235) and in part by NSFC (No. 62576176). The computational resources are supported by the Supercomputing Center of Nankai University (NKSC). (Corresponding author: Yun Liu) 
+
+G. Xie, and D. Fan are with the College of Software, Nankai University, Tianjin 300350, China. (e-mail: xieguohuan@mail.nankai.edu.cn; dingying-fan@mail.nankai.edu.cn) X. He is with the School of Computer Science and Engineer-ing, Tianjin University of Technology, Tianjin 300384, China. (e-mail: xhe@email.tjut.edu.cn) L. Zhang is with School of Information and Communication Engineering, UESTC, Chengdu 611731, China. (e-mail: lezhang@uestc.edu.cn) M.M. Cheng and Y. Liu are with VCIP, College of Computer Science, and Academy for Advanced Interdisciplinary Studies, Nankai University, Tianjin 300350, China, and also with NKIARI, Shenzhen Futian, Shenzhen 518045, China. (e-mail: cmm@nankai.edu.cn; liuyun@nankai.edu.cn) Base Set  Support Set 
+
+Base Class 
+
+Learning 
+
+Novel Class 
+
+Registration  Evaluation 
+
+Support  Se t
+
+Syn4Seg 
+
+Synthetic  Se t
+
+Base & Novel 
+
+Class Learning  Evaluation 
+
+(a) Classical paradigm for GFSS 
+
+(b) GFSS with Syn4Seg 
+
+Base  Se t
+
+Fig. 1. Pipelines of classical GFSS works and our Syn4Seg framework. (a) Classical GFSS methods follow three stages: base class learning, novel class registration, and evaluation, where novel classes rely on limited manual annotations, resulting in low diversity and constrained performance. (b) Our Syn4Seg framework synthesizes diverse, realistic novel class images and pseudo labels guided by support annotations. These synthesized samples, together with base data, are used to train a semantic segmentation model, enabling robust recognition of both base and novel classes during evaluation. 
+
+pass. Despite its effectiveness, GFSS remains fundamentally constrained by the limited diversity of manually annotated support data. While base classes are typically well-annotated and diverse, novel classes are learned from only a handful of annotated support examples, as shown in Fig. 1(a), resulting in limited intra-class variation and poor generalization to unseen instances. Recent advances in diffusion-based image generation [8]– [11] have enabled the synthesis of images that closely ap-proximate real-world distributions. This technological progress offers a promising way to alleviate the diversity bottleneck in GFSS by enriching novel class representations beyond the constraints of limited annotations. However, effectively leveraging synthetic images for GFSS introduces three major challenges: (1) Directly generating synthetic images based on class names or simple prompts containing class labels often leads to redundancy in the generated images, resulting in a lack of diversity. This insufficient diversity limits the model’s exposure to novel visual patterns, making it crucial to generate sufficiently varied novel class samples that better capture real-world variations. (2) Current methods struggle to directly generate accurate segmentation masks for synthetic 
+
+> arXiv:2603.27206v1 [cs.CV] 28 Mar 2026 2
+
+images. Using predicted masks from a pre-trained GFSS model inevitably results in low-quality, poorly aligned masks [12]– [15]. These issues introduce significant label noise, severely degrading segmentation performance, and highlighting the need for high-quality, class-consistent segmentation masks in the synthesis process. (3) Additionally, segmentation masks generated through semantic segmentation models often suffer from poor boundary quality [16]–[22]. This imprecision in mask boundaries causes pixel misalignments along object boundaries, which in turn lowers the Intersection over Union (IoU), increases false positives and negatives, and disrupts the learning of fine-grained spatial cues essential for accurate segmentation. To address these challenges, we propose Syn4Seg , ageneration-enhanced framework for GFSS, as shown in Fig. 1(b). Specifically, we introduce High-quality Diverse Image Generation (HDIG) by conditioning diffusion-based generation on category prototypes, which can mitigate mode collapse and redundancy, enriching both the visual and seman-tic coverage of novel categories and exposing the segmentation model to a broader range of variations. After generating these novel class images by HDIG, a straightforward approach is to obtain their semantic segmentation masks directly using a pre-trained GFSS model. However, such pseudo-masks often suffer from semantic noise and misaligned regions, which can degrade training if used naively. To address this issue, we propose Adaptive Pseudo-label Enhancement (APE) ,which refines pseudo-masks through two complementary pro-cesses. Adaptive Pseudo-label Filtering (APF) removes low-confidence regions guided by prototype similarity, while Adap-tive Pseudo-label Relabeling (APR) corrects inconsistent areas based on contextual cues. This dual-stage adaptation signifi-cantly improves the semantic consistency and reliability of pseudo-masks, providing higher-quality supervision for down-stream segmentation. But even after enhancement by APE, pseudo-masks typically exhibit coarse or blurry boundaries, which hinder accurate object delineation. These imprecise boundaries can introduce pixel-level labeling errors, particu-larly along object contours, leading to decreased IoU, more false positives and negatives, and impaired learning of fine-grained spatial cues that are critical for precise segmentation [18]–[20]. To address this, we propose SAM-based Boundary Refinement (SABR) , which can leverage the strong localiza-tion and boundary-awareness of the Segment Anything Model (SAM) [23] to refine uncertain boundaries, producing sharp and spatially coherent contours that better align with object structures. Extensive experiments demonstrate that Syn4Seg consis-tently outperforms existing state-of-the-art methods across var-ious settings. Notably, under the challenging 5-shot condition, Syn4Seg achieves improvements of 2.20% and 3.69% in mean mIoU, and 3.28% and 4.34% in hIoU, on the PASCAL-5i
+
+and COCO-20 i datasets than state-of-the-art methods [24], [25]. These results clearly validate the effectiveness of our generation-enhanced approach. Our main contributions can be summarized as follows:  
+
+> •
+
+We propose Syn4Seg , a simple yet effective generation-enhanced GFSS framework that synthesizes class-aligned, diverse samples via HDIG to mitigate data scarcity and improve novel class generalization.  
+
+> •
+
+We introduce the APE mechanism that jointly performs prototype-guided APF and APR, enabling adaptive en-hancement of pseudo-masks with support-aware consis-tency and improved semantic reliability.  
+
+> •
+
+We develop the SABR module to accurately delineate ob-ject contours in uncertain regions, achieving high-quality, well-aligned, and visually consistent pseudo-masks that further boost segmentation performance. II. R ELATED WORK 
+
+Few-shot Semantic Segmentation. Few-shot semantic seg-mentation methods fall into two main branches: prototype-based and dense comparison-based. Prototype-based ap-proaches [25]–[28] construct compact class representations (prototypes) from a few support examples and fuse them with query features via attention mechanisms or iterative refinement. This design provides stable, class-level guidance and strong generalization for recognizing target regions in the query image. In contrast, dense comparison-based approaches [29]–[33] perform pixel- or region-level matching between support and query images. By preserving spatial detail and local correspondences, these methods handle large intra-class variations better. However, they incur higher computational costs and are more sensitive to feature misalignment. Despite their progress, conventional FSS frameworks are limited in that they are designed to segment only one novel class at a time [34]–[43]. Each support set corresponds to a single target class, and the model cannot simultaneously recognize both base and novel classes within the same query image. As a result, segmenting all potential novel classes requires multiple inference passes with different support sets, limiting their scalability and practicality in open or mixed-category scenarios. 
+
+Generalized Few-shot Semantic Segmentation. General-ized few-shot semantic segmentation (GFSS) extends FSS by requiring a model to adapt to novel classes from only k-shot exemplars while segmenting the full label space, including both base and novel classes, at test time [7]. Compared with standard FSS, this setting is more practical but also more chal-lenging, since the model must absorb novel-class knowledge from extremely limited supervision while preserving strong discrimination over well-learned base classes. Existing GFSS methods often address this problem by introducing learned prompts, prototype adaptation, or lightweight adapters to inject novel-class cues into pretrained segmentation decoders [24], [25], [44]–[46]. While effective, these methods still rely on scarce manually annotated support samples, limiting the diver-sity and coverage of novel-class supervision. Recent work [47] has explored diffusion-based synthesis to augment GFSS with generated novel-class samples, opening a promising direction for alleviating data scarcity. However, directly leveraging generative models in GFSS remains challenging: images gen-erated from simple class-name prompts often lack sufficient diversity, limiting coverage of intra-class variations, while the corresponding masks obtained from pretrained segmentation 3
+
+models may contain semantic noise, misaligned regions, or inaccurate boundaries. These issues restrict the effectiveness of synthetic supervision and weaken the benefits of generative augmentation for improving generalization and segmentation quality. Motivated by these limitations, we propose a genera-tive synthesis framework that couples diverse diffusion-based image generation with principled mask refinement, enabling the construction of high-quality, semantically aligned image– mask pairs for novel classes and thereby improving novel-class generalization while preserving strong base-class performance. III. M ETHODOLOGY 
+
+We propose the Syn4Seg framework as shown in Fig. 2, which alleviates the shortage of novel class images for GFSS scenarios in real-world applications by synthesizing a large number of high-quality and diverse novel class images through HDIG. For these synthetic images, we then employ APE and SABR to produce their high-quality masks. APE comprises two stages: Adaptive Pseudo-label Filtering and Adaptive Pseudo-label Relabeling. Through APE and SABR, we obtain abundant novel class images together with their correspond-ing high-quality masks. Ablation experiments in Sec. IV-C demonstrate the effectiveness of HDIG, APE, and SABR. 
+
+A. Problem Formulation 
+
+GFSS considers a label space partitioned into disjoint base and novel sets Cb and Cn with Cb ∩ Cn = ∅. During development, we are given a large labeled base dataset Db for classes in Cb, enabling the model to learn to segment the base classes. For each class c ∈ Cn, we are provided with a small 
+
+K-shot support set Sc = {(Sci , Mci )}Ki=1 of image–mask pairs. In total, there are |Cn| such K-shot support sets corresponding to the novel classes. The model is adapted using these |Cn|
+
+support sets to segment the novel classes. The objective of GFSS is to train a single segmentation model that (i) retains strong performance on base classes and (ii) incorporates the limited K-shot information for novel classes. This enables the model to predict pixel-wise labels from the union Cb ∪ Cn for every query image without per-image support at test time. 
+
+B. High-quality Diverse Image Generation 
+
+Directly using class names or simple textual prompts for image synthesis often leads to limited diversity and high visual similarity among synthetic samples. To address this limitation and improve the representation of novel classes in GFSS, we aim to generate synthetic images that are both class-consistent and visually diverse. Given that the quality and diversity of generated images are largely determined by the textual prompts used to guide the diffusion model, the first step of our framework is to construct, for each novel class, a prompt set that remains centered on the target class while covering semantically diverse descriptions. To construct a prompt collection that is both centered on a target novel class c and semantically diverse, HDIG adopts an 
+
+iterative prompt generation strategy. At the t-th prompt gen-eration round, the agent generates s candidate prompts Pt =
+
+{pt, 1, p t, 2, . . . , p t,s }, where the agent architecture is shown in Fig. 2(a), and the underlying base model used to implement the agent is DeepSeek-V3. Our goal is to ensure diversity between different prompts. This naturally leads us to consider the cosine similarity between different prompt embeddings, filtering out those with high similarity and retaining those with lower similarity. To ensure that the prompt embeddings are consistent with the semantic space of Stable Diffusion 3.5-Large (SD3.5), the model we use for generating images, we leverage the text encoder of SD3.5, which guarantees semantic alignment across the embeddings. Specifically, each prompt is encoded using the dual-encoder text pipeline of SD3.5 (CLIP-L and CLIP-G). The outputs are pooled and concatenated into a 2048-dimensional representation, consistent with the architecture of SD3.5. We use the normalized text embedding 
+
+˜φ(p) ∈ Rd for similarity evaluation, where ˜φ(p) is obtained by applying ℓ2-normalization to the encoder output. Let D(i−1) 
+
+> t
+
+represent the progressively updated database within the batch, initialized as D(0)  
+
+> t
+
+= Dt−1. The maximum cosine similarity between the current candidate and existing entries is computed as: 
+
+st,i = max 
+
+> u∈D (i−1)
+> t
+
+˜φ(pt,i )⊤u, i = 1 , . . . , s, (1) where u denotes a stored normalized embedding in D(i−1)  
+
+> t
+
+.Given a diversity threshold λ ∈ [−1, 1] , a candidate prompt is accepted only if its similarity score st,i is below λ, ensur-ing sufficient diversity with respect to the existing database. Accepted prompts are immediately inserted into the database, and after processing the entire batch we obtain Dt = D(s) 
+
+> t
+
+.The generation process terminates once the database reaches a target size Ntarget . We set this target to approximately match the average number of images per class in the original training set, i.e. , 300 per class for PASCAL-5i and 1000 per class for COCO-20 i. All accepted prompts are then used to synthesize images at a resolution of 768 × 768 using SD3.5, which are subsequently processed by the GFSS network to produce the initial semantic masks. A qualitative comparison between images generated directly using class-name prompts and those generated with our HDIG method is provided in the Appendix, where HDIG exhibits substantially improved visual diversity while preserving class consistency. A qualitative comparison between images generated directly using class-name prompts and those generated with our HDIG method is shown in Fig. 3. Compared with class-only prompts, HDIG produces images with substantially richer visual diversity while preserving class consistency, which supports its effectiveness for enriching novel-class coverage. 
+
+C. Adaptive Pseudo-label Enhancement 
+
+A straightforward way to use the generated novel-class images and the initial semantic masks from the GFSS network is to proportionally mix them with the original dataset and then train the downstream semantic segmentation network. However, these initial masks are noisy, which hinders learning robust novel class representations for the model. Moreover, noisy pseudo-labels can propagate GFSS network errors into the downstream semantic segmentation network. Motivated 4Pooling 
+
+> GFSS
+> Net
+> Adaptive
+> Pseudo -label
+> Filtering
+> Pooling
+> Adaptive Pseudo -
+> label Relabeling
+> Box Localization
+> SABR
+> Feature map
+
+# …
+
+> Support Set
+
+# … 
+
+> Local Prototypes
+> Base & Bg Nove l
+
+# … 
+
+> Novel Prototypes
+> Backbone
+> 𝑀
+> 𝑀 1
+> 𝑀 2
+> 𝑀 3
+> 𝑋
+> {෤𝜇 𝑘 }
+> Novel Prototypes
+> Cosine
+> Cosine
+> Cosine
+> Cosine
+
+# … Local Prototypes 
+
+> 𝑀
+> Base & Bg Novel
+> 𝑀 1
+
+# … 
+
+> …
+> 𝑀 2
+> {ො𝑣 (𝑝 )
+
+} { ො𝜇 𝑘  }              
+
+> {෤𝜇 𝑘 }
+> Please generate [n] realistic
+> and accurate image description
+> prompts for the category [novel
+> class] to be used with image
+> generation models.
+> prompts
+> 𝓓 𝒕 ≥𝑵 𝒕𝒂𝒓𝒈𝒆𝒕 ?
+> TE
+> Maximum similarity (𝑠 ) response
+> 𝒔 ≤𝝀 ?
+> Maximum similarity (𝑠 ) computation
+> Stable Diffusion 3.5 -Large
+> Text Encoder TE
+> Regions Regions
+
+(a) Details of HDIG 
+
+(b) Details of APE 
+
+(c) Details of Adaptive Pseudo -label 
+
+Filtering 
+
+(d) Details of Adaptive 
+
+Pseudo -label Relabeling  
+
+> SD
+> SD
+> Cosine
+> {෤𝜇 𝑘 }
+
+Fig. 2. (a), (b) Given several novel classes and their support set, we first use HDIG to synthesize high-quality, diverse novel class images proportional to the base class images. Guided by support images, APE refines these synthesized images to generate accurate masks through two stages: Adaptive Pseudo-label Filtering (APF) and Adaptive Pseudo-label Relabeling (APR). Specifically, APF filters noisy regions in the initial mask M to obtain M1; APR relabels these unlabeled regions to yield M2. Finally, SAM-based Boundary Refinement (SABR) further refines the mask boundaries, yielding the final M3. (c), (d) illustrate the details of APF and APR. (a) Class -Only Prompt 
+
+> (b) HDIG
+
+Fig. 3. Qualitative comparison between images generated directly using class-name prompts (a) and those generated with our HDIG method (b). 
+
+by [48], we propose an effective pseudo-mask enhancement paradigm, APE, which leverages a small set of valuable support samples to further refine the initial masks and thereby significantly improve mask quality. APE consists of Adaptive Pseudo-label Filtering (APF) and Adaptive Pseudo-label Re-labeling (APR) , which we detail below. 
+
+1) Adaptive Pseudo-label Filtering: APF employs a com-pact support set to discard unreliable pseudo-labels and im-prove the overall quality of novel class masks. Let the support set be S = {(Xj, Mj)}NS
+
+> j=1
+
+, where Xj is a support image and 
+
+Mj corresponds to its pixel-wise mask. For each support im-age, we extract its feature map F (Xj) ∈ RC×H×W from the backbone for each support image, and compute the prototype for novel class k by averaging features over pixels labeled as 
+
+k:
+
+μk = 1
+
+P
+
+> j
+
+P 
+
+> p
+
+⊮[Mj(p) = k]
+
+X
+
+> j
+
+X
+
+> p
+
+⊮[Mj(p) = k] fj (p),
+
+(2) where fj (p) ∈ RC denotes the feature vector at pixel p of 
+
+F (Xj ), and ⊮[·] is the indicator function. We denote by ˆμk
+
+the ℓ2-normalized version of μk.To reduce noise in novel-class predictions, we assess how well each predicted region ( i.e. , a connected component of pix-els sharing the same predicted class label in the segmentation mask) aligns with the corresponding class prototype: regions whose feature representations are more consistent with the support examples are less likely to be spurious. For a region r
+
+in a synthetic image whose initial predicted class is k (where 
+
+k is a novel class), we first compute the mean feature of all pixels within that region and then normalize it: 
+
+ˆv(r) = 
+
+> 1
+> |R (r)|
+
+P 
+
+> q∈R (r)
+
+f (q)
+
+> 1
+> |R (r)|
+
+P 
+
+> q∈R (r)
+
+f (q)
+
+, (3) where R(r) denotes the set of pixels belonging to region r.We then compute the cosine similarity between this region representation and the corresponding class prototype: 
+
+s(r) = ˆv(r)⊤ ˆμk. (4) If s(r) ≥ λ, the region is considered consistent with the novel class prototype, and we keep its novel class prediction; otherwise, pixels in the region are marked as free (label value 
+
+255 ) to be relabeled later. The mask M1 after APF therefore contains trustworthy novel-class pseudo-labels and free pixels (value 255 ). 5
+
+2) Adaptive Pseudo-label Relabeling: After APF, the mask contains reliable novel class pseudo labels and a set of free regions ( e.g. , with value 255 ). These free pixels typically cor-respond to mispredicted or low-confidence regions and should be adaptively relabeled using information from the support set and the image itself. To relabel these free regions, we begin by constructing a global prototype dictionary G = {(k, ˆμk)},where ˆμk are the normalized support prototypes introduced in Sec. III-C1. For each synthesized or real image x, we instantiate a local prototype dictionary by copying the global one. Using the feature representation of image x, we then esti-mate image-local prototypes for every class k that appears: 
+
+μ(x) 
+
+> k
+
+= 1
+
+P 
+
+> p
+
+⊮[M1(p) = k]
+
+X
+
+> p
+
+⊮[M1(p) = k] f (p), (5) To account for both global knowledge and image-specific statistics, we fuse the global and image-local prototypes using a blending parameter β ∈ [0 , 1] . This results in an adaptive prototype for image x:
+
+˜μ(x) 
+
+> k
+
+= β ˆμk + (1 − β) ˆ μ(x) 
+
+> k
+
+, (6) where β controls the influence of the global prototype relative to the image-local one. We denote by ˆμ(x) 
+
+> k
+
+the ℓ2-normalized version of μ(x) 
+
+> k
+
+.If no image local prototype can be computed for a novel class ( e.g. , no retained pixels remain for that novel class), the adaptive prototype naturally defaults to the global one. In contrast, for base classes, we rely solely on the image-local prototypes. For every free pixel p, we evaluate its feature representation against all class prototypes in the local dictionary: 
+
+sk(p) = v(p)⊤ ˜μ(x) 
+
+> k
+
+, k ∈ C (7) where C denotes the set of candidate classes (novel classes and optionally base classes). For each pixel p, we assign it to the class with the highest similarity score k⋆(p) =arg max k∈C sk(p) only if the maximum similarity s⋆(p) = max k∈C sk(p) exceeds a confidence threshold λ; otherwise, the pixel remains unlabeled. The resulting mask M2 after APR therefore contains re-tained pseudo-labels, newly relabeled regions, and any remain-ing free regions. 
+
+D. SAM-based Boundary Refinement 
+
+Although M2 produced by APE preserves high-confidence pseudo-labels and fills many free pixels, object boundaries are often imprecise and lack fine-grained shape details, which may propagate noise into training and hinder the learning of accu-rate spatial structures. To mitigate this issue, we apply SABR to refine boundary localization and produce the final training mask M3. Given the synthesized RGB image I : Ω → R3
+
+with pixel domain Ω ⊂ Z2 and the intermediate mask M2 :Ω → { 0, 1, . . . , K } ∪ { 255 } (where 0 denotes background, 
+
+{1, . . . , K } semantic classes, and 255 free pixels), we initialize 
+
+M3 = M2 and process each class independently. For a given class k, we first identify its boundary pixels as those labeled Synthetic Image  VP  VP+APF  VP+APF+APR  VP+APF+APR+  
+
+> SABR
+> Fig. 4. Quantitative ablation results showing the progressive improvements brought by the mask-quality refinement modules: APF, APR, and SABR.
+
+as k that are adjacent to pixels of a different label, compute a tight bounding box enclosing these boundary pixels, and feed the original image together with this box to SAM to obtain a binary foreground prediction Sk in the full-image coordinate frame. To prevent SAM from overwriting high-confidence interior regions, we restrict updates to an uncertain region defined as the union of a narrow boundary band and free pixels, 
+
+Uk = {p ∈ Ω | dist( p, Bk) ≤ δ or M2(p) = 255 }. (8) where dist( ·, ·) denotes the minimum Euclidean distance to the boundary set and δ controls the band width. To resolve overlaps between classes, we process classes in descending order of pixel area in M2 and update only pixels in Uk that have not been assigned by higher-priority classes, assigning label k to pixels predicted as foreground by SAM and marking the rest as free. By constraining SAM to tight candidate boxes and limiting updates to uncertain regions, M3 retains reliable interior labels while leveraging SAM to sharpen object boundaries and fill free pixels, yielding pseudo-labels with substantially improved boundary fidelity for subsequent segmentation training. As shown in Fig. 4, APF and APR improve pseudo-label reliability, while SABR refines object boundaries, jointly leading to progressive performance gains. IV. E XPERIMENTS 
+
+A. Experimental Setup 
+
+Datasets. We conduct experiments on two standard GFSS benchmarks [7]: PASCAL-5i and COCO-20 i. Following the evaluation protocol in [44], we assess our model on the entire test set for PASCAL-5i and on 10K test images for COCO-
+
+20 i. The reported results represent the average performance over four dataset splits. 
+
+Data Pre-processing. For the GFSS model [25], we fol-low the same experimental setup as DIaM [44]. During the base training phase, images containing both base and novel categories are retained, while the pixels of novel classes are relabeled as background. In the fine-tuning phase, only novel classes are labeled in the support set, with base classes treated as background. After incorporating synthetic data generated by the generative model, the GFSS model is employed to predict segmentation masks for the synthetic images and for the background regions in the original training set. Subsequently, 6              
+
+> TABLE I COMPARISON WITH STATE -OF -THE -ART METHODS ON PASCAL-5iAND COCO-20 iUNDER THE GFSS SETTING .BOLD AND UNDERLINED INDICATE THE BEST AND SECOND BEST METHODS . M EAN DENOTES THE AVERAGE OF THE M IOUOVER BASE AND NOVEL CLASSES ,WHILE HARMONIC REPRESENTS THEIR HARMONIC MEAN .ALL METHODS USE A RES NET -50 BACKBONE AND FOLLOW THE SAME TRAINING /TEST SPLIT .
+
+Methods 
+
+PASCAL-5i
+
+1-shot 5-shot 
+
+Base Novel Mean Harmonic Base Novel Mean Harmonic CANet [49] (CVPR’2019) 8.73 2.42 5.58 3.79 9.05 1.52 5.29 2.60 PFENet [50] (TPAMI’2020) 8.32 2.67 5.50 4.04 8.83 1.89 5.36 3.11 PANet [51] (ICCV’2019) 31.88 11.25 21.57 16.63 32.95 15.25 24.10 20.85 SCL [52] (CVPR’2021) 8.88 2.44 5.66 3.83 9.11 1.83 5.47 3.05 MiB [53] (CVPR’2020) 63.80 8.86 36.33 15.56 68.60 28.93 48.77 40.70 CAPL [7] (CVPR’2022) 64.80 17.46 41.13 27.51 65.43 24.43 44.93 35.58 BAM [54] (CVPR’2022) 71.60 27.49 49.55 39.73 71.60 28.96 50.28 41.24 DIaM [44] (CVPR’2023) 66.79 27.36 47.08 38.82 64.05 34.56 49.31 44.90 POP [45] (CVPR’2023) 46.68 19.94 33.32 27.94 41.50 36.26 38.80 38.70 AlignDiff [47] (ECCV’2024) 67.32 43.34 55.33 52.73 68.43 47.41 57.92 56.01 VP [25] (CVPR’2024) 74.58 34.99 54.79 47.63 74.86 50.34 62.60 60.20 BCM [24] (NIPS’2024) 71.15 41.24 56.20 52.22 71.23 55.36 63.29 62.30 
+
+Syn4Seg (ours) 74.80 46.13 60.47 (+4.27) 57.07 (+4.85) 74.26 58.72 65.49 (+2.20) 65.58 (+3.28) 
+
+Methods 
+
+COCO-20 i
+
+1-shot 5-shot 
+
+Base Novel Mean Harmonic Base Novel Mean Harmonic CAPL [7] (CVPR’2022) 43.21 7.21 25.21 12.36 43.71 11.00 27.36 17.58 BAM [54] (CVPR’2022) 49.84 14.16 32.00 22.05 49.85 16.63 33.24 24.94 DIaM [44] (CVPR’2023) 42.69 15.32 29.00 22.55 38.47 20.87 29.67 27.06 POP [45] (CVPR’2023) 30.38 9.63 20.00 14.62 24.53 16.19 20.36 19.51 AlignDiff [47] (ECCV’2024) 41.72 22.44 32.08 29.18 41.84 27.92 34.88 33.49 VP [25] (CVPR’2024) 51.55 18.00 34.78 26.68 51.59 30.06 40.83 37.99 BCM [24] (NIPS’2024) 49.43 18.28 33.85 26.69 49.88 30.60 40.24 37.93 
+
+Syn4Seg (ours) 53.50 21.32 37.41 (+2.63) 30.49 (+1.31) 53.24 35.80 44.52 (+3.69) 42.33 (+4.34) 
+
+APE and SABR are applied exclusively to the masks of the generated images to enhance the quality of novel class segmentation. For the semantic segmentation model [55], we construct a mixed training dataset by combining the generated novel class images and their corresponding masks with the original base class images and their augmented masks in a balanced ratio. This mixed dataset is then used to train the Mask2Former mdoel [55]. 
+
+Evaluation Metrics. We evaluate model performance us-ing two standard metrics: the mean intersection-over-union (mIoU) and the harmonic mean of base- and novel class mIoU (hIoU) [56]. Following [44], the overall GFSS score is computed by averaging the mIoU of base and novel categories, while hIoU provides a more balanced measure by penalizing large discrepancies between the two. This evaluation strategy helps alleviate dataset bias in benchmarks such as PASCAL-5i
+
+and COCO-20 i, where the number of base classes is typically three times that of novel classes. 
+
+Implementation Details. We conducted our experiments using SD3.5 in conjunction with SAM-ViT-H. For SD3.5, we set the classifier-free guidance scale to 5 and employed 40 denoising steps to generate images with a resolution of 768×768. Specifically, the GFSS model used in our experi-ments is VP [25]. For VP [25], we follow the experimental setup in [25]. We employ ResNet-50 as our backbone [57] to extract features. The feature dimension used for computing features and prototypes is set to 256. For the semantic segmentation model Mask2Former [55], we adopt the same experimental setup as [55]. Specifically, ResNet-50 [57] is used as the backbone, and the model is trained using the per-pixel cross-entropy loss. The AdamW op-timizer is used with a base learning rate of 1 × 10 −4, a weight decay of 0.05, and a batch size of 16. The model is trained for 100 epochs on PASCAL-5i and 20 epochs on COCO-20 i.For all experiments, we empirically set the hyperparameters in Secs. III-B to III-D as follows: the threshold λ = 0 .6, the prototype blending coefficient β = 0 .7, respectively, and the band width for SABR as δ = 5 . These values were chosen based on validation performance on the PASCAL-5i dataset and kept fixed for all experiments. 
+
+B. Experimental Results 
+
+Comparison with State-of-the-arts. All experiments are conducted under the inductive setting, where no unlabeled test data are used, as exploiting test data is unrealistic and harms generalization. Tab. I summarize the quantitative results on PASCAL-5i and COCO-20 i. Our model consistently and substantially surpasses existing methods: on PASCAL-5i, it outperforms DIaM by 13.39% mean mIoU and 18.25% hIoU in the 1-shot setting, and by 16.18% and 20.68% in 5-shot. On COCO-20 i, the gains over DIaM reach 8.41%/7.94% 7PASCAL-5 i COCO-20 i
+
+> Image & GT VP BCM Syn4Seg
+
+Fig. 5. Qualitative results of the proposed Syn4Seg and state-of-the-art approach under the 1-shot setting. The left panel illustrates results on PASCAL-5i,and the right panel on COCO-20 i. The first row shows the input images and their corresponding ground-truth masks, followed by the results of VP and BCM in the second and third rows, respectively. The fourth row presents the results of our Syn4Seg. TABLE II ABLATION STUDY OF DIFFERENT COMPONENTS IN SYN 4S EG , WHERE ROWS (1)–(5) PROGRESSIVELY ADD EACH COMPONENT . BOLD AND UNDERLINED INDICATE BEST AND THE SECOND BEST METHOD .                                         
+
+> ID HDIG APF APR SABR Base Novel Mean Harmonic
+> (1) 73.68 41.75 57.22 52.48 (2) ✓74.97 43.47 59.22 55.03 (3) ✓✓––74.74 44.46 59.10 54.96 (4) ✓✓✓–74.64 45.65 60.15 56.65 (5) ✓✓✓✓74.80 46.13 60.47 57.07
+
+(1-shot) and 14.85%/15.27% (5-shot). Compared with the strongest prior methods-BCM [24] on PASCAL-5i and VP [25] on COCO-20 i, our approach delivers further improve-ments of 4.27%/4.85% and 2.20%/3.28% on PASCAL-5i, and 2.63%/3.81% and 3.69%/4.34% on COCO-20 i under the 1-shot and 5-shot settings, respectively. 
+
+Qualitative Results. Fig. 5 compares the qualitative results of our method with VP [25] and BCM [24] on the PASCAL-
+
+5i and COCO-20 i datasets under the 1-shot setting. Compared with VP and BCM, our method produces more coherent and complete segmentation masks, particularly for novel classes, while reducing fragmented predictions and spurious regions. 
+
+C. Ablation Study 
+
+We conduct a comprehensive set of ablation studies on PASCAL-5i to analyze the contribution of each core compo-nent in Syn4Seg as well as the impact of key hyperparameters. Unless otherwise specified, all experiments are conducted under the 1-shot setting using ResNet-50 as the backbone. 
+
+Importance of Image Diversity. Comparing (1) and (2) in Tab. II, introducing HDIG improves the diversity of generated novel images and yields a clear performance gain, raising novel mIoU from 41.75% to 43.47%. Meanwhile, the mean mIoU and harmonic mIoU are also improved. This verifies that 
+
+TABLE III ABLATION STUDY ON THE INFLUENCE OF HYPERPARAMETERS λ. BOLD 
+
+> AND UNDERLINED INDICATE BEST AND THE SECOND BEST METHOD
+
+.                        
+
+> λBase Novel Mean Harmonic
+> 0.2 74.50 45.53 60.02 56.52 0.4 74.43 45.66 60.05 56.60 0.6 74.80 46.13 60.47 57.07
+> 0.8 74.55 24.84 49.70 37.26 1.0 74.36 0.00 37.18 0.00
+
+TABLE IV ABLATION STUDY ON THE INFLUENCE OF HYPERPARAMETER β. BOLD 
+
+> AND UNDERLINED INDICATE BEST AND THE SECOND BEST METHOD
+
+.                        
+
+> βBase Novel Mean Harmonic
+> 0.1 73.05 45.31 59.18 55.93 0.3 74.47 46.11 60.29 56.95 0.5 74.95 45.79 60.37 56.85 0.7 74.80 46.13 60.47 57.07
+> 0.9 74.64 45.53 60.09 56.56
+
+enriching the visual diversity of synthesized novel samples provides broader appearance cues for downstream training, thereby improving generalization to novel classes. As further illustrated by the t-SNE visualization in Fig. 6, features extracted from HDIG-generated images exhibit broader and more diverse distributions than those obtained from class-only prompting, indicating improved coverage of intra-class appearance variations. 
+
+Effect of Mask Enhancement. As shown in Tab. II, the APE module (APF+APR) improves mask quality by exploiting support information in a progressive manner. Specifically, APF suppresses misaligned regions in the pseudo masks, improving novel mIoU from 43.47% to 44.46%. Building on this, APR further relabels these ambiguous regions through refined cor-respondences, boosting novel mIoU to 45.65% and improving 8−20 −10 0 10 20 30                  
+
+> −20
+> −10
+> 0
+> 10
+> 20
+> HDIG
+> Class-Only −30 −20 −10 010 20
+> −15
+> −10
+> −5
+> 0
+> 5
+> 10
+> 15
+> HDIG
+> Class-Only −30 −20 −10 010 20
+> −20
+> −10
+> 0
+> 10
+> 20 HDIG
+> Class-Only −20 −10 010 20 30
+> −30
+> −20
+> −10
+> 0
+> 10
+> 20 HDIG
+> Class-Only
+
+bicycle cow horse motorcycle −20 −15 −10 −5 0 5 10 15 20              
+
+> −20
+> −10
+> 0
+> 10
+> 20
+> 30
+> HDIG
+> Class-Only −20 −10 010 20 30
+> −10
+> −5
+> 0
+> 5
+> 10
+> 15
+> HDIG
+> Class-Only −20 −10 010 20
+> −20
+> −15
+> −10
+> −5
+> 0
+> 5
+> 10
+> 15
+> 20
+> HDIG
+> Class-Only −20 −10 010 20
+> −20
+> −15
+> −10
+> −5
+> 0
+> 5
+> 10
+> 15
+> HDIG
+> Class-Only
+
+pottedplant sheep.pdf sofa tv 
+
+Fig. 6. t-SNE visualization of pooled ResNet-50 features extracted from images generated by class-only prompts and HDIG for eight categories. TABLE V ABLATION STUDY ON THE INFLUENCE OF HYPERPARAMETER δ. BOLD 
+
+> AND UNDERLINED INDICATE BEST AND THE SECOND BEST METHOD
+
+.
+
+δ Base Novel Mean Harmonic 
+
+1 74.70 45.83 60.27 56.81 3 75.14 45.73 60.44 56.86 5 74.80 46.13 60.47 57.07 
+
+7 75.18 45.65 60.42 56.81 9 74.49 46.11 60.30 56.96 TABLE VI ABLATION STUDY ON THE INFLUENCE OF THE BACKBONE OF 
+
+MASK 2F ORMER . T HE BEST AND SECOND -BEST RESULTS FOR EACH SETTING ARE HIGHLIGHTED .            
+
+> Backbone Base Novel Mean Harmonic
+> ResNet50 74.80 46.13 60.47 57.07 ResNet101 75.41 46.83 61.12 57.78
+
+both mean and harmonic mIoU. These results indicate that APE effectively enhances mask precision and semantic con-sistency through support-guided filtering and relabeling. 
+
+Boundary Refinement with SABR. Incorporating SABR achieves the best overall performance, reaching 60.47% mean mIoU and 57.07% harmonic mIoU as shown in Tab. II. Compared with the variant without SABR, the results show that explicitly modeling boundary-aware spatial reasoning is beneficial for resolving local ambiguities around object con-tours. This suggests that SABR can effectively refine coarse mask boundaries and improve segmentation consistency across both base and novel classes. 
+
+Influence of the Hyperparameter λ. As shown in Tab. III, increasing λ from 0.2 to 0.6 consistently improves novel mIoU, peaking at 46.13%, while also yielding the best mean and harmonic mIoU. A single shared λ is used throughout the framework, which keeps the design simple and avoids separate tuning for different components. This indicates that an appropriate λ helps balance the contribution of synthesized in-formation and improves novel-class generalization. However, when λ is further increased, the performance drops sharply, reaching zero at λ = 1 .0, which suggests that overly large values may over-suppress useful information and severely damage generalization. Therefore, λ = 0 .6 provides the best trade-off in our setting. 
+
+Influence of the Hyperparameter β. The effect of β is reported in Tab. IV. As β increases from 0.1 to 0.7, novel-class performance consistently improves, achieving the best novel mIoU of 46.13% and harmonic mIoU of 57.07% at 
+
+β = 0.7. This suggests that moderate feature interaction facilitates more effective cross-class knowledge transfer and enables the model to better exploit support information. How-ever, when β becomes larger, the performance shows a slight decline, indicating that excessive interaction may introduce less beneficial feature mixing. Overall, β in the range of 0.5-0.7 yields stable and consistently strong results. 
+
+Influence of the Hyperparameter δ. As shown in Tab. V, the performance remains relatively stable across a wide range of δ, indicating that the proposed method is not highly sensitive to this parameter and exhibits good robustness to its variation. The best mean and harmonic mIoU are achieved at δ = 5 , while δ = 7 yields the highest base mIoU, demon-strating a mild trade-off between base and novel performance. Therefore, considering the overall balance among different metrics, we set δ = 5 in all experiments. 
+
+Influence of the Backbone. As shown in Tab. VI, replacing ResNet-50 with the deeper ResNet-101 backbone consistently improves performance across all metrics, indicating the gen-eral benefit of stronger feature extraction. In particular, novel mIoU increases from 46.13% to 46.83%, while mean mIoU 9
+
+and harmonic mIoU improve from 60.47% to 61.12% and from 57.07% to 57.78%, respectively. This suggests that a stronger backbone provides more discriminative feature repre-sentations and better captures fine-grained visual details, which is beneficial for downstream segmentation. At the same time, the performance gain remains moderate, indicating that our method does not heavily rely on backbone depth and still maintains strong effectiveness with a lighter architecture. V. C ONCLUSION AND LIMITATION 
+
+In this paper, we present Syn4Seg, a generation-enhanced framework for generalized few-shot semantic segmentation that alleviates limited novel-class coverage under scarce annotations. By integrating diffusion-based image synthesis with support-guided pseudo-label enhancement and boundary-aware refinement, Syn4Seg generates high-quality, class-consistent image–mask pairs to strengthen novel-class super-vision. Extensive experiments on PASCAL-5i and COCO-20 i
+
+demonstrate consistent gains in both 1-shot and 5-shot settings while maintaining strong base-class performance, highlighting synthetic data as a scalable solution for GFSS. 
+
+Future Work. Despite its promising performance, Syn4Seg has several limitations that warrant future investigation. First, the framework is inherently tied to the capabilities of the underlying generative and segmentation backbones, and may further benefit from continued progress in these foundation models. Second, although the prompt construction strategy promotes class-level diversity, it does not explicitly account for finer-grained factors, such as object pose, spatial configuration, or scene context. Third, the overall pipeline incurs additional offline computational cost due to large-scale synthesis and multi-stage pseudo-label refinement, motivating the develop-ment of more efficient generation and refinement schemes. Nevertheless, we believe that Syn4Seg provides a promising new perspective for GFSS, and that addressing these limita-tions offers valuable opportunities for future improvement. REFERENCES [1] M. Boudiaf, H. Kervadec, Z. I. Masud, P. Piantanida, I. Ben Ayed, and J. Dolz, “Few-shot segmentation without meta-learning: A good transductive inference is all you need?” in IEEE Conf. Comput. Vis. Pattern Recog. , 2021, pp. 13 979–13 988. [2] Z. Lu, S. He, X. Zhu, L. Zhang, Y.-Z. Song, and T. Xiang, “Simpler is better: Few-shot semantic segmentation with classifier weight trans-former,” in Int. Conf. Comput. Vis. , 2021, pp. 8741–8750. [3] Z. Lu, S. He, D. Li, Y.-Z. Song, and T. Xiang, “Prediction calibration for generalized few-shot semantic segmentation,” IEEE Trans. Image Process. , vol. 32, pp. 3311–3323, 2023. [4] S. Yang, L. Liu, and M. Xu, “Free lunch for few-shot learning: Distribution calibration,” arXiv preprint arXiv:2101.06395 , 2021. [5] J.-B. Alayrac, J. Donahue, P. Luc, A. Miech, I. Barr, Y. Hasson, K. Lenc, A. Mensch, K. Millican, M. Reynolds et al. , “Flamingo: a visual language model for few-shot learning,” Adv. Neural Inform. Process. Syst. , vol. 35, pp. 23 716–23 736, 2022. [6] S.-F. Peng, G. Sun, Y. Li, H. Wang, and G.-S. Xie, “Sam-aware graph prompt reasoning network for cross-domain few-shot segmentation,” in 
+
+AAAI , 2025, pp. 6488–6496. [7] Z. Tian, X. Lai, L. Jiang, S. Liu, M. Shu, H. Zhao, and J. Jia, “Generalized few-shot semantic segmentation,” in IEEE Conf. Comput. Vis. Pattern Recog. , 2022, pp. 11 563–11 572. [8] A. Nichol, P. Dhariwal, A. Ramesh, P. Shyam, P. Mishkin, B. McGrew, I. Sutskever, and M. Chen, “Glide: Towards photorealistic image gen-eration and editing with text-guided diffusion models,” arXiv preprint arXiv:2112.10741 , 2021. [9] R. Rombach, A. Blattmann, D. Lorenz, P. Esser, and B. Ommer, “High-resolution image synthesis with latent diffusion models,” in IEEE Conf. Comput. Vis. Pattern Recog. , 2022, pp. 10 684–10 695. [10] K. Tian, Y. Jiang, Z. Yuan, B. Peng, and L. Wang, “Visual autoregressive modeling: Scalable image generation via next-scale prediction,” Adv. Neural Inform. Process. Syst. , vol. 37, pp. 84 839–84 865, 2024. [11] T. Yin, M. Gharbi, T. Park, R. Zhang, E. Shechtman, F. Durand, and B. Freeman, “Improved distribution matching distillation for fast image synthesis,” Advances in neural information processing systems , vol. 37, pp. 47 455–47 487, 2024. [12] T. Zhang, G. Lin, J. Cai, T. Shen, C. Shen, and A. C. Kot, “Decoupled spatial neural attention for weakly supervised semantic segmentation,” 
+
+IEEE Trans. Multimedia , vol. 21, no. 11, pp. 2930–2941, 2019. [13] L. Zhou, C. Gong, Z. Liu, and K. Fu, “Sal: Selection and attention losses for weakly supervised semantic segmentation,” IEEE Trans. Multimedia ,vol. 23, pp. 1035–1048, 2020. [14] W. Liu, X. Kong, T.-Y. Hung, and G. Lin, “Cross-image region mining with region prototypical network for weakly supervised segmentation,” 
+
+IEEE Trans. Multimedia , vol. 25, pp. 1148–1160, 2021. [15] R. Xu, C. Wang, S. Xu, W. Meng, and X. Zhang, “Wave-like class ac-tivation map with representation fusion for weakly-supervised semantic segmentation,” IEEE Trans. Multimedia , vol. 26, pp. 581–592, 2023. [16] C. Yu, J. Wang, C. Peng, C. Gao, G. Yu, and N. Sang, “Learning a discriminative feature network for semantic segmentation,” in IEEE Conf. Comput. Vis. Pattern Recog. , 2018, pp. 1857–1866. [17] C. Wang, Y. Zhang, M. Cui, P. Ren, Y. Yang, X. Xie, X.-S. Hua, H. Bao, and W. Xu, “Active boundary loss for semantic segmentation,” in AAAI ,2022, pp. 2397–2405. [18] X. Li, X. Li, L. Zhang, G. Cheng, J. Shi, Z. Lin, S. Tan, and Y. Tong, “Improving semantic segmentation via decoupled body and edge supervision,” in Eur. Conf. Comput. Vis. , 2020, pp. 435–452. [19] T. Takikawa, D. Acuna, V. Jampani, and S. Fidler, “Gated-scnn: Gated shape cnns for semantic segmentation,” in Int. Conf. Comput. Vis. , 2019, pp. 5229–5238. [20] M. Zhen, J. Wang, L. Zhou, S. Li, T. Shen, J. Shang, T. Fang, and L. Quan, “Joint semantic segmentation and boundary detection using iterative pyramid contexts,” in IEEE Conf. Comput. Vis. Pattern Recog. ,2020, pp. 13 666–13 675. [21] X. Yin, D. Min, Y. Huo, and S.-E. Yoon, “Contour-aware equipotential learning for semantic segmentation,” IEEE Trans. Multimedia , vol. 25, pp. 6146–6156, 2022. [22] Q. Zhou, L. Wang, G. Gao, B. Kang, W. Ou, and H. Lu, “Boundary-guided lightweight semantic segmentation with multi-scale semantic context,” IEEE Trans. Multimedia , vol. 26, pp. 7887–7900, 2024. [23] A. Kirillov, E. Mintun, N. Ravi, H. Mao, C. Rolland, L. Gustafson, T. Xiao, S. Whitehead, A. C. Berg, W.-Y. Lo et al. , “Segment anything,” in Int. Conf. Comput. Vis. , 2023, pp. 4015–4026. [24] T. Sakai, H. Qiu, T. Katsuki, D. Kimura, T. Osogami, and T. Inoue, “A surprisingly simple approach to generalized few-shot semantic segmen-tation,” in Adv. Neural Inform. Process. Syst. , 2024, pp. 27 005–27 023. [25] M. R. I. Hossain, M. Siam, L. Sigal, and J. J. Little, “Visual prompting for generalized few-shot segmentation: A multi-scale approach,” in IEEE Conf. Comput. Vis. Pattern Recog. , 2024, pp. 23 470–23 480. [26] Y. Liu, X. Zhang, S. Zhang, and X. He, “Part-aware prototype network for few-shot semantic segmentation,” in Eur. Conf. Comput. Vis. , 2020, pp. 142–158. [27] B. Yang, C. Liu, B. Li, J. Jiao, and Q. Ye, “Prototype mixture models for few-shot semantic segmentation,” in Eur. Conf. Comput. Vis. , 2020, pp. 763–778. [28] J.-W. Zhang, Y. Sun, Y. Yang, and W. Chen, “Feature-proxy transformer for few-shot segmentation,” Adv. Neural Inform. Process. Syst. , vol. 35, pp. 6575–6588, 2022. [29] C. Zhang, G. Lin, F. Liu, J. Guo, Q. Wu, and R. Yao, “Pyramid graph networks with connection attentions for region-based one-shot semantic segmentation,” in Int. Conf. Comput. Vis. , 2019, pp. 9587–9595. [30] J. Min, D. Kang, and M. Cho, “Hypercorrelation squeeze for few-shot segmentation,” in Int. Conf. Comput. Vis. , 2021, pp. 6941–6952. [31] H. Wang, X. Zhang, Y. Hu, Y. Yang, X. Cao, and X. Zhen, “Few-shot semantic segmentation with democratic attention networks,” in Eur. Conf. Comput. Vis. , 2020, pp. 730–746. [32] M. Boudiaf, I. Ziko, J. Rony, J. Dolz, P. Piantanida, and I. Ben Ayed, “Information maximization for few-shot learning,” Adv. Neural Inform. Process. Syst. , vol. 33, pp. 2445–2457, 2020. [33] H. Zhu and P. Koniusz, “Transductive few-shot learning with prototype-based label propagation by iterative graph refinement,” in IEEE Conf. Comput. Vis. Pattern Recog. , 2023, pp. 23 996–24 006. 10 
+
+[34] X. Zhang, Y. Wei, Y. Yang, and T. Huang, “Sg-one: Similarity guid-ance network for one-shot semantic segmentation,” arXiv preprint arXiv:1810.09091 , 2018. [35] L. Qiao, Y. Shi, J. Li, Y. Wang, T. Huang, and Y. Tian, “Transductive episodic-wise adaptive metric for few-shot learning,” in Int. Conf. Comput. Vis. , 2019, pp. 3603–3612. [36] X. Li, T. Wei, Y. P. Chen, Y.-W. Tai, and C.-K. Tang, “Fss-1000: A 1000-class dataset for few-shot segmentation,” in IEEE Conf. Comput. Vis. Pattern Recog. , 2020, pp. 2869–2878. [37] Q. Fan, W. Pei, Y.-W. Tai, and C.-K. Tang, “Self-support few-shot semantic segmentation,” in Eur. Conf. Comput. Vis. , 2022, pp. 701–719. [38] Y. Liu, N. Liu, Q. Cao, X. Yao, J. Han, and L. Shao, “Learning non-target knowledge for few-shot semantic segmentation,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition ,2022, pp. 11 573–11 582. [39] W. Tan, S. Chen, and B. Yan, “Diffss: Diffusion model for few-shot semantic segmentation,” arXiv preprint arXiv:2307.00773 , 2023. [40] M. Zhu, Y. Liu, Z. Luo, C. Jing, H. Chen, G. Xu, X. Wang, and C. Shen, “Unleashing the potential of the diffusion model in few-shot semantic segmentation,” Adv. Neural Inform. Process. Syst. , vol. 37, pp. 42 672– 42 695, 2024. [41] Y. Liu, J. Han, X. Yao, S. Khan, H. Cholakkal, R. M. Anwer, N. Liu, and F. S. Khan, “Bidirectional reciprocative information communication for few-shot semantic segmentation,” in Int. Conf. Mach. Learn. PMLR, 2024, pp. 31 048–31 061. [42] J. Tong, R. Ma, Y. Zou, G. Chen, Y. Li, and R. Li, “Adapter naturally serves as decoupler for cross-domain few-shot semantic segmentation,” in Int. Conf. Mach. Learn. , vol. 267. PMLR, 2025, pp. 59 829–59 845. [43] Q. Xu, L. Zhu, X. Liu, G. Lin, C. Long, Z. Li, and R. Zhao, “Unlocking the power of SAM 2 for few-shot segmentation,” in Int. Conf. Mach. Learn. , vol. 267. PMLR, 2025, pp. 69 950–69 966. [44] S. Hajimiri, M. Boudiaf, I. Ben Ayed, and J. Dolz, “A strong baseline for generalized few-shot semantic segmentation,” in IEEE Conf. Comput. Vis. Pattern Recog. , 2023, pp. 11 269–11 278. [45] S. Liu, Y. Zhang, Z. Qiu, H. Xie, Y. Zhang, and T. Yao, “Learning orthogonal prototypes for generalized few-shot semantic segmentation,” 
+
+IEEE Conf. Comput. Vis. Pattern Recog. , pp. 11 319–11 328, 2023. [46] W. Liu, Z. Wu, Y. Zhao, Y. Fang, C.-S. Foo, J. Cheng, and G. Lin, “Harmonizing base and novel classes: A class-contrastive approach for generalized few-shot segmentation,” Int. J. Comput. Vis. , vol. 132, no. 4, pp. 1277–1291, 2024. [47] R.-Z. Qiu, Y.-X. Wang, and K. Hauser, “Aligndiff: aligning diffusion models for general few-shot segmentation,” in Eur. Conf. Comput. Vis. ,2024, pp. 384–400. [48] Z. An, G. Sun, Y. Liu, R. Li, J. Han, E. Konukoglu, and S. Belongie, “Generalized few-shot 3d point cloud segmentation with vision-language model,” in IEEE Conf. Comput. Vis. Pattern Recog. , 2025, pp. 16 997– 17 007. [49] C. Zhang, G. Lin, F. Liu, R. Yao, and C. Shen, “Canet: Class-agnostic segmentation networks with iterative refinement and attentive few-shot learning,” in IEEE Conf. Comput. Vis. Pattern Recog. , 2019, pp. 5217– 5226. [50] Z. Tian, H. Zhao, M. Shu, Z. Yang, R. Li, and J. Jia, “Prior guided feature enrichment network for few-shot segmentation,” IEEE Trans. Pattern Anal. Mach. Intell. , vol. 44, no. 2, pp. 1050–1065, 2020. [51] K. Wang, J. H. Liew, Y. Zou, D. Zhou, and J. Feng, “Panet: Few-shot image semantic segmentation with prototype alignment,” Int. Conf. Comput. Vis. , pp. 9196–9205, 2019. [52] B. Zhang, J. Xiao, and T. Qin, “Self-guided and cross-guided learning for few-shot segmentation,” IEEE Conf. Comput. Vis. Pattern Recog. ,pp. 8308–8317, 2021. [53] F. Cermelli, M. Mancini, S. R. Bul` o, E. Ricci, and B. Caputo, “Modeling the background for incremental learning in semantic segmentation,” 
+
+IEEE Conf. Comput. Vis. Pattern Recog. , pp. 9230–9239, 2020. [54] C. Lang, G. Cheng, B. Tu, and J. Han, “Learning what not to segment: A new perspective on few-shot segmentation,” IEEE Conf. Comput. Vis. Pattern Recog. , pp. 8047–8057, 2022. [55] B. Cheng, I. Misra, A. G. Schwing, A. Kirillov, and R. Girdhar, “Masked-attention mask transformer for universal image segmentation,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 2022, pp. 1290–1299. [56] K. Huang, F. Wang, Y. Xi, and Y. Gao, “Prototypical kernel learning and open-set foreground perception for generalized few-shot semantic segmentation,” Int. Conf. Comput. Vis. , pp. 19 199–19 208, 2023. [57] K. He, X. Zhang, S. Ren, and J. Sun, “Deep residual learning for image recognition,” IEEE Conf. Comput. Vis. Pattern Recog. , pp. 770–778, 2016. 
+
+Guohuan Xie is currently pursuing his B.E. degree at the College of Software, Nankai University, from 2022 to 2026. He is working with Prof. Yun Liu. His research interests include computer vision and machine learning. 
+
+Xin He received her B.E. and Ph.D. degrees from the School of Computer Science and Technology, China University of Mining and Technology in 2019 and 2025, respectively. Currently, she is a lecturer at the School of Computer Science and Engineering, Tian-jin University of Technology. Her research interests include computer vision and semantic segmentation for remote sensing images. 
+
+Dingying Fan is currently pursuing the B.E. degree at the College of Software, Nankai University, Tian-jin, China, where she is working with Prof. Yun Liu. Her research interests include computer vision, large language models, and multi-agent systems. 
+
+Le Zhang is a professor with the School of Informa-tion and Communication Engineering at the Univer-sity of Electronic Science and Technology of China (UESTC). He earned his Ph.D. degree from Nanyang Technological University (NTU) in 2016. Following his graduation, he served as a postdoctoral fellow at the Advanced Digital Sciences Center (ADSC) in Singapore from 2016 to 2018. His career continued to evolve as he took on the role of a research scientist at the Institute for Infocomm Research (I2R) under the Agency for Science, Technology, and Research (A*STAR), Singapore, where he worked from 2018 to 2021. His research primarily focuses on computer vision and machine learning. He is an associate editor of Neural Networks, Neurocomputing, and IET Biometrics. Additionally, he has been a guest editor for several journals, including IEEE Transactions on Neural Networks and Learning Systems, IEEE Transactions on Big Data, Pattern Recognition and so on. He has been honored with multiple paper awards, including the 2022 Norbert Wiener Review Award in IEEE/CAA J. Autom. Sinica, as well as the Best Paper Awards at the 2022 IEEE HPCC and IEEE ICIEA conferences. 
+
+Ming-Ming Cheng (Senior Member, IEEE) re-ceived the PhD degree from Tsinghua University, in 2012, and then worked with Prof. Philip Torr in Oxford for 2 years. Since 2016, he is a full professor at Nankai University, leading the Media Computing Lab. His research interests include com-puter vision and computer graphics. He received research awards, including ACM China Rising Star Award, IBM Global SUR Award, and CCF-Intel Young Faculty Researcher Program. He is a senior member of the IEEE and on the editorial boards of IEEE Transactions on Pattern Analysis and Machine Intelligence and IEEE Transactions on Image Processing. 11 
+
+Yun Liu received his B.E. and Ph.D. degrees from Nankai University in 2016 and 2020, respectively. Then, he worked with Prof. Luc Van Gool as a postdoctoral scholar at the Computer Vision Lab, ETH Zurich, Switzerland. After that, he worked as a senior scientist at the Institute for Infocomm Research (I2R), A*STAR, Singapore. Currently, he is a professor at the College of Computer Science, Nankai University. His research interests include computer vision and deep learning.

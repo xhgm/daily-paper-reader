@@ -1,0 +1,437 @@
+Title: Dual-Imbalance Continual Learning for Real-World Food Recognition
+
+URL Source: https://arxiv.org/pdf/2603.29133v1
+
+Published Time: Wed, 01 Apr 2026 00:26:36 GMT
+
+Number of Pages: 11
+
+Markdown Content:
+# Dual-Imbalance Continual Learning for Real-World Food Recognition 
+
+## Xiaoyan Zhang University of Michigan Ann Arbor, Michigan, U.S.A 
+
+xyzaxis@umich.edu 
+
+## Jiangpeng He Indiana University Bloomington, Indiana, U.S.A 
+
+jhe2@iu.edu 
+
+## Abstract 
+
+Visual food recognition in real-world dietary logging scenarios naturally exhibits severe data imbalance, where a small number of food categories appear frequently while many others occur rarely, resulting in long-tailed class dis-tributions. In practice, food recognition systems often op-erate in a continual learning setting, where new categories are introduced sequentially over time. However, existing studies typically assume that each incremental step intro-duces a similar number of new food classes, which rarely happens in real world where the number of newly observed categories can vary significantly across steps, leading to highly uneven learning dynamics. As a result, continual food recognition exhibits a dual imbalance : imbalanced samples within each food class and imbalanced numbers of new food classes to learn at each incremental learning step. In this work, we introduce DIME , a Dual-Imbalance-aware Adapter Me rging framework for continual food recogni-tion. DIME learns lightweight adapters for each task us-ing parameter-efficient fine-tuning and progressively inte-grates them through a class-count guided spectral merg-ing strategy. A rank-wise threshold modulation mechanism further stabilizes the merging process by preserving domi-nant knowledge while allowing adaptive updates. The re-sulting model maintains a single merged adapter for in-ference, enabling efficient deployment without accumulat-ing task-specific modules. Experiments on realistic long-tailed food benchmarks under our step-imbalanced setup show that the proposed method consistently improves by more than 3% over the strongest existing continual learn-ing baselines. Code is available at https://github. com/xiaoyanzhang1/DIME .
+
+## 1. Introduction 
+
+Food recognition plays an important role in real-world ap-plications, including dietary monitoring, health assessment, and medical nutrition management [21, 30]. In practical systems such as mobile dietary logging or clinical nutrition platforms, food images are continuously collected from di-verse users and environments [9, 42]. As new cuisines, 
+
+Figure 1. Illustration of the dual-imbalanced continual food recog-nition scenario. Tasks contain different numbers of classes (step imbalance), and each class has varying numbers of samples (long-tailed class distribution [32]). 
+
+brands, and preparation styles emerge over time, recogni-tion models must continuously incorporate new knowledge while preserving previously learned categories. These re-quirements naturally motivate the study of continual learn-ing for food recognition, where models learn from sequen-tial data streams without catastrophic forgetting. Recent works have explore continual learning in the food domain. Early studies [17, 47, 54] investigate incremental food classification under streaming data settings, enabling models to expand their recognition as new food categories appear. However, a key characteristic of real-world dietary data is that food consumption follows a highly long-tailed distribution. A small number of popular foods dominate daily intake, while many food categories appear only rarely. To better reflect this phenomenon, recent research intro-duced the long-tailed Food101, Visual Food Recognition (VFN) benchmark [18] and its population-specific exten-sions, VFN186-Insulin and VFN186-T2D, which capture dietary patterns from different health conditions and user groups [21]. These datasets highlight the importance of ad-dressing class imbalance in food recognition and motivate the study of long-tailed continual learning, where models must sequentially learn under skewed class distributions. Despite these advances, an important aspect of real-world food data remains underexplored. Existing con-tinual learning protocols typically assume balanced task structures, where each step contains a similar number of categories and follows a uniform learning schedule, al-though recent work has begun to explore more general step-
+
+> arXiv:2603.29133v1 [cs.CV] 31 Mar 2026
+
+imbalanced settings [58]. Such settings simplify training dynamics but deviate from practical food streams, which are often highly irregular. In real-world scenarios, food datasets are inherently long-tailed at the class level, with a small number of frequent categories dominating the data while many others remain rare. Moreover, when construct-ing incremental tasks, categories are introduced over time in a non-uniform manner, producing substantial variation in class distributions across steps. As a result, real-world con-tinual food recognition exhibits a dual imbalance : (i) class imbalance, characterized by long-tailed class distributions across the whole dataset, and (ii) step imbalance, where the number of classes varies across incremental steps, as illus-trated in Figure 1. While prior studies in food continual learning mainly address the former, the joint effect of these two imbalance factors remains largely unexplored. In this work, we study continual food recognition under this more realistic dual-imbalanced learning scenario. The main chal-lenge arises from asymmetric learning dynamics caused by skewed data distributions: head food categories and large steps provide relatively stable gradients, whereas tail cate-gories and small steps generate noisy and high-variance up-dates that easily disrupt previously learned representations. To address this issue, we propose a lightweight and parameter-efficient continual learning framework tailored for food data streams. To mitigate the bias caused by long-tailed food distributions, we adopt Balanced Softmax train-ing [41] as the base learning objective. Building upon this, we introduce a class-count aware spectral merging strat-egy that integrates newly learned knowledge with histori-cal representations in a controlled manner. During merg-ing, a rank-wise threshold modulation mechanism selec-tively preserves stable knowledge derived from head classes and large steps while allowing adaptive updates from small steps. The resulting model maintains a single merged adapter for inference, ensuring efficient deployment with-out accumulating task-specific modules. We conduct exten-sive experiments on four realistic long-tailed food bench-marks, including VFN186-LT, VFN186-Insulin, VFN186-T2D [21], and Food101-LT [18], under step-imbalance pro-tocols that simulate irregular real-world data streams. Our approach achieves state-of-the-art performance across mul-tiple evaluation metrics, including final accuracy ( AT ), av-erage accuracy ( ¯A), and the weighted average accuracy (w ¯A) introduced to better evaluate performance under step-imbalanced learning scenarios. Comprehensive ablation studies further validate the effectiveness of each proposed component, while additional analyses demonstrate the effi-ciency of the framework and highlight its practical potential for real-world continual food recognition systems. Our con-tributions are summarized as follows: • We formulate a realistic continual food recognition sce-nario with dual imbalance , capturing both long-tailed class distributions across the dataset and imbalanced class counts across incremental steps. • We propose DIME, a parameter-efficient continual learn-ing framework that integrates class-count guided adapter merging with rank-wise threshold modulation, enabling stable knowledge integration under dual imbalance while maintaining a single merged adapter for inference. • We conduct extensive experiments on long-tailed food datasets under step-imbalance protocols. The results show consistent improvements over strong baselines and validate the effectiveness of the proposed components. 
+
+## 2. Related Work 
+
+2.1. Visual Food Recognition 
+
+Visual food recognition has evolved significantly from early hand-crafted feature methods [2, 4, 26] to deep represen-tation learning [21, 34, 63]. While early methods fo-cused on low-level color and texture, deep neural net-works like CNNs [27] and Vision Transformers (ViTs) [11] now dominate by automatically learning high-level seman-tic features [31]. Recent advancements further incorpo-rate pretrained models and Parameter-Efficient Fine-Tuning (PEFT) [52, 55] to capture fine-grained dish-ingredient re-lationships. Despite these advances, visual food recognition remains inherently challenging due to high inter-class sim-ilarity, where distinct categories may appear visually simi-lar, and substantial intra-class variability caused by diverse cooking methods, ingredients, and plating styles [4, 20, 35]. Moreover, food categories are continuously evolving as new dishes and dietary habits emerge, making continual learning a natural framework for scalable food recognition systems. 
+
+2.2. Class Incremental Learning 
+
+Class Incremental Learning (CIL) [62] aims to enable mod-els to learn from a sequence of tasks while retaining previ-ously acquired knowledge, mitigating the problem of catas-trophic forgetting [36]. Early CIL methods can be broadly categorized into three groups: regularization-based [1, 23, 28], rehearsal-based [5, 25, 40, 43], and architecture-based approaches [7, 24, 53]. With the emergence of powerful pretrained models (PTMs) [11, 39], recent continual learn-ing research increasingly leverages pretrained representa-tions for improved efficiency and scalability [22, 60]. In-stead of training models from scratch, PTM-based CIL typ-ically adapts pretrained features through lightweight mech-anisms while keeping the backbone largely frozen. Prompt-based methods introduce learnable prompts to guide the pretrained model for new tasks without modifying the back-bone parameters [44, 50, 51]. Adapter-based methods in-sert lightweight modules such as LoRA layers or MLP adapters into transformer blocks to incrementally acquire task-specific knowledge while preserving the pretrained representation [19, 29, 46, 48, 49, 61]. These approaches provide strong parameter efficiency and have become a dominant paradigm for PTM-based continual learning. 
+
+2.3. Long-Tailed and Imbalanced Learning 
+
+Real-world visual recognition tasks often follow a long-tailed distribution, where a small number of classes con-tain abundant samples while many others have only a few [56, 59]. Existing work can be broadly categorized into two groups. Re-sampling methods construct a more balanced training batch by adjusting the numbers of sam-ples in minority classes or majority classes [6, 12, 33]. Re-weighting approaches balance the contribution of differ-ent classes by modifying the loss or gradient during train-ing, such as Balanced Softmax [41] and Influence-balance loss [38]. Handling data imbalance is particularly impor-tant in food recognition. Dietary habits are inherently dy-namic and vary across seasons, health conditions, and cul-tural contexts, leading to naturally skewed data distributions [8, 13, 15]. Recent studies have begun exploring long-tailed food recognition and constructing realistic datasets that follow such distributions, including long-tailed food benchmarks such as VFN-LT [21]. Some works have fur-ther attempted to combine long-tailed learning with contin-ual learning to address class imbalance in sequential set-tings [3, 17, 21]. However, these approaches typically as-sume a relatively fixed task structure where each task con-tains a similar number of categories. In practice, both the number of samples within a class and the number of cate-gories introduced across tasks may vary significantly. This motivates a more realistic setting that simultaneously con-siders two types of imbalance: class imbalance within the dataset and step imbalance across tasks. 
+
+## 3. Setup: Dual-Imbalance Class-Incremental Learning 
+
+We consider a class-incremental learning (CIL) scenario where the model learns from a sequence of tasks while retaining knowledge of previously observed classes. Un-like standard CIL settings, we focus on a more realistic data stream exhibiting dual imbalance , which includes both class-level imbalance within the whole dataset and step-level imbalance across tasks. Let {D 1, D2, . . . DT } denote a sequence of training datasets arriving in T incremental steps. Each dataset 
+
+Dt = {(xi, y i)}Nt 
+
+> i=1
+
+contains Nt training samples, where 
+
+xi is an input image and yi is its corresponding food cate-gory label. The set of classes introduced at step t is denoted as Ct, and the classes are mutually exclusive across steps: 
+
+Ci ∩ C j = ∅, i̸ = j. At step t, the learner only has access to the current dataset Dt and must update the model to rec-ognize all classes C1: t = Stk=1 Ck observed so far. During inference, the model predicts labels over the entire accumu-lated class set C1: t without knowing the task identity. 
+
+Class Imbalance. Food recognition datasets exhibit a long-tailed distribution, where a small number of classes contain abundant samples while many others have only a few [21]. Such distributions are commonly observed in real-world datasets and have been explicitly modeled in long-tailed food recognition benchmarks. Formally, let nc denote the total number of samples belonging to class c in the entire dataset. In a long-tailed distribution, nchead ≫ nctail , where 
+
+chead and ctail represent frequent and rare food categories, respectively. Note that this imbalance is defined over the global class distribution rather than within individual tasks. As a result, the sequence of tasks may inherit this skewed distribution as new classes are incrementally introduced. 
+
+Step Imbalance. In addition to class-level imbalance, the number of classes introduced at each incremental step may also vary substantially. Let |C t| denote the number of classes observed at step t. We refer to this phenomenon as step imbalance , where task sizes follow a skewed dis-tribution across the learning sequence [58]. To control the degree of imbalance, we introduce a step imbalance fac-tor ρ ∈ (0 , 1] . We define a sequence of step propor-tions as st = ρ t−1  
+
+> T−1
+
+, t = 1 , . . . , T , where earlier steps contain larger proportions and therefore more classes (i.e., 
+
+S1 ≥ S2 ≥ · · · ≥ ST when ρ is small). To avoid introduc-ing an artificial curriculum where tasks always appear from head to tail, we randomly permute the task order to pro-duce the final class sequence |C 1|, |C 2|, . . . , |C T |. This pro-cedure preserves overall imbalance while allowing tasks of different scales to appear at arbitrary positions in the learn-ing stream. Together, these two factors define the dual-imbalance setting studied in this work. Class imbalance arises from the global long-tailed distribution of categories, where 
+
+nchead ≫ nctail . Step imbalance further introduces het-erogeneity across incremental steps by allocating different numbers of classes to each task, where St ∝ st. Conse-quently, both the class frequency distribution and the task sizes across the learning sequence become highly skewed, forming a more realistic continual learning scenario. 
+
+## 4. Method 
+
+Figure 2 presents the overall pipeline of the proposed frame-work. Starting from a pretrained backbone, we attach a lightweight adapter that is trained for each learning step using Balanced Softmax described in Section 4.2 to han-dle long-tailed food supervision. After finishing a step, the newly trained adapter is integrated into the accumulated model through class-count aware spectral merging strategy as introduced in Section 4.3. A rank-wise threshold mod-ulation mechanism in Section 4.4 further modulates up-dates along singular directions to preserve stable knowl-edge while allowing flexibility for small tasks. The result-!"
+
+!#$"
+
+!#%"
+
+!#  
+
+> Time
+> . . .
+> Pretrained
+> Backbone
+> Adapter
+> &"
+> Adapter
+> &'
+> Adapter
+> &#
+> Adapter
+> &#%"
+> . . .
+> Classifier Classifier Classifier Classifier
+> Base
+> Adapter
+> ()
+> Accumulated
+> from previous
+> steps
+> New
+> Adapter
+> (#
+> New adapter
+> learned at
+> current steps
+> Class -Count
+> Aware
+> Spectral
+> Merging
+> Merged
+> Adapter
+> (*+,-+
+> Inference
+> Single adapter for
+> all seen classes
+> New Base
+> Adapter
+> ()
+> .
+> Module 1: Balanced Softmax Loss
+> Handle long -tailed class distribution
+
+Module 2: Spectral Merging                                           
+
+> ()
+> (#
+> ()
+> (#
+> T
+> Concatenate matrices
+> /=()(#
+> Perform Singular
+> Value Decomposition
+> /=1Σ34
+> 1Σ34
+> Module 3: Class -count Weighting
+> 56=789:
+> 789: +7<+=
+> 5#=7<+=
+> 789: +7<+=
+> 3>9+<: =56·+5#·3)3#
+> Large task contributes stronger updates
+> Module 4: Rank -wise Threshold Modulation
+> @"≥@'≥⋯≥@C
+> Head directions
+> Tail directions
+> Small update
+> coefficient DE+F:
+> Big update
+> coefficient DGFH9
+> 3IH<F9 =3)+J⨀∆341Σ
+> Reconstructed
+> merged adapter
+> (*+,-+ =1Σ3IH<F9
+> 4
+> (a) Original training and merging pipeline (b) Method details
+> Unequal task size ̃
+> NO=NO+log SO
+
+Frozen  
+
+> (
+> Without
+> task -specific routing
+> Module 3 Module 2
+> Module 4
+
+Figure 2. Overview of DIME. (a) Sequential food datasets are learned with lightweight adapters on a frozen backbone using Balanced Softmax. After each step, the new adapter is merged with the accumulated base adapter to produce a unified model. (b) The merging module performs spectral alignment via SVD, class-count guided weighting, and rank-wise threshold modulation. 
+
+ing merged adapter becomes the base model for subsequent steps and is used as the unified model during inference. 
+
+4.1. Preliminary 
+
+To ensure parameter-efficient learning while mitigating the risk of catastrophic forgetting, we employ a pre-trained Vi-sion Transformer (ViT) as the fixed feature extractor B. In the context of visual food recognition, the backbone pro-vides a rich, general-purpose representation of visual tex-tures and structures. To specialize this knowledge for se-quential food data, we incorporate lightweight bottleneck adapters into the Feed-Forward Network (FFN) of each Transformer block. For a given input feature xin within a Transformer layer, the adapter module introduces a residual bottleneck trans-formation. The forward pass of the adapter can be mathe-matically formulated as follows: 
+
+xout = xin + s · (Wup · σ(Wdown · LN (xin ))) (1) where LN (·) denotes Layer Normalization, and Wdown ∈
+
+Rd× ˆd and Wup ∈ R ˆd×d are the down-projection and up-projection linear layers, respectively. To achieve signifi-cant parameter reduction, the bottleneck dimension ˆd is set much smaller than the original embedding dimension d (i.e., 
+
+ˆd ≪ d). The term σ(·) represents a non-linear activation function, and s is a scaling factor that modulates the contri-bution of the adapter’s residual branch. In our sequential learning scenario, the pre-trained back-bone parameters are kept frozen to preserve the fundamental visual knowledge required for food analysis. For each new task t in the data stream, a task-specific set of adapter pa-rameters θt is initialized. During the training phase of task 
+
+t, only θt and the task-specific classifier head are optimized, while the backbone remains fixed. This architectural design provides two important proper-ties. First, the task-specific adapters enable rapid adaptation to newly introduced food categories and diverse cooking styles. Second, freezing the backbone preserves the general visual representations learned during pretraining, prevent-ing representational drift across sequential tasks. 
+
+4.2. Intra-task Balanced Optimization 
+
+When training on sample-imbalanced streams, a standard Cross-Entropy (CE) loss tends to be dominated by these head categories [37]. The model effectively learns a majority-rule bias, where it achieves low global loss by over-fitting to frequent items while essentially ignoring the rare food categories. This leads to a degradation in recog-nition performance for niche dietary items, which are often just as nutritionally relevant as staples. To mitigate this bias and ensure a fair learning pro-cess across all food types, we adopt the Balanced Softmax strategy [41]. This approach explicitly incorporates class-frequency priors directly into the softmax computation to level the playing field. For a specific class y, given its pre-dicted logit zy from the classifier, the adjusted logit ˜zy is computed as: 
+
+˜zy = zy + log πy (2) In this formulation, πy denotes the empirical frequency of class y within the current training task. By adding the log-prior log πy to the raw logits, the loss function effectively penalizes over-confidence in head classes and encourages the model to assign higher importance to rare food cate-gories during the optimization process. 
+
+4.3. Class-Count Aware Spectral Merging 
+
+In the dual-imbalanced continual food recognition setting, different learning steps may contain drastically different amounts of information. Large steps often provide stable updates dominated by more food categories, while small steps introduce noisy gradients due to limited food classes. Directly merging model parameters from different steps can therefore lead to destructive interference. To address this issue, we adopt an alignment-then-merge strategy inspired by KnOTS [45]. The key idea is to first align the representations of two adapters in a shared low-rank spectral space using singular value decomposi-tion (SVD) and then perform merging in this space. While KnOTS was designed for LoRA updates, we extend the same principle to MLP-style adapter layers by applying the alignment procedure to each adapter parameter matrix. 
+
+Spectral Merging. Let MB denote the parameter matrix of the base adapter accumulated from previous steps, and 
+
+Mt denote the adapter learned at the current step. Following the alignment idea of KnOTS [45], we first concatenate the two matrices along the column dimension 
+
+X = [ MB Mt], X = U ΣV ⊤. (3) The decomposition defines a shared orthogonal basis U that captures the principal directions of both adapters. In this ba-sis, the coefficient matrix V ⊤ contains the representations of MB and Mt in the aligned coordinate system. Specifi-cally, V ⊤ can be split into two parts corresponding to the two adapters 
+
+V ⊤ = [ V ⊤ 
+
+> B
+
+V ⊤ 
+
+> t
+
+], (4) where V ⊤ 
+
+> B
+
+and V ⊤ 
+
+> t
+
+represent the coordinates of MB and 
+
+Mt in the shared SVD space. Compared with directly aver-aging parameters, performing merging in the aligned SVD space allows updates from different learning steps to inter-act along consistent principal directions, improving stability under highly imbalanced task sizes. 
+
+Class-Count Weighting. After alignment, we combine the two representations in the shared spectral space. Let 
+
+Cold denote the number of previously learned classes and 
+
+Cnew the number of newly introduced classes at the current step. We define merging weights 
+
+wb = Cold 
+
+Cold + Cnew 
+
+, wt = Cnew 
+
+Cold + Cnew 
+
+. (5) Using these weights, we compute a blended representation 
+
+V ⊤ 
+
+> blend
+
+= wbV ⊤ 
+
+> B
+
++ wtV ⊤ 
+
+> t
+
+. (6) 
+
+4.4. Rank-Wise Threshold Modulation 
+
+While the SVD alignment provides a shared representation space and the class-count guided rule determines the rela-tive contribution of different steps, directly replacing V ⊤
+
+> B
+
+with V ⊤ 
+
+> blend
+
+may still lead to suboptimal knowledge integra-tion. In particular, directions corresponding to dominant visual patterns should remain stable, while less significant directions should retain flexibility to accommodate newly emerging food categories. To address this issue, we introduce the threshold modu-lation that modulates the update applied along each singular direction according to its importance. After SVD decompo-sition, the singular values provide an ordered measure of energy in the aligned representation space. Directions asso-ciated with larger singular values typically capture stronger variations in food appearance, often reflecting prominent visual characteristics such as common color distributions, texture patterns, or coarse structural cues of dishes. Pre-serving these high-energy directions helps maintain stable representations for frequently observed foods. In contrast, directions with smaller singular values correspond to lower-energy components that can remain more adaptable to cap-ture finer appearance variations, enabling the model to in-corporate new visual patterns without disrupting previously learned representations. We compute the update relative to the base adapter as 
+
+∆V ⊤ = V ⊤ 
+
+> blend
+
+− V ⊤ 
+
+> B
+
+. Let Σ = diag (σ1, . . . , σ r ) de-note the singular values obtained from the decomposition of the concatenated matrix. To regulate updates along dif-ferent directions, we introduce a rank-based gating mask 
+
+G = [ g1, . . . , g r ]⊤ where 
+
+gi =
+
+(
+
+γhead , i ≤ rh
+
+γtail , i > r h, (7) with rh denoting the head-rank threshold and γhead , γ tail 
+
+controlling the update strength for dominant and minor directions, respectively. The final representation in the aligned SVD space is then computed as 
+
+V ⊤ 
+
+> final
+
+= V ⊤ 
+
+> B
+
++ G ⊙ ∆V ⊤, (8) where ⊙ denotes element-wise multiplication applied row-wise. Finally, the merged adapter is reconstructed in the original parameter space using the shared SVD basis 
+
+Mmerge = U ΣV ⊤
+
+> final
+
+. (9) This mechanism is beneficial in the dual-imbalanced food learning scenario. Large steps usually produce stronger dominant directions in the SVD spectrum, while smaller steps contribute weaker but potentially useful vari-ations. The proposed gating strategy stabilizes dominant structures while preserving sufficient flexibility for integrat-ing information from rare food categories and small tasks. 
+
+4.5. Training and Inference 
+
+At each learning step t, a task-specific adapter θt is trained on the current food dataset using the Balanced Softmax ob-jective while keeping the pretrained backbone fixed. Af-ter training is completed, the newly learned adapter is in-tegrated into the existing model using the proposed SVD alignment and class-count guided merging strategy with threshold modulation. The merged result is stored as the updated base adapter, which accumulates knowledge across learning steps without increasing the number of parameters used during inference. During inference, the model uses only the single merged adapter obtained from the sequen-tial merging process. This design avoids storing or select-ing multiple task-specific adapters and therefore provides a more efficient deployment compared with approaches that maintain separate adapters for each task. 
+
+## 5. Experiments 
+
+5.1. Experimental Setups 
+
+Datasets We evaluate the proposed method on four food recognition benchmarks: VFN186-LT, VFN186-Insulin, VFN186-T2D [21], and Food101-LT [18]. The VFN se-ries datasets reflects real-world dietary consumption pat-terns across different populations and VFN186-Insulin and VFN186-T2D exhibit natural long-tailed class distributions. The distributions of food categories differ across these datasets, making them suitable for evaluating continual food recognition under realistic conditions. In addition, we in-clude Food101-LT, a widely used long-tailed food bench-mark derived from Food101 [4], to further evaluate the gen-eralization of our method. Following the protocol in Sec-tion 3, each dataset is partitioned into incremental steps with varying imbalance ratio ρ to simulate step imbalance. 
+
+Baselines. We compare the proposed method with sev-eral representative continual learning approaches, includ-ing SLCA [57], FeCAM [16], InfLoRA [29], EASE [61], SEMA [48], CL-LoRA [19], ACMap [14], MOS [46], and TUNA [49]. These methods cover a variety of strate-gies such as parameter-efficient adaptation, prototype-based classification, and adapter merging for continual learning. All baselines are evaluated under the same experimental protocol for fair comparison. 
+
+Implementation Details. Our implementation is based on the PyTorch framework. We adopt ViT-B/16 [11] pre-trained on ImageNet-21K [10] as the backbone network. The model is trained for 20 epochs using the SGD opti-mizer with a learning rate of 0.07, weight decay of 0.0005, and a batch size of 16. For the adapter module, we employ an MLP adapter with a hidden dimension of 64. All experi-ments are conducted on a single NVIDIA L40S GPU. 
+
+Evaluation Metrics. Following standard CIL evaluation protocols, we report the final accuracy AT , which measures the classification accuracy on all classes after the final learn-ing step, and the average accuracy ¯A across all steps: 
+
+¯A = 1
+
+T
+
+> T
+
+X
+
+> t=1
+
+At,
+
+where At denotes the accuracy evaluated on the accumu-lated class set after completing step t.Under step-imbalanced settings, however, the number of classes per task can vary substantially. In this case, earlier tasks with only a few classes are typically easier and their 
+
+At can dominate the simple average ¯A. As a complemen-tary analysis, we additionally introduce the weighted aver-age accuracy w ¯A to more fairly evaluate the overall perfor-mance under step-imbalance settings, where the number of classes per task varies within the same dataset and fixed task number T . It is defined as: 
+
+w ¯A =
+
+PTt=1 wtAt
+
+PTt=1 wt
+
+, wt =
+
+Pti=1 |Ci|
+
+(Ct )/T , (10) where C = PTi=1 |Ci| is the total number of classes. When 
+
+|Ci| = |Cj | for all i, j ≤ t, each wt = 1 and w ¯A reduces to the standard average accuracy ¯A [40]. Intuitively, w ¯A
+
+assigns larger weights to stages where more classes have been accumulated, and thus provides an alternative view of overall performance under step-size imbalance. 
+
+5.2. Main Results 
+
+Table 1 presents the overall performance comparison with competitive continual learning methods on four food recog-nition benchmarks with imbalance ratio ρ = 0 .01 . DIME consistently achieves the best results across all evaluation metrics, including last-task accuracy ( AT ), average accu-racy ( ¯A), and the weighted average accuracy ( w ¯A). On VFN186-LT, our method achieves an AT of 69 .07% , out-performing the strongest baseline TUNA by 2.88% and ACMap by 3.28% . On ¯A and w ¯A, DIME further achieves 
+
+76 .58% and 75 .55% respectively. On the population-specific datasets VFN186-Insulin and VFN186-T2D, our approach also demonstrates consistent advantages. For ex-ample, on VFN186-Insulin, DIME improves AT with a gain of 3.12% over the previous best method. On the large-scale Food101-LT benchmark, DIME also demonstrates strong performance, achieving consistent improvements of around 
+
+2% over the strongest baseline across all evaluation metrics. Figure 3 further compares performance under different step-imbalance ratios ρ on the VFN186-LT and Food101-LT. Across all imbalance settings, DIME consistently achieves the best accuracy throughout the learning se-quence. Notably, the advantage becomes more pronounced when the imbalance becomes more severe. For example, under ρ = 0 .001 , DIME achieves 69 .33% and 78 .13% af-ter the final task on VFN186-LT and Food101-LT respec-tively, outperforming the strongest baseline by 2.73% and 
+
+4.11% . In addition, the performance curves of DIME re-main smoother and more stable across tasks. This trend becomes particularly evident when ρ = 0 .001 , where the imbalance is most severe. Under this setting, some baseline exhibit pronounced fluctuations due to drastic variations in Datasets VFN186-LT VFN186-Insulin VFN186-T2D Food101-LT 
+
+Evaluation Metrics AT ¯A w ¯A AT ¯A w ¯A AT ¯A w ¯A AT ¯A w ¯A
+
+SLCA [57] 63.07 70.94 70.30 63.10 73.11 71.59 63.74 73.19 72.15 72.35 80.25 79.53 InfLoRA [29] 51.49 62.10 60.99 51.83 62.64 62.02 52.58 62.95 61.91 57.80 72.23 70.84 EASE [61] 64.86 73.87 72.75 65.11 74.08 72.92 65.62 75.50 74.25 68.00 78.10 77.01 SEMA [48] 46.22 58.78 57.68 43.45 58.50 57.97 45.17 60.16 59.69 43.88 60.88 60.11 CL-LoRA [19] 60.40 72.53 71.68 60.57 74.09 72.89 58.84 72.83 71.19 55.82 72.48 71.47 ACMap [14] 65.79 74.23 73.46 66.22 74.52 74.58 67.07 75.18 74.23 72.37 81.88 80.98 MOS [46] 65.78 72.91 72.34 65.64 73.46 72.64 66.63 74.11 73.30 74.31 81.74 80.78 TUNA [49] 66.19 74.42 73.43 66.28 74.97 73.88 67.32 76.17 74.29 75.00 82.60 81.98 DIME (Ours) 69.07 76.58 75.55 69.40 77.00 75.93 69.88 77.48 76.47 77.01 84.10 83.77 
+
+Table 1. Last task accuracy ( AT ), average accuracy ( ¯A), and weighted average accuracy ( w ¯A) on VFN186-LT, VFN186-Insulin, VFN186-T2D, and Food101-LT with ρ = 0 .01 . Results are averaged over 5 runs. The best results are in bold and the second-best results are underlined. VFN186 -LT, ! = 0.1 VFN186 -LT, ! = 0.05 VFN186 -LT, ! = 0.01 VFN186 -LT, ! = 0.001                
+
+> Food101 -LT, !=0.1Food101 -LT, !=0.05 Food101 -LT, !=0.01 Food101 -LT, !=0.001
+
+Figure 3. Performance comparison under different step-imbalance ratios ρ on VFN186-LT and Food101-LT with T = 10 incremental steps. Our method consistently achieves higher and more stable performance across tasks under all imbalance settings. 
+
+task sizes, whereas DIME maintains a much more stable trajectory. Consequently, DIME also achieves a higher w ¯A,suggesting that the proposed merging and gating strategy effectively mitigates interference caused by highly imbal-anced data streams. 
+
+Task-Size Analysis To further analyze the effect of step-level imbalance, we report the performance on large, mid-dle, and small tasks at the final step. Tasks are grouped ac-cording to the number of classes contained in each step, and we report the class-weighted average accuracy to mitigate bias caused by different task sizes. Results on VFN186-T2D and Food101-LT with ρ = 0 .01 are shown in Table 2. Our method achieves the best performance on large tasks across both datasets, reaching 69 .37% on VFN186-T2D and 
+
+77 .40% on Food101-LT, indicating its strong ability to pre-serve knowledge from large tasks and prevent them from being disrupted by subsequent smaller ones. On small tasks, our method remains competitive with the best-performing approaches, suggesting that it can still effectively incorpo-Datasets VFN186-T2D Food101-LT                                                             
+
+> Evaluation Metrics Large Middle Small Large Middle Small SLCA [57] 57.47 69.45 67.64 73.32 74.01 70.9 InfLoRA [29] 57.57 43.65 22.91 67.55 52.39 16.00 EASE [61] 64.75 68.00 71.64 59.96 77.89 81.4 SEMA [48] 42.87 44.76 31.27 46.51 59.06 25.30 CL-LoRA [19] 49.85 57.93 76.36 46.45 70.67 72.7
+> ACMap [14] 63.18 69.59 72.00 46.45 70.67 72.7
+> MOS [46] 65.57 68.76 65.45 72.36 79.05 63.90 TUNA [49] 68.62 65.66 37.82 71.81 81.62 70.5 DIME (Ours) 69.37 70.97 73.09 77.40 80.32 72.00
+
+Table 2. Task-wise accuracy on large, middle, and small tasks on VFN186-T2D and Food101-LT. The best results are in bold and the second-best results are underlined. 
+
+rate knowledge from small tasks without sacrificing the sta-bility of larger ones. In addition, our method also performs well on middle-sized tasks, demonstrating a balanced abil-ity to handle tasks of different scales under step-imbalanced continual learning. 
+
+5.3. Ablation Study 
+
+We conduct ablation studies to analyze the contribution of each component in the proposed framework. Table 3 re-Variant SM CCW RTM BSM VFN186-Insulin                             
+
+> ATw ¯A
+> Base (Direct Merge) (Equal Weight) (CE) 66.73 74.90 + SM ✓(Equal Weight) (CE) 67.20 74.95 + CCW ✓✓(CE) 67.95 76.68 + RTM ✓✓✓(CE) 68.68 77.67 + BSM ✓✓✓✓69.31 78.07
+
+Table 3. Step-by-step ablation study on VFN186-Insulin. The best results are in bold .                        
+
+> Method Inference Time (s) ↓FLOPs (G) ↓Accuracy (%) ↑
+> MOS 89.15 372.27 65.70 ACMap 10.01 33.73 64.52 EASE 74.67 335.64 65.35 SEMA 9.16 33.84 39.61 CL-LoRA 80.90 335.82 49.87 DIME (Ours) 9.50 33.73 68.49
+
+Table 4. Efficiency comparison between adapter-based continual learning methods. The best results are in bold and the second-best results are underlined. 
+
+ports step-by-step results on VFN186-Insulin. Starting from the base configuration, incorporating spectral merging (SM) improves the performance from 66 .73% to 67 .20% , indicat-ing that aligning task adapters helps reduce conflicts across tasks. Adding class-count weighting (CCW) further boosts the performance to 67 .95% , showing the benefit of account-ing for step-level imbalance during adapter merging. In-troducing rank-wise threshold modulation (RTM) brings an additional improvement to 68 .68% , suggesting that selec-tively preserving dominant directions can stabilize knowl-edge integration. Finally, combining Balanced Softmax (BSM) addresses the long-tailed class distribution, achiev-ing the best performance of 69 .31% . Overall, each compo-nent contributes to the performance improvement, demon-strating the effectiveness of the proposed framework for handling both step imbalance and class imbalance. 
+
+5.4. Discussion 
+
+Efficiency. Table 4 compares the inference efficiency of different adapter-based continual learning methods. DIME achieves the highest accuracy while maintaining inference cost comparable to lightweight approaches such as ACMap and SEMA. In contrast, several adapter-based methods in-cluding MOS, EASE, and CL-LoRA incur substantially higher inference cost due to the need to maintain multi-ple task-specific adapters. These results demonstrate that DIME achieves a favorable accuracy–efficiency trade-off, effectively improving performance without introducing ad-ditional inference overhead. 
+
+Sensitivity. We analyze the sensitivity of the proposed threshold modulation mechanism to the head-direction ra-tio rh, which determines the proportion of singular direc-tions treated as important. As shown in Figure 4a, the per-formance first improves and then gradually saturates as rh
+
+increases. When rh is too small, only a few directions are protected, making the model more prone to forgetting previously learned knowledge. Increasing rh helps pre-serve dominant directions and improves stability. However, !"    
+
+> #̅ % (%)
+> %& (%)
+> #̅%
+> %&
+> (a) Sensitivity to the head-direction ratio
+> rh.!"#$%
+> !&$'(
+> (b) Sensitivity to the protection coefficients γhead and γtail .
+
+Figure 4. Sensitivity analysis of rank-wise threshold parameters. 
+
+overly large values lead to overly conservative updates, lim-iting the integration of new knowledge. These results sug-gest that a moderate head-direction ratio achieves the best balance between knowledge preservation and adaptation. We further analyze the influence of the protection coef-ficients γhead and γtail . As shown in Figure 4b, the best per-formance is achieved when γhead is relatively small (around 
+
+0.2), while larger values of γtail generally lead to better re-sults. This observation aligns with the intuition of rank-wise threshold modulation: head directions correspond to more important singular directions and should be updated more cautiously, whereas tail directions are less critical and can allow more flexible integration of new information. When γhead becomes too large, dominant directions become overly receptive to new information, which may disturb previously learned knowledge and slightly degrade perfor-mance. These results demonstrate that assigning smaller update strengths to head directions while allowing larger updates on tail directions helps balance knowledge preser-vation and adaptation. Overall, these hyperparameters are not highly sensitive within a reasonable range. The specific values are provided in the released code for reproducibility. 
+
+## 6. Conclusion 
+
+In this work, we study continual food recognition under a more realistic dual-imbalanced learning scenario that closely reflects real-world dietary data streams, where food categories follow long-tailed distributions and the amount of data collected at different periods varies sub-stantially. To address this challenge, we propose DIME, a parameter-efficient framework that integrates Balanced Softmax training with class-count aware spectral adapter merging and rank-wise threshold modulation. Extensive experiments on multiple long-tailed food benchmarks demonstrate consistent improvements over strong continual learning baselines while maintaining efficient inference with a single merged adapter. These results highlight the effectiveness of the proposed framework for robust and scalable food recognition in real-world dietary monitoring applications. Future work will explore extending the frame-work to more comprehensive food understanding tasks such as ingredient recognition and multi-label food recognition. References 
+
+[1] Rahaf Aljundi, Francesca Babiloni, Mohamed Elhoseiny, Marcus Rohrbach, and Tinne Tuytelaars. Memory aware synapses: Learning what (not) to forget. In Proceedings of the European conference on computer vision (ECCV) , pages 139–154, 2018. 2 [2] Marios M Anthimopoulos, Lauro Gianola, Luca Scarnato, Peter Diem, and Stavroula G Mougiakakou. A food recogni-tion system for diabetic patients based on an optimized bag-of-features model. IEEE journal of biomedical and health informatics , 18(4):1261–1271, 2014. 2 [3] Piyush Kaushik Bhattacharyya, Devansh Tomar, Shubham Mishra, Divyanshu Rai, Yug Pratap Singh, Harsh Yadav, Krutika Verma, Vishal Meena, and N Sangita Achary. Con-tinual learning for food category classification dataset: En-hancing model adaptability and performance. In 2025 Inter-national Conference on Artificial intelligence and Emerging Technologies (ICAIET) , pages 1–6. IEEE, 2025. 3 [4] Lukas Bossard, Matthieu Guillaumin, and Luc Van Gool. Food-101–mining discriminative components with random forests. In European conference on computer vision , pages 446–461. Springer, 2014. 2, 6 [5] Francisco M Castro, Manuel J Mar´ ın-Jim´ enez, Nicol´ as Guil, Cordelia Schmid, and Karteek Alahari. End-to-end incre-mental learning. In Proceedings of the European conference on computer vision (ECCV) , pages 233–248, 2018. 2 [6] Nitesh V Chawla, Kevin W Bowyer, Lawrence O Hall, and W Philip Kegelmeyer. Smote: synthetic minority over-sampling technique. Journal of artificial intelligence re-search , 16:321–357, 2002. 3 [7] Xiuwei Chen and Xiaobin Chang. Dynamic residual clas-sifier for class incremental learning. In Proceedings of the IEEE/CVF International Conference on Computer Vision ,pages 18743–18752, 2023. 2 [8] Yuhao Chen, Jiangpeng He, Gautham Vinod, Siddeshwar Raghavan, Chris Czarnecki, Jinge Ma, Talha Ibn Mah-mud, Bruce Coburn, Dayou Mao, Saeejith Nair, et al. Metafood3d: 3d food dataset with nutrition values. arXiv preprint arXiv:2409.01966 , 2024. 3 [9] Kalliopi V Dalakleidi, Marina Papadelli, Ioannis Kapolos, and Konstantinos Papadimitriou. Applying image-based food-recognition systems on dietary assessment: a system-atic review. Advances in Nutrition , 13(6):2590–2619, 2022. 1[10] Jia Deng, Wei Dong, Richard Socher, Li-Jia Li, Kai Li, and Li Fei-Fei. Imagenet: A large-scale hierarchical image database. In 2009 IEEE conference on computer vision and pattern recognition , pages 248–255. Ieee, 2009. 6 [11] Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Syl-vain Gelly, et al. An image is worth 16x16 words: Trans-formers for image recognition at scale. arXiv preprint arXiv:2010.11929 , 2020. 2, 6 [12] Andrew Estabrooks, Taeho Jo, and Nathalie Japkowicz. Amultiple resampling method for learning from imbalanced data sets. Computational intelligence , 20(1):18–36, 2004. 3 [13] Kyoko Fujihira, Masaki Takahashi, Chunyi Wang, and Naoyuki Hayashi. Factors explaining seasonal variation in energy intake: a review. Frontiers in Nutrition , 10:1192223, 2023. 3 [14] Takuma Fukuda, Hiroshi Kera, and Kazuhiko Kawamoto. Adapter merging with centroid prototype mapping for scal-able class-incremental learning. In Proceedings of the Com-puter Vision and Pattern Recognition Conference , pages 4884–4893, 2025. 6, 7 [15] Kristina Gligori´ c, Ryen W White, Emre Kiciman, Eric Horvitz, Arnaud Chiolero, and Robert West. Formation of social ties influences food choice: A campus-wide longitu-dinal study. Proceedings of the ACM on Human-Computer Interaction , 5(CSCW1):1–25, 2021. 3 [16] Dipam Goswami, Yuyang Liu, Bartłomiej Twardowski, and Joost Van De Weijer. Fecam: Exploiting the heterogeneity of class distributions in exemplar-free continual learning. Ad-vances in Neural Information Processing Systems , 36:6582– 6595, 2023. 6 [17] Jiangpeng He and Fengqing Zhu. Online continual learn-ing for visual food classification. In Proceedings of the IEEE/CVF international conference on computer vision ,pages 2337–2346, 2021. 1, 3 [18] Jiangpeng He, Luotao Lin, Heather A Eicher-Miller, and Fengqing Zhu. Long-tailed food classification. Nutrients ,15(12):2751, 2023. 1, 2, 6 [19] Jiangpeng He, Zhihao Duan, and Fengqing Zhu. Cl-lora: Continual low-rank adaptation for rehearsal-free class-incremental learning. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 30534–30544, 2025. 2, 6, 7 [20] Jiangpeng He, Yuhao Chen, Gautham Vinod, Xiaoyan Zhang, Talha Ibn Mahmud, Ahmad AlMughrabi, Umair Haroon, Ricardo Marques, Petia Radeva, Yawei Jueluo, Chengyu Shi, Pengyu Wang, Pengcheng Xi, Alexander Wong, and Fengqing Zhu. Physically informed 3d food re-construction: Methods and results. IEEE Journal of Biomed-ical and Health Informatics , 2026. 2 [21] Jiangpeng He, Xiaoyan Zhang, Luotao Lin, Jack Ma, Heather A. Eicher-Miller, and Fengqing Zhu. Long-tailed continual learning for visual food recognition. IEEE Trans-actions on Multimedia , 28:865–877, 2026. 1, 2, 3, 6 [22] Yicheng He, Chengsong Huang, Zongxia Li, Jiaxin Huang, and Yonghui Yang. Visplay: Self-evolving vision-language models from images. arXiv preprint arXiv:2511.15661 ,2025. 2 [23] Saihui Hou, Xinyu Pan, Chen Change Loy, Zilei Wang, and Dahua Lin. Learning a unified classifier incrementally via rebalancing. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 831–839, 2019. 2 [24] Zhiyuan Hu, Yunsheng Li, Jiancheng Lyu, Dashan Gao, and Nuno Vasconcelos. Dense network expansion for class in-cremental learning. In Proceedings of the IEEE/CVF con-ference on computer vision and pattern recognition , pages 11858–11867, 2023. 2 [25] Ahmet Iscen, Jeffrey Zhang, Svetlana Lazebnik, and Cordelia Schmid. Memory-efficient incremental learning through feature adaptation. In European conference on com-puter vision , pages 699–715. Springer, 2020. 2 [26] Yoshiyuki Kawano and Keiji Yanai. Real-time mobile food recognition system. In Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition Workshops ,pages 1–7, 2013. 2 [27] Alex Krizhevsky, Ilya Sutskever, and Geoffrey E Hinton. Imagenet classification with deep convolutional neural net-works. Advances in neural information processing systems ,25, 2012. 2 [28] Zhizhong Li and Derek Hoiem. Learning without forgetting. 
+
+IEEE transactions on pattern analysis and machine intelli-gence , 40(12):2935–2947, 2017. 2 [29] Yan-Shuo Liang and Wu-Jun Li. Inflora: Interference-free low-rank adaptation for continual learning. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 23638–23647, 2024. 2, 6, 7 [30] Chang Liu, Yu Cao, Yan Luo, Guanling Chen, Vinod Vokkarane, and Yunsheng Ma. Deepfood: Deep learning-based food image recognition for computer-aided dietary as-sessment. In International Conference on Smart Homes and Health Telematics , pages 37–48. Springer, 2016. 1 [31] Detianjun Liu, Enguang Zuo, Dingding Wang, Liang He, Li-ujing Dong, and Xinyao Lu. Deep learning in food image recognition: A comprehensive review. Applied Sciences , 15 (14):7626, 2025. 2 [32] Xialei Liu, Yu-Song Hu, Xu-Sheng Cao, Andrew D Bag-danov, Ke Li, and Ming-Ming Cheng. Long-tailed class in-cremental learning. In European Conference on Computer Vision , pages 495–512. Springer, 2022. 1 [33] Xu-Ying Liu, Jianxin Wu, and Zhi-Hua Zhou. Exploratory undersampling for class-imbalance learning. IEEE Transac-tions on Systems, Man, and Cybernetics, Part B (Cybernet-ics) , 39(2):539–550, 2008. 3 [34] Jinge Ma, Xiaoyan Zhang, Gautham Vinod, Siddeshwar Raghavan, Jiangpeng He, and Fengqing Zhu. Mfp3d: Monocular food portion estimation leveraging 3d point clouds. In International Conference on Pattern Recognition ,pages 49–62. Springer, 2024. 2 [35] Runyu Mao, Jiangpeng He, Zeman Shao, Sri Kalyan Yarla-gadda, and Fengqing Zhu. Visual aware hierarchy based food recognition. In International conference on pattern recogni-tion , pages 571–598. Springer, 2021. 2 [36] Michael McCloskey and Neal J Cohen. Catastrophic inter-ference in connectionist networks: The sequential learning problem. In Psychology of learning and motivation , pages 109–165. Elsevier, 1989. 2 [37] Din Muhammad, Lei Wang, and Markus Hagenbuchner. En-hancing robustness in long-tailed image classification with angular approaches and balanced learning. Data Science and Engineering , 10(3):480–494, 2025. 4 [38] Seulki Park, Jongin Lim, Younghan Jeon, and Jin Young Choi. Influence-balanced loss for imbalanced visual classifi-cation. In Proceedings of the IEEE/CVF international con-ference on computer vision , pages 735–744, 2021. 3 [39] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learning transferable visual models from natural language supervi-sion. In International conference on machine learning , pages 8748–8763. PmLR, 2021. 2 [40] Sylvestre-Alvise Rebuffi, Alexander Kolesnikov, Georg Sperl, and Christoph H Lampert. icarl: Incremental classifier and representation learning. In Proceedings of the IEEE con-ference on Computer Vision and Pattern Recognition , pages 2001–2010, 2017. 2, 6 [41] Jiawei Ren, Cunjun Yu, Xiao Ma, Haiyu Zhao, Shuai Yi, et al. Balanced meta-softmax for long-tailed visual recog-nition. Advances in neural information processing systems ,33:4175–4186, 2020. 2, 3, 4 [42] Asal Rouhafzay, Ghazal Rouhafzay, and Jalila Jbilou. Image-based food monitoring and dietary management for patients living with diabetes: a scoping review of calorie counting applications. Frontiers in Nutrition , 12:1501946, 2025. 1 [43] Hanul Shin, Jung Kwon Lee, Jaehong Kim, and Jiwon Kim. Continual learning with deep generative replay. Advances in neural information processing systems , 30, 2017. 2 [44] James Seale Smith, Leonid Karlinsky, Vyshnavi Gutta, Paola Cascante-Bonilla, Donghyun Kim, Assaf Arbelle, Rameswar Panda, Rogerio Feris, and Zsolt Kira. Coda-prompt: Contin-ual decomposed attention-based prompting for rehearsal-free continual learning. In Proceedings of the IEEE/CVF con-ference on computer vision and pattern recognition , pages 11909–11919, 2023. 2 [45] George Stoica, Pratik Ramesh, Boglarka Ecsedi, Leshem Choshen, and Judy Hoffman. Model merging with svd to tie the knots. arXiv preprint arXiv:2410.19735 , 2024. 5 [46] Hai-Long Sun, Da-Wei Zhou, Hanbin Zhao, Le Gan, De-Chuan Zhan, and Han-Jia Ye. Mos: Model surgery for pre-trained model-based class-incremental learning. In Proceed-ings of the AAAI Conference on Artificial Intelligence , pages 20699–20707, 2025. 2, 6, 7 [47] Yen Thi Hong Tran, Phap-Minh Nguyen, Hung-Phuoc Nguyen, and Khanh-Duy Nguyen. Class-incremental learn-ing for enhanced food recognition. In 2024 13th Interna-tional Conference on Control, Automation and Information Sciences (ICCAIS) , pages 1–6. IEEE, 2024. 1 [48] Huiyi Wang, Haodong Lu, Lina Yao, and Dong Gong. Self-expansion of pre-trained models with mixture of adapters for continual learning. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 10087–10098, 2025. 2, 6, 7 [49] Yan Wang, Da-Wei Zhou, and Han-Jia Ye. Integrating task-specific and universal adapters for pre-trained model-based class-incremental learning. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 806– 816, 2025. 2, 6, 7 [50] Zifeng Wang, Zizhao Zhang, Sayna Ebrahimi, Ruoxi Sun, Han Zhang, Chen-Yu Lee, Xiaoqi Ren, Guolong Su, Vin-cent Perot, Jennifer Dy, et al. Dualprompt: Complementary prompting for rehearsal-free continual learning. In European conference on computer vision , pages 631–648. Springer, 2022. 2 [51] Zifeng Wang, Zizhao Zhang, Chen-Yu Lee, Han Zhang, Ruoxi Sun, Xiaoqi Ren, Guolong Su, Vincent Perot, Jen-nifer Dy, and Tomas Pfister. Learning to prompt for con-tinual learning. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 139–149, 2022. 2 [52] Yanqi Wu, Xue Song, and Jingjing Chen. Few-shot food recognition with pre-trained model. In Proceedings of the 1st International Workshop on Multimedia for Cooking, Eating, and related APPlications , pages 45–48, 2022. 2 [53] Shipeng Yan, Jiangwei Xie, and Xuming He. Der: Dy-namically expandable representation for class incremental learning. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 3014–3023, 2021. 2 [54] Justin Yang, Zhihao Duan, Jiangpeng He, and Fengqing Zhu. Learning to classify new foods incrementally via compressed exemplars. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 3695– 3704, 2024. 1 [55] Dongyu Yao, Keling Yao, Junhong Zhou, and Yinghao Zhang. Caloraify: Calorie estimation with visual-text pair-ing and lora-driven visual language models. arXiv preprint arXiv:2412.09936 , 2024. 2 [56] Chongsheng Zhang, George Almpanidis, Gaojuan Fan, Bin-quan Deng, Yanbo Zhang, Ji Liu, Aouaidjia Kamel, Paolo Soda, and Jo˜ ao Gama. A systematic review on long-tailed learning. IEEE Transactions on Neural Networks and Learn-ing Systems , 2025. 3 [57] Gengwei Zhang, Liyuan Wang, Guoliang Kang, Ling Chen, and Yunchao Wei. Slca: Slow learner with classifier align-ment for continual learning on a pre-trained model. In 
+
+Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 19148–19158, 2023. 6, 7 [58] Xiaoyan Zhang and Jiangpeng He. One adapter for all: Towards unified representation in step-imbalanced class-incremental learning. arXiv preprint arXiv:2603.10237 ,2026. 2, 3 [59] Yudong Zhang, Lijia Deng, Hengde Zhu, Wei Wang, Zeyu Ren, Qinghua Zhou, Siyuan Lu, Shiting Sun, Ziquan Zhu, Juan Manuel Gorriz, et al. Deep learning in food category recognition. Information Fusion , 98:101859, 2023. 3 [60] Da-Wei Zhou, Hai-Long Sun, Jingyi Ning, Han-Jia Ye, and De-Chuan Zhan. Continual learning with pre-trained mod-els: A survey. arXiv preprint arXiv:2401.16386 , 2024. 2 [61] Da-Wei Zhou, Hai-Long Sun, Han-Jia Ye, and De-Chuan Zhan. Expandable subspace ensemble for pre-trained model-based class-incremental learning. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 23554–23564, 2024. 2, 6, 7 [62] Da-Wei Zhou, Qi-Wei Wang, Zhi-Hong Qi, Han-Jia Ye, De-Chuan Zhan, and Ziwei Liu. Class-incremental learning: A survey. IEEE Transactions on Pattern Analysis and Machine Intelligence , 46(12):9851–9873, 2024. 2 [63] Lei Zhou, Chu Zhang, Fei Liu, Zhengjun Qiu, and Yong He. Application of deep learning in food: a review. Compre-hensive reviews in food science and food safety , 18(6):1793– 1811, 2019. 2
