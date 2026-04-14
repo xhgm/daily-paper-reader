@@ -6,674 +6,728 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-04-04
-- 运行时间：2026-04-04 20:29:54 UTC
+- 最新运行日期：2026-04-14
+- 运行时间：2026-04-14 20:42:45 UTC
 - 运行状态：成功
-- 本次总论文数：217
-- 精读区：205
+- 本次总论文数：235
+- 精读区：223
 - 速读区：12
 
 ### 今日简报（AI）
-- 今日共生成 217 篇推荐（精读 205 篇，速读 12 篇）
-- 精读：《Policy-Guided World Model Planning for Language-Conditioned Visual Navigation》（10.0/10）, 《FAST3DIS: Feed-forward Anchored Scene Transformer for 3D Instance Segmentation》（10.0/10）
-- 速读：《Shared Representation for 3D Pose Estimation, Action Classification, and Progress Prediction from Tactile Signals》（8.0/10）, 《Adapting Segment Anything Model 3 for Concept-Driven Lesion Segmentation in Medical Images: An Experimental Study》（8.0/10）, 《GeoReFormer: Geometry-Aware Refinement for Lane Segment Detection and Topology Reasoning》（8.0/10）
+- 今日共生成 235 篇推荐（精读 223 篇，速读 12 篇）
+- 精读：《OpenWorldLib: A Unified Codebase and Definition of Advanced World Models》（10.0/10）, 《E-VLA: Event-Augmented Vision-Language-Action Model for Dark and Blurred Scenes》（10.0/10）
+- 速读：《Real-Time Projected Adaptive Control for Closed-Chain Co-Manipulative Continuum Robots》（8.0/10）, 《NAIMA: Semantics Aware RGB Guided Depth Super-Resolution》（8.0/10）, 《A Patch-based Cross-view Regularized Framework for Backdoor Defense in Multimodal Large Language Models》（8.0/10）
 - 这些结果覆盖了当下较热的方向，建议先看精读区论文的关键问题与方法。
-- 详情：[/202604/04/README](/202604/04/README)
+- 详情：[/202604/14/README](/202604/14/README)
 
 ### 精读区论文标签
-1. [Policy-Guided World Model Planning for Language-Conditioned Visual Navigation](/202604/04/2603.25981v1-policy-guided-world-model-planning-for-language-conditioned-visual-navigation)  
+1. [OpenWorldLib: A Unified Codebase and Definition of Advanced World Models](/202604/14/2604.04707v1-openworldlib-a-unified-codebase-and-definition-of-advanced-world-models)  
    标签：评分：10.0/10、query:q13
-   evidence：语言条件视觉导航的潜界模型规划
-2. [FAST3DIS: Feed-forward Anchored Scene Transformer for 3D Instance Segmentation](/202604/04/2603.25993v1-fast3dis-feed-forward-anchored-scene-transformer-for-3d-instance-segmentation)  
+   evidence：引入了OpenWorldLib，这是一个以感知和交互为核心的高级世界模型的统一代码库和定义。
+2. [E-VLA: Event-Augmented Vision-Language-Action Model for Dark and Blurred Scenes](/202604/14/2604.04834v1-e-vla-event-augmented-vision-language-action-model-for-dark-and-blurred-scenes)  
+   标签：评分：10.0/10、query:q12
+   evidence：用于鲁棒操作的事件增强视觉-语言-动作模型
+3. [PointTPA: Dynamic Network Parameter Adaptation for 3D Scene Understanding](/202604/14/2604.04933v1-pointtpa-dynamic-network-parameter-adaptation-for-3d-scene-understanding)  
    标签：评分：10.0/10、query:3d-scn
-   evidence：绕过聚类的端到端3D实例分割Transformer
-3. [GeoGuide: Hierarchical Geometric Guidance for Open-Vocabulary 3D Semantic Segmentation](/202604/04/2603.26260v1-geoguide-hierarchical-geometric-guidance-for-open-vocabulary-3d-semantic-segmentation)  
+   evidence：场景级点云理解的测试时参数自适应
+4. [StarVLA: A Lego-like Codebase for Vision-Language-Action Model Developing](/202604/14/2604.05014v1-starvla-a-lego-like-codebase-for-vision-language-action-model-developing)  
+   标签：评分：10.0/10、query:q12
+   evidence：用于视觉-语言-动作（VLA）和世界模型开发的开源代码库。
+5. [Indoor Asset Detection in Large Scale 360° Drone-Captured Imagery via 3D Gaussian Splatting](/202604/14/2604.05316v1-indoor-asset-detection-in-large-scale-360-drone-captured-imagery-via-3d-gaussian-splatting)  
    标签：评分：10.0/10、query:3d-scn
-   evidence：用于开放词汇三维语义分割的分层几何引导
-4. [DFM-VLA: Iterative Action Refinement for Robot Manipulation via Discrete Flow Matching](/202604/04/2603.26320v1-dfm-vla-iterative-action-refinement-for-robot-manipulation-via-discrete-flow-matching)  
+   evidence：在无人机图像重建的 3D 高斯泼溅场景中进行物体级检测和分割。
+6. [VLA-InfoEntropy: A Training-Free Vision-Attention Information Entropy Approach for Vision-Language-Action Models Inference Acceleration and Success](/202604/14/2604.05323v1-vla-infoentropy-a-training-free-vision-attention-information-entropy-approach-for-vision-language-action-models-inference-acceleration-and-success)  
    标签：评分：10.0/10、query:q12
-   evidence：用于机器人操作迭代动作细化的离散流匹配VLA
-5. [DFM-VLA: Iterative Action Refinement for Robot Manipulation via Discrete Flow Matching](/202604/04/2603.26320v2-dfm-vla-iterative-action-refinement-for-robot-manipulation-via-discrete-flow-matching)  
+   evidence：机器人视觉-语言-动作 (VLA) 模型的推理加速
+7. [Few-Shot Semantic Segmentation Meets SAM3](/202604/14/2604.05433v1-few-shot-semantic-segmentation-meets-sam3)  
+   标签：评分：10.0/10、query:q14
+   evidence：使用SAM3的免训练少样本语义分割
+8. [CoEnv: Driving Embodied Multi-Agent Collaboration via Compositional Environment](/202604/14/2604.05484v1-coenv-driving-embodied-multi-agent-collaboration-via-compositional-environment)  
+   标签：评分：10.0/10、query:profile-1
+   evidence：具身多智能体协作，包含虚实场景重建与操作
+9. [Grounding Hierarchical Vision-Language-Action Models Through Explicit Language-Action Alignment](/202604/14/2604.05614v1-grounding-hierarchical-vision-language-action-models-through-explicit-language-action-alignment)  
    标签：评分：10.0/10、query:q12
-   evidence：用于迭代动作优化的离散流匹配VLA模型
-6. [DiffusionAnything: End-to-End In-context Diffusion Learning for Unified Navigation and Pre-Grasp Motion](/202604/04/2603.26322v1-diffusionanything-end-to-end-in-context-diffusion-learning-for-unified-navigation-and-pre-grasp-motion)  
+   evidence：分层VLA模型中的显式语言-动作对齐
+10. [FunRec: Reconstructing Functional 3D Scenes from Egocentric Interaction Videos](/202604/14/2604.05621v1-funrec-reconstructing-functional-3d-scenes-from-egocentric-interaction-videos)  
+   标签：评分：10.0/10、query:3d-scn
+   evidence：从交互视频中重建功能性3D场景和关节部件
+11. [A1: A Fully Transparent Open-Source, Adaptive and Efficient Truncated Vision-Language-Action Model](/202604/14/2604.05672v1-a1-a-fully-transparent-open-source-adaptive-and-efficient-truncated-vision-language-action-model)  
    标签：评分：10.0/10、query:q12
-   evidence：通过VLA模型统一导航与操作
-7. [Generalizable task-oriented object grasping through LLM-guided ontology and similarity-based planning](/202604/04/2603.26412v1-generalizable-task-oriented-object-grasping-through-llm-guided-ontology-and-similarity-based-planning)  
+   evidence：用于机器人操作的高效视觉-语言-动作模型
+12. [A1: A Fully Transparent Open-Source, Adaptive and Efficient Truncated Vision-Language-Action Model](/202604/14/2604.05672v2-a1-a-fully-transparent-open-source-adaptive-and-efficient-truncated-vision-language-action-model)  
+   标签：评分：10.0/10、query:q12
+   evidence：用于机器人操作的开源视觉-语言-动作模型
+13. [GraspSense: Physically Grounded Grasp and Grip Planning for a Dexterous Robotic Hand via Language-Guided Perception and Force Maps](/202604/14/2604.05697v1-graspsense-physically-grounded-grasp-and-grip-planning-for-a-dexterous-robotic-hand-via-language-guided-perception-and-force-maps)  
+   标签：评分：10.0/10、query:3d-scn
+   evidence：结合可供性和 3D 重建实现灵巧抓取
+14. [GraspSense: Physically Grounded Grasp and Grip Planning for a Dexterous Robotic Hand via Language-Guided Perception and Force Maps](/202604/14/2604.05697v2-graspsense-physically-grounded-grasp-and-grip-planning-for-a-dexterous-robotic-hand-via-language-guided-perception-and-force-maps)  
    标签：评分：10.0/10、query:q9
-   evidence：以几何为中心的任务导向物体抓取策略
-8. [OVI-MAP:Open-Vocabulary Instance-Semantic Mapping](/202604/04/2603.26541v1-ovi-mapopen-vocabulary-instance-semantic-mapping)  
+   evidence：通过语言引导的感知进行灵巧机器人手的抓取规划
+15. [GaussianGrow: Geometry-aware Gaussian Growing from 3D Point Clouds with Text Guidance](/202604/14/2604.05721v1-gaussiangrow-geometry-aware-gaussian-growing-from-3d-point-clouds-with-text-guidance)  
+   标签：评分：10.0/10、query:q16
+   evidence：在文本引导下从点云生成三维高斯模型
+16. [Sparsity-Aware Voxel Attention and Foreground Modulation for 3D Semantic Scene Completion](/202604/14/2604.05780v1-sparsity-aware-voxel-attention-and-foreground-modulation-for-3d-semantic-scene-completion)  
    标签：评分：10.0/10、query:3d-scn
-   evidence：基于RGB-D的开放词汇三维实例语义地图构建
-9. [VLA-OPD: Bridging Offline SFT and Online RL for Vision-Language-Action Models via On-Policy Distillation](/202604/04/2603.26666v1-vla-opd-bridging-offline-sft-and-online-rl-for-vision-language-action-models-via-on-policy-distillation)  
-   标签：评分：10.0/10、query:q12
-   evidence：通过在线策略蒸馏改进机器人操作的视觉-语言-动作模型
-10. [SpatialAnt: Autonomous Zero-Shot Robot Navigation via Active Scene Reconstruction and Visual Anticipation](/202604/04/2603.26837v1-spatialant-autonomous-zero-shot-robot-navigation-via-active-scene-reconstruction-and-visual-anticipation)  
-   标签：评分：10.0/10、query:3d-scn
-   evidence：通过主动场景重建和多模态大模型实现零样本机器人导航
-11. [UMI-Underwater: Learning Underwater Manipulation without Underwater Teleoperation](/202604/04/2603.27012v1-umi-underwater-learning-underwater-manipulation-without-underwater-teleoperation)  
-   标签：评分：10.0/10、query:3d-scn
-   evidence：基于深度的可供性表示用于水下机器人抓取
-12. [An Instance-Centric Panoptic Occupancy Prediction Benchmark for Autonomous Driving](/202604/04/2603.27238v1-an-instance-centric-panoptic-occupancy-prediction-benchmark-for-autonomous-driving)  
-   标签：评分：10.0/10、query:3d-scn
-   evidence：用于3D场景表示的全景占据预测
-13. [Uni-World VLA: Interleaved World Modeling and Planning for Autonomous Driving](/202604/04/2603.27287v1-uni-world-vla-interleaved-world-modeling-and-planning-for-autonomous-driving)  
-   标签：评分：10.0/10、query:q12
-   evidence：交织世界建模与规划的统一视觉-语言-动作模型
-14. [TerraSeg: Self-Supervised Ground Segmentation for Any LiDAR](/202604/04/2603.27344v1-terraseg-self-supervised-ground-segmentation-for-any-lidar)  
-   标签：评分：10.0/10、query:3d-scn
-   evidence：激光雷达点云的自监督地面分割
-15. [LOME: Learning Human-Object Manipulation with Action-Conditioned Egocentric World Model](/202604/04/2603.27449v1-lome-learning-human-object-manipulation-with-action-conditioned-egocentric-world-model)  
+   evidence：从单张 RGB 图像为机器人重建完整的 3D 语义场景
+17. [Action Images: End-to-End Policy Learning via Multiview Video Generation](/202604/14/2604.06168v1-action-images-end-to-end-policy-learning-via-multiview-video-generation)  
    标签：评分：10.0/10、query:q13
-   evidence：人机交互操作的自我中心世界模型
-16. [From None to All: Self-Supervised 3D Reconstruction via Novel View Synthesis](/202604/04/2603.27455v1-from-none-to-all-self-supervised-3d-reconstruction-via-novel-view-synthesis)  
+   evidence：在世界动作模型中将策略学习建模为多视图视频生成
+18. [BiDexGrasp: Coordinated Bimanual Dexterous Grasps across Object Geometries and Sizes](/202604/14/2604.06589v1-bidexgrasp-coordinated-bimanual-dexterous-grasps-across-object-geometries-and-sizes)  
+   标签：评分：10.0/10、query:q9
+   evidence：大规模双臂灵巧抓取数据集和生成模型
+19. [Enhancing MLLM Spatial Understanding via Active 3D Scene Exploration for Multi-Perspective Reasoning](/202604/14/2604.06725v1-enhancing-mllm-spatial-understanding-via-active-3d-scene-exploration-for-multi-perspective-reasoning)  
+   标签：评分：10.0/10、query:q5
+   evidence：通过主动三维场景探索和重建增强多模态大模型的空间理解
+20. [RePL: Pseudo-label Refinement for Semi-supervised LiDAR Semantic Segmentation](/202604/14/2604.06825v1-repl-pseudo-label-refinement-for-semi-supervised-lidar-semantic-segmentation)  
+   标签：评分：10.0/10、query:3d-scn
+   evidence：半监督LiDAR语义分割的伪标签细化
+21. [Genie Sim PanoRecon: Fast Immersive Scene Generation from Single-View Panorama](/202604/14/2604.07105v1-genie-sim-panorecon-fast-immersive-scene-generation-from-single-view-panorama)  
+   标签：评分：10.0/10、query:3d-scn
+   evidence：用于机器人操作模拟的3D场景生成
+22. [INSPATIO-WORLD: A Real-Time 4D World Simulator via Spatiotemporal Autoregressive Modeling](/202604/14/2604.07209v2-inspatio-world-a-real-time-4d-world-simulator-via-spatiotemporal-autoregressive-modeling)  
+   标签：评分：10.0/10、query:q13
+   evidence：通过时空建模实现的实时四维世界模拟器
+23. [Mem3R: Streaming 3D Reconstruction with Hybrid Memory via Test-Time Training](/202604/14/2604.07279v1-mem3r-streaming-3d-reconstruction-with-hybrid-memory-via-test-time-training)  
    标签：评分：10.0/10、query:q10
-   evidence：从未经校准的视图中进行自监督三维重建
-17. [Chat-Scene++: Exploiting Context-Rich Object Identification for 3D LLM](/202604/04/2603.27507v1-chat-scene-exploiting-context-rich-object-identification-for-3d-llm)  
+   evidence：用于机器人的流式三维重建与感知
+24. [OpenSpatial: A Principled Data Engine for Empowering Spatial Intelligence](/202604/14/2604.07296v1-openspatial-a-principled-data-engine-for-empowering-spatial-intelligence)  
    标签：评分：10.0/10、query:3d-scn
-   evidence：利用多模态大模型进行3D场景理解与物体定位
-18. [ProgressVLA: Progress-Guided Diffusion Policy for Vision-Language Robotic Manipulation](/202604/04/2603.27670v1-progressvla-progress-guided-diffusion-policy-for-vision-language-robotic-manipulation)  
-   标签：评分：10.0/10、query:q18
-   evidence：用于机器人操作的视觉-语言-动作模型
-19. [Which Reconstruction Model Should a Robot Use? Routing Image-to-3D Models for Cost-Aware Robotic Manipulation](/202604/04/2603.27797v1-which-reconstruction-model-should-a-robot-use-routing-image-to-3d-models-for-cost-aware-robotic-manipulation)  
+   evidence：用于3D空间理解和关系推理的数据引擎
+25. [OpenSpatial: A Principled Data Engine for Empowering Spatial Intelligence](/202604/14/2604.07296v2-openspatial-a-principled-data-engine-for-empowering-spatial-intelligence)  
    标签：评分：10.0/10、query:3d-scn
-   evidence：为成本敏感型机器人操作路由图像转3D模型
-20. [Efficient Inference of Large Vision Language Models](/202604/04/2603.27960v1-efficient-inference-of-large-vision-language-models)  
-   标签：评分：10.0/10、query:q11
-   evidence：加速大视觉语言模型推理技术的全面综述
-21. [AffordMatcher: Affordance Learning in 3D Scenes from Visual Signifiers](/202604/04/2603.27970v1-affordmatcher-affordance-learning-in-3d-scenes-from-visual-signifiers)  
-   标签：评分：10.0/10、query:3d-scn
-   evidence：基于点云的三维场景可供性学习
-22. [ToLL: Topological Layout Learning with Structural Multi-view Augmentation for 3D Scene Graph Pretraining](/202604/04/2603.28178v1-toll-topological-layout-learning-with-structural-multi-view-augmentation-for-3d-scene-graph-pretraining)  
-   标签：评分：10.0/10、query:3d-scn
-   evidence：用于空间理解和语义可供性感知的3D场景图生成
-23. [LIBERO-Para: A Diagnostic Benchmark and Metrics for Paraphrase Robustness in VLA Models](/202604/04/2603.28301v1-libero-para-a-diagnostic-benchmark-and-metrics-for-paraphrase-robustness-in-vla-models)  
-   标签：评分：10.0/10、query:q18
-   evidence：视觉-语言-动作 (VLA) 模型释义鲁棒性基准
-24. [ManipArena: Comprehensive Real-world Evaluation of Reasoning-Oriented Generalist Robot Manipulation](/202604/04/2603.28545v1-maniparena-comprehensive-real-world-evaluation-of-reasoning-oriented-generalist-robot-manipulation)  
-   标签：评分：10.0/10、query:q12
-   evidence：视觉-语言-动作 (VLA) 模型与世界模型的评估
-25. [StreamingVLA: Streaming Vision-Language-Action Model with Action Flow Matching and Adaptive Early Observation](/202604/04/2603.28565v1-streamingvla-streaming-vision-language-action-model-with-action-flow-matching-and-adaptive-early-observation)  
-   标签：评分：10.0/10、query:q12
-   evidence：用于感知和控制的流式视觉-语言-动作模型
-26. [LACE: Loss-Adaptive Capacity Expansion for Continual Learning](/202604/04/2603.28611v1-lace-loss-adaptive-capacity-expansion-for-continual-learning)  
-   标签：评分：10.0/10、query:q15
-   evidence：用于持续学习的损失自适应容量扩展
-27. [Industrial3D: A Terrestrial LiDAR Point Cloud Dataset and CrossParadigm Benchmark for Industrial Infrastructure](/202604/04/2603.28660v1-industrial3d-a-terrestrial-lidar-point-cloud-dataset-and-crossparadigm-benchmark-for-industrial-infrastructure)  
-   标签：评分：10.0/10、query:3d-scn
-   evidence：用于工业语义理解的地面LiDAR点云数据集
-28. [SOLE-R1: Video-Language Reasoning as the Sole Reward for On-Robot Reinforcement Learning](/202604/04/2603.28730v1-sole-r1-video-language-reasoning-as-the-sole-reward-for-on-robot-reinforcement-learning)  
-   标签：评分：10.0/10、query:q12
-   evidence：视频语言推理模型作为机器人强化学习的奖励信号
-29. [Pandora: Articulated 3D Scene Graphs from Egocentric Vision](/202604/04/2603.28732v1-pandora-articulated-3d-scene-graphs-from-egocentric-vision)  
-   标签：评分：10.0/10、query:3d-scn
-   evidence：基于第一视角视觉的机器人建图关节式3D场景图
-30. [FocusVLA: Focused Visual Utilization for Vision-Language-Action Models](/202604/04/2603.28740v1-focusvla-focused-visual-utilization-for-vision-language-action-models)  
-   标签：评分：10.0/10、query:q12
-   evidence：视觉语言动作（VLA）模型的视觉利用
-31. [OccSim: Multi-kilometer Simulation with Long-horizon Occupancy World Models](/202604/04/2603.28887v1-occsim-multi-kilometer-simulation-with-long-horizon-occupancy-world-models)  
+   evidence：空间智能和三维关系推理的数据引擎
+26. [Event-Centric World Modeling with Memory-Augmented Retrieval for Embodied Decision-Making](/202604/14/2604.07392v1-event-centric-world-modeling-with-memory-augmented-retrieval-for-embodied-decision-making)  
    标签：评分：10.0/10、query:q13
-   evidence：用于自动驾驶的占据世界模型驱动三维仿真器
-32. [Enhancing Policy Learning with World-Action Model](/202604/04/2603.28955v1-enhancing-policy-learning-with-world-action-model)  
-   标签：评分：10.0/10、query:q13
-   evidence：用于操作任务的动作正则化世界模型
-33. [AutoWorld: Scaling Multi-Agent Traffic Simulation with Self-Supervised World Models](/202604/04/2603.28963v1-autoworld-scaling-multi-agent-traffic-simulation-with-self-supervised-world-models)  
-   标签：评分：10.0/10、query:q13
-   evidence：从无标签LiDAR数据中学习的世界模型用于交通模拟
-34. [HCLSM: Hierarchical Causal Latent State Machines for Object-Centric World Modeling](/202604/04/2603.29090v1-hclsm-hierarchical-causal-latent-state-machines-for-object-centric-world-modeling)  
-   标签：评分：10.0/10、query:q13
-   evidence：具有分层时间动态的以对象为中心的世界模型
-35. [SuperGrasp: Single-View Object Grasping via Superquadric Similarity Matching, Evaluation, and Refinement](/202604/04/2603.29254v1-supergrasp-single-view-object-grasping-via-superquadric-similarity-matching-evaluation-and-refinement)  
+   evidence：用于具身决策的以事件为中心的世界模型
+27. [A Physical Agentic Loop for Language-Guided Grasping with Execution-State Monitoring](/202604/14/2604.07395v1-a-physical-agentic-loop-for-language-guided-grasping-with-execution-state-monitoring)  
    标签：评分：10.0/10、query:q9
-   evidence：基于单视图点云观测的机器人抓取
-36. [PRISM: A Multi-View Multi-Capability Retail Video Dataset for Embodied Vision-Language Models](/202604/04/2603.29281v1-prism-a-multi-view-multi-capability-retail-video-dataset-for-embodied-vision-language-models)  
+   evidence：带有执行状态监测的语言引导抓取的物理智能体循环
+28. [HY-Embodied-0.5: Embodied Foundation Models for Real-World Agents](/202604/14/2604.07430v1-hy-embodied-05-embodied-foundation-models-for-real-world-agents)  
    标签：评分：10.0/10、query:q12
-   evidence：具身视觉语言模型的多视图视频数据集
-37. [RAAP: Retrieval-Augmented Affordance Prediction with Cross-Image Action Alignment](/202604/04/2603.29419v1-raap-retrieval-augmented-affordance-prediction-with-cross-image-action-alignment)  
-   标签：评分：10.0/10、query:3d-scn
-   evidence：用于机器人交互的检索增强可供性预测
-38. [SceneTeract: Agentic Functional Affordances and VLM Grounding in 3D Scenes](/202604/04/2603.29798v1-sceneteract-agentic-functional-affordances-and-vlm-grounding-in-3d-scenes)  
-   标签：评分：10.0/10、query:3d-scn
-   evidence：三维场景中的功能可供性与视觉语言模型对齐
-39. [DIAL: Decoupling Intent and Action via Latent World Modeling for End-to-End VLA](/202604/04/2603.29844v1-dial-decoupling-intent-and-action-via-latent-world-modeling-for-end-to-end-vla)  
+   evidence：用于预测、交互和规划的具身基础模型
+29. [How Far Are Large Multimodal Models from Human-Level Spatial Action? A Benchmark for Goal-Oriented Embodied Navigation in Urban Airspace](/202604/14/2604.07973v1-how-far-are-large-multimodal-models-from-human-level-spatial-action-a-benchmark-for-goal-oriented-embodied-navigation-in-urban-airspace)  
    标签：评分：10.0/10、query:q12
-   evidence：端到端视觉-语言-动作（VLA）模型的潜界模型建模
-40. [Hybrid Framework for Robotic Manipulation: Integrating Reinforcement Learning and Large Language Models](/202604/04/2603.30022v1-hybrid-framework-for-robotic-manipulation-integrating-reinforcement-learning-and-large-language-models)  
-   标签：评分：10.0/10、query:q20
-   evidence：结合强化学习与大语言模型进行机器人操作与任务规划
-41. [Think, Act, Build: An Agentic Framework with Vision Language Models for Zero-Shot 3D Visual Grounding](/202604/04/2604.00528v1-think-act-build-an-agentic-framework-with-vision-language-models-for-zero-shot-3d-visual-grounding)  
-   标签：评分：10.0/10、query:q21
-   evidence：使用视觉语言模型进行零样本3D视觉定位
-42. [Think, Act, Build: An Agentic Framework with Vision Language Models for Zero-Shot 3D Visual Grounding](/202604/04/2604.00528v2-think-act-build-an-agentic-framework-with-vision-language-models-for-zero-shot-3d-visual-grounding)  
-   标签：评分：10.0/10、query:q11
-   evidence：利用视觉语言模型进行零样本3D视觉定位的代理框架
-43. [Continual Vision-Language Learning for Remote Sensing: Benchmarking and Analysis](/202604/04/2604.00820v1-continual-vision-language-learning-for-remote-sensing-benchmarking-and-analysis)  
+   evidence：3D具身导航中视觉-语言-动作模型的基准测试
+30. [HEX: Humanoid-Aligned Experts for Cross-Embodiment Whole-Body Manipulation](/202604/14/2604.07993v1-hex-humanoid-aligned-experts-for-cross-embodiment-whole-body-manipulation)  
+   标签：评分：10.0/10、query:q12
+   evidence：用于人形机器人全身操作的视觉-语言-动作模型
+31. [Few-Shot Incremental 3D Object Detection in Dynamic Indoor Environments](/202604/14/2604.07997v1-few-shot-incremental-3d-object-detection-in-dynamic-indoor-environments)  
    标签：评分：10.0/10、query:q15
-   evidence：持续视觉语言学习基准
-44. [DLWM: Dual Latent World Models enable Holistic Gaussian-centric Pre-training in Autonomous Driving](/202604/04/2604.00969v1-dlwm-dual-latent-world-models-enable-holistic-gaussian-centric-pre-training-in-autonomous-driving)  
-   标签：评分：10.0/10、query:q13
-   evidence：用于自动驾驶中以高斯为中心的预训练的双潜世界模型
-45. [EgoSim: Egocentric World Simulator for Embodied Interaction Generation](/202604/04/2604.01001v1-egosim-egocentric-world-simulator-for-embodied-interaction-generation)  
-   标签：评分：10.0/10、query:q13
-   evidence：具身交互的自我中心世界模拟器
-46. [IGLOSS: Image Generation for Lidar Open-vocabulary Semantic Segmentation](/202604/04/2604.01361v1-igloss-image-generation-for-lidar-open-vocabulary-semantic-segmentation)  
-   标签：评分：10.0/10、query:3d-scn
-   evidence：3D激光雷达数据的零样本开放词汇语义分割
-47. [AffordTissue: Dense Affordance Prediction for Tool-Action Specific Tissue Interaction](/202604/04/2604.01371v1-affordtissue-dense-affordance-prediction-for-tool-action-specific-tissue-interaction)  
-   标签：评分：10.0/10、query:3d-scn
-   evidence：针对特定工具动作的组织交互密集可供性预测
-48. [LESV: Language Embedded Sparse Voxel Fusion for Open-Vocabulary 3D Scene Understanding](/202604/04/2604.01388v1-lesv-language-embedded-sparse-voxel-fusion-for-open-vocabulary-3d-scene-understanding)  
-   标签：评分：10.0/10、query:3d-scn
-   evidence：用于开放词汇三维场景理解的语言嵌入稀疏体素融合
-49. [Boosting Vision-Language-Action Finetuning with Feasible Action Neighborhood Prior](/202604/04/2604.01570v1-boosting-vision-language-action-finetuning-with-feasible-action-neighborhood-prior)  
+   evidence：利用视觉语言模型进行少样本增量三维目标检测
+32. [ViVa: A Video-Generative Value Model for Robot Reinforcement Learning](/202604/14/2604.08168v1-viva-a-video-generative-value-model-for-robot-reinforcement-learning)  
    标签：评分：10.0/10、query:q12
-   evidence：机器人操作的视觉-语言-动作微调
-50. [Bridging Large-Model Reasoning and Real-Time Control via Agentic Fast-Slow Planning](/202604/04/2604.01681v1-bridging-large-model-reasoning-and-real-time-control-via-agentic-fast-slow-planning)  
-   标签：评分：10.0/10、query:q12
-   evidence：使用视觉语言模型解耦感知、推理和控制的分层框架
-51. [DriveDreamer-Policy: A Geometry-Grounded World-Action Model for Unified Generation and Planning](/202604/04/2604.01765v1-drivedreamer-policy-a-geometry-grounded-world-action-model-for-unified-generation-and-planning)  
-   标签：评分：10.0/10、query:q13
-   evidence：用于统一生成与规划的几何对齐世界动作模型
-52. [A3R: Agentic Affordance Reasoning via Cross-Dimensional Evidence in 3D Gaussian Scenes](/202604/04/2604.01882v1-a3r-agentic-affordance-reasoning-via-cross-dimensional-evidence-in-3d-gaussian-scenes)  
+   evidence：提出了一种用于机器人强化学习中VLA模型的视频生成价值模型。
+33. [SurfelSplat: Learning Efficient and Generalizable Gaussian Surfel Representations for Sparse-View Surface Reconstruction](/202604/14/2604.08370v1-surfelsplat-learning-efficient-and-generalizable-gaussian-surfel-representations-for-sparse-view-surface-reconstruction)  
    标签：评分：10.0/10、query:3d-scn
-   evidence：通过顺序证据获取在3D高斯场景中进行可供性推理
-53. [World Action Verifier: Self-Improving World Models via Forward-Inverse Asymmetry](/202604/04/2604.01985v1-world-action-verifier-self-improving-world-models-via-forward-inverse-asymmetry)  
-   标签：评分：10.0/10、query:q13
-   evidence：通过正逆不对称性实现自我改进的世界模型，用于策略评估
-54. [CompassAD: Intent-Driven 3D Affordance Grounding in Functionally Competing Objects](/202604/04/2604.02060v1-compassad-intent-driven-3d-affordance-grounding-in-functionally-competing-objects)  
+   evidence：使用高斯面元进行稀疏视图表面重建的前馈框架
+34. [BLaDA: Bridging Language to Functional Dexterous Actions within 3DGS Fields](/202604/14/2604.08410v1-blada-bridging-language-to-functional-dexterous-actions-within-3dgs-fields)  
    标签：评分：10.0/10、query:3d-scn
-   evidence：多物体场景中意图驱动的三维可供性定位
-55. [ROS 2-Based LiDAR Perception Framework for Mobile Robots in Dynamic Production Environments, Utilizing Synthetic Data Generation, Transformation-Equivariant 3D Detection and Multi-Object Tracking](/202604/04/2604.02109v1-ros-2-based-lidar-perception-framework-for-mobile-robots-in-dynamic-production-environments-utilizing-synthetic-data-generation-transformation-equivariant-3d-detection-and-multi-object-tracking)  
-   标签：评分：10.0/10、query:q8
-   evidence：用于移动机器人的LiDAR感知框架和3D检测
-56. [UniDriveVLA: Unifying Understanding, Perception, and Action Planning for Autonomous Driving](/202604/04/2604.02190v1-unidrivevla-unifying-understanding-perception-and-action-planning-for-autonomous-driving)  
+   evidence：3DGS场中的零样本功能性灵巧动作
+35. [LAMP: Lift Image-Editing as General 3D Priors for Open-world Manipulation](/202604/14/2604.08475v1-lamp-lift-image-editing-as-general-3d-priors-for-open-world-manipulation)  
+   标签：评分：10.0/10、query:profile-1
+   evidence：利用VLA和VLM为开放世界操作提供三维先验
+36. [WildDet3D: Scaling Promptable 3D Detection in the Wild](/202604/14/2604.08626v1-wilddet3d-scaling-promptable-3d-detection-in-the-wild)  
+   标签：评分：10.0/10、query:3d-scn
+   evidence：单目 3D 物体检测，恢复物体的范围、位置和方向
+37. [Task-Aware Bimanual Affordance Prediction via VLM-Guided Semantic-Geometric Reasoning](/202604/14/2604.08726v1-task-aware-bimanual-affordance-prediction-via-vlm-guided-semantic-geometric-reasoning)  
+   标签：评分：10.0/10、query:3d-scn
+   evidence：通过VLM引导的推理进行任务感知的双臂可供性预测
+38. [MV3DIS: Multi-View Mask Matching via 3D Guides for Zero-Shot 3D Instance Segmentation](/202604/14/2604.08916v1-mv3dis-multi-view-mask-matching-via-3d-guides-for-zero-shot-3d-instance-segmentation)  
+   标签：评分：10.0/10、query:3d-scn
+   evidence：利用多视图 2D 掩码和 3D 引导进行零样本 3D 实例分割
+39. [AssemLM: Spatial Reasoning Multimodal Large Language Models for Robotic Assembly](/202604/14/2604.08983v1-assemlm-spatial-reasoning-multimodal-large-language-models-for-robotic-assembly)  
+   标签：评分：10.0/10、query:profile-1
+   evidence：用于机器人组装的空间推理多模态大语言模型
+40. [V-CAGE: Vision-Closed-Loop Agentic Generation Engine for Robotic Manipulation](/202604/14/2604.09036v1-v-cage-vision-closed-loop-agentic-generation-engine-for-robotic-manipulation)  
    标签：评分：10.0/10、query:q12
-   evidence：用于自动驾驶和空间感知的视觉-语言-动作模型
-57. [UAV-Track VLA: Embodied Aerial Tracking via Vision-Language-Action Models](/202604/04/2604.02241v1-uav-track-vla-embodied-aerial-tracking-via-vision-language-action-models)  
+   evidence：通过自主机器人数据合成扩展 VLA 模型
+41. [Scene-Agnostic Object-Centric Representation Learning for 3D Gaussian Splatting](/202604/14/2604.09045v1-scene-agnostic-object-centric-representation-learning-for-3d-gaussian-splatting)  
+   标签：评分：10.0/10、query:3d-scn
+   evidence：三维场景理解的以物体为中心的表示学习
+42. [Learning Vision-Language-Action World Models for Autonomous Driving](/202604/14/2604.09059v1-learning-vision-language-action-world-models-for-autonomous-driving)  
+   标签：评分：10.0/10、query:q13
+   evidence：用于自动驾驶的视觉-语言-动作世界模型
+43. [2D or 3D: Who Governs Salience in VLA Models? -- Tri-Stage Token Pruning Framework with Modality Salience Awareness](/202604/14/2604.09244v1-2d-or-3d-who-governs-salience-in-vla-models----tri-stage-token-pruning-framework-with-modality-salience-awareness)  
    标签：评分：10.0/10、query:q12
-   evidence：通过视觉-语言-动作模型进行具身空中追踪
-58. [Few Shots Text to Image Retrieval: New Benchmarking Dataset and Optimization Methods](/202604/04/2603.25891v1-few-shots-text-to-image-retrieval-new-benchmarking-dataset-and-optimization-methods)  
-   标签：评分：9.0/10、query:q14
-   evidence：专门为图像检索设计的少样本学习方法
-59. [Emergent Neural Automaton Policies: Learning Symbolic Structure from Visuomotor Trajectories](/202604/04/2603.25903v1-emergent-neural-automaton-policies-learning-symbolic-structure-from-visuomotor-trajectories)  
-   标签：评分：9.0/10、query:q12
-   evidence：用于长程机器人学习的神经符号策略，从视觉运动轨迹中学习
-60. [Can Vision Foundation Models Navigate? Zero-Shot Real-World Evaluation and Lessons Learned](/202604/04/2603.25937v1-can-vision-foundation-models-navigate-zero-shot-real-world-evaluation-and-lessons-learned)  
-   标签：评分：9.0/10、query:q8
-   evidence：机器人视觉导航模型的真实世界评估
-61. [JRM: Joint Reconstruction Model for Multiple Objects without Alignment](/202604/04/2603.25985v1-jrm-joint-reconstruction-model-for-multiple-objects-without-alignment)  
+   evidence：多视觉模态VLA模型的Token剪枝框架
+44. [PhysInOne: Visual Physics Learning and Reasoning in One Suite](/202604/14/2604.09415v1-physinone-visual-physics-learning-and-reasoning-in-one-suite)  
+   标签：评分：10.0/10、query:3d-scn
+   evidence：包含3D几何、语义和物理属性的大规模合成数据集
+45. [LAST: Leveraging Tools as Hints to Enhance Spatial Reasoning for Multimodal Large Language Models](/202604/14/2604.09712v1-last-leveraging-tools-as-hints-to-enhance-spatial-reasoning-for-multimodal-large-language-models)  
+   标签：评分：10.0/10、query:q11
+   evidence：增强多模态大语言模型的空间推理能力
+46. [ProGAL-VLA: Grounded Alignment through Prospective Reasoning in Vision-Language-Action Models](/202604/14/2604.09824v1-progal-vla-grounded-alignment-through-prospective-reasoning-in-vision-language-action-models)  
+   标签：评分：10.0/10、query:q12
+   evidence：具有3D实体中心图和对齐机制的视觉-语言-动作模型
+47. [FF3R: Feedforward Feature 3D Reconstruction from Unconstrained views](/202604/14/2604.09862v1-ff3r-feedforward-feature-3d-reconstruction-from-unconstrained-views)  
+   标签：评分：10.0/10、query:q19
+   evidence：统一了无约束多视图图像序列的几何和语义推理
+48. [Vision-Language-Action Model, Robustness, Multi-modal Learning, Robot Manipulation](/202604/14/2604.10055v1-vision-language-action-model-robustness-multi-modal-learning-robot-manipulation)  
+   标签：评分：10.0/10、query:q12
+   evidence：机器人操作中视觉-语言-动作模型的鲁棒性
+49. [ABot-Claw: A Foundation for Persistent, Cooperative, and Self-Evolving Robotic Agents](/202604/14/2604.10096v1-abot-claw-a-foundation-for-persistent-cooperative-and-self-evolving-robotic-agents)  
+   标签：评分：10.0/10、query:q12
+   evidence：用于长期多机器人执行的 VLA 模型具身扩展
+50. [AnySlot: Goal-Conditioned Vision-Language-Action Policies for Zero-Shot Slot-Level Placement](/202604/14/2604.10432v1-anyslot-goal-conditioned-vision-language-action-policies-for-zero-shot-slot-level-placement)  
+   标签：评分：10.0/10、query:q18
+   evidence：用于零样本机器人放置的视觉-语言-动作策略
+51. [AffordGen: Generating Diverse Demonstrations for Generalizable Object Manipulation with Afford Correspondence](/202604/14/2604.10579v1-affordgen-generating-diverse-demonstrations-for-generalizable-object-manipulation-with-afford-correspondence)  
+   标签：评分：10.0/10、query:3d-scn
+   evidence：利用 3D 网格关键点的语义对应关系进行可供性感知操作
+52. [OmniUMI: Towards Physically Grounded Robot Learning via Human-Aligned Multimodal Interaction](/202604/14/2604.10647v1-omniumi-towards-physically-grounded-robot-learning-via-human-aligned-multimodal-interaction)  
+   标签：评分：10.0/10、query:q20
+   evidence：包含触觉和力反馈的多模态交互机器人学习
+53. [LIDARLearn: A Unified Deep Learning Library for 3D Point Cloud Classification, Segmentation, and Self-Supervised Representation Learning](/202604/14/2604.10780v1-lidarlearn-a-unified-deep-learning-library-for-3d-point-cloud-classification-segmentation-and-self-supervised-representation-learning)  
+   标签：评分：10.0/10、query:3d-scn
+   evidence：统一的3D点云分类与分割库
+54. [ReplicateAnyScene: Zero-Shot Video-to-3D Composition via Textual-Visual-Spatial Alignment](/202604/14/2604.10789v1-replicateanyscene-zero-shot-video-to-3d-composition-via-textual-visual-spatial-alignment)  
+   标签：评分：10.0/10、query:q10
+   evidence：用于具身智能的视频零样本组合式3D重建
+55. [Ψ-Map: Panoptic Surface Integrated Mapping Enables Real2Sim Transfer](/202604/14/2604.10982v1--map-panoptic-surface-integrated-mapping-enables-real2sim-transfer)  
+   标签：评分：10.0/10、query:3d-scn
+   evidence：开放词汇全景重建与3D建图
+56. [Data-Efficient Semantic Segmentation of 3D Point Clouds via Open-Vocabulary Image Segmentation-based Pseudo-Labeling](/202604/14/2604.11007v1-data-efficient-semantic-segmentation-of-3d-point-clouds-via-open-vocabulary-image-segmentation-based-pseudo-labeling)  
+   标签：评分：10.0/10、query:3d-scn
+   evidence：通过开放词汇伪标签实现3D点云的高效数据语义分割
+57. [A Faster Path to Continual Learning](/202604/14/2604.11064v1-a-faster-path-to-continual-learning)  
+   标签：评分：10.0/10、query:q15
+   evidence：用于持续学习的快速优化器以防止遗忘
+58. [AIM: Intent-Aware Unified world action Modeling with Spatial Value Maps](/202604/14/2604.11135v1-aim-intent-aware-unified-world-action-modeling-with-spatial-value-maps)  
+   标签：评分：10.0/10、query:q13
+   evidence：具有空间价值图的意图感知统一世界动作建模
+59. [3D-Anchored Lookahead Planning for Persistent Robotic Scene Memory via World-Model-Based MCTS](/202604/14/2604.11302v1-3d-anchored-lookahead-planning-for-persistent-robotic-scene-memory-via-world-model-based-mcts)  
+   标签：评分：10.0/10、query:q13
+   evidence：使用3D一致的世界模型作为推演预言机的机器人操作
+60. [CLASP: Closed-loop Asynchronous Spatial Perception for Open-vocabulary Desktop Object Grasping](/202604/14/2604.11320v1-clasp-closed-loop-asynchronous-spatial-perception-for-open-vocabulary-desktop-object-grasping)  
+   标签：评分：10.0/10、query:q9
+   evidence：用于开放词汇桌面物体抓取的闭环空间感知
+61. [WM-DAgger: Enabling Efficient Data Aggregation for Imitation Learning with World Models](/202604/14/2604.11351v1-wm-dagger-enabling-efficient-data-aggregation-for-imitation-learning-with-world-models)  
+   标签：评分：10.0/10、query:q13
+   evidence：利用世界模型合成数据以进行机器人操作的模仿学习
+62. [DA-PTQ: Drift-Aware Post-Training Quantization for Efficient Vision-Language-Action Models](/202604/14/2604.11572v1-da-ptq-drift-aware-post-training-quantization-for-efficient-vision-language-action-models)  
+   标签：评分：10.0/10、query:q12
+   evidence：针对高效视觉-语言-动作模型的训练后量化
+63. [AffordSim: A Scalable Data Generator and Benchmark for Affordance-Aware Robotic Manipulation](/202604/14/2604.11674v1-affordsim-a-scalable-data-generator-and-benchmark-for-affordance-aware-robotic-manipulation)  
+   标签：评分：10.0/10、query:3d-scn
+   evidence：将开放词汇 3D 可供性预测集成到操作数据生成中
+64. [StarVLA-$α$: Reducing Complexity in Vision-Language-Action Systems](/202604/14/2604.11757v1-starvla--reducing-complexity-in-vision-language-action-systems)  
+   标签：评分：10.0/10、query:q12
+   evidence：引入了 StarVLA-alpha，这是一个视觉-语言-动作 (VLA) 系统的基准模型
+65. [A Persistent Homology Design Space for 3D Point Cloud Deep Learning](/202604/14/2604.04299v1-a-persistent-homology-design-space-for-3d-point-cloud-deep-learning)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：用于3D点云深度学习架构的持续同调设计空间
+66. [GA-GS: Generation-Assisted Gaussian Splatting for Static Scene Reconstruction](/202604/14/2604.04331v1-ga-gs-generation-assisted-gaussian-splatting-for-static-scene-reconstruction)  
    标签：评分：9.0/10、query:q10
-   evidence：利用重复性进行多物体联合3D重建
-62. [VLAgeBench: Benchmarking Large Vision-Language Models for Zero-Shot Human Age Estimation](/202604/04/2603.26015v1-vlagebench-benchmarking-large-vision-language-models-for-zero-shot-human-age-estimation)  
-   标签：评分：9.0/10、query:q21
-   evidence：对最先进的大型视觉语言模型进行零样本年龄估计评估
-63. [Knowledge is Power: Advancing Few-shot Action Recognition with Multimodal Semantics from MLLMs](/202604/04/2603.26033v1-knowledge-is-power-advancing-few-shot-action-recognition-with-multimodal-semantics-from-mllms)  
-   标签：评分：9.0/10、query:q11
-   evidence：利用多模态大模型作为多模态知识库进行少样本动作识别
-64. [SDDF: Specificity-Driven Dynamic Focusing for Open-Vocabulary Camouflaged Object Detection](/202604/04/2603.26109v1-sddf-specificity-driven-dynamic-focusing-for-open-vocabulary-camouflaged-object-detection)  
+   evidence：基于高斯泼溅的单目视频静态场景重建
+67. [3D-Fixer: Coarse-to-Fine In-place Completion for 3D Scenes from a Single Image](/202604/14/2604.04406v1-3d-fixer-coarse-to-fine-in-place-completion-for-3d-scenes-from-a-single-image)  
+   标签：评分：9.0/10、query:q16
+   evidence：单张图像的3D场景生成与原位补全
+68. [Is Prompt Selection Necessary for Task-Free Online Continual Learning?](/202604/14/2604.04420v1-is-prompt-selection-necessary-for-task-free-online-continual-learning)  
+   标签：评分：9.0/10、query:q15
+   evidence：针对现实环境的无任务在线持续学习
+69. [HandDreamer: Zero-Shot Text to 3D Hand Model Generation using Corrective Hand Shape Guidance](/202604/14/2604.04425v1-handdreamer-zero-shot-text-to-3d-hand-model-generation-using-corrective-hand-shape-guidance)  
+   标签：评分：9.0/10、query:q16
+   evidence：使用分数蒸馏采样进行零样本从文本到 3D 手部模型生成
+70. [Parameter-Efficient Semantic Augmentation for Enhancing Open-Vocabulary Object Detection](/202604/14/2604.04444v1-parameter-efficient-semantic-augmentation-for-enhancing-open-vocabulary-object-detection)  
    标签：评分：9.0/10、query:q14
-   evidence：开放词汇目标检测与零样本泛化
-65. [Beyond Where to Look: Trajectory-Guided Reinforcement Learning for Multimodal RLVR](/202604/04/2603.26126v1-beyond-where-to-look-trajectory-guided-reinforcement-learning-for-multimodal-rlvr)  
+   evidence：利用语义增强提升针对未见类别的开放词汇目标检测
+71. [Beyond Standard Benchmarks: A Systematic Audit of Vision-Language Model's Robustness to Natural Semantic Variation Across Diverse Tasks](/202604/14/2604.04473v1-beyond-standard-benchmarks-a-systematic-audit-of-vision-language-models-robustness-to-natural-semantic-variation-across-diverse-tasks)  
    标签：评分：9.0/10、query:q11
-   evidence：将视觉证据整合到多模态大语言模型的推理中
-66. [Efficient Few-Shot Learning for Edge AI via Knowledge Distillation on MobileViT](/202604/04/2603.26145v1-efficient-few-shot-learning-for-edge-ai-via-knowledge-distillation-on-mobilevit)  
+   evidence：评估了 CLIP 和 BLIP2 等视觉语言模型 (VLM) 在各种任务中的鲁棒性。
+72. [Saliency-R1: Enforcing Interpretable and Faithful Vision-language Reasoning via Saliency-map Alignment Reward](/202604/14/2604.04500v1-saliency-r1-enforcing-interpretable-and-faithful-vision-language-reasoning-via-saliency-map-alignment-reward)  
+   标签：评分：9.0/10、query:q11
+   evidence：提高视觉语言模型推理的可解释性和忠实度
+73. [Veo-Act: How Far Can Frontier Video Models Advance Generalizable Robot Manipulation?](/202604/14/2604.04502v1-veo-act-how-far-can-frontier-video-models-advance-generalizable-robot-manipulation)  
+   标签：评分：9.0/10、query:q12
+   evidence：用于零样本机器人操作动作生成的视频生成模型
+74. [G-EDF-Loc: 3D Continuous Gaussian Distance Field for Robust Gradient-Based 6DoF Localization](/202604/14/2604.04525v1-g-edf-loc-3d-continuous-gaussian-distance-field-for-robust-gradient-based-6dof-localization)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：用于鲁棒6DoF定位与重建的3D距离场
+75. [Firebolt-VL: Efficient Vision-Language Understanding with Cross-Modality Modulation](/202604/14/2604.04579v1-firebolt-vl-efficient-vision-language-understanding-with-cross-modality-modulation)  
+   标签：评分：9.0/10、query:q11
+   evidence：用于细粒度推理和理解的高效视觉语言模型
+76. [Firebolt-VL: Efficient Vision-Language Understanding with Cross-Modality Modulation](/202604/14/2604.04579v2-firebolt-vl-efficient-vision-language-understanding-with-cross-modality-modulation)  
+   标签：评分：9.0/10、query:q11
+   evidence：基于多模态大语言模型的高效视觉语言理解
+77. [Biologically Inspired Event-Based Perception and Sample-Efficient Learning for High-Speed Table Tennis Robots](/202604/14/2604.04618v1-biologically-inspired-event-based-perception-and-sample-efficient-learning-for-high-speed-table-tennis-robots)  
+   标签：评分：9.0/10、query:q8
+   evidence：高速乒乓球机器人的基于事件的感知
+78. [InCTRLv2: Generalist Residual Models for Few-Shot Anomaly Detection and Segmentation](/202604/14/2604.04632v1-inctrlv2-generalist-residual-models-for-few-shot-anomaly-detection-and-segmentation)  
    标签：评分：9.0/10、query:q14
-   evidence：通过知识蒸馏实现边缘AI的少样本学习
-67. [Dual-Stage Invariant Continual Learning under Extreme Visual Sparsity](/202604/04/2603.26190v1-dual-stage-invariant-continual-learning-under-extreme-visual-sparsity)  
+   evidence：少样本通用异常检测与分割
+79. [WaterSplat-SLAM: Photorealistic Monocular SLAM in Underwater Environment](/202604/14/2604.04642v1-watersplat-slam-photorealistic-monocular-slam-in-underwater-environment)  
+   标签：评分：9.0/10、query:q10
+   evidence：具有逼真稠密建图能力的单目水下SLAM
+80. [ROSClaw: A Hierarchical Semantic-Physical Framework for Heterogeneous Multi-Agent Collaboration](/202604/14/2604.04664v1-rosclaw-a-hierarchical-semantic-physical-framework-for-heterogeneous-multi-agent-collaboration)  
+   标签：评分：9.0/10、query:q12
+   evidence：VLA 和多智能体协作的分层框架
+81. [ZeD-MAP: Bundle Adjustment Guided Zero-Shot Depth Maps for Real-Time Aerial Imaging](/202604/14/2604.04667v1-zed-map-bundle-adjustment-guided-zero-shot-depth-maps-for-real-time-aerial-imaging)  
+   标签：评分：9.0/10、query:q10
+   evidence：利用零样本扩散模型从无人机图像中进行实时深度重建
+82. [AnyUser: Translating Sketched User Intent into Domestic Robots](/202604/14/2604.04811v1-anyuser-translating-sketched-user-intent-into-domestic-robots)  
+   标签：评分：9.0/10、query:q12
+   evidence：将多模态输入转化为家用机器人的可执行动作。
+83. [InfBaGel: Human-Object-Scene Interaction Generation with Dynamic Perception and Iterative Refinement](/202604/14/2604.04843v1-infbagel-human-object-scene-interaction-generation-with-dynamic-perception-and-iterative-refinement)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：具身智能中的人-物-场景交互生成
+84. [Free-Range Gaussians: Non-Grid-Aligned Generative 3D Gaussian Reconstruction](/202604/14/2604.04874v1-free-range-gaussians-non-grid-aligned-generative-3d-gaussian-reconstruction)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：基于稀疏图像的生成式3D高斯重建
+85. [A Frame is Worth One Token: Efficient Generative World Modeling with Delta Tokens](/202604/14/2604.04913v1-a-frame-is-worth-one-token-efficient-generative-world-modeling-with-delta-tokens)  
+   标签：评分：9.0/10、query:q13
+   evidence：使用增量标记的高效生成式世界模型
+86. [Part-Level 3D Gaussian Vehicle Generation with Joint and Hinge Axis Estimation](/202604/14/2604.05070v1-part-level-3d-gaussian-vehicle-generation-with-joint-and-hinge-axis-estimation)  
+   标签：评分：9.0/10、query:q16
+   evidence：从图像生成可动画化3D高斯车辆的生成框架
+87. [LSRM: High-Fidelity Object-Centric Reconstruction via Scaled Context Windows](/202604/14/2604.05182v1-lsrm-high-fidelity-object-centric-reconstruction-via-scaled-context-windows)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：通过扩展上下文窗口实现高保真以物体为中心的三维重建
+88. [Boxer: Robust Lifting of Open-World 2D Bounding Boxes to 3D](/202604/14/2604.05212v1-boxer-robust-lifting-of-open-world-2d-bounding-boxes-to-3d)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：从2D检测中进行3D物体定位和边界框估计
+89. [Improving Sparse Memory Finetuning](/202604/14/2604.05248v1-improving-sparse-memory-finetuning)  
+   标签：评分：9.0/10、query:q15
+   evidence：通过将更新定位到稀疏记忆模块来实现有效的持续学习
+90. [ExpressMM: Expressive Mobile Manipulation Behaviors in Human-Robot Interactions](/202604/14/2604.05320v1-expressmm-expressive-mobile-manipulation-behaviors-in-human-robot-interactions)  
+   标签：评分：9.0/10、query:q20
+   evidence：用于移动操作感知和规划的视觉语言模型
+91. [ExpressMM: Expressive Mobile Manipulation Behaviors in Human-Robot Interactions](/202604/14/2604.05320v2-expressmm-expressive-mobile-manipulation-behaviors-in-human-robot-interactions)  
+   标签：评分：9.0/10、query:q20
+   evidence：用于移动操作和人机交互的视觉语言模型
+92. [AnyImageNav: Any-View Geometry for Precise Last-Meter Image-Goal Navigation](/202604/14/2604.05351v1-anyimagenav-any-view-geometry-for-precise-last-meter-image-goal-navigation)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：针对抓取任务的精确导航定位以及3D空间中的6自由度相机位姿恢复
+93. [AnyImageNav: Any-View Geometry for Precise Last-Meter Image-Goal Navigation](/202604/14/2604.05351v2-anyimagenav-any-view-geometry-for-precise-last-meter-image-goal-navigation)  
+   标签：评分：9.0/10、query:q9
+   evidence：针对抓取等下游任务的精确图像目标导航
+94. [Unsupervised Multi-agent and Single-agent Perception from Cooperative Views](/202604/14/2604.05354v1-unsupervised-multi-agent-and-single-agent-perception-from-cooperative-views)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：基于协作视图的无监督 3D 物体检测
+95. [LSGS-Loc: Towards Robust 3DGS-Based Visual Localization for Large-Scale UAV Scenarios](/202604/14/2604.05402v1-lsgs-loc-towards-robust-3dgs-based-visual-localization-for-large-scale-uav-scenarios)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：基于3D高斯泼溅的大规模无人机场景视觉定位
+96. [Weather-Conditioned Branch Routing for Robust LiDAR-Radar 3D Object Detection](/202604/14/2604.05405v1-weather-conditioned-branch-routing-for-robust-lidar-radar-3d-object-detection)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：LiDAR-雷达3D目标检测与多模态感知
+97. [Cross-Stage Attention Propagation for Efficient Semantic Segmentation](/202604/14/2604.05431v1-cross-stage-attention-propagation-for-efficient-semantic-segmentation)  
+   标签：评分：9.0/10、query:q6
+   evidence：使用跨阶段注意力传播的高效语义分割
+98. [Human Interaction-Aware 3D Reconstruction from a Single Image](/202604/14/2604.05436v1-human-interaction-aware-3d-reconstruction-from-a-single-image)  
+   标签：评分：9.0/10、query:q10
+   evidence：多人物场景下单张图像的 3D 人体重建
+99. [Referring-Aware Visuomotor Policy Learning for Closed-Loop Manipulation](/202604/14/2604.05544v1-referring-aware-visuomotor-policy-learning-for-closed-loop-manipulation)  
+   标签：评分：9.0/10、query:q9
+   evidence：闭环机器人操作的视觉运动策略学习
+100. [Efficient Inference for Large Vision-Language Models: Bottlenecks, Techniques, and Prospects](/202604/14/2604.05546v1-efficient-inference-for-large-vision-language-models-bottlenecks-techniques-and-prospects)  
+   标签：评分：9.0/10、query:q11
+   evidence：多模态大语言模型推理效率技术的系统分类
+101. [Uncovering Linguistic Fragility in Vision-Language-Action Models via Diversity-Aware Red Teaming](/202604/14/2604.05595v1-uncovering-linguistic-fragility-in-vision-language-action-models-via-diversity-aware-red-teaming)  
+   标签：评分：9.0/10、query:q12
+   evidence：视觉-语言-动作模型的鲁棒性与红队测试
+102. [PanopticQuery: Unified Query-Time Reasoning for 4D Scenes](/202604/14/2604.05638v1-panopticquery-unified-query-time-reasoning-for-4d-scenes)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：4D场景的统一查询时间推理与语义接地
+103. [3D Smoke Scene Reconstruction Guided by Vision Priors from Multimodal Large Language Models](/202604/14/2604.05687v1-3d-smoke-scene-reconstruction-guided-by-vision-priors-from-multimodal-large-language-models)  
+   标签：评分：9.0/10、query:q10
+   evidence：结合多模态大模型的视觉先验进行3D场景重建和高斯泼溅。
+104. [Let Geometry GUIDE: Layer-wise Unrolling of Geometric Priors in Multimodal LLMs](/202604/14/2604.05695v1-let-geometry-guide-layer-wise-unrolling-of-geometric-priors-in-multimodal-llms)  
+   标签：评分：9.0/10、query:q11
+   evidence：多模态大语言模型的渐进式几何先验注入框架
+105. [In Depth We Trust: Reliable Monocular Depth Supervision for Gaussian Splatting](/202604/14/2604.05715v1-in-depth-we-trust-reliable-monocular-depth-supervision-for-gaussian-splatting)  
+   标签：评分：9.0/10、query:q10
+   evidence：利用单目深度先验进行高斯泼溅3D重建
+106. [BiCoord: A Bimanual Manipulation Benchmark towards Long-Horizon Spatial-Temporal Coordination](/202604/14/2604.05831v1-bicoord-a-bimanual-manipulation-benchmark-towards-long-horizon-spatial-temporal-coordination)  
+   标签：评分：9.0/10、query:q9
+   evidence：长程协作的双臂操作基准
+107. [HiPolicy: Hierarchical Multi-Frequency Action Chunking for Policy Learning](/202604/14/2604.06067v1-hipolicy-hierarchical-multi-frequency-action-chunking-for-policy-learning)  
+   标签：评分：9.0/10、query:q12
+   evidence：用于机器人策略学习和细粒度控制的分层动作分块。
+108. [SEM-ROVER: Semantic Voxel-Guided Diffusion for Large-Scale Driving Scene Generation](/202604/14/2604.06113v1-sem-rover-semantic-voxel-guided-diffusion-for-large-scale-driving-scene-generation)  
+   标签：评分：9.0/10、query:q16
+   evidence：用于大规模室外驾驶场景生成的3D生成框架
+109. [Claw-Eval: Toward Trustworthy Evaluation of Autonomous Agents](/202604/14/2604.06132v1-claw-eval-toward-trustworthy-evaluation-of-autonomous-agents)  
+   标签：评分：9.0/10、query:q11
+   evidence：针对作为自主智能体的多模态大语言模型的评估套件
+110. [Occlusion Handling by Pushing for Enhanced Fruit Detection](/202604/14/2604.06341v1-occlusion-handling-by-pushing-for-enhanced-fruit-detection)  
+   标签：评分：9.0/10、query:q9
+   evidence：利用 RGB-D 相机和机械臂进行水果检测与操作的农业机器人
+111. [Continual Visual Anomaly Detection on the Edge: Benchmark and Efficient Solutions](/202604/14/2604.06435v1-continual-visual-anomaly-detection-on-the-edge-benchmark-and-efficient-solutions)  
+   标签：评分：9.0/10、query:q15
+   evidence：边缘设备上的持续视觉异常检测
+112. [LiftFormer: Lifting and Frame Theory Based Monocular Depth Estimation Using Depth and Edge Oriented Subspace Representation](/202604/14/2604.06576v1-liftformer-lifting-and-frame-theory-based-monocular-depth-estimation-using-depth-and-edge-oriented-subspace-representation)  
+   标签：评分：9.0/10、query:q10
+   evidence：用于3D场景结构表示的单目深度估计
+113. [LiveStre4m: Feed-Forward Live Streaming of Novel Views from Unposed Multi-View Video](/202604/14/2604.06740v1-livestre4m-feed-forward-live-streaming-of-novel-views-from-unposed-multi-view-video)  
+   标签：评分：9.0/10、query:q10
+   evidence：用于实时三维场景重建和新视角合成的前馈模型
+114. [How Well Do Vision-Language Models Understand Sequential Driving Scenes? A Sensitivity Study](/202604/14/2604.06750v1-how-well-do-vision-language-models-understand-sequential-driving-scenes-a-sensitivity-study)  
+   标签：评分：9.0/10、query:q11
+   evidence：视觉语言模型在理解连续驾驶场景方面的评估
+115. [RichMap: A Reachability Map Balancing Precision, Efficiency, and Flexibility for Rich Robot Manipulation Tasks](/202604/14/2604.06778v1-richmap-a-reachability-map-balancing-precision-efficiency-and-flexibility-for-rich-robot-manipulation-tasks)  
+   标签：评分：9.0/10、query:q9
+   evidence：用于通用机器人操作任务的可达性地图表示
+116. [VGGT-SLAM++](/202604/14/2604.06830v1-vggt-slam)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：用于精确大规模建图和环境表示的视觉 SLAM 系统
+117. [SMCNet: Supervised Surface Material Classification Using mmWave Radar IQ Signals and Complex-valued CNNs](/202604/14/2604.06847v1-smcnet-supervised-surface-material-classification-using-mmwave-radar-iq-signals-and-complex-valued-cnns)  
+   标签：评分：9.0/10、query:q8
+   evidence：基于毫米波雷达的室内机器人感知表面材料分类
+118. [Q-Zoom: Query-Aware Adaptive Perception for Efficient Multimodal Large Language Models](/202604/14/2604.06912v1-q-zoom-query-aware-adaptive-perception-for-efficient-multimodal-large-language-models)  
+   标签：评分：9.0/10、query:q20
+   evidence：多模态大语言模型的查询感知自适应感知
+119. [Synthetic Dataset Generation for Partially Observed Indoor Objects](/202604/14/2604.07010v1-synthetic-dataset-generation-for-partially-observed-indoor-objects)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：用于3D场景重建和物体补全的合成数据集生成
+120. [ModuSeg: Decoupling Object Discovery and Semantic Retrieval for Training-Free Weakly Supervised Segmentation](/202604/14/2604.07021v1-moduseg-decoupling-object-discovery-and-semantic-retrieval-for-training-free-weakly-supervised-segmentation)  
+   标签：评分：9.0/10、query:q6
+   evidence：解耦对象发现与语义检索的免训练弱监督语义分割
+121. [AnchorSplat: Feed-Forward 3D Gaussian SplattingWith 3D Geometric Priors](/202604/14/2604.07053v1-anchorsplat-feed-forward-3d-gaussian-splattingwith-3d-geometric-priors)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：由几何先验引导的基于高斯泼溅的3D场景重建
+122. [AnchorSplat: Feed-Forward 3D Gaussian Splatting with 3D Geometric Priors](/202604/14/2604.07053v2-anchorsplat-feed-forward-3d-gaussian-splatting-with-3d-geometric-priors)  
+   标签：评分：9.0/10、query:q10
+   evidence：利用 3D 几何先验进行场景级重建的前馈 3D 高斯泼溅框架
+123. [Flow Motion Policy: Manipulator Motion Planning with Flow Matching Models](/202604/14/2604.07084v1-flow-motion-policy-manipulator-motion-planning-with-flow-matching-models)  
+   标签：评分：9.0/10、query:q9
+   evidence：使用流匹配模型的机器人机械臂神经运动规划
+124. [Information as Structural Alignment: A Dynamical Theory of Continual Learning](/202604/14/2604.07108v1-information-as-structural-alignment-a-dynamical-theory-of-continual-learning)  
+   标签：评分：9.0/10、query:q15
+   evidence：解决灾难性遗忘的持续学习理论框架
+125. [INSPATIO-WORLD: A Real-Time 4D World Simulator via Spatiotemporal Autoregressive Modeling](/202604/14/2604.07209v1-inspatio-world-a-real-time-4d-world-simulator-via-spatiotemporal-autoregressive-modeling)  
+   标签：评分：9.0/10、query:q13
+   evidence：通过时空建模实现的实时4D世界模拟器
+126. [PhyEdit: Towards Real-World Object Manipulation via Physically-Grounded Image Editing](/202604/14/2604.07230v1-phyedit-towards-real-world-object-manipulation-via-physically-grounded-image-editing)  
+   标签：评分：9.0/10、query:q13
+   evidence：用于交互式世界模型和物体操作的物理接地图像编辑
+127. [TAMEn: Tactile-Aware Manipulation Engine for Closed-Loop Data Collection in Contact-Rich Tasks](/202604/14/2604.07335v1-tamen-tactile-aware-manipulation-engine-for-closed-loop-data-collection-in-contact-rich-tasks)  
+   标签：评分：9.0/10、query:q9
+   evidence：用于接触密集型机器人任务的触觉感知操作引擎
+128. [From Blobs to Spokes: High-Fidelity Surface Reconstruction via Oriented Gaussians](/202604/14/2604.07337v1-from-blobs-to-spokes-high-fidelity-surface-reconstruction-via-oriented-gaussians)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：通过定向高斯进行高保真表面重建
+129. [Critical Patch-Aware Sparse Prompting with Decoupled Training for Continual Learning on the Edge](/202604/14/2604.07399v1-critical-patch-aware-sparse-prompting-with-decoupled-training-for-continual-learning-on-the-edge)  
+   标签：评分：9.0/10、query:q15
+   evidence：使用稀疏提示的边缘设备持续学习框架
+130. [FORGE:Fine-grained Multimodal Evaluation for Manufacturing Scenarios](/202604/14/2604.07413v1-forgefine-grained-multimodal-evaluation-for-manufacturing-scenarios)  
+   标签：评分：9.0/10、query:q11
+   evidence：在制造场景中使用2D图像和3D点云对多模态大模型进行评估
+131. [FORGE: Fine-grained Multimodal Evaluation for Manufacturing Scenarios](/202604/14/2604.07413v2-forge-fine-grained-multimodal-evaluation-for-manufacturing-scenarios)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：包含2D图像和3D点云的制造业多模态数据集
+132. [Grasp as You Dream: Imitating Functional Grasping from Generated Human Demonstrations](/202604/14/2604.07517v1-grasp-as-you-dream-imitating-functional-grasping-from-generated-human-demonstrations)  
+   标签：评分：9.0/10、query:q9
+   evidence：利用视觉生成模型合成的人类演示实现零样本功能性抓取
+133. [Vision-Language Navigation for Aerial Robots: Towards the Era of Large Language Models](/202604/14/2604.07705v1-vision-language-navigation-for-aerial-robots-towards-the-era-of-large-language-models)  
+   标签：评分：9.0/10、query:q12
+   evidence：关于空中视觉语言导航以及LLM/VLM集成的综述
+134. [Direct Segmentation without Logits Optimization for Training-Free Open-Vocabulary Semantic Segmentation](/202604/14/2604.07723v1-direct-segmentation-without-logits-optimization-for-training-free-open-vocabulary-semantic-segmentation)  
+   标签：评分：9.0/10、query:q6
+   evidence：基于直接对齐的免训练开放词汇语义分割
+135. [GEAR: GEometry-motion Alternating Refinement for Articulated Object Modeling with Gaussian Splatting](/202604/14/2604.07728v1-gear-geometry-motion-alternating-refinement-for-articulated-object-modeling-with-gaussian-splatting)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：关节物体建模与几何运动细化
+136. [RoboAgent: Chaining Basic Capabilities for Embodied Task Planning](/202604/14/2604.07774v1-roboagent-chaining-basic-capabilities-for-embodied-task-planning)  
+   标签：评分：9.0/10、query:q12
+   evidence：利用视觉语言模型和原子动作进行具身任务规划
+137. [Learning Without Losing Identity: Capability Evolution for Embodied Agents](/202604/14/2604.07799v1-learning-without-losing-identity-capability-evolution-for-embodied-agents)  
    标签：评分：9.0/10、query:q23
-   evidence：极端视觉稀疏情况下的目标检测持续学习策略
-68. [GLASS: Geometry-aware Local Alignment and Structure Synchronization Network for 2D-3D Registration](/202604/04/2603.26262v1-glass-geometry-aware-local-alignment-and-structure-synchronization-network-for-2d-3d-registration)  
+   evidence：具身智能体在动态环境中持续获取新能力的演化范式
+138. [ReconPhys: Reconstruct Appearance and Physical Attributes from Single Video](/202604/14/2604.07882v1-reconphys-reconstruct-appearance-and-physical-attributes-from-single-video)  
    标签：评分：9.0/10、query:q10
-   evidence：2D-3D配准与点云特征增强
-69. [DRUM: Diffusion-based Raydrop-aware Unpaired Mapping for Sim2Real LiDAR Segmentation](/202604/04/2603.26263v1-drum-diffusion-based-raydrop-aware-unpaired-mapping-for-sim2real-lidar-segmentation)  
-   标签：评分：9.0/10、query:3d-scn
-   evidence：基于LiDAR的语义分割与仿真到现实的转换
-70. [HandVQA: Diagnosing and Improving Fine-Grained Spatial Reasoning about Hands in Vision-Language Models](/202604/04/2603.26362v1-handvqa-diagnosing-and-improving-fine-grained-spatial-reasoning-about-hands-in-vision-language-models)  
-   标签：评分：9.0/10、query:q11
-   evidence：通过视觉问答评估视觉语言模型对详细手部解剖结构的理解
-71. [Adapt as You Say: Online Interactive Bimanual Skill Adaptation via Human Language Feedback](/202604/04/2603.26466v1-adapt-as-you-say-online-interactive-bimanual-skill-adaptation-via-human-language-feedback)  
-   标签：评分：9.0/10、query:q12
-   evidence：通过交互式语言反馈实现双臂技能的零样本在线自适应
-72. [SparseCam4D: Spatio-Temporally Consistent 4D Reconstruction from Sparse Cameras](/202604/04/2603.26481v1-sparsecam4d-spatio-temporally-consistent-4d-reconstruction-from-sparse-cameras)  
-   标签：评分：9.0/10、query:q10
-   evidence：基于稀疏摄像头的4D重建
-73. [Scene Grounding In the Wild](/202604/04/2603.26584v1-scene-grounding-in-the-wild)  
-   标签：评分：9.0/10、query:3d-scn
-   evidence：从野外图像进行大规模场景的3D重建
-74. [The Limits of Learning from Pictures and Text: Vision-Language Models and Embodied Scene Understanding](/202604/04/2603.26589v1-the-limits-of-learning-from-pictures-and-text-vision-language-models-and-embodied-scene-understanding)  
-   标签：评分：9.0/10、query:3d-scn
-   evidence：评估视觉语言模型在可供性和具身场景理解上的表现
-75. [Drive-Through 3D Vehicle Exterior Reconstruction via Dynamic-Scene SfM and Distortion-Aware Gaussian Splatting](/202604/04/2603.26638v1-drive-through-3d-vehicle-exterior-reconstruction-via-dynamic-scene-sfm-and-distortion-aware-gaussian-splatting)  
-   标签：评分：9.0/10、query:q10
-   evidence：通过动态场景SfM和高斯泼溅进行3D车辆外观重建
-76. [Make Geometry Matter for Spatial Reasoning](/202604/04/2603.26639v1-make-geometry-matter-for-spatial-reasoning)  
-   标签：评分：9.0/10、query:q11
-   evidence：将几何标记注入视觉语言模型以进行空间推理
-77. [Partial Motion Imitation for Learning Cart Pushing with Legged Manipulators](/202604/04/2603.26659v1-partial-motion-imitation-for-learning-cart-pushing-with-legged-manipulators)  
-   标签：评分：9.0/10、query:q9
-   evidence：足式机器人的移动操作
-78. [GaussianGPT: Towards Autoregressive 3D Gaussian Scene Generation](/202604/04/2603.26661v1-gaussiangpt-towards-autoregressive-3d-gaussian-scene-generation)  
-   标签：评分：9.0/10、query:q16
-   evidence：使用Transformer进行自回归3D高斯场景生成
-79. [Detailed Geometry and Appearance from Opportunistic Motion](/202604/04/2603.26665v1-detailed-geometry-and-appearance-from-opportunistic-motion)  
-   标签：评分：9.0/10、query:q10
-   evidence：从操作过程中的物体运动进行3D几何重建
-80. [ROSClaw: An OpenClaw ROS 2 Framework for Agentic Robot Control and Interaction](/202604/04/2603.26997v1-rosclaw-an-openclaw-ros-2-framework-for-agentic-robot-control-and-interaction)  
-   标签：评分：9.0/10、query:q12
-   evidence：将基础模型与 ROS 2 集成，用于机器人控制和可供性注入
-81. [GUIDED: Granular Understanding via Identification, Detection, and Discrimination for Fine-Grained Open-Vocabulary Object Detection](/202604/04/2603.27014v1-guided-granular-understanding-via-identification-detection-and-discrimination-for-fine-grained-open-vocabulary-object-detection)  
-   标签：评分：9.0/10、query:q14
-   evidence：针对新类别的细粒度开放词汇目标检测
-82. [Generative Shape Reconstruction with Geometry-Guided Langevin Dynamics](/202604/04/2603.27016v1-generative-shape-reconstruction-with-geometry-guided-langevin-dynamics)  
-   标签：评分：9.0/10、query:q16
-   evidence：利用扩散模型和朗之万动力学进行生成式形状重建
-83. [Towards Intrinsic-Aware Monocular 3D Object Detection](/202604/04/2603.27059v1-towards-intrinsic-aware-monocular-3d-object-detection)  
-   标签：评分：9.0/10、query:3d-scn
-   evidence：利用视觉语言模型的单目3D物体检测
-84. [SceneExpander: Expanding 3D Scenes with Free-Form Inserted Views](/202604/04/2603.27084v1-sceneexpander-expanding-3d-scenes-with-free-form-inserted-views)  
-   标签：评分：9.0/10、query:q16
-   evidence：利用生成模型插入视图扩展3D场景
-85. [SceneExpander: Expanding 3D Scenes with Free-Form Inserted Views](/202604/04/2603.27084v2-sceneexpander-expanding-3d-scenes-with-free-form-inserted-views)  
-   标签：评分：9.0/10、query:q16
-   evidence：使用生成模型扩展3D场景
-86. [Communicating about Space: Language-Mediated Spatial Integration Across Partial Views](/202604/04/2603.27183v2-communicating-about-space-language-mediated-spatial-integration-across-partial-views)  
-   标签：评分：9.0/10、query:q11
-   evidence：多模态大模型 (MLLM) 对齐第一视角以实现3D空间理解
-87. [Incentivizing Temporal-Awareness in Egocentric Video Understanding Models](/202604/04/2603.27184v1-incentivizing-temporal-awareness-in-egocentric-video-understanding-models)  
-   标签：评分：9.0/10、query:q11
-   evidence：激励多模态大语言模型的时间感知能力
-88. [Make It Up: Fake Images, Real Gains in Generalized Few-shot Semantic Segmentation](/202604/04/2603.27206v1-make-it-up-fake-images-real-gains-in-generalized-few-shot-semantic-segmentation)  
-   标签：评分：9.0/10、query:q14
-   evidence：使用扩散模型的广义少样本语义分割
-89. [NimbusGS: Unified 3D Scene Reconstruction under Hybrid Weather](/202604/04/2603.27228v1-nimbusgs-unified-3d-scene-reconstruction-under-hybrid-weather)  
-   标签：评分：9.0/10、query:q10
-   evidence：从退化的多视图输入中重建高质量三维场景
-90. [HiFlow: Tokenization-Free Scale-Wise Autoregressive Policy Learning via Flow Matching](/202604/04/2603.27281v1-hiflow-tokenization-free-scale-wise-autoregressive-policy-learning-via-flow-matching)  
-   标签：评分：9.0/10、query:q12
-   evidence：机器人视觉运动策略学习
-91. [Complet4R: Geometric Complete 4D Reconstruction](/202604/04/2603.27300v1-complet4r-geometric-complete-4d-reconstruction)  
-   标签：评分：9.0/10、query:q10
-   evidence：动态场景的几何完整4D重建
-92. [D-SPEAR: Dual-Stream Prioritized Experience Adaptive Replay for Stable Reinforcement Learninging Robotic Manipulation](/202604/04/2603.27346v1-d-spear-dual-stream-prioritized-experience-adaptive-replay-for-stable-reinforcement-learninging-robotic-manipulation)  
-   标签：评分：9.0/10、query:q9
-   evidence：用于机器人操作和丰富接触动力学的强化学习
-93. [D-SPEAR: Dual-Stream Prioritized Experience Adaptive Replay for Stable Reinforcement Learning in Robotic Manipulation](/202604/04/2603.27346v2-d-spear-dual-stream-prioritized-experience-adaptive-replay-for-stable-reinforcement-learning-in-robotic-manipulation)  
-   标签：评分：9.0/10、query:q9
-   evidence：用于稳定机器人操作的强化学习
-94. [Inference-Time Structural Reasoning for Compositional Vision-Language Understanding](/202604/04/2603.27349v1-inference-time-structural-reasoning-for-compositional-vision-language-understanding)  
-   标签：评分：9.0/10、query:q11
-   evidence：组合视觉语言理解的结构化推理
-95. [Bridging Visual Representation and Reinforcement Learning from Verifiable Rewards in Large Vision-Language Models](/202604/04/2603.27375v1-bridging-visual-representation-and-reinforcement-learning-from-verifiable-rewards-in-large-vision-language-models)  
-   标签：评分：9.0/10、query:q11
-   evidence：在大型视觉语言模型中桥接视觉表示与强化学习
-96. [SpatialStack: Layered Geometry-Language Fusion for 3D VLM Spatial Reasoning](/202604/04/2603.27437v1-spatialstack-layered-geometry-language-fusion-for-3d-vlm-spatial-reasoning)  
-   标签：评分：9.0/10、query:3d-scn
-   evidence：3D视觉语言模型空间推理与几何语言融合
-97. [Robotic Dexterous Manipulation via Anisotropic Friction Modulation using Passive Rollers](/202604/04/2603.27452v1-robotic-dexterous-manipulation-via-anisotropic-friction-modulation-using-passive-rollers)  
-   标签：评分：9.0/10、query:q9
-   evidence：用于灵巧操作的机器人指尖设计
-98. [On Token's Dilemma: Dynamic MoE with Drift-Aware Token Assignment for Continual Learning of Large Vision Language Models](/202604/04/2603.27481v1-on-tokens-dilemma-dynamic-moe-with-drift-aware-token-assignment-for-continual-learning-of-large-vision-language-models)  
-   标签：评分：9.0/10、query:q15
-   evidence：使用混合专家模型的大型视觉语言模型持续学习
-99. [SGS-Intrinsic: Semantic-Invariant Gaussian Splatting for Sparse-View Indoor Inverse Rendering](/202604/04/2603.27516v1-sgs-intrinsic-semantic-invariant-gaussian-splatting-for-sparse-view-indoor-inverse-rendering)  
-   标签：评分：9.0/10、query:3d-scn
-   evidence：构建稠密且几何一致的高斯语义场
-100. [SGS-Intrinsic: Semantic-Invariant Gaussian Splatting for Sparse-View Indoor Inverse Rendering](/202604/04/2603.27516v2-sgs-intrinsic-semantic-invariant-gaussian-splatting-for-sparse-view-indoor-inverse-rendering)  
-   标签：评分：9.0/10、query:q10
-   evidence：室内逆渲染以及基于稀疏视图的高质量几何重建
-101. [Demo-Pose: Depth-Monocular Modality Fusion For Object Pose Estimation](/202604/04/2603.27533v1-demo-pose-depth-monocular-modality-fusion-for-object-pose-estimation)  
-   标签：评分：9.0/10、query:3d-scn
-   evidence：基于RGB-D输入的9自由度物体姿态估计与定位
-102. [S3KF: Spherical State-Space Kalman Filtering for Panoramic 3D Multi-Object Tracking](/202604/04/2603.27534v1-s3kf-spherical-state-space-kalman-filtering-for-panoramic-3d-multi-object-tracking)  
-   标签：评分：9.0/10、query:q8
-   evidence：用于机器人感知的全景三维多目标跟踪
-103. [Learning Smooth and Robust Space Robotic Manipulation of Dynamic Target via Inter-frame Correlation](/202604/04/2603.27537v1-learning-smooth-and-robust-space-robotic-manipulation-of-dynamic-target-via-inter-frame-correlation)  
-   标签：评分：9.0/10、query:q9
-   evidence：空间环境下的动态目标机器人操作
-104. [Annotation-Free Detection of Drivable Areas and Curbs Leveraging LiDAR Point Cloud Maps](/202604/04/2603.27553v1-annotation-free-detection-of-drivable-areas-and-curbs-leveraging-lidar-point-cloud-maps)  
-   标签：评分：9.0/10、query:3d-scn
-   evidence：利用LiDAR点云地图检测可行驶区域和路缘
-105. [Learning to See through Illumination Extremes with Event Streaming in Multimodal Large Language Models](/202604/04/2603.27558v1-learning-to-see-through-illumination-extremes-with-event-streaming-in-multimodal-large-language-models)  
-   标签：评分：9.0/10、query:q11
-   evidence：增强事件流的多模态大模型用于极端光照下的推理
-106. [SPREAD: Spatial-Physical REasoning via geometry Aware Diffusion](/202604/04/2603.27573v1-spread-spatial-physical-reasoning-via-geometry-aware-diffusion)  
-   标签：评分：9.0/10、query:q16
-   evidence：基于扩散模型的3D场景生成与空间物理推理框架
-107. [Structured Observation Language for Efficient and Generalizable Vision-Language Navigation](/202604/04/2603.27577v1-structured-observation-language-for-efficient-and-generalizable-vision-language-navigation)  
-   标签：评分：9.0/10、query:q11
-   evidence：将第一视角视觉观测转化为结构化语言进行导航
-108. [ContraMap: Contrastive Uncertainty Mapping for Robot Environment Representation](/202604/04/2603.27632v1-contramap-contrastive-uncertainty-mapping-for-robot-environment-representation)  
-   标签：评分：9.0/10、query:3d-scn
-   evidence：用于机器人环境表示的对比不确定性映射
-109. [LVRPO: Language-Visual Alignment with GRPO for Multimodal Understanding and Generation](/202604/04/2603.27693v1-lvrpo-language-visual-alignment-with-grpo-for-multimodal-understanding-and-generation)  
-   标签：评分：9.0/10、query:q11
-   evidence：用于多模态理解与生成的语言-视觉对齐
-110. [RAP: Retrieve, Adapt, and Prompt-Fit for Training-Free Few-Shot Medical Image Segmentation](/202604/04/2603.27705v1-rap-retrieve-adapt-and-prompt-fit-for-training-free-few-shot-medical-image-segmentation)  
-   标签：评分：9.0/10、query:q14
-   evidence：使用 SAM2 的免训练少样本医学图像分割
-111. [GS3LAM: Gaussian Semantic Splatting SLAM](/202604/04/2603.27781v1-gs3lam-gaussian-semantic-splatting-slam)  
-   标签：评分：9.0/10、query:3d-scn
-   evidence：用于稠密语义地图构建和SLAM的高斯语义喷溅技术
-112. [Spectral Decomposition of Inverse Dynamics for Fast Exploration in Model-Based Manipulation](/202604/04/2603.27796v1-spectral-decomposition-of-inverse-dynamics-for-fast-exploration-in-model-based-manipulation)  
-   标签：评分：9.0/10、query:q9
-   evidence：基于模型的机器人操作与轨迹探索
-113. [Probe-to-Grasp Manipulation Using Self-Sensing Pneumatic Variable-Stiffness Joints](/202604/04/2603.27808v1-probe-to-grasp-manipulation-using-self-sensing-pneumatic-variable-stiffness-joints)  
-   标签：评分：9.0/10、query:q9
-   evidence：用于估计物体刚度的探测抓取操作
-114. [Benchmarking Multi-View BEV Object Detection with Mixed Pinhole and Fisheye Cameras](/202604/04/2603.27818v1-benchmarking-multi-view-bev-object-detection-with-mixed-pinhole-and-fisheye-cameras)  
-   标签：评分：9.0/10、query:3d-scn
-   evidence：混合针孔和鱼眼相机的多视图BEV目标检测
-115. [Learning Multi-View Spatial Reasoning from Cross-View Relations](/202604/04/2603.27967v1-learning-multi-view-spatial-reasoning-from-cross-view-relations)  
-   标签：评分：9.0/10、query:3d-scn
-   evidence：具身智能和机器人操作中的多视图空间推理
-116. [Progressive Prompt-Guided Cross-Modal Reasoning for Referring Image Segmentation](/202604/04/2603.27993v1-progressive-prompt-guided-cross-modal-reasoning-for-referring-image-segmentation)  
+   evidence：从单目视频进行3D高斯泼溅重建
+139. [PanoSAM2: Lightweight Distortion- and Memory-aware Adaptions of SAM2 for 360 Video Object Segmentation](/202604/14/2604.07901v1-panosam2-lightweight-distortion--and-memory-aware-adaptions-of-sam2-for-360-video-object-segmentation)  
    标签：评分：9.0/10、query:q6
-   evidence：用于指代图像分割的渐进式提示引导跨模态推理
-117. [UniDA3D: A Unified Domain-Adaptive Framework for Multi-View 3D Object Detection](/202604/04/2603.27995v1-unida3d-a-unified-domain-adaptive-framework-for-multi-view-3d-object-detection)  
-   标签：评分：9.0/10、query:3d-scn
-   evidence：领域自适应多视图三维目标检测
-118. [SegRGB-X: General RGB-X Semantic Segmentation Model](/202604/04/2603.28023v1-segrgb-x-general-rgb-x-semantic-segmentation-model)  
-   标签：评分：9.0/10、query:q6
-   evidence：使用 MA-CLIP 的通用任意模态语义分割框架
-119. [\textit{4DSurf}: High-Fidelity Dynamic Scene Surface Reconstruction](/202604/04/2603.28064v1-textit4dsurf-high-fidelity-dynamic-scene-surface-reconstruction)  
-   标签：评分：9.0/10、query:3d-scn
-   evidence：使用高斯泼溅的高保真动态场景表面重建
-120. [To View Transform or Not to View Transform: NeRF-based Pre-training Perspective](/202604/04/2603.28090v1-to-view-transform-or-not-to-view-transform-nerf-based-pre-training-perspective)  
-   标签：评分：9.0/10、query:q19
-   evidence：自动驾驶中基于NeRF的三维场景理解预训练
-121. [A Closer Look at Cross-Domain Few-Shot Object Detection: Fine-Tuning Matters and Parallel Decoder Helps](/202604/04/2603.28182v1-a-closer-look-at-cross-domain-few-shot-object-detection-fine-tuning-matters-and-parallel-decoder-helps)  
-   标签：评分：9.0/10、query:q14
-   evidence：使用并行解码器的跨域少样本目标检测
-122. [Explaining CLIP Zero-shot Predictions Through Concepts](/202604/04/2603.28211v1-explaining-clip-zero-shot-predictions-through-concepts)  
-   标签：评分：9.0/10、query:q14
-   evidence：通过概念解释CLIP的零样本预测
-123. [osmAG-Nav: A Hierarchical Semantic Topometric Navigation Stack for Robust Lifelong Indoor Autonomy](/202604/04/2603.28271v1-osmag-nav-a-hierarchical-semantic-topometric-navigation-stack-for-robust-lifelong-indoor-autonomy)  
-   标签：评分：9.0/10、query:3d-scn
-   evidence：用于室内自主导航的分层语义拓扑地图栈
-124. [TerraSky3D: Multi-View Reconstructions of European Landmarks in 4K](/202604/04/2603.28287v1-terrasky3d-multi-view-reconstructions-of-european-landmarks-in-4k)  
-   标签：评分：9.0/10、query:q10
-   evidence：多视图图像的大规模3D重建数据集
-125. [Integrating Multimodal Large Language Model Knowledge into Amodal Completion](/202604/04/2603.28333v1-integrating-multimodal-large-language-model-knowledge-into-amodal-completion)  
-   标签：评分：9.0/10、query:q11
-   evidence：利用多模态大模型知识进行机器人非全貌补全
-126. [Unified Restoration-Perception Learning: Maritime Infrared-Visible Image Fusion and Segmentation](/202604/04/2603.28414v1-unified-restoration-perception-learning-maritime-infrared-visible-image-fusion-and-segmentation)  
-   标签：评分：9.0/10、query:q5
-   evidence：退化环境下的海洋场景理解与语义分割
-127. [Active Stereo-Camera Outperforms Multi-Sensor Setup in ACT Imitation Learning for Humanoid Manipulation](/202604/04/2603.28422v1-active-stereo-camera-outperforms-multi-sensor-setup-in-act-imitation-learning-for-humanoid-manipulation)  
-   标签：评分：9.0/10、query:q9
-   evidence：人形机器人操作的模仿学习
-128. [Tele-Catch: Adaptive Teleoperation for Dexterous Dynamic 3D Object Catching](/202604/04/2603.28427v1-tele-catch-adaptive-teleoperation-for-dexterous-dynamic-3d-object-catching)  
-   标签：评分：9.0/10、query:q9
-   evidence：用于灵巧动态三维物体抓取的自适应遥操作
-129. [FeDMRA: Federated Incremental Learning with Dynamic Memory Replay Allocation](/202604/04/2603.28455v1-fedmra-federated-incremental-learning-with-dynamic-memory-replay-allocation)  
-   标签：评分：9.0/10、query:q15
-   evidence：具有动态内存分配的联邦类增量学习
-130. [INSID3: Training-Free In-Context Segmentation with DINOv3](/202604/04/2603.28480v1-insid3-training-free-in-context-segmentation-with-dinov3)  
-   标签：评分：9.0/10、query:q14
-   evidence：针对任意概念的免训练上下文分割
-131. [Video Generation Models as World Models: Efficient Paradigms, Architectures and Algorithms](/202604/04/2603.28489v1-video-generation-models-as-world-models-efficient-paradigms-architectures-and-algorithms)  
+   evidence：针对360度场景的高级视频对象分割
+140. [Incremental Residual Reinforcement Learning Toward Real-World Learning for Social Navigation](/202604/14/2604.07945v1-incremental-residual-reinforcement-learning-toward-real-world-learning-for-social-navigation)  
+   标签：评分：9.0/10、query:q23
+   evidence：用于社交导航的增量残差强化学习
+141. [WorldMAP: Bootstrapping Vision-Language Navigation Trajectory Prediction with Generative World Models](/202604/14/2604.07957v1-worldmap-bootstrapping-vision-language-navigation-trajectory-prediction-with-generative-world-models)  
    标签：评分：9.0/10、query:q13
-   evidence：视频生成模型作为世界模拟器
-132. [Seen2Scene: Completing Realistic 3D Scenes with Visibility-Guided Flow](/202604/04/2603.28548v1-seen2scene-completing-realistic-3d-scenes-with-visibility-guided-flow)  
-   标签：评分：9.0/10、query:q19
-   evidence：基于真实扫描的3D场景补全与生成
-133. [Domain-Invariant Prompt Learning for Vision-Language Models](/202604/04/2603.28555v1-domain-invariant-prompt-learning-for-vision-language-models)  
-   标签：评分：9.0/10、query:q14
-   evidence：视觉语言模型中的零样本迁移提示学习
-134. [Detection of Adversarial Attacks in Robotic Perception](/202604/04/2603.28594v1-detection-of-adversarial-attacks-in-robotic-perception)  
-   标签：评分：9.0/10、query:q8
-   evidence：机器人感知与语义分割中的对抗攻击
-135. [Detection of Adversarial Attacks in Robotic Perception](/202604/04/2603.28594v2-detection-of-adversarial-attacks-in-robotic-perception)  
-   标签：评分：9.0/10、query:q8
-   evidence：机器人语义分割中的对抗攻击检测
-136. [ResAdapt: Adaptive Resolution for Efficient Multimodal Reasoning](/202604/04/2603.28610v2-resadapt-adaptive-resolution-for-efficient-multimodal-reasoning)  
-   标签：评分：9.0/10、query:q11
-   evidence：多模态大语言模型的自适应分辨率
-137. [DRIVE-Nav: Directional Reasoning, Inspection, and Verification for Efficient Open-Vocabulary Navigation](/202604/04/2603.28691v1-drive-nav-directional-reasoning-inspection-and-verification-for-efficient-open-vocabulary-navigation)  
-   标签：评分：9.0/10、query:q14
-   evidence：具身智能体的零样本开放词汇目标导航
-138. [SonoWorld: From One Image to a 3D Audio-Visual Scene](/202604/04/2603.28757v1-sonoworld-from-one-image-to-a-3d-audio-visual-scene)  
-   标签：评分：9.0/10、query:q16
-   evidence：从单张图像生成3D视听场景
-139. [Bootstrap Perception Under Hardware Depth Failure for Indoor Robot Navigation](/202604/04/2603.28890v1-bootstrap-perception-under-hardware-depth-failure-for-indoor-robot-navigation)  
-   标签：评分：9.0/10、query:q8
-   evidence：硬件深度失效下的机器人导航，结合LiDAR与单目深度
-140. [Fisheye3R: Adapting Unified 3D Feed-Forward Foundation Models to Fisheye Lenses](/202604/04/2603.28896v1-fisheye3r-adapting-unified-3d-feed-forward-foundation-models-to-fisheye-lenses)  
+   evidence：利用生成式世界模型进行视觉语言导航轨迹预测
+142. [DP-DeGauss: Dynamic Probabilistic Gaussian Decomposition for Egocentric 4D Scene Reconstruction](/202604/14/2604.07986v1-dp-degauss-dynamic-probabilistic-gaussian-decomposition-for-egocentric-4d-scene-reconstruction)  
    标签：评分：9.0/10、query:q10
-   evidence：将3D重建基础模型适配至鱼眼镜头
-141. [See Something, Say Something: Context-Criticality-Aware Mobile Robot Communication for Hazard Mitigations](/202604/04/2603.28901v1-see-something-say-something-context-criticality-aware-mobile-robot-communication-for-hazard-mitigations)  
-   标签：评分：9.0/10、query:q8
-   evidence：基于VLM/LLM的移动机器人感知与通信
-142. [Stepper: Stepwise Immersive Scene Generation with Multiview Panoramas](/202604/04/2603.28980v1-stepper-stepwise-immersive-scene-generation-with-multiview-panoramas)  
-   标签：评分：9.0/10、query:q16
-   evidence：文本驱动的沉浸式 3D 场景合成与世界建模
-143. [WorldFlow3D: Flowing Through 3D Distributions for Unbounded World Generation](/202604/04/2603.29089v1-worldflow3d-flowing-through-3d-distributions-for-unbounded-world-generation)  
-   标签：评分：9.0/10、query:q16
-   evidence：用于机器人场景建模的无边界三维世界生成
-144. [Dual-Imbalance Continual Learning for Real-World Food Recognition](/202604/04/2603.29133v1-dual-imbalance-continual-learning-for-real-world-food-recognition)  
-   标签：评分：9.0/10、query:q15
-   evidence：真实场景食品识别的持续学习
-145. [Hierarchical Visual Relocalization with Nearest View Synthesis from Feature Gaussian Splatting](/202604/04/2603.29185v1-hierarchical-visual-relocalization-with-nearest-view-synthesis-from-feature-gaussian-splatting)  
-   标签：评分：9.0/10、query:q19
-   evidence：使用高斯泼溅进行3D视觉重定位
-146. [Efficient Camera Pose Augmentation for View Generalization in Robotic Policy Learning](/202604/04/2603.29192v1-efficient-camera-pose-augmentation-for-view-generalization-in-robotic-policy-learning)  
-   标签：评分：9.0/10、query:q10
-   evidence：用于机器人3D场景重建的3D高斯泼溅技术
-147. [Kernel-SDF: An Open-Source Library for Real-Time Signed Distance Function Estimation using Kernel Regression](/202604/04/2603.29227v1-kernel-sdf-an-open-source-library-for-real-time-signed-distance-function-estimation-using-kernel-regression)  
-   标签：评分：9.0/10、query:q10
-   evidence：用于环境表示的实时有符号距离函数（SDF）估计
-148. [M2H-MX: Multi-Task Dense Visual Perception for Real-Time Monocular Spatial Understanding](/202604/04/2603.29236v1-m2h-mx-multi-task-dense-visual-perception-for-real-time-monocular-spatial-understanding)  
+   evidence：用于第一人称4D场景重建的动态概率高斯分解
+143. [SceneScribe-1M: A Large-Scale Video Dataset with Comprehensive Geometric and Semantic Annotations](/202604/14/2604.07990v1-scenescribe-1m-a-large-scale-video-dataset-with-comprehensive-geometric-and-semantic-annotations)  
    标签：评分：9.0/10、query:3d-scn
-   evidence：实时单目空间理解与语义地图构建
-149. [MotionScale: Reconstructing Appearance, Geometry, and Motion of Dynamic Scenes with Scalable 4D Gaussian Splatting](/202604/04/2603.29296v1-motionscale-reconstructing-appearance-geometry-and-motion-of-dynamic-scenes-with-scalable-4d-gaussian-splatting)  
-   标签：评分：9.0/10、query:q10
-   evidence：利用4D高斯泼溅重建动态场景的几何与运动
-150. [Extend3D: Town-Scale 3D Generation](/202604/04/2603.29387v1-extend3d-town-scale-3d-generation)  
-   标签：评分：9.0/10、query:q16
-   evidence：利用以物体为中心的生成模型从单张图像生成3D场景
-151. [CLaD: Planning with Grounded Foresight via Cross-Modal Latent Dynamics](/202604/04/2603.29409v1-clad-planning-with-grounded-foresight-via-cross-modal-latent-dynamics)  
+   evidence：具有3D几何和语义标注的大规模视频数据集，用于场景理解
+144. [MotionScape: A Large-Scale Real-World Highly Dynamic UAV Video Dataset for World Models](/202604/14/2604.07991v1-motionscape-a-large-scale-real-world-highly-dynamic-uav-video-dataset-for-world-models)  
    标签：评分：9.0/10、query:q13
-   evidence：建模本体感受和语义状态在动作下的共同演化
-152. [AGFT: Alignment-Guided Fine-Tuning for Zero-Shot Adversarial Robustness of Vision-Language Models](/202604/04/2603.29410v1-agft-alignment-guided-fine-tuning-for-zero-shot-adversarial-robustness-of-vision-language-models)  
-   标签：评分：9.0/10、query:q14
-   evidence：增强视觉语言模型的零样本对抗鲁棒性
-153. [Semantic Zone-Based Map Management for Stable AI-Integrated Mobile Robots](/202604/04/2603.29627v1-semantic-zone-based-map-management-for-stable-ai-integrated-mobile-robots)  
-   标签：评分：9.0/10、query:3d-scn
-   evidence：基于语义区域的移动机器人地图管理，结合VLM与3D地图
-154. [SkeletonContext: Skeleton-side Context Prompt Learning for Zero-Shot Skeleton-based Action Recognition](/202604/04/2603.29692v1-skeletoncontext-skeleton-side-context-prompt-learning-for-zero-shot-skeleton-based-action-recognition)  
-   标签：评分：9.0/10、query:q14
-   evidence：带有上下文提示的零样本骨骼动作识别
-155. [Detecting Unknown Objects via Energy-based Separation for Open World Object Detection](/202604/04/2603.29954v1-detecting-unknown-objects-via-energy-based-separation-for-open-world-object-detection)  
-   标签：评分：9.0/10、query:q15
-   evidence：增量学习分类已知物体并识别未知物体
-156. [Generalizable Dense Reward for Long-Horizon Robotic Tasks](/202604/04/2604.00055v1-generalizable-dense-reward-for-long-horizon-robotic-tasks)  
-   标签：评分：9.0/10、query:q20
-   evidence：用于长程机器人任务奖励的多模态基础模型
-157. [Advancing Multi-Robot Networks via MLLM-Driven Sensing, Communication, and Computation: A Comprehensive Survey](/202604/04/2604.00061v1-advancing-multi-robot-networks-via-mllm-driven-sensing-communication-and-computation-a-comprehensive-survey)  
-   标签：评分：9.0/10、query:q20
-   evidence：多模态大模型驱动的多机器人网络感知与协作
-158. [Temporal Memory for Resource-Constrained Agents: Continual Learning via Stochastic Compress-Add-Smooth](/202604/04/2604.00067v1-temporal-memory-for-resource-constrained-agents-continual-learning-via-stochastic-compress-add-smooth)  
-   标签：评分：9.0/10、query:q15
-   evidence：通过随机过程记忆和桥接扩散实现的持续学习
-159. [Dual Contouring of Signed Distance Data](/202604/04/2604.00157v1-dual-contouring-of-signed-distance-data)  
-   标签：评分：9.0/10、query:3d-scn
-   evidence：从离散采样的SDF数据重建显式多边形网格
-160. [DreamControl-v2: Simpler and Scalable Autonomous Humanoid Skills via Trainable Guided Diffusion Priors](/202604/04/2604.00202v1-dreamcontrol-v2-simpler-and-scalable-autonomous-humanoid-skills-via-trainable-guided-diffusion-priors)  
-   标签：评分：9.0/10、query:q9
-   evidence：类人机器人的自主运动与操作技能
-161. [Excite, Attend and Segment (EASe): Domain-Agnostic Fine-Grained Mask Discovery with Feature Calibration and Self-Supervised Upsampling](/202604/04/2604.00276v1-excite-attend-and-segment-ease-domain-agnostic-fine-grained-mask-discovery-with-feature-calibration-and-self-supervised-upsampling)  
+   evidence：用于训练世界模型的大规模无人机视频数据集
+145. [OV-Stitcher: A Global Context-Aware Framework for Training-Free Open-Vocabulary Semantic Segmentation](/202604/14/2604.08110v1-ov-stitcher-a-global-context-aware-framework-for-training-free-open-vocabulary-semantic-segmentation)  
    标签：评分：9.0/10、query:q6
-   evidence：用于细粒度掩码的无监督领域无关语义分割框架
-162. [A Dual-Stream Transformer Architecture for Illumination-Invariant TIR-LiDAR Person Tracking](/202604/04/2604.00363v1-a-dual-stream-transformer-architecture-for-illumination-invariant-tir-lidar-person-tracking)  
-   标签：评分：9.0/10、query:q8
-   evidence：基于LiDAR的自主移动机器人行人追踪
-163. [Dynamic Graph Neural Network with Adaptive Features Selection for RGB-D Based Indoor Scene Recognition](/202604/04/2604.00372v1-dynamic-graph-neural-network-with-adaptive-features-selection-for-rgb-d-based-indoor-scene-recognition)  
-   标签：评分：9.0/10、query:3d-scn
-   evidence：基于RGB-D的室内场景识别与几何关系
-164. [Learning Humanoid Navigation from Human Data](/202604/04/2604.00416v1-learning-humanoid-navigation-from-human-data)  
-   标签：评分：9.0/10、query:3d-scn
-   evidence：利用视觉记忆在多样环境中进行类人机器人导航
-165. [ARGS: Auto-Regressive Gaussian Splatting via Parallel Progressive Next-Scale Prediction](/202604/04/2604.00494v1-args-auto-regressive-gaussian-splatting-via-parallel-progressive-next-scale-prediction)  
-   标签：评分：9.0/10、query:q16
-   evidence：用于3D物体生成的自回归高斯泼溅技术
-166. [Reliev3R: Relieving Feed-forward Reconstruction from Multi-View Geometric Annotations](/202604/04/2604.00548v1-reliev3r-relieving-feed-forward-reconstruction-from-multi-view-geometric-annotations)  
-   标签：评分：9.0/10、query:q10
-   evidence：基于单目深度和对应关系的弱监督三维重建
-167. [TALENT: Target-aware Efficient Tuning for Referring Image Segmentation](/202604/04/2604.00609v1-talent-target-aware-efficient-tuning-for-referring-image-segmentation)  
+   evidence：利用大型视觉模型的免训练开放词汇语义分割
+146. [OV-Stitcher: A Global Context-Aware Framework for Training-Free Open-Vocabulary Semantic Segmentation](/202604/14/2604.08110v2-ov-stitcher-a-global-context-aware-framework-for-training-free-open-vocabulary-semantic-segmentation)  
    标签：评分：9.0/10、query:q6
-   evidence：指代图像分割与目标感知微调
-168. [LiPS: Lightweight Panoptic Segmentation for Resource-Constrained Robotics](/202604/04/2604.00634v1-lips-lightweight-panoptic-segmentation-for-resource-constrained-robotics)  
-   标签：评分：9.0/10、query:q6
-   evidence：用于资源受限机器人的轻量级全景分割
-169. [DirectFisheye-GS: Enabling Native Fisheye Input in Gaussian Splatting with Cross-View Joint Optimization](/202604/04/2604.00648v1-directfisheye-gs-enabling-native-fisheye-input-in-gaussian-splatting-with-cross-view-joint-optimization)  
-   标签：评分：9.0/10、query:q10
-   evidence：利用高斯泼溅从鱼眼相机输入进行3D场景重建
-170. [CL-VISTA: Benchmarking Continual Learning in Video Large Language Models](/202604/04/2604.00677v1-cl-vista-benchmarking-continual-learning-in-video-large-language-models)  
+   evidence：利用大型视觉语言模型进行无需训练的开放词汇语义分割
+147. [Face-D(^2)CL: Multi-Domain Synergistic Representation with Dual Continual Learning for Facial DeepFake Detection](/202604/14/2604.08159v1-face-d2cl-multi-domain-synergistic-representation-with-dual-continual-learning-for-facial-deepfake-detection)  
    标签：评分：9.0/10、query:q15
-   evidence：视频大语言模型的持续学习基准
-171. [How to Train your Tactile Model: Tactile Perception with Multi-fingered Robot Hands](/202604/04/2604.00744v1-how-to-train-your-tactile-model-tactile-perception-with-multi-fingered-robot-hands)  
-   标签：评分：9.0/10、query:q8
-   evidence：使用Vision Transformer的多指机器人手触觉感知
-172. [DVGT-2: Vision-Geometry-Action Model for Autonomous Driving at Scale](/202604/04/2604.00813v1-dvgt-2-vision-geometry-action-model-for-autonomous-driving-at-scale)  
+   evidence：用于人脸伪造检测的双重持续学习
+148. [HiRO-Nav: Hybrid ReasOning Enables Efficient Embodied Navigation](/202604/14/2604.08232v1-hiro-nav-hybrid-reasoning-enables-efficient-embodied-navigation)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：使用大推理模型进行长程任务的具身导航智能体
+149. [Orion-Lite: Distilling LLM Reasoning into Efficient Vision-Only Driving Models](/202604/14/2604.08266v1-orion-lite-distilling-llm-reasoning-into-efficient-vision-only-driving-models)  
    标签：评分：9.0/10、query:q12
-   evidence：自动驾驶中的视觉-几何-动作范式
-173. [Shape Representation using Gaussian Process mixture models](/202604/04/2604.00862v1-shape-representation-using-gaussian-process-mixture-models)  
-   标签：评分：9.0/10、query:3d-scn
-   evidence：使用高斯过程从点云进行函数式形状表示
-174. [ProTPS: Prototype-Guided Text Prompt Selection for Continual Learning](/202604/04/2604.01116v1-protps-prototype-guided-text-prompt-selection-for-continual-learning)  
+   evidence：将大模型推理能力蒸馏至高效的纯视觉驾驶模型中，涉及VLA
+150. [Leveraging Complementary Embeddings for Replay Selection in Continual Learning with Small Buffers](/202604/14/2604.08336v1-leveraging-complementary-embeddings-for-replay-selection-in-continual-learning-with-small-buffers)  
    标签：评分：9.0/10、query:q15
-   evidence：用于持续学习的文本提示方法，旨在减轻灾难性遗忘
-175. [Deep Reinforcement Learning for Robotic Manipulation under Distribution Shift with Bounded Extremum Seeking](/202604/04/2604.01142v1-deep-reinforcement-learning-for-robotic-manipulation-under-distribution-shift-with-bounded-extremum-seeking)  
-   标签：评分：9.0/10、query:q9
-   evidence：分布偏移下的机器人操作深度强化学习
-176. [SMASH: Mastering Scalable Whole-Body Skills for Humanoid Ping-Pong with Egocentric Vision](/202604/04/2604.01158v1-smash-mastering-scalable-whole-body-skills-for-humanoid-ping-pong-with-egocentric-vision)  
-   标签：评分：9.0/10、query:q8
-   evidence：类人机器人技能的机载第一视角感知
-177. [Neural Harmonic Textures for High-Quality Primitive Based Neural Reconstruction](/202604/04/2604.01204v1-neural-harmonic-textures-for-high-quality-primitive-based-neural-reconstruction)  
-   标签：评分：9.0/10、query:q10
-   evidence：使用3D高斯泼溅的高质量神经重建
-178. [TRACE: High-Fidelity 3D Scene Editing via Tangible Reconstruction and Geometry-Aligned Contextual Video Masking](/202604/04/2604.01207v1-trace-high-fidelity-3d-scene-editing-via-tangible-reconstruction-and-geometry-aligned-contextual-video-masking)  
+   evidence：小缓冲区持续学习中的重放选择策略
+151. [OVS-DINO: Open-Vocabulary Segmentation via Structure-Aligned SAM-DINO with Language Guidance](/202604/14/2604.08461v1-ovs-dino-open-vocabulary-segmentation-via-structure-aligned-sam-dino-with-language-guidance)  
+   标签：评分：9.0/10、query:q6
+   evidence：利用语言引导和视觉基础模型进行开放词汇分割
+152. [Visually-grounded Humanoid Agents](/202604/14/2604.08509v1-visually-grounded-humanoid-agents)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：类人智能体在3D场景中的感知与行为
+153. [Self-Improving 4D Perception via Self-Distillation](/202604/14/2604.08532v1-self-improving-4d-perception-via-self-distillation)  
    标签：评分：9.0/10、query:q19
-   evidence：实现自动化、高保真场景变换的网格引导 3DGS 编辑框架
-179. [Functional Force-Aware Retargeting from Virtual Human Demos to Soft Robot Policies](/202604/04/2604.01224v1-functional-force-aware-retargeting-from-virtual-human-demos-to-soft-robot-policies)  
+   evidence：用于4D感知和多视图重建的自我改进框架
+154. [ActiveGlasses: Learning Manipulation with Active Vision from Ego-centric Human Demonstration](/202604/14/2604.08534v1-activeglasses-learning-manipulation-with-active-vision-from-ego-centric-human-demonstration)  
    标签：评分：9.0/10、query:q9
-   evidence：教授软体机器人手部操作技能
-180. [Look Twice: Training-Free Evidence Highlighting in Multimodal Large Language Models](/202604/04/2604.01280v1-look-twice-training-free-evidence-highlighting-in-multimodal-large-language-models)  
+   evidence：通过主动视觉从人类演示中学习机器人操作
+155. [Scal3R: Scalable Test-Time Training for Large-Scale 3D Reconstruction](/202604/14/2604.08542v1-scal3r-scalable-test-time-training-for-large-scale-3d-reconstruction)  
+   标签：评分：9.0/10、query:q10
+   evidence：视频序列的大规模3D场景重建
+156. [SIM1: Physics-Aligned Simulator as Zero-Shot Data Scaler in Deformable Worlds](/202604/14/2604.08544v1-sim1-physics-aligned-simulator-as-zero-shot-data-scaler-in-deformable-worlds)  
+   标签：评分：9.0/10、query:q9
+   evidence：变形物体的机器人操作与物理对齐仿真
+157. [SIM1: Physics-Aligned Simulator as Zero-Shot Data Scaler in Deformable Worlds](/202604/14/2604.08544v2-sim1-physics-aligned-simulator-as-zero-shot-data-scaler-in-deformable-worlds)  
+   标签：评分：9.0/10、query:q9
+   evidence：变形物体的机器人操作与物理对齐仿真
+158. [From Selection to Scheduling: Federated Geometry-Aware Correction Makes Exemplar Replay Work Better under Continual Dynamic Heterogeneity](/202604/14/2604.08617v1-from-selection-to-scheduling-federated-geometry-aware-correction-makes-exemplar-replay-work-better-under-continual-dynamic-heterogeneity)  
+   标签：评分：9.0/10、query:q15
+   evidence：用于持续学习的联邦几何感知校正
+159. [3D-VCD: Hallucination Mitigation in 3D-LLM Embodied Agents through Visual Contrastive Decoding](/202604/14/2604.08645v1-3d-vcd-hallucination-mitigation-in-3d-llm-embodied-agents-through-visual-contrastive-decoding)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：3D-LLM 具身智能体中的幻觉缓解
+160. [Generative Simulation for Policy Learning in Physical Human-Robot Interaction](/202604/14/2604.08664v1-generative-simulation-for-policy-learning-in-physical-human-robot-interaction)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：利用大语言模型和视觉语言模型进行具身智能和机器人交互
+161. [LMGenDrive: Bridging Multimodal Understanding and Generative World Modeling for End-to-End Driving](/202604/14/2604.08719v1-lmgendrive-bridging-multimodal-understanding-and-generative-world-modeling-for-end-to-end-driving)  
+   标签：评分：9.0/10、query:q13
+   evidence：用于端到端自动驾驶的生成式世界模型
+162. [SIC3D: Style Image Conditioned Text-to-3D Gaussian Splatting Generation](/202604/14/2604.08760v1-sic3d-style-image-conditioned-text-to-3d-gaussian-splatting-generation)  
+   标签：评分：9.0/10、query:q16
+   evidence：使用高斯泼溅进行3D对象的生成建模
+163. [Toward Hardware-Agnostic Quadrupedal World Models via Morphology Conditioning](/202604/14/2604.08780v1-toward-hardware-agnostic-quadrupedal-world-models-via-morphology-conditioning)  
+   标签：评分：9.0/10、query:q13
+   evidence：用于机器人的硬件无关四足世界模型
+164. [TAIHRI: Task-Aware 3D Human Keypoints Localization for Close-Range Human-Robot Interaction](/202604/14/2604.08921v1-taihri-task-aware-3d-human-keypoints-localization-for-close-range-human-robot-interaction)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：专为近距离人机交互感知和3D关键点定位设计的视觉语言模型
+165. [TouchAnything: Diffusion-Guided 3D Reconstruction from Sparse Robot Touches](/202604/14/2604.08945v1-touchanything-diffusion-guided-3d-reconstruction-from-sparse-robot-touches)  
+   标签：评分：9.0/10、query:q10
+   evidence：利用扩散模型从稀疏机器人触觉中进行3D重建
+166. [PinpointQA: A Dataset and Benchmark for Small Object-Centric Spatial Understanding in Indoor Videos](/202604/14/2604.08991v1-pinpointqa-a-dataset-and-benchmark-for-small-object-centric-spatial-understanding-in-indoor-videos)  
    标签：评分：9.0/10、query:q11
-   evidence：改进多模态大语言模型中的证据利用
-181. [Safety, Security, and Cognitive Risks in World Models](/202604/04/2604.01346v1-safety-security-and-cognitive-risks-in-world-models)  
+   evidence：针对多模态大模型的室内视频小物体空间理解基准
+167. [Matrix-Game 3.0: Real-Time and Streaming Interactive World Model with Long-Horizon Memory](/202604/14/2604.08995v1-matrix-game-30-real-time-and-streaming-interactive-world-model-with-long-horizon-memory)  
    标签：评分：9.0/10、query:q22
-   evidence：自主决策世界模型中的安全与风险分析
-182. [Learning When to See and When to Feel: Adaptive Vision-Torque Fusion for Contact-Aware Manipulation](/202604/04/2604.01414v1-learning-when-to-see-and-when-to-feel-adaptive-vision-torque-fusion-for-contact-aware-manipulation)  
-   标签：评分：9.0/10、query:q8
-   evidence：用于触觉感知机器人操作的视觉-力矩融合
-183. [EgoFlow: Gradient-Guided Flow Matching for Egocentric 6DoF Object Motion Generation](/202604/04/2604.01421v1-egoflow-gradient-guided-flow-matching-for-egocentric-6dof-object-motion-generation)  
-   标签：评分：9.0/10、query:3d-scn
-   evidence：具身感知中的第一视角6DoF物体运动生成
-184. [UniRecGen: Unifying Multi-View 3D Reconstruction and Generation](/202604/04/2604.01479v1-unirecgen-unifying-multi-view-3d-reconstruction-and-generation)  
-   标签：评分：9.0/10、query:q16
-   evidence：统一多视图3D重建与生成模型
-185. [ReFlow: Self-correction Motion Learning for Dynamic Scene Reconstruction](/202604/04/2604.01561v1-reflow-self-correction-motion-learning-for-dynamic-scene-reconstruction)  
-   标签：评分：9.0/10、query:q10
-   evidence：单目动态场景重建的统一框架
-186. [Riemannian and Symplectic Geometry for Hierarchical Text-Driven Place Recognition](/202604/04/2604.01598v1-riemannian-and-symplectic-geometry-for-hierarchical-text-driven-place-recognition)  
-   标签：评分：9.0/10、query:3d-scn
-   evidence：机器人的文本到点云定位
-187. [F3DGS: Federated 3D Gaussian Splatting for Decentralized Multi-Agent World Modeling](/202604/04/2604.01605v1-f3dgs-federated-3d-gaussian-splatting-for-decentralized-multi-agent-world-modeling)  
+   evidence：具有长时记忆的交互式视频生成世界模型
+168. [Matrix-Game 3.0: Real-Time and Streaming Interactive World Model with Long-Horizon Memory](/202604/14/2604.08995v2-matrix-game-30-real-time-and-streaming-interactive-world-model-with-long-horizon-memory)  
    标签：评分：9.0/10、query:q13
-   evidence：用于多智能体世界建模的联邦3D高斯泼溅
-188. [Tex3D: Objects as Attack Surfaces via Adversarial 3D Textures for Vision-Language-Action Models](/202604/04/2604.01618v1-tex3d-objects-as-attack-surfaces-via-adversarial-3d-textures-for-vision-language-action-models)  
-   标签：评分：9.0/10、query:q12
-   evidence：针对机器人VLA模型的对抗性3D纹理攻击
-189. [LivingWorld: Interactive 4D World Generation with Environmental Dynamics](/202604/04/2604.01641v1-livingworld-interactive-4d-world-generation-with-environmental-dynamics)  
-   标签：评分：9.0/10、query:q16
-   evidence：生成具有环境动力学的4D世界
-190. [MonoSAOD: Monocular 3D Object Detection with Sparsely Annotated Label](/202604/04/2604.01646v1-monosaod-monocular-3d-object-detection-with-sparsely-annotated-label)  
-   标签：评分：9.0/10、query:3d-scn
-   evidence：稀疏标注下的单目三维目标检测
-191. [Robust Embodied Perception in Dynamic Environments via Disentangled Weight Fusion](/202604/04/2604.01669v1-robust-embodied-perception-in-dynamic-environments-via-disentangled-weight-fusion)  
+   evidence：具有长时记忆的交互式世界模型，用于视频生成
+169. [Towards Lifelong Aerial Autonomy: Geometric Memory Management for Continual Visual Place Recognition in Dynamic Environments](/202604/14/2604.09038v1-towards-lifelong-aerial-autonomy-geometric-memory-management-for-continual-visual-place-recognition-in-dynamic-environments)  
    标签：评分：9.0/10、query:q23
-   evidence：动态环境下具身感知的增量学习框架
-192. [Director: Instance-aware Gaussian Splatting for Dynamic Scene Modeling and Understanding](/202604/04/2604.01678v1-director-instance-aware-gaussian-splatting-for-dynamic-scene-modeling-and-understanding)  
-   标签：评分：9.0/10、query:q19
-   evidence：用于动态3D场景建模的实例感知高斯泼溅
-193. [Hi-LOAM: Hierarchical Implicit Neural Fields for LiDAR Odometry and Mapping](/202604/04/2604.01720v1-hi-loam-hierarchical-implicit-neural-fields-for-lidar-odometry-and-mapping)  
-   标签：评分：9.0/10、query:3d-scn
-   evidence：用于自动驾驶的LiDAR里程计与建图
-194. [PTC-Depth: Pose-Refined Monocular Depth Estimation with Temporal Consistency](/202604/04/2604.01791v1-ptc-depth-pose-refined-monocular-depth-estimation-with-temporal-consistency)  
-   标签：评分：9.0/10、query:q8
-   evidence：用于移动机器人感知系统的单目深度估计
-195. [Semantic Segmentation of Textured Non-manifold 3D Meshes using Transformers](/202604/04/2604.01836v1-semantic-segmentation-of-textured-non-manifold-3d-meshes-using-transformers)  
-   标签：评分：9.0/10、query:q5
-   evidence：使用纹理感知Transformer进行3D网格语义分割
-196. [Posterior Optimization with Clipped Objective for Bridging Efficiency and Stability in Generative Policy Learning](/202604/04/2604.01860v1-posterior-optimization-with-clipped-objective-for-bridging-efficiency-and-stability-in-generative-policy-learning)  
-   标签：评分：9.0/10、query:q9
-   evidence：机器人操作的生成式策略学习
-197. [Lifting Unlabeled Internet-level Data for 3D Scene Understanding](/202604/04/2604.01907v1-lifting-unlabeled-internet-level-data-for-3d-scene-understanding)  
-   标签：评分：9.0/10、query:3d-scn
-   evidence：利用无标注视频进行三维场景理解
-198. [SDesc3D: Towards Layout-Aware 3D Indoor Scene Generation from Short Descriptions](/202604/04/2604.01972v1-sdesc3d-towards-layout-aware-3d-indoor-scene-generation-from-short-descriptions)  
-   标签：评分：9.0/10、query:q16
-   evidence：基于短文本描述的三维室内场景生成
-199. [ProDiG: Progressive Diffusion-Guided Gaussian Splatting for Aerial to Ground Reconstruction](/202604/04/2604.02003v1-prodig-progressive-diffusion-guided-gaussian-splatting-for-aerial-to-ground-reconstruction)  
+   evidence：持续视觉地点识别与终身空中自主性
+170. [Physically Grounded 3D Generative Reconstruction under Hand Occlusion using Proprioception and Multi-Contact Touch](/202604/14/2604.09100v1-physically-grounded-3d-generative-reconstruction-under-hand-occlusion-using-proprioception-and-multi-contact-touch)  
    标签：评分：9.0/10、query:q10
-   evidence：扩散引导的高斯泼溅用于三维重建
-200. [HyVGGT-VO: Tightly Coupled Hybrid Dense Visual Odometry with Feed-Forward Models](/202604/04/2604.02107v1-hyvggt-vo-tightly-coupled-hybrid-dense-visual-odometry-with-feed-forward-models)  
+   evidence：利用触觉和本体感受等多模态信号进行三维生成式重建
+171. [MAG-3D: Multi-Agent Grounded Reasoning for 3D Understanding](/202604/14/2604.09167v1-mag-3d-multi-agent-grounded-reasoning-for-3d-understanding)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：用于3D场景接地推理和空间关系分析的多智能体框架
+172. [Long-SCOPE: Fully Sparse Long-Range Cooperative 3D Perception](/202604/14/2604.09206v1-long-scope-fully-sparse-long-range-cooperative-3d-perception)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：用于远程协作3D物体检测的全稀疏框架
+173. [VAG: Dual-Stream Video-Action Generation for Embodied Data Synthesis](/202604/14/2604.09330v1-vag-dual-stream-video-action-generation-for-embodied-data-synthesis)  
+   标签：评分：9.0/10、query:q13
+   evidence：用于世界模型和策略学习的双流视频动作生成
+174. [Do Vision Language Models Need to Process Image Tokens?](/202604/14/2604.09425v1-do-vision-language-models-need-to-process-image-tokens)  
+   标签：评分：9.0/10、query:q11
+   evidence：研究视觉语言模型中图像标记的功能作用
+175. [Incremental Semantics-Aided Meshing from LiDAR-Inertial Odometry and RGB Direct Label Transfer](/202604/14/2604.09478v1-incremental-semantics-aided-meshing-from-lidar-inertial-odometry-and-rgb-direct-label-transfer)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：基于LiDAR惯性扫描的增量语义辅助高质量网格重建
+176. [Online3R: Online Learning for Consistent Sequential Reconstruction Based on Geometry Foundation Model](/202604/14/2604.09480v1-online3r-online-learning-for-consistent-sequential-reconstruction-based-on-geometry-foundation-model)  
    标签：评分：9.0/10、query:q10
-   evidence：稠密三维重建与视觉里程计
-201. [Cross-Modal Visuo-Tactile Object Perception](/202604/04/2604.02108v1-cross-modal-visuo-tactile-object-perception)  
-   标签：评分：9.0/10、query:q8
-   evidence：用于机器人操作的视触觉感知信息
-202. [SPAR: Single-Pass Any-Resolution ViT for Open-vocabulary Segmentation](/202604/04/2604.02252v1-spar-single-pass-any-resolution-vit-for-open-vocabulary-segmentation)  
+   evidence：用于一致性序列三维重建的在线学习
+177. [EDFNet: Early Fusion of Edge and Depth for Thin-Obstacle Segmentation in UAV Navigation](/202604/14/2604.09694v1-edfnet-early-fusion-of-edge-and-depth-for-thin-obstacle-segmentation-in-uav-navigation)  
    标签：评分：9.0/10、query:q6
-   evidence：基于ViT视觉语言模型的开放词汇分割
-203. [Model-Based Reinforcement Learning for Control under Time-Varying Dynamics](/202604/04/2604.02260v1-model-based-reinforcement-learning-for-control-under-time-varying-dynamics)  
-   标签：评分：9.0/10、query:q23
-   evidence：针对时变动力学的持续模型强化学习
-204. [Omni123: Exploring 3D Native Foundation Models with Limited 3D Data by Unifying Text to 2D and 3D Generation](/202604/04/2604.02289v1-omni123-exploring-3d-native-foundation-models-with-limited-3d-data-by-unifying-text-to-2d-and-3d-generation)  
+   evidence：边缘与深度早期融合用于细小障碍物分割
+178. [Identity-Aware U-Net: Fine-grained Cell Segmentation via Identity-Aware Representation Learning](/202604/14/2604.09702v1-identity-aware-u-net-fine-grained-cell-segmentation-via-identity-aware-representation-learning)  
+   标签：评分：9.0/10、query:q6
+   evidence：通过身份感知表示学习进行细粒度细胞分割
+179. [See Fair, Speak Truth: Equitable Attention Improves Grounding and Reduces Hallucination in Vision-Language Alignment](/202604/14/2604.09749v1-see-fair-speak-truth-equitable-attention-improves-grounding-and-reduces-hallucination-in-vision-language-alignment)  
+   标签：评分：9.0/10、query:q11
+   evidence：改善多模态大语言模型的视觉定位并减少幻觉
+180. [Text-Guided 6D Object Pose Rearrangement via Closed-Loop VLM Agents](/202604/14/2604.09781v1-text-guided-6d-object-pose-rearrangement-via-closed-loop-vlm-agents)  
+   标签：评分：9.0/10、query:q20
+   evidence：用于 6D 物体位姿重排的闭环 VLM 智能体
+181. [RobustMedSAM: Degradation-Resilient Medical Image Segmentation via Robust Foundation Model Adaptation](/202604/14/2604.09814v1-robustmedsam-degradation-resilient-medical-image-segmentation-via-robust-foundation-model-adaptation)  
+   标签：评分：9.0/10、query:q6
+   evidence：针对医学图像分割的 SAM 模型鲁棒性适配
+182. [DINO_4D: Semantic-Aware 4D Reconstruction](/202604/14/2604.09877v1-dino4d-semantic-aware-4d-reconstruction)  
+   标签：评分：9.0/10、query:q13
+   evidence：构建具有几何精度和语义理解的4D世界模型
+183. [SwinTextUNet: Integrating CLIP-Based Text Guidance into Swin Transformer U-Nets for Medical Image Segmentation](/202604/14/2604.10000v1-swintextunet-integrating-clip-based-text-guidance-into-swin-transformer-u-nets-for-medical-image-segmentation)  
+   标签：评分：9.0/10、query:q11
+   evidence：将基于 CLIP 的文本引导集成到 Swin Transformer U-Net 中，用于多模态医学图像分割。
+184. [On The Application of Linear Attention in Multimodal Transformers](/202604/14/2604.10064v1-on-the-application-of-linear-attention-in-multimodal-transformers)  
+   标签：评分：9.0/10、query:q11
+   evidence：多模态Transformer中的线性注意力机制用于视觉语言模型
+185. [PhyMix: Towards Physically Consistent Single-Image 3D Indoor Scene Generation with Implicit--Explicit Optimization](/202604/14/2604.10125v1-phymix-towards-physically-consistent-single-image-3d-indoor-scene-generation-with-implicit--explicit-optimization)  
    标签：评分：9.0/10、query:q16
-   evidence：用于文本到3D生成的3D原生基础模型
-205. [Stop Wandering: Efficient Vision-Language Navigation via Metacognitive Reasoning](/202604/04/2604.02318v1-stop-wandering-efficient-vision-language-navigation-via-metacognitive-reasoning)  
+   evidence：物理一致的单图三维室内场景生成
+186. [A Temporally Augmented Graph Attention Network for Affordance Classification](/202604/14/2604.10149v1-a-temporally-augmented-graph-attention-network-for-affordance-classification)  
    标签：评分：9.0/10、query:3d-scn
-   evidence：视觉语言导航与3D语义地图构建
+   evidence：利用图注意力网络从交互序列中进行可供性分类
+187. [A Comparison of Multi-View Stereo Methods for Photogrammetric 3D Reconstruction: From Traditional to Learning-Based Approaches](/202604/14/2604.10246v1-a-comparison-of-multi-view-stereo-methods-for-photogrammetric-3d-reconstruction-from-traditional-to-learning-based-approaches)  
+   标签：评分：9.0/10、query:q10
+   evidence：传统与基于学习的多视图立体3D重建方法对比评估
+188. [Class-Adaptive Cooperative Perception for Multi-Class LiDAR-based 3D Object Detection in V2X Systems](/202604/14/2604.10305v1-class-adaptive-cooperative-perception-for-multi-class-lidar-based-3d-object-detection-in-v2x-systems)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：V2X系统中基于LiDAR的多类别三维目标检测
+189. [Point2Pose: Occlusion-Recovering 6D Pose Tracking and 3D Reconstruction for Multiple Unknown Objects Via 2D Point Trackers](/202604/14/2604.10415v1-point2pose-occlusion-recovering-6d-pose-tracking-and-3d-reconstruction-for-multiple-unknown-objects-via-2d-point-trackers)  
+   标签：评分：9.0/10、query:q10
+   evidence：因果6D位姿跟踪与增量式三维重建
+190. [A Progressive Training Strategy for Vision-Language Models to Counteract Spatio-Temporal Hallucinations in Embodied Reasoning](/202604/14/2604.10506v1-a-progressive-training-strategy-for-vision-language-models-to-counteract-spatio-temporal-hallucinations-in-embodied-reasoning)  
+   标签：评分：9.0/10、query:q12
+   evidence：针对具身推理和时空任务的视觉语言模型渐进式训练
+191. [From Perception to Planning: Evolving Ego-Centric Task-Oriented Spatiotemporal Reasoning via Curriculum Learning](/202604/14/2604.10517v1-from-perception-to-planning-evolving-ego-centric-task-oriented-spatiotemporal-reasoning-via-curriculum-learning)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：具身任务中演进的自我中心时空推理
+192. [Learning 3D Representations for Spatial Intelligence from Unposed Multi-View Images](/202604/14/2604.10573v1-learning-3d-representations-for-spatial-intelligence-from-unposed-multi-view-images)  
+   标签：评分：9.0/10、query:q19
+   evidence：学习用于空间智能和场景理解的三维表示
+193. [Rein3D: Reinforced 3D Indoor Scene Generation with Panoramic Video Diffusion Models](/202604/14/2604.10578v1-rein3d-reinforced-3d-indoor-scene-generation-with-panoramic-video-diffusion-models)  
+   标签：评分：9.0/10、query:q16
+   evidence：使用视频扩散模型和高斯泼溅进行3D室内场景生成
+194. [MonoEM-GS: Monocular Expectation-Maximization Gaussian Splatting SLAM](/202604/14/2604.10593v1-monoem-gs-monocular-expectation-maximization-gaussian-splatting-slam)  
+   标签：评分：9.0/10、query:q10
+   evidence：使用高斯泼溅进行单目 SLAM 和三维重建
+195. [LIDEA: Human-to-Robot Imitation Learning via Implicit Feature Distillation and Explicit Geometry Alignment](/202604/14/2604.10677v1-lidea-human-to-robot-imitation-learning-via-implicit-feature-distillation-and-explicit-geometry-alignment)  
+   标签：评分：9.0/10、query:q12
+   evidence：通过显式几何对齐实现人到机器人的模仿学习
+196. [Do LLMs Build Spatial World Models? Evidence from Grid-World Maze Tasks](/202604/14/2604.10690v1-do-llms-build-spatial-world-models-evidence-from-grid-world-maze-tasks)  
+   标签：评分：9.0/10、query:q13
+   evidence：评估大语言模型是否构建了用于推理和规划的空间世界模型
+197. [L-PCN: A Point Cloud Accelerator Exploiting Spatial Locality through Octree-based Islandization](/202604/14/2604.10716v1-l-pcn-a-point-cloud-accelerator-exploiting-spatial-locality-through-octree-based-islandization)  
+   标签：评分：9.0/10、query:q7
+   evidence：用于分割和分类的点云网络加速器
+198. [Generative Data-engine Foundation Model for Universal Few-shot 2D Vascular Image Segmentation](/202604/14/2604.10737v1-generative-data-engine-foundation-model-for-universal-few-shot-2d-vascular-image-segmentation)  
+   标签：评分：9.0/10、query:q14
+   evidence：通用少样本2D血管图像分割
+199. [HOG-Layout: Hierarchical 3D Scene Generation, Optimization and Editing via Vision-Language Models](/202604/14/2604.10772v1-hog-layout-hierarchical-3d-scene-generation-optimization-and-editing-via-vision-language-models)  
+   标签：评分：9.0/10、query:q16
+   evidence：使用大语言模型和视觉语言模型进行文本驱动的分层3D场景生成与编辑
+200. [HO-Flow: Generalizable Hand-Object Interaction Generation with Latent Flow Matching](/202604/14/2604.10836v1-ho-flow-generalizable-hand-object-interaction-generation-with-latent-flow-matching)  
+   标签：评分：9.0/10、query:q16
+   evidence：基于文本的3D手物交互序列生成建模
+201. [TAMISeg: Text-Aligned Multi-scale Medical Image Segmentation with Semantic Encoder Distillation](/202604/14/2604.10912v1-tamiseg-text-aligned-multi-scale-medical-image-segmentation-with-semantic-encoder-distillation)  
+   标签：评分：9.0/10、query:q6
+   evidence：提出了一种文本引导的多尺度医学图像分割框架。
+202. [Fast-SegSim: Real-Time Open-Vocabulary Segmentation for Robotics in Simulation](/202604/14/2604.10951v1-fast-segsim-real-time-open-vocabulary-segmentation-for-robotics-in-simulation)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：用于机器人仿真的实时开放词汇分割
+203. [ScoRe-Flow: Complete Distributional Control via Score-Based Reinforcement Learning for Flow Matching](/202604/14/2604.10962v1-score-flow-complete-distributional-control-via-score-based-reinforcement-learning-for-flow-matching)  
+   标签：评分：9.0/10、query:q12
+   evidence：用于机器人控制中流匹配策略的基于分数的强化学习
+204. [Back to the Barn with LLAMAs: Evolving Pretrained LLM Backbones in Finetuning Vision Language Models](/202604/14/2604.10985v1-back-to-the-barn-with-llamas-evolving-pretrained-llm-backbones-in-finetuning-vision-language-models)  
+   标签：评分：9.0/10、query:q11
+   evidence：研究视觉语言模型中不断演进的LLM骨干网络
+205. [EgoFun3D: Modeling Interactive Objects from Egocentric Videos using Function Templates](/202604/14/2604.11038v1-egofun3d-modeling-interactive-objects-from-egocentric-videos-using-function-templates)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：从第一视角视频中为具身智能建模交互式3D物体
+206. [ViserDex: Visual Sim-to-Real for Robust Dexterous In-hand Reorientation](/202604/14/2604.11138v1-viserdex-visual-sim-to-real-for-robust-dexterous-in-hand-reorientation)  
+   标签：评分：9.0/10、query:q9
+   evidence：灵巧手内重定向的虚实迁移框架
+207. [Naka-GS: A Bionics-inspired Dual-Branch Naka Correction and Progressive Point Pruning for Low-Light 3DGS](/202604/14/2604.11142v1-naka-gs-a-bionics-inspired-dual-branch-naka-correction-and-progressive-point-pruning-for-low-light-3dgs)  
+   标签：评分：9.0/10、query:q10
+   evidence：用于低光照 3D 修复和重建的 3D 高斯泼溅技术
+208. [Do Instance Priors Help Weakly Supervised Semantic Segmentation?](/202604/14/2604.11170v1-do-instance-priors-help-weakly-supervised-semantic-segmentation)  
+   标签：评分：9.0/10、query:q6
+   evidence：将基础分割模型应用于弱监督任务
+209. [Do Thought Streams Matter? Evaluating Reasoning in Gemini Vision-Language Models for Video Scene Understanding](/202604/14/2604.11177v1-do-thought-streams-matter-evaluating-reasoning-in-gemini-vision-language-models-for-video-scene-understanding)  
+   标签：评分：9.0/10、query:q11
+   evidence：评估 Gemini 视觉语言模型在视频场景理解中的推理能力
+210. [3DTV: A Feedforward Interpolation Network for Real-Time View Synthesis](/202604/14/2604.11211v1-3dtv-a-feedforward-interpolation-network-for-real-time-view-synthesis)  
+   标签：评分：9.0/10、query:q10
+   evidence：使用位姿感知深度模块进行实时视图合成和 3D 重建
+211. [Decoupled Similarity for Task-Aware Token Pruning in Large Vision-Language Models](/202604/14/2604.11240v1-decoupled-similarity-for-task-aware-token-pruning-in-large-vision-language-models)  
+   标签：评分：9.0/10、query:q11
+   evidence：多模态大语言模型中的令牌剪枝
+212. [CLAW: Composable Language-Annotated Whole-body Motion Generation](/202604/14/2604.11251v1-claw-composable-language-annotated-whole-body-motion-generation)  
+   标签：评分：9.0/10、query:q12
+   evidence：人形机器人的语言标注全身运动生成
+213. [Any 3D Scene is Worth 1K Tokens: 3D-Grounded Representation for Scene Generation at Scale](/202604/14/2604.11331v1-any-3d-scene-is-worth-1k-tokens-3d-grounded-representation-for-scene-generation-at-scale)  
+   标签：评分：9.0/10、query:q16
+   evidence：用于大规模三维场景生成的3D接地表示
+214. [MR.ScaleMaster: Scale-Consistent Collaborative Mapping from Crowd-Sourced Monocular Videos](/202604/14/2604.11372v1-mrscalemaster-scale-consistent-collaborative-mapping-from-crowd-sourced-monocular-videos)  
+   标签：评分：9.0/10、query:q10
+   evidence：基于单目视频进行 3D 重建的协作建图系统
+215. [GS4City: Hierarchical Semantic Gaussian Splatting via City-Model Priors](/202604/14/2604.11401v1-gs4city-hierarchical-semantic-gaussian-splatting-via-city-model-priors)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：利用城市模型先验进行分层语义映射和城市场景理解
+216. [Scene Change Detection with Vision-Language Representation Learning](/202604/14/2604.11402v1-scene-change-detection-with-vision-language-representation-learning)  
+   标签：评分：9.0/10、query:q17
+   evidence：利用视觉语言表示学习进行场景变化检测
+217. [Finetune Like You Pretrain: Boosting Zero-shot Adversarial Robustness in Vision-language Models](/202604/14/2604.11576v1-finetune-like-you-pretrain-boosting-zero-shot-adversarial-robustness-in-vision-language-models)  
+   标签：评分：9.0/10、query:q21
+   evidence：增强视觉语言模型中的零样本对抗鲁棒性
+218. [GeomPrompt: Geometric Prompt Learning for RGB-D Semantic Segmentation Under Missing and Degraded Depth](/202604/14/2604.11585v1-geomprompt-geometric-prompt-learning-for-rgb-d-semantic-segmentation-under-missing-and-degraded-depth)  
+   标签：评分：9.0/10、query:q5
+   evidence：用于RGB-D语义分割的几何提示学习
+219. [POINTS-Long: Adaptive Dual-Mode Visual Reasoning in MLLMs](/202604/14/2604.11627v1-points-long-adaptive-dual-mode-visual-reasoning-in-mllms)  
+   标签：评分：9.0/10、query:q11
+   evidence：多模态大语言模型中的自适应双模式视觉推理
+220. [STS-Mixer: Spatio-Temporal-Spectral Mixer for 4D Point Cloud Video Understanding](/202604/14/2604.11637v1-sts-mixer-spatio-temporal-spectral-mixer-for-4d-point-cloud-video-understanding)  
+   标签：评分：9.0/10、query:3d-scn
+   evidence：4D点云视频理解与几何特征提取
+221. [LMMs Meet Object-Centric Vision: Understanding, Segmentation, Editing and Generation](/202604/14/2604.11789v1-lmms-meet-object-centric-vision-understanding-segmentation-editing-and-generation)  
+   标签：评分：9.0/10、query:q11
+   evidence：面向大语言模型和分割的以物体为中心的视觉
+222. [SyncFix: Fixing 3D Reconstructions via Multi-View Synchronization](/202604/14/2604.11797v1-syncfix-fixing-3d-reconstructions-via-multi-view-synchronization)  
+   标签：评分：9.0/10、query:q10
+   evidence：通过多视图同步和扩散细化修复三维重建
+223. [Pair2Scene: Learning Local Object Relations for Procedural Scene Generation](/202604/14/2604.11808v1-pair2scene-learning-local-object-relations-for-procedural-scene-generation)  
+   标签：评分：9.0/10、query:q16
+   evidence：利用局部物体关系进行3D室内场景的程序化生成
 
 ### 速读区论文标签
-1. [Shared Representation for 3D Pose Estimation, Action Classification, and Progress Prediction from Tactile Signals](/202604/04/2603.25906v1-shared-representation-for-3d-pose-estimation-action-classification-and-progress-prediction-from-tactile-signals)  
-   标签：评分：8.0/10、query:q8
-   evidence：基于触觉信号的3D姿态估计与动作分类，用于人机交互
-2. [Adapting Segment Anything Model 3 for Concept-Driven Lesion Segmentation in Medical Images: An Experimental Study](/202604/04/2603.25945v1-adapting-segment-anything-model-3-for-concept-driven-lesion-segmentation-in-medical-images-an-experimental-study)  
-   标签：评分：8.0/10、query:q6
-   evidence：使用SAM3进行概念驱动的病灶分割
-3. [GeoReFormer: Geometry-Aware Refinement for Lane Segment Detection and Topology Reasoning](/202604/04/2603.26018v1-georeformer-geometry-aware-refinement-for-lane-segment-detection-and-topology-reasoning)  
+1. [Real-Time Projected Adaptive Control for Closed-Chain Co-Manipulative Continuum Robots](/202604/14/2604.04286v1-real-time-projected-adaptive-control-for-closed-chain-co-manipulative-continuum-robots)  
+   标签：评分：8.0/10、query:q9
+   evidence：协作操作连续体机器人抓取物体的自适应控制
+2. [NAIMA: Semantics Aware RGB Guided Depth Super-Resolution](/202604/14/2604.04407v1-naima-semantics-aware-rgb-guided-depth-super-resolution)  
+   标签：评分：8.0/10、query:q10
+   evidence：语义感知的RGB引导深度超分辨率
+3. [A Patch-based Cross-view Regularized Framework for Backdoor Defense in Multimodal Large Language Models](/202604/14/2604.04488v1-a-patch-based-cross-view-regularized-framework-for-backdoor-defense-in-multimodal-large-language-models)  
+   标签：评分：8.0/10、query:q11
+   evidence：多模态大语言模型中的后门防御
+4. [MPTF-Net: Multi-view Pyramid Transformer Fusion Network for LiDAR-based Place Recognition](/202604/14/2604.04513v1-mptf-net-multi-view-pyramid-transformer-fusion-network-for-lidar-based-place-recognition)  
    标签：评分：8.0/10、query:3d-scn
-   evidence：自动驾驶中的三维车道线检测与拓扑推理
-4. [Consistency Beyond Contrast: Enhancing Open-Vocabulary Object Detection Robustness via Contextual Consistency Learning](/202604/04/2603.26179v1-consistency-beyond-contrast-enhancing-open-vocabulary-object-detection-robustness-via-contextual-consistency-learning)  
-   标签：评分：8.0/10、query:q14
-   evidence：开放词汇目标检测与视觉语言对齐
-5. [Rethinking Token Pruning for Historical Screenshots in GUI Visual Agents: Semantic, Spatial, and Temporal Perspectives](/202604/04/2603.26041v1-rethinking-token-pruning-for-historical-screenshots-in-gui-visual-agents-semantic-spatial-and-temporal-perspectives)  
+   evidence：基于LiDAR的地点识别和用于空间布局的BEV编码
+5. [Spatially-Weighted CLIP for Street-View Geo-localization](/202604/14/2604.04357v1-spatially-weighted-clip-for-street-view-geo-localization)  
    标签：评分：7.0/10、query:q11
-   evidence：使用多模态大模型的GUI视觉智能体Token剪枝
-6. [Rethinking Token Pruning for Historical Screenshots in GUI Visual Agents: Semantic, Spatial, and Temporal Perspectives](/202604/04/2603.26041v2-rethinking-token-pruning-for-historical-screenshots-in-gui-visual-agents-semantic-spatial-and-temporal-perspectives)  
-   标签：评分：7.0/10、query:q11
-   evidence：多模态大模型GUI视觉智能体的令牌剪枝
-7. [PAD-Hand: Physics-Aware Diffusion for Hand Motion Recovery](/202604/04/2603.26068v2-pad-hand-physics-aware-diffusion-for-hand-motion-recovery)  
+   evidence：将空间自相关融入视觉语言对比学习
+6. [BiTDiff: Fine-Grained 3D Conducting Motion Generation via BiMamba-Transformer Diffusion](/202604/14/2604.04395v1-bitdiff-fine-grained-3d-conducting-motion-generation-via-bimamba-transformer-diffusion)  
+   标签：评分：7.0/10、query:q16
+   evidence：3D 指挥动作生成和细粒度 SMPL-X 数据集
+7. [Relational Epipolar Graphs for Robust Relative Camera Pose Estimation](/202604/14/2604.04554v1-relational-epipolar-graphs-for-robust-relative-camera-pose-estimation)  
    标签：评分：7.0/10、query:q10
-   evidence：基于图像的物理感知手部运动恢复
-8. [Finding Distributed Object-Centric Properties in Self-Supervised Transformers](/202604/04/2603.26127v1-finding-distributed-object-centric-properties-in-self-supervised-transformers)  
-   标签：评分：7.0/10、query:q6
-   evidence：自监督视觉Transformer中的以物体为中心的属性
-9. [AgentCollab: A Self-Evaluation-Driven Collaboration Paradigm for Efficient LLM Agents](/202604/04/2603.26034v1-agentcollab-a-self-evaluation-driven-collaboration-paradigm-for-efficient-llm-agents)  
-   标签：评分：6.0/10、query:q13
-   evidence：由大语言模型驱动的自主智能体执行复杂任务
-10. [PAD-Hand: Physics-Aware Diffusion for Hand Motion Recovery](/202604/04/2603.26068v1-pad-hand-physics-aware-diffusion-for-hand-motion-recovery)  
-   标签：评分：6.0/10、query:q16
-   evidence：物理感知的扩散模型用于手部动作恢复与重建
-11. [Tunable Soft Equivariance with Guarantees](/202604/04/2603.26657v1-tunable-soft-equivariance-with-guarantees)  
+   evidence：利用关系对极图进行VSLAM中的相机相对位姿估计
+8. [Think in Strokes, Not Pixels: Process-Driven Image Generation via Interleaved Reasoning](/202604/14/2604.04746v1-think-in-strokes-not-pixels-process-driven-image-generation-via-interleaved-reasoning)  
+   标签：评分：7.0/10、query:q11
+   evidence：引入了使用统一多模态模型和交替推理的过程驱动图像生成。
+9. [Think in Strokes, Not Pixels: Process-Driven Image Generation via Interleaved Reasoning](/202604/14/2604.04746v2-think-in-strokes-not-pixels-process-driven-image-generation-via-interleaved-reasoning)  
+   标签：评分：6.0/10、query:q11
+   evidence：用于交错推理和图像生成的多模态模型
+10. [MemMachine: A Ground-Truth-Preserving Memory System for Personalized AI Agents](/202604/14/2604.04853v1-memmachine-a-ground-truth-preserving-memory-system-for-personalized-ai-agents)  
+   标签：评分：6.0/10、query:q15
+   evidence：用于AI智能体长程推理的持久记忆系统
+11. [Scalar Federated Learning for Linear Quadratic Regulator](/202604/14/2604.05088v1-scalar-federated-learning-for-linear-quadratic-regulator)  
+   标签：评分：6.0/10、query:q22
+   evidence：异构智能体线性二次调节器 (LQR) 控制的联邦学习算法。
+12. [Beyond Semantic Search: Towards Referential Anchoring in Composed Image Retrieval](/202604/14/2604.05393v1-beyond-semantic-search-towards-referential-anchoring-in-composed-image-retrieval)  
    标签：评分：6.0/10、query:q6
-   evidence：语义分割主干网络的软等变性
-12. [K$α$LOS finds Consensus: A Meta-Algorithm for Evaluating Inter-Annotator Agreement in Complex Vision Tasks](/202604/04/2603.27197v1-klos-finds-consensus-a-meta-algorithm-for-evaluating-inter-annotator-agreement-in-complex-vision-tasks)  
-   标签：评分：6.0/10、query:3d-scn
-   evidence：评估复杂视觉任务中的标注者间一致性
+   evidence：多模态查询中的细粒度检索和实例级一致性
 
 
 <div class="dpr-home-promo-card">

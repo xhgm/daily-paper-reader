@@ -1,0 +1,618 @@
+Title: Relational Epipolar Graphs for Robust Relative Camera Pose Estimation
+
+URL Source: https://arxiv.org/pdf/2604.04554v1
+
+Published Time: Tue, 07 Apr 2026 01:55:37 GMT
+
+Number of Pages: 21
+
+Markdown Content:
+# Relational Epipolar Graphs for Robust Relative Camera Pose Estimation 
+
+Prateeth Rao and Sachit Rao 
+
+International Institute of Information Technology Bangalore, 26/C, Electronic City, Hosur Road, Bangalore, 560 100, Karnataka, India. *Corresponding author(s). E-mail(s): sachit@iiitb.ac.in; Contributing authors: prateeth.rao@iiitb.ac.in; 
+
+Abstract 
+
+A key component of the Visual Simultaneous Localization and Mapping (VSLAM) framework is estimation of relative camera poses; this is performed by finding matching keypoints in images. Accu-rate estimation faces challenges when matching algorithms produce noisy correspondences. Classical methods rely on stochastic hypothesis sampling and iterative pose estimation and learning-based methods often lack explicit geometric structure. In this work, we reformulate relative pose estima-tion as a relational inference problem over epipolar correspondence graphs, where matched keypoints across a pair of images are posed as nodes and those that are close to each other are connected using edges. Operations on the graph, such as pruning, message passing, and pooling, leads to estimates of a relative quarternion rotation vector, a translation vector, and the Essential Matrix (EM) formed by these vectors. Minimising a loss comprised of i. an L2-norm of the difference between these esti-mates and the ground-truth (GT) vectors, ii . the Frobenius norm of the difference of the estimated and GT EMs, iii . the differences in their respective singular values, iv . difference in heading angle computed using the estimated and GT rotation vector, and v. the difference in a scale measure com-puted using the estimate and GT translation vectors, leads to the relative pose estimation between the selected pair of images. The dense detector-free algorithm, LoFTR, is adopted to find match-ing keypoints. Extensive evaluation using diverse graph neural network (GNN) architectures across indoor and outdoor benchmarks demonstrate improved robustness under large baseline variation and dense correspondence noise compared to classical and learning-guided consensus approaches. These results suggest that modeling pose estimation as global relational consensus provides a geometrically constrained alternative to stochastic sampling and improves stability with the use of modern dense matching algorithms. 
+
+Keywords: Relative Camera Pose Estimation, Graph Neural Networks, Epipolar Geometry, Multi-view Geometry, Visual SLAM, Geometric Deep Learning, Essential Matrix Estimation, Relational Inference 
+
+## 1 Introduction 
+
+Visual perception enables artificial systems to localize, reconstruct, and interact with their envi-ronments, forming the foundation of applications such as augmented reality, robotic manipula-tion, and autonomous navigation. Frameworks including Simultaneous Localization and Map-ping (SLAM) and Structure-from-Motion (SfM) recover three-dimensional (3-D) scene structure 1
+
+> arXiv:2604.04554v1 [cs.CV] 6 Apr 2026
+
+by jointly estimating camera motion and recon-structing the environment by triangulating from image sequences. Central to these pipelines is the estimation of the camera’s six Degree-of-Freedom (6-DoF) pose, which describes its position and orientation relative to the scene and forms abackbone for 3-D reconstruction. While satellite-based localization provides coarse positioning outdoors (low precision), many applications require infrastructure independent localization with significantly higher accuracy. Visual localization addresses this need but remains challenging due to appearance variation, illumination changes, dynamic scenes, and unreli-able feature correspondences. These challenges are amplified by the need to operate under computa-tional constraints, motivating methods that bal-ance geometric validity with robustness to noisy observations. Existing approaches to camera motion esti-mation can be broadly categorized into three paradigms: 1. Classical geometric methods exploit multi-view constraints through either direct pho-tometric alignment or indirect feature-based pipelines, forming the backbone of modern SLAM systems; see Lowe (2004); Bay et al. (2006); Rublee et al. (2011); Leutenegger et al. (2011); Forster et al. (2017); Engel et al. (2014) 2. End-to-end learning approaches instead treat pose estimation as a regression problem, improving robustness to appearance variation but often lack-ing explicit geometric consistency, Yi et al. (2016); Sun et al. (2021); and 3. Hybrid methods attempt to combine learned representations with geomet-ric reasoning, yet commonly treat correspondence filtering, geometric estimation, and pose regres-sion as separate stages, Zheng et al. (2022); Zhou et al. (2021), leading to instability under dense and noisy matches Feature-based pipelines under indirect visual SLAM estimate motion by enforcing epipolar con-straints over matched correspondences, but these sets frequently contain outliers caused by occlu-sion, repetitive structure, or viewpoint changes. Robust estimation techniques such as RANSAC mitigate this issue, but rely on discrete hypoth-esis selection and integrate poorly with learn-ing frameworks. Recent dense matching methods improve correspondence coverage under challeng-ing conditions; however, dense matches often include weak or geometrically inconsistent cor-respondences, and regression-based pose models may struggle to enforce explicit multi-view con-straints, Jiang et al. (2021); Sun et al. (2021); Chen et al. (2022). Motivated by these limitations, we propose a unified formulation that represents image corre-spondences as nodes in an epipolar graph captur-ing both local and global geometric relationships. This perspective enables structured reasoning over noisy matches while preserving geometric valid-ity and reframes relative pose estimation as a relational inference problem over correspondence graphs. By bridging classical multi-view geometry with graph-based learning, the proposed frame-work integrates correspondence filtering, geomet-ric estimation, and pose prediction within a single pipeline. The primary contributions of this work are: 1. Relational formulation of relative pose estimation : We introduce a unified perspec-tive that represents matched correspondences -determined using the detector-free LoFTR Sun et al. (2021) algorithm - as nodes in an epipo-lar graph, enabling global geometric reasoning prior to pose regression and reducing reliance on stochastic hypothesis selection. 2. Geometry-aware epipolar graph con-struction : We propose a correspondence graph where connectivity is defined through spatial proximity and Sampson-error-based pruning, explicitly encoding epipolar consistency within the learning representation. 3. Spectral relational pose inference : We show that graph message passing can esti-mate the parameters of the EM - found as the nullspace of a matrix formed using the matched coordinates - allowing pose parameters to be recovered through global relational consensus over correspondences. 4. Geometry-coupled supervision for pose learning : We develop a composite training objective that jointly constrains SE (3) pose parameters, EM structure, and scale consis-tency, improving robustness under dense corre-spondence noise. 5. Controlled evaluation under baseline variation : We construct evaluation splits with variable temporal spacing to estimate relative 2pose under large-baseline motion and demon-strate improved robustness compared to clas-sical consensus pipelines and learning-based baselines. 6. SOTA Pose Regression Comparison : The proposed Graph based pose regression modules are further compared with the SOTA image based pose regression modules like PoseNet, RPNet and DiffPoseNet on metrics such as ATE,APE and APE-R, 
+
+## 2 Related Work 
+
+The literature on pose estimation algorithms is briefly reviewed. 
+
+Robust Geometric Pose Estimation : Esti-mating relative camera motion from image cor-respondences traditionally relies on robust EM estimation. Sampling Consensus (SAC) meth-ods, most notably RANSAC Fischler and Bolles (1981), iteratively generate minimal hypotheses from correspondence subsets and select solutions that maximize geometric consistency. Numerous extensions improve sampling efficiency, hypothe-sis refinement, and robustness to noise. PROSAC, Chum and Matas (2005), prioritizes correspon-dences based on quality measures; LO-RANSAC, Chum et al. (2003), introduces local optimization to refine promising hypotheses; and Graph-Cut RANSAC, Barath and Matas (2018), incorporates spatial regularity through neighborhood-based optimization. Probabilistic formulations such as MAGSAC and MAGSAC++, Barath et al. (2022); Bar´ ath et al. (2020), replace binary inlier selec-tion with noise-scale marginalization and robust M-estimation, improving stability under varying correspondence noise. Recent work integrates learning within con-sensus pipelines to guide hypothesis generation and inlier selection. DSAC, Brachmann et al. (2017), replaces hard hypothesis selection with differentiable scoring, while NG-RANSAC, Brach-mann and Rother (2019), predicts correspon-dence weights to bias sampling toward geometri-cally consistent matches. Learning-based weight-ing approaches further enable differentiable essen-tial matrix estimation through weighted Singu-lar Value Decomposition formulations, Jau et al. (2020); Deep MAGSAC++ Wei et al. (2023) combines data-driven priors with probabilistic marginalization to improve robustness across noise regimes. Despite these advances, SAC-based frame-works remain fundamentally stochastic, relying on repeated hypothesis sampling and discrete con-sensus selection. While learning-guided variants improve efficiency and robustness, correspondence filtering, geometric estimation, and pose recovery are typically treated as sequential stages rather than jointly modeled processes. This limitation becomes particularly pronounced under dense cor-respondence settings, where large numbers of weak or geometrically inconsistent matches can desta-bilize hypothesis selection. These challenges moti-vate alternative formulations that perform global geometric reasoning over correspondences prior to pose estimation. 
+
+Learning-Based Correspondence and Pose Estimation : Learning-based approaches leverage contextual reasoning and end-to-end fea-ture learning. Detector-based algorithms, such as SuperPoint, DeTone et al. (2018), replace hand-crafted keypoints with learned features, while graph- and attention-based matching frameworks: SuperGlue, Sarlin et al. (2020a), and LightGlue, Sarlin et al. (2020b), model relationships between keypoints to produce context-aware correspon-dences. Extensions incorporating semantic cues further improve repeatability under challenging conditions, Xue et al. (2023). These methods demonstrate that relational reasoning improves correspondence quality but primarily focus on matching rather than downstream geometric esti-mation. Recent detector-free architectures shift cor-respondence estimation toward dense prediction over image features. Transformer-based meth-ods such as COTR, Jiang et al. (2021), for-mulate matching as point-wise regression with global attention, while LoFTR, Sun et al. (2021), and ASpanFormer, Chen et al. (2022), learn coarse-to-fine correspondence fields using self-and cross-attention mechanisms. ROMA, Edstedt et al. (2024), further integrates convolutional and transformer representations to improve robust-ness under large viewpoint variation. Although these approaches increase correspondence cover-age and robustness in low-texture regions, dense predictions frequently include weak or geomet-rically inconsistent matches, complicating subse-quent pose estimation. 3Parallel research explores learning-based alter-natives to classical pose pipelines by directly regressing camera motion from image features. Early Siamese architectures predict relative pose from global descriptors, Melekhov et al. (2017); En et al. (2018), while hybrid methods integrate correspondence reasoning with differentiable geo-metric estimation. OANet, Zheng et al. (2022), for example, employs hierarchical graph clustering to predict inlier weights for essential matrix estima-tion, and recent formulations incorporate geomet-ric constraints such as cheirality, Parameshwara et al. (2022), uncertainty modeling, Ahrabian et al. (2024), or transformer-based feature inter-action, Leng et al. (2023). Despite these advances, many learning-based pipelines treat correspondence estimation and pose recovery as loosely coupled stages. Dense matching improves correspondence availability, while regression models increase flexibility, yet explicit multi-view geometric reasoning is often applied only after correspondence filtering. This separation motivates approaches that integrate correspondence structure and geometric con-straints within a unified relational framework for pose estimation. 
+
+Graph Learning for Geometric Vision :As our work is grounded in graph-based learn-ing architectures, literature on this specific topic is discussed. Graph-based learning has been adopted to model relationships among visual cor-respondences and spatial observations. The meth-ods, SuperGlue and LightGlue, employ atten-tion mechanisms that implicitly construct corre-spondence graphs, enabling context-aware reason-ing prior to match selection. Similarly, learning-guided consensus approaches use graph-inspired architectures to predict inlier probabilities or correspondence weights for EM estimation, as demonstrated by OANet, Zheng et al. (2022), and related neural-guided sampling frameworks. Sev-eral works leverage GNNs to capture geometric structure in point-based representations. Architec-tures such as Dynamic Graph CNN (DGCNN), Wang et al. (2019), introduce dynamic neighbor-hood construction to learn robust geometric fea-tures, while hierarchical pooling strategies enable global context aggregation across irregular data. These advances highlight the effectiveness of rela-tional reasoning for geometric tasks, including matching, segmentation, and pose estimation. However, existing graph-based approaches in relative pose estimation primarily treat graphs as mechanisms for correspondence refinement or sampling guidance. Graph reasoning is typically applied to improve inlier prediction, after which pose parameters are recovered using classical geo-metric solvers. As a result, epipolar geometry remains an external constraint rather than an intrinsic component of the learning representa-tion. In contrast, this work formulates corre-spondence graphs as the primary representation for pose inference, explicitly embedding epipo-lar constraints within graph construction and interpreting message passing as a process that approximates the nullspace of the matrix used to calculate the EM. This perspective enables direct recovery of relative pose through global relational consensus, bridging classical multi-view geome-try and graph-based learning within a unified differentiable framework. 
+
+## 3 Preliminaries 
+
+This section introduces the geometric assump-tions and graph-learning formulation underlying the proposed relative pose estimation framework. Given a set of matched keypoints that satisfy epipolar geometry, relative pose estimation is for-mulated as a regression problem in which graph networks learn motion-consistent relational repre-sentations prior to pose prediction. 
+
+3.1 Epipolar Geometry and Pose Parameterization 
+
+Let x1,i , x2,i ∈ P2, i = 1 · · · ˜N , denote the nor-malized homogeneous coordinates of matched key-points between two calibrated views. Every such pair satisfies the epipolar constraint xT
+
+> 2,i
+
+Ex 1,i = 0, where E ∈ ℜ 3×3 is the EM. This matrix can be decomposed to the product 
+
+E = [ t]×R, (1) where the relative rotation matrix, R ∈ ℜ 3×3,parameterized using a quaternion q ∈ ℜ4×1,and the relative translation vector, t ∈ ℜ3×1,denotes the relative transformation between the 4Image 2 
+
+> Image 1
+> ...
+> Image N
+> Stereo Initialization
+> Tracking / Visual Odometry
+> Loop Closure Constraints
+> Mapping Initialization
+> Mapping and Voxelization
+> Matched keypoints normalized
+> Feature Detection, Description and Matching
+> Relative Essential Matrix Estimation (8 - point Method)
+> Decomposition to Relative Pose (SAC/ Regression)
+
+Fig. 1 : General Architecture of Visual SLAM Pipeline - Highlights Visual Odometry (Tracking) module Carlone et al. (2025). two frames that define the views; [ t]× is the skew-symmetric matrix of t. Thus, relative pose esti-mation implies estimating t, R by first estimating 
+
+E.The normalized eight-point algorithm, Hart-ley (1997), is typically used to find E given a set of matched coordinates. Using the epipolar con-straint equation for at least 8 matched coordinate pairs and expressing the 8 parameters (one of these is 0) of E as a vector e, the EM can be found by solving the linear system of equations Ae = 0, where A ∈ ℜ N ×9 is the constraint matrix con-structed from matched pairs. Given that not all matched pairs actually satisfy the epipolar con-straint, which implies that the correct e that is in the nullspace of A can be found, the pro-posed framework in this paper learns to choose those pairs that do match and to predict the pose parameters ( q, t) directly from these choices. 
+
+3.2 Relational Pose Regression Formulation using Graphs 
+
+The proposed approach performs global reason-ing over graphs to estimate the EM, in contrast with stochastic hypothesis sampling leading to inlier selection; message passing in graphs are expected to aggregate motion-consistent evidence across correspondences. Graph design and node embeddings aim to produce a compact representa-tion from which camera rotation and translation are regressed under geometry-aware supervision. This formulation integrates correspondence filter-ing, geometric estimation, and pose prediction within a single differentiable pipeline, as shown in Fig. 2, suitable for visual SLAM tracking. Given an image pair ( I1, I 2), relative pose esti-mation is formulated as relational inference over correspondence graphs constructed from dense matches. Each matched keypoint pair constitutes a node whose features are expected to encode normalized epipolar coordinates, while edges cap-ture spatial proximity and geometric consistency. To find matching keypoint pairs, the detector-free matcher LoFTR Sun et al. (2021), is used in this paper. The application of this algorithm to (I1, I 2) produces matched pixel coordinates ˜x1i, ˜x2i ∈ ℜ 2, i = 1 , · · · , ˜N , respectively, along with a scalar confidence score ci, for each matched pair. The pixel coordinates (appended with 1 to make it a 3 × 1 vector) of the matched pair are converted to homogeneous coordinates and then normalized, these are denoted by ˆ x1,2i and found from the relation ˆ x1,2i = K−1 ˜x1,2i, where K is the camera intrinsic matrix, which is of form 
+
+K =
+
+fx 0 cx
+
+0 fy cy
+
+0 0 1
+
+ (2) and where (cx, c y ) is the camera center and, typically, fx = fy = f is the focal length. The normalized correspondences in homoge-neous coordinates are stacked as feature vectors ˆxi = [ˆ xT
+
+> 1,i
+
+, ˆxT
+
+> 2,i
+
+]T ∈ ℜ 6. Given a set of such stacked vectors, ˆX ∈ ℜ ˜N ×6, each vector ˆ xi is treated as a node of a graph G = ( V, E ). The initial node embeddings are defined as h(0)  
+
+> i
+
+= ˆ xi. The edges 5are defined by constructing a k-nearest-neighbor (k-NN) graph of the first k closest, in distance, matched keypoints (and not closest in the image), from image I1; this graph can be constructed from either image. Thus, for coordinate ˆx1i and its k nearest neighbours Nk(i) = arg min kj ∥ˆx1,i − ˆx1,j ∥2, the edge between nodes i, j is defined as Eij = I[j ∈Nk(i)]; these steps yield an initial correspondence graph G1 = ( V1, E 1); the number of nodes in this graph is denoted by ˆN ≤ ˜N .This graph is further filtered based on an ini-tial estimate of the EM, denoted by E0, which is derived using a minimal subset of correspon-dences. Now, by evaluating the Sampson distance 
+
+di =
+
+ ˆxT
+
+> 2,i
+
+E0 ˆx1,i 
+
+2
+
+∥E0 ˆx1,i ∥2 + ∥ET 
+
+> 0
+
+ˆx2,i ∥2 , (3) only those matched pairs that satisfy a user-defined threshold, di < τ , are retained. This leads to a filtered correspondence set X, with the stacked vectors xi, i = 1 , · · · , N, N ≤ ˆN ,and a refined graph G2 = ( V2, E 2). This graph, denoted as the epipolar graph, therefore encodes both spatial and geometric structure, where the nodes satisfy some measure of the epipolar con-straint and thus, serves as the input representation for relational pose regression. Now, given G2 = ( V2, E 2), relational reason-ing is performed through stacked message-passing layers, L ≥ 1, that propagate motion-consistent information across nodes. Let H(ℓ) ∈ ℜN ×Fℓ
+
+denote node embeddings at layer ℓ; note that the initial embedding is H(0) = X, which is a subset of the stacked vectors created from the matched keypoints. A generic relational update is expressed as 
+
+H(ℓ+1) = σ
+
+
+
+Γ(ℓ)H(ℓ)W(ℓ)
+
+, (4) where Γ(ℓ) represents a propagation operator derived from the graph structure, W(ℓ) are learn-able weights, and σ(·) denotes a nonlinear activa-tion. This abstraction decouples relational infer-ence from specific architectures. In practice, the propagation operator may correspond to normal-ized adjacency smoothing, attention-based weight-ing, injective aggregation, or edge-based dynamic convolution, allowing standard GNN families, such as GCN, Kipf (2016), GAT, Veliˇ ckovi´ c et al. (2017), GIN, Xu et al. (2018), and EdgeCNN, Yang et al. (2019), to serve as interchangeable relational modules; we experiment with a combi-nation of these in this paper. Node embeddings are expected to encode higher-order geometric interactions among cor-respondences. Within the epipolar graph, mes-sage passing encourages geometrically consistent matches to reinforce one another while suppress-ing mismatches - choosing the “correct” set of matched kepoints that yield the EM E and hence the relative pose, q, t. The node embeddings at the output of layer L are then aggregated using permutation-invariant pooling z = P  H(L),where P (·) denotes mean or sum aggregation. The pooled descriptor is mapped to the relative pose parameters, ( q, t), through a multilayer percep-tron ( q, t) = gθ(z) as shown in Figure 3. The EM is then reconstructed from (1). This formula-tion interprets relative pose estimation as global relational consensus over correspondence graphs, where graph propagation approximates recovery of motion parameters from epipolar structure, thus bridging multi-view geometry with relational representation learning. 
+
+## 4 Geometry-Aware Training 
+
+To estimate relative pose, we embed geomet-ric structure directly into the training objective. Specifically, we formulate a set of core loss compo-nents that jointly enforce pose accuracy, essential matrix validity, and motion consistency. These components are further combined with adaptive weighting strategies, enabling the network to learn scale-aware translation while favoring minimal rotation, subject to geometric and heading con-straints. The resulting objective comprises both convex and non-convex terms, providing a flexible and generalizable framework for geometry-aware pose regression. The total training loss is defined as a weighted combination of complementary objectives: 
+
+Ltotal = λpose Lpose +λf rob LFE +λsvd LSV D E +λyaw Lyaw ,
+
+(5) where 
+
+Lpose = Lquat + Lt dir + Lt scale (6) 6Fig. 2 : Epipolar Graph VO Block Diagram - Includes Graph Construction to Relative Pose Regression     
+
+> GCN - 1 GCN - 2 Global Average Pooling
+> Graph Creation (Nodes: Keypoints, Edges: Spatial Proximity filtered by Sampson Loss)
+> ...
+> ...
+> ...
+> ...
+> Graph Attention Network GatConv, NH= 4
+> ...
+> MLP1
+> ...
+> MLP2 1
+> MLP2 2
+> {t}
+> {q}
+> Relative EM Calculation
+
+Fig. 3 : GNN Model Architectural Block Diagram - Accepts input graphs and output being Regressed Pose further used in calculation of EM 
+
+Quaternion Loss. 
+
+Rotation is parameterized using unit quaternions. Since quaternions form a double cover of the rota-tion group SO(3), the representations q and −q
+
+correspond to the same physical rotation. This antipodal ambiguity can lead to unstable gra-dients if not explicitly handled. Therefore, the predicted quaternion is aligned to the hemisphere of the ground truth: ˜q =
+
+(
+
+qpred , ⟨qpred , qgt ⟩ ≥ 0
+
+−qpred , otherwise (7) Rotation error is measured using either MSE or L1 norms: 
+
+Lquat = ∥˜q − qgt ∥. (8) 
+
+Translation Loss. 
+
+Translation supervision combines magnitude and directional alignment: 
+
+Lt dir = 1 − tpred 
+
+∥tpred ∥ · tgt 
+
+∥tgt ∥ , (9) 
+
+Lscale = |∥ tpred ∥ − ∥ tgt ∥| . (10) 
+
+Essential Matrix Structural Loss. 
+
+The essential matrix reconstructed from predicted pose 
+
+Epred = [ tpred ]×R(qpred ) (11) is constrained using Frobenius alignment and spectral regularization: 
+
+LFE = ∥Epred − Egt ∥F , (12) 
+
+LSV D E = ( σ1 − σ2)2 + σ23 , (13) 7Heading Angle (Yaw) Loss ( Lyaw )
+
+Explicitly constrains the yaw component of rota-tion to improve directional consistency, which is critical for trajectory estimation in forward-motion scenarios. 
+
+4.1 Training Protocol and Evaluation Metrics 
+
+The proposed architectures are trained and eval-uated on a diverse suite of visual SLAM and 3D reconstruction datasets, comprising KITTI Geiger et al. (2013) for automotive scenarios, King’s College (Cambridge Landmarks) Kendall et al. (2015) for urban localization, TartanAir Wang et al. (2020) for challenging aerial motion, and ETH3D Schops et al. (2017) for high-precision indoor/outdoor reconstruction. Classical geometric pipelines and learning-based pose regression models frequently exhibit performance degradation when image baselines increase, as feature correlation diminishes sig-nificantly. This degradation precipitates unstable Essential Matrix estimation and inaccurate abso-lute pose recovery due to the accumulation of rela-tive pose errors. Consequently, the data sampling strategy is a critical factor in training graph-based pose estimation models that are robust to variable geometric configurations. 
+
+4.1.1 Dataset Design and Correspondence Sampling Strategy 
+
+To systematically evaluate robustness against baseline variation, we construct training and eval-uation subsets by temporally sub-sampling image sequences. Let the camera capture rate be denoted by f frames per second (fps). We define a temporal spacing parameter 
+
+s ∈ { 0.1, 0.5, 1.0, 1.5, 2.0} (14) which determines the sampling interval, yielding an index step 
+
+d = f × s. (15) Given an ordered image sequence {Ik}, we define sampled pairs as (Ii, I i+d), (16) associated with absolute ground-truth poses Ti
+
+and Ti+d. The supervision target is the relative transformation 
+
+Trel = T−1 
+
+> i
+
+Ti+d. (17) Based on this formulation, two distinct dataset variations are constructed: 
+
+• Consecutive Dataset ( s = 0 .1 ⇒ d1 = 1 ): 
+
+captures small inter-frame motion with high overlap, providing dense epipolar matches suit-able for standard visual odometry tasks. 
+
+• Wide-Baseline Dataset ( s ∈ { 0.5, . . . , 2.0}): 
+
+introduces significant viewpoint changes ( d2 ∈{5, 10 , 15 , 20 }), resulting in minimal visual over-lap and challenging correspondence scenarios that stress-test geometric verification modules. All matched keypoints are converted to homo-geneous coordinates, normalized by the camera intrinsics K−1, and subsequently used to con-struct the epipolar graphs for training. The pri-mary objective of this variable sampling strategy is to reduce inter-frame correlation until epipo-lar inliers constitute approximately 30% of total matches. This regime forces the graph learning modules to learn robust correspondence selection logic even under weak geometric constraints. 
+
+4.1.2 Training Configuration and Optimization Settings 
+
+Training is executed via mini-batch stochastic optimization. For each input pair, epipolar graphs are dynamically constructed using a k-nearest-neighbor module with k = 6 and an initial Sampson filtering threshold of τ = 10 −4.The network predicts the unit quaternion q,the unit translation vector t, the unnormalized translation magnitude traw , and auxiliary pixel-flow statistics for scale supervision. The optimiza-tion objective minimizes the geometry-aware com-posite losses defined in the Methodology section. Unless otherwise specified, the hyperparame-ters are set as follows: 
+
+• Batch size: 4
+
+• Learning rate: 10 −4
+
+• Optimizer: Adam 
+
+• Training epochs: 12 
+
+• Data Split: 80% Training / 20% Validation 8Model checkpoints are serialized based on the epoch yielding the minimum validation loss. 
+
+4.1.3 Evaluation Metrics 
+
+To provide a comprehensive assessment, evalua-tion is categorized into pose estimation accuracy and downstream 3D reconstruction quality. 
+
+Relative Pose Metrics. 
+
+The accuracy of the estimated relative motion is quantified using Discernible Rotation Error (DRE) and Discernible Translation Error (DTE) Lee and Civera (2024). Let Rpred and Rgt denote the predicted and ground-truth rotation matrices, respectively. The geodesic rotation error is defined as: DRE = cos −1 Tr( RTgt Rpred ) − 12
+
+!
+
+. (18) The angular error between the predicted trans-lation direction tpred and the ground truth tgt is given by: DTE = cos −1
+
+ tpred · tgt 
+
+∥tpred ∥∥ tgt ∥
+
+
+
+. (19) 
+
+Absolute Pose Recovery. 
+
+Global trajectory is recovered by chaining consec-utive relative transformations: 
+
+Tk = Tk−1Trel,k . (20) Accumulated relative errors inevitably lead to trajectory drift. The Absolute Pose Error (APE) at frame k measures the Euclidean dis-tance between the estimated position ppred,k and the ground truth pgt,k :APE k = ∥ppred,k − pgt,k ∥2. (21) The rotational component of the Absolute Pose Error is defined as the geodesic distance between the predicted and ground truth orienta-tions: APE (k) 
+
+> r
+
+= arccos 
+
+ trace( Rrel,k ) − 12
+
+
+
+. (22) The global consistency is summarized by the Root Mean Square (RMS) of the Absolute Trajec-tory Error (ATE) over N frames: ATE = 
+
+vuut 1
+
+N
+
+> N
+
+X
+
+> k=1
+
+∥ppred,k − pgt,k ∥22. (23) 
+
+## 5 Experiments 
+
+5.1 Implementation and Runtime Analysis 
+
+All graph learning architectures were implemented using the PyTorch Geometric framework and trained within the Kaggle Jupyter Notebook envi-ronment. Training was performed on an NVIDIA Tesla P100 GPU (16 GB memory). Batch sizes of up to 16 were used for smaller datasets and 8 for wide-baseline datasets containing larger corre-spondence graphs. Inference experiments were conducted on a dual NVIDIA Tesla T4 setup (32 GB total GPU memory). Dense correspondence estimation using LoFTR Sun et al. (2021) and relational pose regression were executed sequentially, allowing evaluation directly on normalized correspondence graphs without image-based feature extraction inside the graph models. Graph construction time is primarily determined by k-nearest-neighbor search and epipolar filtering via Sampson residu-als. 
+
+Runtime Analysis. 
+
+Table 1 reports a time-based comparison between image-based pose regression networks and the pro-posed graph-based formulations on the KITTI dataset Geiger et al. (2013). Image-based meth-ods incur preprocessing overhead due to feature extraction, whereas graph-based models operate on matched keypoints but introduce graph con-struction cost. The results indicate that once correspondences are available, graph-based pose regression pro-duces significantly faster forward passes than image-based regression networks. GIN-based mod-els achieve the lowest inference latency due to lightweight aggregation and the absence of atten-tion computation. Although graph construction introduces additional overhead, relational propa-gation itself remains computationally efficient. 9Table 1 : Runtime comparison on KITTI dataset using Tesla T4 GPU (batch size = 16).                   
+
+> Model Preprocessing (s) Output (s)
+> PoseNet Kendall et al. (2015) 5.0 10.0 RPNet En et al. (2018) 5.0 12.0 RPNet+ En et al. (2018) 5.0 12.5 DiffPoseNet Parameshwara et al. (2022) 5.0 15.5 GAT + 2GCN (ours) 10.0 2.0 3GCN + GAT (ours) 10.0 2.5 GIN SumPool (ours) 10.0 1.5 CrossGraph (ours) 12.5 4.5
+
+Implementation Note. 
+
+The reported runtimes correspond to a refer-ence Python implementation without low-level kernel optimization. Graph construction is cur-rently executed using CPU-based neighbor search and filtering, which increases latency. In practice, GPU-based graph building, fused message-passing kernels, and deployment frameworks such as Ten-sorRT are expected to reduce both graph con-struction time and inference latency. These results suggest that correspondence extraction and graph building dominate the computational cost, while relational pose inference remains lightweight. 
+
+5.2 Dense Correspondence Initialization using LoFTR 
+
+Table 2 summarizes the matching performance of the LoFTR Sun et al. (2021) dense matcher. Using the ground-truth EM, epipolar-consistent keypoints are identified from the set of detected correspondences. The results indicate that beyond a separation of approximately 15 frames, the number of epipolar keypoints increases, revealing a limitation of local correspondence estimation where attention-based similarity and structural repetition can produce geometrically plausible but incorrect matches. To further analyze this behav-ior, NetVLAD is employed as a global image descriptor to assess true image similarity prior to computing the epipolar ratio, defined as the ratio of epipolar keypoints to the total number of LoFTR-detected correspondences. LoFTR Sun et al. (2021) was selected fol-lowing extensive evaluation of feature matching and epipolar reasoning methods. Under wide-baseline stereo-initialized conditions, it was the only method capable of consistently producing valid epipolar correspondences, thereby enabling reliable visual tracking and precise camera pose estimation when combined with the Graph Pose regression module. 
+
+Table 2 : LoFTR Statistics for different Frame separations (Matched Set N = 6000) 
+
+LoFTR / Frame sep 1 5 10 15 20 25 30 35 NetVlad Sim. (%) 85.0 71.7 50.5 36.3 22.2 15.1 11.4 8.1 Epipolar Set 5827 864 561 349 428 384 475 612 Epipolar Ratio 0.89 0.13 0.09 0.05 0.07 0.06 0.07 0.09 
+
+Table 2 shows that increasing frame sepa-ration reduces global scene similarity, as indi-cated by the drop in NetVLAD scores. While the epipolar ratio decreases at moderate base-lines, the number of epipolar-consistent matches rises again at larger separations. This behaviour suggests that dense matching shifts from global scene correlation to local structural regulari-ties, where repetitive elements such as buildings, trees, and vehicles produce geometrically plausible but potentially ambiguous correspondences. These observations motivate relational graph reason-ing, where message passing emphasizes motion-consistent matches while suppressing structurally ambiguous ones for stable pose estimation under wide baselines. 
+
+5.3 Evaluation Metrics and Benchmark Protocol 
+
+In visual odometry (VO), trajectory estimates often contain a mixture of small drift, scale ambi-guity and sporadic large deviations due to tracking loss or degenerate configurations. Since Absolute Trajectory Error (ATE) relies on least-squares alignment, it is highly sensitive to such outliers; a few large failures can dominate the metric and obscure improvements in the majority of correctly estimated poses. Discernible Translation Error (DTE) and Dis-cernible Rotation Error (DRE) mitigate this issue through robust alignment and bounded residual aggregation. As a result, they remain sensitive to 10 changes in the inlier error distribution, which is particularly important in VO where performance improvements typically manifest as reduced drift rather than elimination of all failure cases. Furthermore, decoupling translation and rota-tion is critical in VO systems, as drift accu-mulation and rotational bias affect downstream mapping and pose graph optimization differently. DTE and DRE therefore provide a more informa-tive and diagnostically meaningful evaluation of learned VO models than ATE alone. 
+
+DTE/DRE Analysis. 
+
+Across both ETH3D Botanical Garden and KITTI 2012, the 3GCN+GAT model consis-tently achieves the lowest DTE and DRE, with GAT+2GCN performing competitively. Since DTE and DRE measure robustly aligned trans-lation and rotation residuals, respectively, lower values indicate reduced bias and variance in the inlier pose distribution. In regression-based VO, this directly corresponds to improved geometric consistency rather than merely fewer catastrophic failures. Mathematically, if the predicted pose can be decomposed as ˆT = T exp( ξ) with perturbation 
+
+ξ ∈ se (3), DTE and DRE effectively quantify the expected magnitude of translational and rota-tional components of ξ after robust alignment. The observed improvements therefore indicate that deeper graph aggregation reduces both sys-tematic bias and dispersion in the learned pose increments. On ETH3D, where vegetation and irregular depth induce noisy correspondences, the advan-tage of 3GCN+GAT is more pronounced, suggest-ing improved robustness to geometric ambiguity. On KITTI (consecutive frames), motion is small and well-constrained; here, improvements reflect better suppression of subtle systematic drift. Importantly, as shown in the ablation study (Sec. 6.1), GCN-based architectures form struc-tured feature clusters that align with geometri-cally consistent correspondences. This emergent clustering promotes globally coherent pose reason-ing, explaining the consistent reduction in both translational and rotational discernible errors. 
+
+5.4 Relative Pose Metrics Evaluation over Benchmark datasets 
+
+Deep Pose regression models (CNN based and Graph based) trained on ETH3D, King’s College, Tartan Air and KiTTi 2012 SLAM Benchmark are evaluated against both Relative Pose and Abso-lute Pose metrics by considering the initial start location of the autonomous system (car, drone, handheld) to be at the origin of the 3D coordi-nate system. CNN based Pose Regression models supervise - a) Pixel Flow, b) Edges Flow, c) Tem-poral disparity and d) Are independent of Camera Intrinsics when compared to graph based mod-els. Further tested on data either sampled from the test set provided or sampled from data which is not used in training. Since the paper caters to both: a) Consecutive and b) Temporal Frame spacing, the results are formatted according to temporal spacing for KiTTi 2012 SLAM dataset. Relative Pose Metrics include: a) Discernible rota-tion error (degrees) and b) Discernible Translation Error (degrees) Lee and Civera (2024). Abso-lute Pose Metrics evaluation includes: a) Absolute Translation Error (meters) and b) Absolute Pose Error (meters). 
+
+5.4.1 Consecutive Temporal Keyframe Initialization 
+
+Datasets including ETH3D Schops et al. (2017), King’s College Kendall et al. (2015), Tar-tanAir Wang et al. (2020), and the KITTI 2012 SLAM benchmark Geiger et al. (2013) are processed using consecutive stereo initialized keyframe pairs for relative pose estimation as described in Figure 1. For CNN-based models, input images are resized to a fixed resolution (224 ×224 ×3) and trained in a supervised man-ner using a regression loss defined over rotation and translation vectors, typically optimized via mean squared error (MSE). Additionally, Diff-PoseNet incorporates optical flow cues computed using the Farneback method Farneb¨ ack (2003) to further guide relative pose estimation. In contrast, graph-based models operate on higher-resolution inputs (640 ×480) to preserve fine-grained cor-respondence information. These images are pro-cessed using LoFTR Sun et al. (2021) to obtain 11 1 2 3 4 5
+
+0
+
+0.2
+
+0.4
+
+0.6
+
+0.8
+
+1
+
+Sample Index 
+
+> Error (degrees)
+
+Translation Error (DTE) 
+
+1 2 3 4 5
+
+0
+
+50 
+
+100 
+
+Sample Index 
+
+> Error (degrees)
+
+Rotation Error (DRE)       
+
+> 3GCN + GAT CrossGraph GAT + 2GCN
+> GIN SumPool PoseNet RPNet
+> RPNet+ DiffPoseNet (Coarse) DiffPoseNet (Fine)
+
+Fig. 4 : DTE and DRE comparison between proposed and SOTA pose regression architectures for initial 5 samples of ETH3D Botanical Garden test dataset 1 2 3 4 500.51Sample Index Error (degrees) Translation Error (DTE) 1 2 3 4 5050 100 150 Sample Index Error (degrees) Rotation Error (DRE)       
+
+> 3GCN + GAT (ours) GAT + 2GCN (ours) GIN SumPool (ours)
+> CrossGraph (ours) PoseNet RPNet
+> RPNet+ DiffPoseNet (Coarse) DiffPoseNet (Fine)
+
+Fig. 5 : DTE and DRE comparison between proposed and SOTA pose regression architectures for initial 5 samples of KITTI Sequence 01 dense feature correspondences, which are subse-quently used to construct geometry-aware graphs. The resulting graph representations, built upon intrinsically normalized keypoints and epipolar constraints, are then passed through the graph learning module for relational pose inference. Table 3 reports fine-tuning results on the Tar-tanAir Neighborhood dataset (tartan left), com-paring different pose regression models using Pose 12 Table 3: Fine-tuning Results on TartanAir Neighborhood Dataset (tartan left).                                         
+
+> Model ATE ↓APE ↓DTE ↓DRE ↓
+> PoseNet 21.065 16.478 12.350 0.020
+> RPNet 17.571 15.917 15.194 0.020
+> RPNet+ 12.108 11.380 10.439 0.020
+> DiffPoseNet 36.714 33.651 18.956 0.020
+> GAT + 2GCN 9.621 7.740 5.645 0.020
+> 3GCN + GAT 10.027 7.402 4.027 0.020
+> GIN SumPool 9.864 8.3121 5.1022 0.020
+> CrossGraph 13.164 10.258 9.071 0.020
+
+evaluation metrics. Graph-based models, partic-ularly GAT-2GCN and 3GCN GAT, achieve the lowest translation and rotation errors, indicating improved global pose consistency over baseline methods like PoseNet and RPNet. Table 4 presents fine-tuning test results on the King’s College dataset across sequences 02, 03, and 07, evaluated using Pose evaluation metrics. Graph-based architectures, particularly Pose-GIN and Cross-GAT, consistently achieve lower trans-lation and rotation errors across sequences. This is due to the GNN architectures like GCN and GIN being permutation equivariant and explic-itly model relation geometry between landmarks in contrast to baseline CNN models like PoseNet and RPNet variants which rely on translation-invariant spatial hierarchies. In Table 5 (ETH3D), certain CNN-based pose regression models outperform graph-based meth-ods in ATE/APE on challenging indoor scenes due to their ability to implicitly learn dense pixel flow, edge flow, and temporal disparity cues, making them less sensitive to intrinsic calibration vari-ations and sparse correspondence noise. Fewer number of Epipolar matches affect the graph construction process introducing noisy poses as output. In Table 6 (KITTI), graph-based models gen-erally achieve stronger geometric consistency by explicitly modeling epipolar constraints, but in sequences with large viewpoint changes which causes narrow baseline or correspondence degra-dation. This is due to the dependency on Epipo-lar geometry particularly EM estimation leading to erroneous edges in your graph during spar-sification. GAT/GIN models suffer here because anomalous nodes corrupt the neighborhood aggre-gation process i.e over-smoothing or neighbor-hood explosion which in turn increases DTE/DRE influencing the drift and scale issues with the trajectory estimation, allowing image-based CNN models to perform competitively or better. 
+
+5.4.2 Temporal KeyFrame Initialization (s=5,10) 
+
+KiTTI 2012 SLAM Benchmark is used with a tem-poral spacing of s=5,10 often termed as wide base-line testing specifically for resource constrained systems. Table 7 showcases testing over 20 frames and 8 showcase testing over all 10 sequences of the KiTTi dataset. 
+
+5.5 Trajectory Plots Comparison 
+
+This section presents the 3D cartesian trajectory plot of the regressed outputs from the Deep Learn-ing Architectures vs the Ground Truth Trajectory (GT). The first 100 images of the Sequence - 01,09 from KiTTi 2012 SLAM Benchmark was used in inferencing the model architectures of Temporal frame selection i.e Consecutive Samples and Wide Baseline Samples. 
+
+5.5.1 Consecutive Samples Inferencing 
+
+The 3D Cartesian trajectory plots for consecu-tive frame sequences from Seq 01 and Seq 09 from KiTTi are presented in Fig. 6. As quantitatively supported by Table 6, the 3GCN + GAT archi-tecture and the GIN SumPool module achieve the lowest ATE and APE values, producing trajecto-ries that most closely align with the ground truth across both sequences. The qualitative results fur-ther reinforce that graph-based learning architec-tures capture the underlying geometry of motion more effectively than CNN-based pose regres-sion methods, particularly under varying motion dynamics. Additionally, the interpretability of the graph representations reveals that the clustered regions observed in the t-SNE embeddings corre-spond to selectively weighted and geometrically consistent keypoints. These clusters play a cru-cial role in guiding the regression process, enabling more reliable pose estimation through structured and informed feature aggregation. 13 Table 4 : King’s College Fine Tuning Test Results                                                                                                                           
+
+> Model Seq 02 Seq 03 Seq 07
+> ATE(m) ↓APE(m) ↓DTE(deg) ↓DRE(deg) ↓ATE(m) ↓APE(m) ↓DTE(deg) ↓DRE(deg) ↓ATE(m) ↓APE(m) ↓DTE(deg) ↓DRE(deg) ↓
+> PoseNet 35.786 30.727 25.858 49.665 58.577 50.571 59.627 64.699 28.832 24.400 49.597 24.117
+> RPNet 45.123 38.598 25.828 88.968 77.059 66.503 90.328 91.611 42.538 36.273 57.149 87.530
+> RPNet+ 53.460 45.887 24.907 92.330 45.059 38.984 41.974 80.001 34.290 29.351 50.057 28.041
+> DiffPoseNet 28.198 23.732 20.939 137.472 140.615 120.903 120.291 138.758 48.092 41.321 52.564 139.854
+> GAT + 2GCN (ours) 25.631 19.011 23.733 48.489 43.922 40.373 53.573 68.110 22.470 20.438 44.729 23.234
+> 3GCN + GAT (ours) 29.552 23.778 24.997 50.192 45.264 41.201 56.104 71.783 27.686 24.165 47.027 28.441
+> GIN SumPool (ours) 23.276 20.521 19.561 48.830 35.219 29.806 37.305 37.305 19.291 17.286 37.983 22.624
+> CrossGraph (ours) 22.198 18.732 18.939 43.472 37.615 31.903 40.291 52.758 18.092 15.321 35.564 21.854
+
+Table 5 : ETH3D Test Results: Comparison of ATE, APE, DTE, and DRE for Botanical Garden, Boul-ders, and Statue.                                                                                                                           
+
+> Model Botanical Garden Boulders Statue
+> ATE(m) ↓APE(m) ↓DTE(deg) ↓DRE(deg) ↓ATE(m) ↓APE(m) ↓DTE(deg) ↓DRE(deg) ↓ATE(m) ↓APE(m) ↓DTE(deg) ↓DRE(deg) ↓
+> PoseNet 2.1158 2.0242 4.0930 70.1288 1.8421 1.6266 2.8170 96.2457 0.1626 0.1485 1.8358 35.6450 RPNet 2.0122 1.9963 2.5986 84.2643 1.7235 1.5931 2.2505 61.2450 0.4872 0.2718 1.5715 38.0875
+> RPNet+ 1.8289 1.6447 3.1711 88.2621 1.4604 1.3085 2.6063 106.6895 0.2557 0.2314 2.0327 70.7216
+> DiffPoseNet 2.5599 2.2993 2.7871 92.8684 2.3662 2.0886 3.1073 63.9136 0.3758 0.3039 2.1411 64.0399
+> GAT + 2GCN (ours) 1.8769 1.8092 2.9110 52.3726 1.3589 1.2105 2.3377 69.2658 0.1567 0.1362 1.8683 55.1796
+> 3GCN + GAT (ours) 1.8197 1.6188 3.1553 84.9829 1.3340 1.1806 2.6597 59.3758 0.5535 0.4921 2.2526 42.9756
+> GIN SumPool (ours) 1.9806 1.8805 2.8633 83.0366 1.3897 1.1492 1.8682 51.3437 0.8082 0.7850 1.5525 92.2860
+> CrossGraph (ours) 1.8077 1.6064 3.6594 95.4021 1.3141 1.1091 2.0910 101.1959 0.4498 0.3989 2.0716 76.7032
+
+5.5.2 Wide Baseline Testing s=5,10 
+
+The KITTI odometry benchmark operates at 10 FPS, where the camera undergoes an approxi-mate translational motion of 0.1 m per frame, corresponding to nearly 1 m of displacement per second in real-world scale. This property enables controlled evaluation under wide-baseline settings by selecting frame pairs with increasing temporal separation. Such scenarios are particularly chal-lenging, as reduced overlap between frames leads to a significant decline in reliable feature corre-spondences and epipolar matches. Evaluating pose regression models under these conditions is critical for deployment in resource-constrained or sparse-capture environments. In this study, Seq 01 and Seq 09 are used to benchmark both CNN and GNN based models under two settings: 5-frame separation ( 0.5 m baseline) and 10-frame separa-tion ( 1.0 m baseline), as summarized in Tables 7 and 8. The corresponding 3D Cartesian trajec-tory visualizations are shown in Fig. 7 and Fig. 8, respectively. 
+
+Wide Baseline Analysis for s=5 
+
+At a moderate baseline (s=5) as shown in fig 7, both CNN and GNN models exhibit trajectory drift; however, clear differences emerge in their geometric consistency. The CNN-based models show larger deviations in heading direction and accumulate drift more rapidly, indicating sensi-tivity to appearance changes and reduced corre-spondence quality. In contrast, the GNN-based models maintain a trajectory that is more closely aligned with the ground truth, with compar-atively lower angular deviation. This suggests that the GNN effectively leverages the remain-ing correspondences by enforcing relational con-straints, thereby preserving epipolar consistency even under reduced overlap. The improved stabil-ity indicates that the model has learned to encode geometric relationships rather than relying solely on local appearance cues. 
+
+Wide Baseline Analysis for s=10 
+
+Under more extreme baseline conditions (s=10) as shown in fig8, the separation between frames increases and overlap between frames drops signif-icantly, making pose estimation inherently more ambiguous for both architectures. As a result, both CNN and GNN models exhibit increased drift over time. However, an important distinction remains: while CNN-based trajectories diverge unpredictably due to the lack of geometric ground-ing, GNN-based models tend to preserve a more consistent motion direction, even as drift accu-mulates. This behavior indicates that, although sparse correspondences limit the available geo-metric signal, the GNN continues to exploit rela-tional structure among the remaining keypoints. 14 Table 6 : Quantitative results on KITTI Odometry sequences 01, 05, and 09.                                                                                                                                                                        
+
+> Model Sequence 01 Sequence 05 Sequence 09
+> ATE(m) ↓APE(m) ↓APE-R(deg) ↓DTE(deg) ↓DRE(deg) ↓ATE(m) ↓APE(m) ↓APE-R(deg) ↓DTE(deg) ↓DRE(deg) ↓ATE(m) ↓APE(m) ↓APE-R(deg) ↓DTE(deg) ↓DRE(deg) ↓
+> PoseNet 1.5379 1.4672 75.616 0.0303 1.7081 0.9316 0.9082 43.434 0.0158 1.2626 0.6555 0.6229 33.467 0.0133 1.1870
+> RPNet 1.4353 1.3745 121.31 0.0227 122.31 0.9544 0.9333 125.35 0.0165 137.19 0.8447 0.7959 125.49 0.0151 117.14
+> RPNet+ 1.9265 1.7543 9.8918 0.0351 0.8943 1.3232 1.2606 31.966 0.0204 1.0471 0.7121 0.6751 52.735 0.0138 1.2359
+> DiffPoseNet (coarse) 1.3920 1.3433 130.31 0.0259 9.9665 0.9543 0.9317 135.36 0.0186 9.6370 1.1504 1.0512 142.49 0.0145 8.5768
+> DiffPoseNet (fine) 1.9877 1.8716 105.27 0.0421 2.3669 1.1595 1.1289 108.57 0.0306 2.1431 0.4559 0.4425 94.047 0.0209 2.0090
+> GAT + 2GCN 3.2464 2.6400 94.007 0.0621 1.2625 3.1854 2.5631 6.9046 0.0713 0.2225 2.2784 1.8127 24.368 0.0497 0.5073
+> 3GCN + GAT 0.3897 0.2959 4.3143 0.0249 0.2012 0.4264 0.3701 5.8982 0.0229 0.1872 0.2554 0.2045 7.0023 0.0143 0.2016 GIN SumPool 1.8705 1.6565 113.52 0.0227 1.6522 0.4767 0.4539 28.900 0.0213 0.5815 0.3699 0.3323 35.201 0.0131 0.7718
+> CrossGraph 3.4985 3.1416 89.060 0.0980 126.01 2.4660 2.2325 89.834 0.0654 124.91 2.2298 1.9767 88.812 0.0615 124.92
+
+Table 7 : KITTI Testing Results (0.5s / 5 frames apart) for Sequences 01, 05, and 09.                                                                                                                                                                        
+
+> Model Sequence 01 Sequence 05 Sequence 09
+> ATE(m) ↓APE(m) ↓APE-R(deg) ↓DTE(deg) ↓DRE(deg) ↓ATE(m) ↓APE(m) ↓APE-R(deg) ↓DTE(deg) ↓DRE(deg) ↓ATE(m) ↓APE(m) ↓APE-R(deg) ↓DTE(deg) ↓DRE(deg) ↓
+> PoseNet 6.2170 5.3010 7.6791 2.9855 7.7025 2.9709 2.5062 1.8651 1.5304 1.4334 2.0439 1.6666 1.8726 1.0839 2.2811
+> RPNet 4.8743 4.1738 95.136 2.3382 127.13 3.8623 3.2428 110.95 1.8077 137.74 2.7573 2.2221 91.354 1.5109 155.78
+> RPNet+ 5.3334 4.5980 6.4476 2.4388 8.2285 3.7386 3.1273 2.1878 1.8737 1.8372 2.2229 1.8470 1.5966 1.2667 2.3667
+> DiffPose(C) 4.4812 3.8698 22.199 2.2008 16.083 4.2548 3.5471 12.394 2.0988 8.0129 1.1221 0.9450 10.878 0.6631 7.7879
+> DiffPose(F) 9.6244 7.8137 5.7293 5.9593 9.5797 13.549 11.043 3.8480 7.2886 2.8574 5.3613 4.1395 4.8778 3.1812 3.6170
+> GAT + 2GCN 2.2806 1.8147 8.6432 2.6165 7.5934 3.6680 2.5777 0.5643 2.1915 0.7129 1.7135 1.2734 0.8590 0.9979 1.6058
+> 3GCN + GAT 4.6084 3.2176 8.7585 3.5889 7.7259 6.0542 4.5446 0.5345 3.4980 0.6550 3.8819 3.0530 0.8629 2.1364 1.5300 GIN SumPool 1.3835 0.9152 6.0670 1.8864 8.8933 0.6674 0.4947 1.1738 0.6919 1.0125 0.1879 0.1537 1.0896 0.1075 1.6716
+> CrossGraph 25.0581 21.4008 81.6822 21.4699 99.1113 19.0695 16.2823 81.2753 16.4052 98.6643 15.8203 13.4930 82.2052 13.5666 98.3490
+
+The degradation in performance can therefore be attributed not to the failure of the graph formu-lation, but to the inherent scarcity of epipolar constraints at large baselines, which restricts the effectiveness of message passing. 
+
+## 6 Ablation Study 
+
+6.1 Graph Learning Explainability 
+
+This ablation study analyzes the latent represen-tations learned by different architectures through quantitative and qualitative evaluation using t-SNE projections of intermediate feature embed-dings. For each model, two complementary visu-alizations are presented: 
+
+• The feature embedding plot before pooling, which captures local (pixel-level or node-level) structure, and 
+
+• The post-pooling trajectory plot, which reflects the evolution of aggregated global representa-tions from which the final pose is regressed. In the CNN pipeline, features are extracted from dense image grids and pooled into a global descriptor, whereas in the GNN pipeline, out-puts are obtained both at the node level (pre-pooling) and after graph-level pooling, enabling explicit analysis of relational aggregation. When high-dimensional features are projected into two dimensions using t-SNE, some structural rela-tionships are inevitably distorted. Nevertheless, clear differences emerge between architectures. In the CNN-based representations, as illustrated in Fig. 10, the projected embeddings exhibit reduced separability and increased overlap, indicating that the learned features primarily encode appearance similarity rather than geometric consistency. Even when keypoints are colour-coded by patch indices, the loss of structural coherence is evident, suggest-ing that spatial pooling and vectorization discard important relational cues required for accurate pose estimation. In contrast, the GNN-based representations retain significantly stronger structure. By con-structing a graph over intrinsically normalized keypoints and enforcing epipolar constraints dur-ing sparsification, the model explicitly encodes pairwise geometric relationships. As the baseline increases (e.g., between image pairs Ii and Ii+10 ), the number of high-confidence and geometrically consistent correspondences decreases due to view-point variation as shown in Figure 9. While dense matching becomes increasingly ambiguous under such conditions, the GNN leverages relational message passing to suppress inconsistent matches and preserve coherent geometric structure. This is reflected in the t-SNE plots, where node embed-dings remain compact and well-separated despite dimensionality reduction. Furthermore, increasing graph depth strength-ens relational encoding, leading to highly compact latent representations and smoother trajectory plots, as shown in Fig. 11. This indicates that 15 Table 8 : KITTI Testing Results (1.0s / 10 frames apart) for Sequences 01, 05, and 09.                                                                                                                                                                        
+
+> Model Sequence 01 Sequence 05 Sequence 09
+> ATE(m) ↓APE(m) ↓APE-R(deg) ↓DTE(deg) ↓DRE(deg) ↓ATE(m) ↓APE(m) ↓APE-R(deg) ↓DTE(deg) ↓DRE(deg) ↓ATE(m) ↓APE(m) ↓APE-R(deg) ↓DTE(deg) ↓DRE(deg) ↓
+> PoseNet 12.0642 8.5307 11.2024 17.0613 22.4048 1.5917 1.1255 0.6421 2.2510 1.2857 5.5030 3.8912 0.4992 7.7825 0.9978
+> RPNet 7.6445 5.4055 46.288 10.811 92.577 2.5452 1.7998 88.426 3.5995 176.85 5.7472 4.0639 81.289 8.1278 162.58
+> RPNet+ 10.1241 7.1588 11.5279 14.3176 23.0558 2.5258 1.7860 0.9149 3.5720 1.8303 4.3127 3.0495 0.2042 6.0990 0.4112 DiffPose(C) 5.6350 3.9845 19.301 7.9690 38.602 3.1594 2.2341 5.4791 4.4681 10.958 2.8137 1.9896 4.0902 3.9792 8.1803
+> DiffPose(F) 35.2331 24.9135 14.1117 49.8271 28.2233 6.8297 4.8294 1.3213 9.6587 2.6423 16.7376 11.8353 1.5320 23.6705 3.0637
+> GAT + 2GCN 5.8220 4.1168 14.0935 8.2336 28.1871 0.1123 0.0794 0.6376 0.1588 1.2753 2.7507 1.9451 0.3402 3.8901 0.6807
+> 3GCN + GAT 4.6868 3.3141 11.5576 6.6282 23.1152 0.4049 0.2863 0.7064 0.5725 1.4122 1.1242 0.7949 0.5598 1.5899 1.1191
+> GIN SumPool 6.3547 4.4934 15.1939 8.9869 30.3879 0.1298 0.0918 1.0696 0.1836 2.1387 1.3049 0.9227 0.9121 1.8453 1.8247
+> CrossGraph 18.6013 13.1531 84.8876 26.3061 169.775 5.5130 3.8983 74.5005 7.7966 149.001 12.0084 8.4912 74.5451 16.9824 149.090
+
+0 0.1−0.1
+
+0
+
+0
+
+2
+
+x
+
+y z
+
+Sequence 01  
+
+> Ground Truth RPNet
+> 3GCN+GAT
+
+0 0.2 0.4
+
+0
+
+0.2
+
+0
+
+1
+
+x
+
+y z
+
+Sequence 09  
+
+> Ground Truth PoseNet
+> 3GCN+GAT
+
+Fig. 6 : 3D Trajectory comparison for KITTI Sequence 01 and Sequence 09. deeper message passing effectively aggregates geo-metric cues across correspondences and frames, resulting in stable and consistent global represen-tations. Notably, the predicted global pose aligns more closely with cluster centers in the GNN case, highlighting improved robustness and accuracy compared to CNN-based aggregation. In conclusion, these findings demonstrate that while CNNs learn appearance-driven features that degrade under wide-baseline conditions, GNNs explicitly model geometric relationships through graph structure and message passing. This align-ment between model design and the inherently relational nature of pose estimation leads to more structured latent spaces and superior perfor-mance. 
+
+6.2 Alternative K-NN Graph Evaluation 
+
+This ablation study evaluates whether alternative neighborhood construction strategies can improve pose estimation performance beyond the standard 
+
+k-NN formulation, as reported in Table 9. 
+
+Experimental Overview : Three alternative neighborhood definitions are considered: 
+
+• Soft k-NN: Edges are weighted based on fea-ture or spatial similarity rather than hard neigh-borhood membership, allowing smoother infor-mation propagation and robustness to noisy correspondences. 
+
+• Radius k-NN: Nodes are connected if their distance lies within a fixed radius, resulting in adaptive neighborhood sizes that depend on local point density. 
+
+• Mutual k-NN: An edge between two nodes is retained only if each lies within the other’s 
+
+k-nearest neighbors, enforcing bidirectional con-sistency and reducing spurious connections. 
+
+## 7 Conclusion And Future Directions 
+
+This work presents a relational formulation of rel-ative camera pose estimation, where the matched correspondences are represented as an epipo-lar graph and pose is inferred through global relational consensus. By integrating dense corre-spondence estimation, geometry-aware graph con-struction, and differentiable pose regression, the proposed framework offers a principled alternative 16 0 5−1
+
+0
+
+0
+
+5
+
+10 
+
+x
+
+y z
+
+Sequence 01  
+
+> Ground Truth RPNet+
+> GIN SumPool
+
+−1 0−1
+
+0
+
+1
+
+0
+
+5
+
+x
+
+y z
+
+Sequence 09  
+
+> Ground Truth RPNet+
+> GIN SumPool
+
+Fig. 7 : 3D Trajectory comparison (5 frames apart) for KITTI Sequence 01 and Sequence 09. 
+
+0 10 20 −1
+
+0
+
+0
+
+10 
+
+x
+
+y z
+
+Sequence 01  
+
+> Ground Truth RPNet+
+> 3GCN+GAT
+
+−5 0−0.5
+
+0
+
+0
+
+10 
+
+20 
+
+x
+
+y z
+
+Sequence 09  
+
+> Ground Truth RPNet+
+> 3GCN+GAT
+
+Fig. 8 : 3D Trajectory comparison (10 frames apart) for KITTI Sequence 01 and Sequence 09. 
+
+Fig. 9 : Matched keypoints graph between frames 
+
+i and i + 10 as a 2-D t-SNE plot to traditional stochastic consensus pipelines for EM estimation. Experimental results demonstrate improved robustness in the presence of dense and noisy correspondences, particularly under wide-baseline conditions where sampling-based meth-ods tend to become unstable. 
+
+Fig. 10 : t-SNE Plot of CNN Models 
+
+Fig. 11 : t-SNE Plot of GNN models 17 Table 9 : Comparing the performance of other compatible k-NN based implementations Soft K-NN Mutual Radius K-NN Model ATE(m) APE(m) ATE(m) APE(m) ATE(m) APE(m) GAT + 2GCN (ours) 1.6152 1.5677 1.5964 1.4484 1.8226 1.4720 3GCN + GAT (ours) 1.5043 1.4517 1.6068 1.3558 2.1163 1.9638 GIN SumPool (ours) 1.6216 1.5821 1.4781 1.2254 1.9880 2.0191 CrossGraph (ours) 2.5651 2.3329 2.1659 1.9003 2.7611 2.5731 From a theoretical standpoint, the proposed formulation establishes a connection between clas-sical multi-view geometry and relational learn-ing by interpreting graph message passing as an approximation to spectral nullspace inference. This perspective enables pose estimation to be cast as a structured reasoning problem over corre-spondences, while remaining fully compatible with established visual SLAM evaluation protocols. Future directions include the joint optimiza-tion of correspondence estimation and pose infer-ence within a unified framework, extending the relational formulation to multi-view pose graph estimation, and designing computationally effi-cient graph construction strategies for real-time deployment. Additionally, incorporating uncer-tainty modeling and enforcing temporal consis-tency within correspondence graphs presents a promising avenue for improving long-term robust-ness and reliability in SLAM systems. 
+
+## References 
+
+Ahrabian A, Nguyen Q, Toulios N, et al (2024) Deep learning-based covariance estimation for relative pose measurements. In: 2024 IEEE 27th International Conference on Intelligent Trans-portation Systems (ITSC), pp 155–160, https: //doi.org/10.1109/ITSC58415.2024.10919973 Barath D, Matas J (2018) Graph-cut ransac. In: 2018 IEEE/CVF Conference on Computer Vision and Pattern Recognition, pp 6733–6741, https://doi.org/10.1109/CVPR.2018.00704 Barath D, Noskova J, Matas J (2022) Marginal-izing sample consensus. IEEE Transactions on Pattern Analysis and Machine Intel-ligence 44(11):8420–8432. https://doi.org/10. 1109/TPAMI.2021.3103562 Bar´ ath D, Noskova J, Ivashechkin M, et al (2020) Magsac++, a fast, reliable and accurate robust estimator. In: 2020 IEEE/CVF Confer-ence on Computer Vision and Pattern Recog-nition (CVPR), pp 1301–1309, https://doi.org/ 10.1109/CVPR42600.2020.00138 Bay H, Tuytelaars T, Van Gool L (2006) Surf: Speeded up robust features. In: European con-ference on computer vision, Springer, pp 404– 417 Brachmann E, Rother C (2019) Neural-guided ransac: Learning where to sample model hypotheses. In: 2019 IEEE/CVF Interna-tional Conference on Computer Vision (ICCV), pp 4321–4330, https://doi.org/10.1109/ICCV. 2019.00442 Brachmann E, Krull A, Nowozin S, et al (2017) Dsac — differentiable ransac for camera local-ization. In: 2017 IEEE Conference on Com-puter Vision and Pattern Recognition (CVPR), pp 2492–2500, https://doi.org/10.1109/CVPR. 2017.267 Carlone L, Kim A, Barfoot T, et al (eds) (2025) SLAM Handbook. From Localization and Map-ping to Spatial Intelligence. Cambridge Univer-sity Press Chen H, Luo Z, Zhou L, et al (2022) Aspan-former: Detector-free image matching with adaptive span transformer. In: Computer Vision – ECCV 2022: 17th European Conference, Tel Aviv, Israel, October 23–27, 2022, Pro-ceedings, Part XXXII. Springer-Verlag, Berlin, Heidelberg, p 20–36, https://doi.org/10.1007/ 978-3-031-19824-3 2, URL https://doi.org/10. 1007/978-3-031-19824-3 2 18 Chum O, Matas J (2005) Matching with prosac - progressive sample consensus. In: 2005 IEEE Computer Society Conference on Computer Vision and Pattern Recognition (CVPR’05), pp 220–226 vol. 1, https://doi.org/10.1109/CVPR. 2005.221 Chum O, Matas J, Kittler J (2003) Locally opti-mized ransac. In: Michaelis B, Krell G (eds) Pattern Recognition. Springer Berlin Heidel-berg, Berlin, Heidelberg, pp 236–243 DeTone D, Malisiewicz T, Rabinovich A (2018) Superpoint: Self-supervised interest point detec-tion and description. In: 2018 IEEE/CVF Con-ference on Computer Vision and Pattern Recog-nition Workshops (CVPRW), pp 337–33712, https://doi.org/10.1109/CVPRW.2018.00060 Edstedt J, Sun Q, B¨ okman G, et al (2024) Roma: Robust dense feature match-ing. In: 2024 IEEE/CVF Conference on Computer Vision and Pattern Recogni-tion (CVPR), pp 19790–19800, https: //doi.org/10.1109/CVPR52733.2024.01871 En S, Lechervy A, Jurie F (2018) Rpnet: An end-to-end network for relative camera pose estimation. In: Computer Vision – ECCV 2018 Workshops: Munich, Germany, September 8-14, 2018, Proceedings, Part I. Springer-Verlag, Berlin, Heidelberg, p 738–745, https://doi.org/ 10.1007/978-3-030-11009-3 46, URL https:// doi.org/10.1007/978-3-030-11009-3 46 Engel J, Sch¨ ops T, Cremers D (2014) Lsd-slam: Large-scale direct monocular slam. In: Fleet D, Pajdla T, Schiele B, et al (eds) Computer Vision – ECCV 2014. Springer International Publishing, Cham, pp 834–849 Farneb¨ ack G (2003) Two-frame motion estimation based on polynomial expansion. In: Scandina-vian conference on Image analysis, Springer, pp 363–370 Fischler MA, Bolles RC (1981) Random sample consensus: a paradigm for model fitting with applications to image analysis and automated cartography. Commun ACM 24(6). https://doi. org/10.1145/358669.358692 Forster C, Zhang Z, Gassner M, et al (2017) Svo: Semidirect visual odometry for monocular and multicamera systems. IEEE Transactions on Robotics 33(2):249–265. https://doi.org/10. 1109/TRO.2016.2623335 Geiger A, Lenz P, Stiller C, et al (2013) Vision meets robotics: The kitti dataset. The interna-tional journal of robotics research 32(11):1231– 1237 Hartley RI (1997) In defense of the eight-point algorithm. IEEE Transactions on pattern anal-ysis and machine intelligence 19(6):580–593 Jau YY, Zhu R, Su H, et al (2020) Deep keypoint-based camera pose estimation with geometric constraints. In: 2020 IEEE/RSJ International Conference on Intelligent Robots and Sys-tems (IROS), pp 4950–4957, https://doi.org/10. 1109/IROS45743.2020.9341229 Jiang W, Trulls E, Hosang J, et al (2021) Cotr: Correspondence transformer for match-ing across images. In: 2021 IEEE/CVF Inter-national Conference on Computer Vision (ICCV), pp 6187–6197, https://doi.org/10. 1109/ICCV48922.2021.00615 Kendall A, Grimes M, Cipolla R (2015) Posenet: A convolutional network for real-time 6-dof cam-era relocalization. In: Proceedings of the IEEE international conference on computer vision, pp 2938–2946 Kipf T (2016) Semi-supervised classification with graph convolutional networks. arXiv preprint arXiv:160902907 Lee SH, Civera J (2024) What’s wrong with the absolute trajectory error? In: European Confer-ence on Computer Vision, Springer, pp 108–123 Leng K, Yang C, Sui W, et al (2023) Sitpose: A siamese convolutional transformer for rela-tive camera pose estimation. In: 2023 IEEE International Conference on Multimedia and Expo (ICME), pp 1871–1876, https://doi.org/ 10.1109/ICME55011.2023.00321 19 Leutenegger S, Chli M, Siegwart RY (2011) Brisk: Binary robust invariant scalable key-points. In: 2011 International conference on computer vision, Ieee, pp 2548–2555 Lowe DG (2004) Distinctive image features from scale-invariant keypoints. International journal of computer vision 60(2):91–110 Melekhov I, Ylioinas J, Kannala J, et al (2017) Relative camera pose estimation using convo-lutional neural networks. In: Blanc-Talon J, Penne R, Philips W, et al (eds) Advanced Con-cepts for Intelligent Vision Systems. Springer International Publishing, Cham, pp 675–687 Parameshwara CM, Hari G, Ferm¨ uller C, et al (2022) Diffposenet: Direct differentiable camera pose estimation. In: 2022 IEEE/CVF Confer-ence on Computer Vision and Pattern Recog-nition (CVPR), pp 6835–6844, https://doi.org/ 10.1109/CVPR52688.2022.00672 Rublee E, Rabaud V, Konolige K, et al (2011) Orb: An efficient alternative to sift or surf. In: 2011 International conference on computer vision, Ieee, pp 2564–2571 Sarlin PE, DeTone D, Malisiewicz T, et al (2020a) SuperGlue: Learning Feature Matching With Graph Neural Networks. In: 2020 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), pp 4937–4946, https:// doi.org/10.1109/CVPR42600.2020.00499 Sarlin PE, DeTone D, Malisiewicz T, et al (2020b) Superglue: Learning feature matching with graph neural networks. In: 2020 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), pp 4937–4946, https:// doi.org/10.1109/CVPR42600.2020.00499 Schops T, Schonberger JL, Galliani S, et al (2017) A multi-view stereo benchmark with high-resolution images and multi-camera videos. In: Proceedings of the IEEE conference on com-puter vision and pattern recognition, pp 3260– 3269 Sun J, Shen Z, Wang Y, et al (2021) Loftr: Detector-free local feature matching with trans-formers. In: 2021 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), pp 8918–8927, https://doi.org/10. 1109/CVPR46437.2021.00881 Veliˇ ckovi´ c P, Cucurull G, Casanova A, et al (2017) Graph attention networks. arXiv preprint arXiv:171010903 Wang W, Zhu D, Wang X, et al (2020) Tartanair: A dataset to push the limits of visual slam. In: 2020 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS), IEEE, pp 4909–4916 Wang Y, et al (2019) Dynamic graph cnn for learning on point clouds. In: IEEE Conference on Computer Vision and Pattern Recognition (CVPR) Wei T, Matas J, Barath D (2023) Adap-tive reordering sampler with neurally guided magsac. In: 2023 IEEE/CVF International Conference on Computer Vision (ICCV), pp 18117–18127, https: //doi.org/10.1109/ICCV51070.2023.01665 Xu K, Hu W, Leskovec J, et al (2018) How pow-erful are graph neural networks? arXiv preprint arXiv:181000826 Xue F, Budvytis I, Cipolla R (2023) Sfd2: Semantic-guided feature detection and descrip-tion. In: 2023 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), pp 5206–5216, https://doi.org/10. 1109/CVPR52729.2023.00504 Yang S, Gong Z, Ye K, et al (2019) Edgecnn: Con-volutional neural network classification model with small inputs for edge computing. arXiv preprint arXiv:190913522 Yi KM, Trulls E, Lepetit V, et al (2016) Lift: Learned invariant feature transform. In: Euro-pean conference on computer vision, Springer, pp 467–483 Zheng W, Shi Z, Xiao G, et al (2022) Learning two-view correspondences and geometry using neighbor-aware network. IEEE Geoscience and Remote Sensing Letters 19:1–5. https://doi. org/10.1109/LGRS.2022.3159571 20 Zhou Q, Sattler T, Leal-Taixe L (2021) Patch2pix: Epipolar-guided pixel-level correspondences. In: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition, pp 4669–4678 21

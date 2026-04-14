@@ -1,0 +1,514 @@
+Title: LAST: Leveraging Tools as Hints to Enhance Spatial Reasoning for Multimodal Large Language Models
+
+URL Source: https://arxiv.org/pdf/2604.09712v1
+
+Published Time: Tue, 14 Apr 2026 00:08:18 GMT
+
+Number of Pages: 13
+
+Markdown Content:
+# LAST: Leveraging Tools as Hints to Enhance Spatial Reasoning for Multimodal Large Language Models 
+
+# Shi-Yu Tian 
+
+National Key Laboratory for Novel Software Technology, Nanjing University China 
+
+# Zhi Zhou 
+
+National Key Laboratory for Novel Software Technology, Nanjing University China 
+
+# Kun-Yang Yu 
+
+National Key Laboratory for Novel Software Technology, Nanjing University China 
+
+# Ming Yang 
+
+National Key Laboratory for Novel Software Technology, Nanjing University China 
+
+# Yang Chen 
+
+National Key Laboratory for Novel Software Technology, Nanjing University China 
+
+# Ziqiao Shang 
+
+National Key Laboratory for Novel Software Technology, Nanjing University China 
+
+# Lan-Zhe Guo 
+
+National Key Laboratory for Novel Software Technology, Nanjing University China 
+
+# Yu-Feng Li 
+
+National Key Laboratory for Novel Software Technology, Nanjing University China 
+
+## Abstract 
+
+Spatial reasoning is a cornerstone capability for intelligent systems to perceive and interact with the physical world. However, multi-modal large language models (MLLMs) frequently suffer from hallu-cinations and imprecision when parsing complex geometric layouts. As data-driven scaling struggles to internalize structured geometric priors and spatial constraints, integrating mature, specialized vi-sion models presents a compelling alternative. Despite its promise, applying this paradigm to spatial reasoning is hindered by two key challenges: the difficulty of invoking heterogeneous, parameter-rich tools, as well as the challenge of understanding and effectively leveraging their diverse low-level outputs (e.g., segmentation masks, depth maps) in high-level reasoning. To address these challenges, we propose LAST, a unified framework for tool-augmented spatial reasoning. LAST features an extensible interactive sandbox, termed LAST-Box, which abstracts heterogeneous tool invocations into atomic instructions and reusable spatial skills, returning multimodal hints (e.g., annotated images and textual descriptions) that can be directly consumed by LLMs. We further design a three-stage pro-gressive training strategy that guides models from understanding tool outputs to proficient and adaptive tool invocation. Experiments on four datasets show that LAST-7B achieves around 20% perfor-mance gains over its backbone and outperforms strong proprietary closed-source LLMs, substantially enhancing reasoning on complex spatial tasks. 
+
+## Keywords 
+
+spatial reasoning, multimodal large language models, tool-augmented learning 
+
+## 1 Introduction 
+
+Spatial reasoning ability [ 2 , 38 ] is a foundational capability for intel-ligent systems to perceive, plan, and execute tasks in the physical world. Whether in robot navigation [ 13 ], embodied AI interac-tion [ 24 ], or complex 3D scene understanding [ 19 ], models are required not only to recognize objects but also to accurately parse their geometric layouts and topological relationships. Recently, multimodal large language models (MLLMs) have made signifi-cant strides in general visual understanding and semantic reason-ing [ 1, 11 ]. However, these models often struggle with tasks in-volving precise spatial layouts, scale estimation, and fine-grained relationship reasoning. Existing research indicates that MLLMs fre-quently suffer from hallucinations regarding spatial relations [ 17 ]or fail to comprehend complex perspective and depth informa-tion [ 4 ], which severely limits their potential in real-world physical scenarios and practical applications. To mitigate these limitations, existing studies predominantly rely on data-driven scaling, i.e., fine-tuning models with increasing amounts of spatially related data [ 2 , 17 , 18 ]. However, for spatial reasoning, these strategies often fail to enable models to truly in-ternalize structured geometric priors and spatial constraints. In contrast, tool-augmented learning presents a more compelling al-ternative [ 27 , 42 ]. Given that many fundamental spatial perception skills, such as depth estimation [ 39 ] and precise object localiza-tion [ 23 ], have already been effectively addressed by specialized vision models, a natural paradigm shift is to relieve MLLMs from relearning these mature capabilities and instead equip them with the ability to invoke expert tools. By integrating these highly opti-mized visual perception models, MLLMs can directly compensate for their perceptual deficiencies in complex spatial reasoning tasks. However, in the domain of spatial reasoning, this paradigm en-counters two distinctive challenges. Firstly, spatial perception tools are heterogeneous and parameter-rich, requiring careful configura-tion at each step. Errors in tool invocation can easily accumulate over long reasoning horizons, making robust multi-step tool usage by MLLMs difficult. Secondly, perception tools produce diverse low-level outputs, such as segmentation masks or depth maps, which are  
+
+> 1
+> arXiv:2604.09712v1 [cs.CV] 8 Apr 2026 Tian et al.
+> (a) Comparison of localization accuracy between MLLMs and spe-cialized models. Light bars denote Acc@0.5 and dark bars denote Acc@0.7. (b) Effects of different categories of tool hints across diverse tasks.
+
+Figure 1: Visualization of preliminary experimental results for problem analysis. 
+
+not readily interpretable by MLLMs. As a result, models struggle to understand these outputs and convert them into high-level spatial cues required for complex reasoning. To address these challenges, we propose LAST ( Leveraging Tools 
+
+as Hin ts), a unified framework for tool-augmented spatial reason-ing. LAST introduces an extensible interactive sandbox, the LAST-Box, which standardizes heterogeneous vision models into atomic instructions that can be composed into higher-level spatial skills. These skills shorten the tool invocation horizon and encapsulate low-level tool outputs into model-interpretable textual and visual cues, enabling MLLMs to acquire perceptual capabilities in an intu-itive and controlled manner. To support effective tool interaction, we adopt a progressive curriculum-based training framework that guides models from understanding tool outputs to proficient tool in-vocation. Experiments on four datasets show that LAST-7B trained under this framework achieves around 20% performance gains over the backbone and outperforms strong proprietary closed-source LLMs on complex spatial reasoning tasks. Our main contributions are summarized as follows: 
+
+• Atomic-to-Skill Tool Abstraction. We introduce a skill abstraction framework that composes atomic tool instruc-tions into reusable spatial skills, substantially shortening long-horizon tool-calling trajectories. 
+
+• Progressive Tool-Aware Training. We propose a progres-sive training paradigm with a tool-aware warm-up stage, enabling models to better internalize tool semantics before learning complex instruction following. 
+
+• Open-Source 7B Model with Strong Performance. We release an open-source 7B multimodal model that integrates our sandbox and training paradigm, achieving state-of-the-art performance on multiple spatial reasoning benchmarks. 
+
+## 2 Preliminary Analysis 
+
+Observation 1: MLLMs still fall short of specialized models in fine-grained perception. 
+
+To examine the differences between general-purpose MLLMs and specialized vision systems in foundational spatial reasoning, we conduct a comparative study on the grounding subtask. We sample 200 instances from the SpatialLadder training set and benchmark the open-source Qwen2.5-VL series against the proprietary Ground-ingDINO. As shown in Fig. 1a, although scaling MLLMs leads to gradual improvements under both relaxed (Acc@0.5) and strict (Acc@0.7) metrics, their performance remains notably inferior to GroundingDINO, especially at higher localization precision. Under the strict IoU threshold of 0.7, GroundingDINO achieves 44.2% ac-curacy, whereas Qwen2.5-VL-7B attains only 33.0%, revealing an 11.2% performance gap. Moreover, the limited gain from scaling the model from 3B to 7B (only +1.5% in Acc@0.7) indicates that parameter scaling alone is insufficient for MLLMs to acquire precise geometric grounding. These results highlight the persistent advan-tage of specialized vision models in fine-grained spatial perception and suggest the potential advantages of a tool-augmented paradigm that leverages their strengths. 
+
+Observation 2: Even with tool-based prompts, MLLMs strug-gle to effectively recognize and exploit such guidance across diverse spatial tasks. 
+
+Given the distinct perceptual advantages of specialized models, we further investigated whether directly incorporating their out-puts as “hints” could consistently enhance the spatial reasoning capabilities of MLLMs. To explore this, we sampled 100 instances from each subset of SPbench, covering four distinct task categories: two involving multiple-choice reasoning (Relative Direction and Relative Distance) and two requiring numerical estimation (Ab-solute Distance and Size Estimation). We utilized expert models, specifically GroundingDINO and SAM, to preprocess the images, formatting their predictions into either textual descriptions (text-hint) or visual overlays (image-hint). These tool-augmented inputs were then fed into the model alongside the original images for evaluation. As illustrated in Fig. 1b, the effectiveness of tool hints is highly dependent on the task nature. For tasks that are easily articulated 
+
+> 2LAST: Leveraging Tools as Hints to Enhance Spatial Reasoning for Multimodal Large Language Models
+
+Figure 2: Overview of the proposed LAST-Box 
+
+in language, such as Relative Direction, textual hints provide a clear performance boost. Conversely, for tasks where textual de-scription is inherently limited—such as metric estimation (Absolute Distance and Size Estimation)—visual image hints demonstrate a decisive advantage. Surprisingly, when both modalities are pro-vided simultaneously (“both-hint”), the performance trend largely mirrors that of using text hints alone but consistently yields even lower scores. Instead of benefiting from richer information, the models appear overwhelmed, with the combined inputs causing severe performance degradation (e.g., dropping below -10 points in Size Estimation). This indicates that without specific training, MLLMs struggle to effectively process tool-augmented prompts, often treating the additional multimodal information as distractive noise rather than a reasoning aid. 
+
+## 3 Methods 
+
+We propose LAST, which consists of a structured visual reason-ing sandbox (LAST-Box) and a progressive training strategy to enable efficient and controllable tool-augmented spatial reasoning for MLLMs. 
+
+## 3.1 LAST-Box 
+
+We construct a comprehensive and extensible visual reasoning toolbox, denoted as LAST-Box, designed to support controlled tool invocation and structured result parsing for MLLMs in complex spatial reasoning tasks. Unlike prior work that directly exposes low-level model interfaces, LAST-Box atomizes underlying model invocations into primitive skills and further composes them into higher-level spatial skills, allowing MLLMs to directly utilize well-formed skills and significantly shorten tool-calling trajectories, leading to more efficient and stable learning. An overview of the LAST-Box architecture is illustrated in Figure 2. 
+
+Atomic Operations. In LAST-Box, we define a universal set of foundational modules M = {𝑚 1, 𝑚 2, . . . , 𝑚 𝐾 }. Each invocation of a module is treated as an atomic operation 𝑜 ∈ O . Formally, an atomic operation is defined as a deterministic mapping: 
+
+𝑜 : X𝑜 → Y 𝑜 (1) where the input space X = I ∪ T encompasses raw images I
+
+and textual prompts T . The output space Y consists of structured symbolic representations, such as segmentation masks, bounding box coordinates, or depth matrices. Specifically, the atomic oper-ations integrated into LAST-Box comprise GroundingDINO [ 23 ]for object detection and text–region alignment, DepthAnything-v2 [ 39 ] for monocular relative depth estimation, Segment Anything (SAM) [ 15 ] for high-precision instance segmentation, VGGT [ 34 ]for 3D reconstruction, as well as Python utilities that support nu-merical computation and rule-based reasoning. 
+
+Spatial Skills. On top of atomic operations, we introduce Skills 
+
+𝑠 ∈ S as an intermediate abstraction layer. A skill 𝑠 = ⟨{ 𝑜 𝑗 }𝑚 𝑗 =1, R⟩ 
+
+is a functional composition where R denotes the orchestration logic. While a skill shares the same input space X as atomic operations, its output space V is a high-level encapsulation of multimodal pairs: 
+
+𝑠 : X → Y 𝑠 , where Y𝑠 = {⟨ 𝑣 𝑖 , 𝑡 𝑖 ⟩} 𝑛 𝑖 =1 (2) Each element in V couples a visual output 𝑣 𝑖 (visual output ren-dered via Python utilities, e.g., a cropped image patch) with its corresponding semantic text description 𝑡 𝑖 . For a given input x ∈ X ,the skill execution is: 
+
+𝑠 (x) = R ( 𝑜 𝑖 1 , 𝑜 𝑖 2 , . . . , 𝑜 𝑖 𝑚 ; x) (3) Where 𝑅 represents the combination rule of atomic operations. This design yields large-model-friendly interfaces where each 𝑠 :
+
+X𝑠 → Y 𝑠 provides a semantically explicit and functionally stable 
+
+> 3Tian et al.
+
+Figure 3: Illustration of the progressive training strategy. 
+
+mapping, shielding the agent from the stochasticity and complexity of low-level model parameters. For example: 
+
+• EstimateDepth is implemented by combining Ground-ingDINO, DepthAnything-v2 and Python. When this Skill is invoked in LAST-Box, the system returns a depth map overlaid with detection bounding boxes, together with the average relative depth of objects within each detected re-gion. 
+
+• EstimateSize integrates GroundingDINO, SAM and Python. GroundingDINO first performs coarse localization, followed by precise segmentation via SAM, while Python provides an image-based visualization. The Skill outputs cropped image patches containing accurate instance segmentation masks, facilitating downstream analysis or external applications. Based on the core spatial capability gaps identified in our pre-liminary analysis (Section 2), LAST-Box currently encapsulates six skills targeting essential spatial reasoning needs: SegmentObjects ,
+
+EstimateDepth , EstimateSize , CountObjects , ZoomCrop , and 
+
+Get3DPoint . These skills collectively cover object localization, depth perception, metric measurement, instance counting, local detail inspection, and 3D coordinate estimation. The skill set is designed to be extensible—new skills can be integrated by defining the corresponding atomic operation compositions and I/O formats. Detailed API specifications for each skill are provided in Appen-dix A. 
+
+## 3.2 Progressive Training Strategy 
+
+Inspired by prior work [ 18 ], we adopt a progressive tool-scheduling training strategy that progressively teaches the model how to in-voke tools and how to reason over tool outputs and intermediate results in a shallow-to-deep manner. Our training pipeline consists of three stages. An overall schematic diagram of the framework is shown in Figure 3. 
+
+Stage 1: Warm-up. The objective of the warm-up stage is to fa-miliarize the model with the formats and semantics of tool outputs, particularly image-based intermediate results such as segmentation masks and depth maps. We source 6,000 samples from the ground-ing subset of the SpatialLadder dataset. For each image, we utilize off-the-shelf vision tools to generate two types of augmented views: 
+
+mask maps (highlighting specific objects) and depth maps (rep-resenting spatial geometry). We construct QA pairs that explicitly ask the model to distinguish between these views and interpret their semantic content, with ground-truth answers generated by Qwen-VL-Plus. This step ensures that when the model invokes a tool in later stages, it can correctly comprehend the visual feedback (e.g., understanding that a depth map represents distance rather than texture). 
+
+Stage 2: Supervised Fine-Tuning (SFT). In the second stage, we aim to establish a basic understanding of when and how to invoke tools. We compile a dataset of approximately 16,000 sam-ples, consisting of 6,000 single-image samples from the Spatial-Ladder [ 18 ] training set and 10,000 samples from the MSMU [ 4]dataset. Using a state-of-the-art closed-source LLM (GPT-4o) as a teacher, we rewrite the original ground-truth labels into reasoning trajectories that follow a Think-Act-Observe-Reason cycle, where the model decides to call a tool, analyzes the returned result, and derives the final answer. To prevent the model from over-relying on tool outputs, we introduce a consistency-check mechanism during data construction. For example, when a question asks for the spatial relationship between a refrigerator and a sofa, but GroundingDINO detects only one of the two objects, the tool’s output is considered partially 
+
+> 4LAST: Leveraging Tools as Hints to Enhance Spatial Reasoning for Multimodal Large Language Models
+
+correct. In such cases, the model is explicitly required to combine the original image with the incomplete tool output, rather than directly trusting the tool result. Furthermore, in approximately 3,000 samples, we simulate tool failures (e.g., empty returns or execution errors). In these scenarios, the supervision signal encourages the model to abandon the tool path and revert to the original image for reasoning, thereby establishing a robust fallback mechanism. We optimize the model by next-token prediction loss. 
+
+LSFT (𝜃 ) = − 1
+
+𝑇 
+
+> 𝑇
+
+∑︁ 
+
+> 𝑡 =1
+
+log 𝑝 𝜃 (𝑥 𝑡 | 𝑥 <𝑡 ) . (4) 
+
+Stage 3: Interactive Reinforcement Learning (IRL). In the final stage, we further enhance the model’s capabilities in tool in-vocation decision-making and tool output interpretation through reinforcement learning. We construct a dataset of 2,000 samples using the same source distribution as Stage 2. Unlike the SFT stage, these samples contain only the problem prompts without reasoning paths, forcing the model to explore and generate its own action trajectories during training. We adopt GRPO [ 29 ] as the optimiza-tion algorithm and design a reward function composed of three components. 
+
+LGRPO (𝜃 ) = E𝑞, {𝑜 𝑖 }𝐺 𝑖 =1
+
+ 1
+
+𝐺 
+
+> 𝐺
+
+∑︁ 
+
+> 𝑖 =1
+
+
+
+min 
+
+
+
+𝑟 𝑖 (𝜃 ) ˆ𝐴 𝑖 ,
+
+clip (𝑟 𝑖 (𝜃 ), 1 − 𝜖, 1 + 𝜖 ) ˆ𝐴 𝑖 
+
+
+
+− 𝛽 DKL (𝜋 𝜃 ∥ 𝜋 ref )
+
+ (5) where 𝑟 𝑖 (𝜃 ) = 𝜋 𝜃 (𝑜 𝑖 |𝑞 )   
+
+> 𝜋 𝜃 old (𝑜 𝑖 |𝑞 )
+
+and the advantage ˆ𝐴 𝑖 for each output 
+
+𝑜 𝑖 in the group is computed as: ˆ𝐴 𝑖 = 𝑟 𝑖 −𝜇 𝑟  
+
+> 𝜎 𝑟
+
+.
+
+Format reward , which is used to enforce whether the model outputs conform to the expected structure. 
+
+𝑟 𝑓 𝑜𝑟𝑚𝑎𝑡 =
+
+(
+
+0 if ∀𝑡 ∈ T , count (𝑡 𝑠𝑡𝑎𝑟𝑡 ) == count (𝑡 𝑒𝑛𝑑 )−1 otherwise where T denotes the set of tag types, and count (𝑡 start ) and count (𝑡 end )
+
+represent the numbers of opening and closing tags of type 𝑡 , re-spectively (e.g., <action></action> ). 
+
+Correctness reward , which measures the consistency between the predicted answer and the ground-truth label: 
+
+𝑟 𝑐𝑜𝑟𝑟𝑒𝑐𝑡 =
+
+(
+
+I( ˆ𝑦 = 𝑦 ) for discrete tasks 
+
+exp (− 𝛼 | ˆ𝑦 − 𝑦 |) for numerical tasks Here, ˆ𝑦 and 𝑦 denote the predicted and ground-truth answers, re-spectively, and 𝛼 controls the sensitivity to numerical prediction errors. 
+
+Tool reward. This reward evaluates whether the model invokes tools appropriately and whether the tool outputs are useful for task completion: 
+
+𝑟 tool = I(𝑐 ∈ C success ) I( ˆ𝑦 = 𝑦 )
+
+where 𝑐 denotes the tool call issued by the model, Csuccess is the set of successful tool calls, and I( ˆ𝑦 = 𝑦 ) represents the final result being correct. The final reward is defined as a linear combination of these three components. The hyperparameter 𝜆 balances the three reward terms. 
+
+𝑟 𝑎𝑙𝑙 = 𝜆 1𝑟 𝑓 𝑜𝑟𝑚𝑎𝑡 + 𝜆 2𝑟 𝑐𝑜𝑟𝑟𝑒𝑐𝑡 + 𝜆 3𝑟 𝑡𝑜𝑜𝑙 
+
+## 4 Experiment 4.1 Setup 
+
+Datasets. We conduct experiments on four spatial reasoning bench-marks. CVBench [ 33 ] evaluates 2D visual recognition and 3D spa-tial perception across diverse visual tasks. EmbSpatial [ 8 ] focuses on egocentric spatial understanding in embodied 3D environments. 
+
+SPBench-SI [18 ] assesses single-image spatial reasoning includ-ing object localization, relative distance estimation, and spatial relation understanding. MSMU [4] targets quantitative spatial per-ception, requiring models to output precise metric values such as physical dimensions and absolute distances. Further details of each benchmark are provided in Appendix B. The evaluated tasks fall into two main categories: multiple-choice questions and numerical fill-in-the-blank questions. For evaluation metrics, multiple-choice questions are assessed using answer accuracy. For scale and dis-tance estimation tasks, a prediction is considered correct if the estimated value falls within an acceptable relative error margin 𝑟 
+
+with respect to the ground truth, i.e., ans /gt ∈ [ 1 − 𝑟, 1 + 𝑟 ]. In our experiments, we set 𝑟 = 0.25 .
+
+Baselines. We mainly compare three categories of multi-modal large language models: (1) General-purpose multimodal large lan-guage models (Qwen-2.5-vl-3B,7B [ 1], LLava-Next-8B [ 45 ],LLava-Onevison-8B [ 16 ], Internvl-2.5-8B [ 6] and Internvl-3-8B [ 51 ]), (2) Specialized large models for spatial reasoning(SpaceLLava-13B [ 2], Robopoint-13B [ 43 ] and VILASR-7B [ 36 ]) (3) Closed-source state-of-the-art multimodal large model APIs (GPT-5.1, Gemini-3.0-flash and Gemini-2.5-Pro). 
+
+Implementation Details. We chose Qwen-2.5-VL-7B as the backbone. Both the supervised fine-tuning (SFT) and reinforce-ment learning (RL) stages are implemented using the ms-swift [47 ]framework. For SFT , we perform full parameter fine-tuning with a global batch size of 64 (via gradient accumulation) and a learning rate of 1 × 10 −5 with a warmup ratio of 0.05 over 5 epochs. The maximum sequence length is set to 8,192 tokens. For RL , we further align the model using GRPO over 2 epochs with a learning rate of 
+
+1 × 10 −7, employing a cosine decay scheduler (minimum learning rate ratio of 0.1) and a warmup ratio of 0.03. The reward weights for correctness, format, and tool usage are set to 1.0, 0.3, and 0.3,respectively. The KL divergence coefficient ( 𝛽 ) is set to 0.01. During rollout, we produce 𝐺 = 4 candidate completions per prompt with temperature 1.0, top-𝑝 of 0.9, and top-𝑘 of 50. 
+
+## 4.2 Main Results 
+
+In this section, we conduct a comprehensive analysis of our pro-posed LAST and the trained model (LAST-7B), obtaining the fol-lowing experimental findings. 
+
+Finding 1. LAST-7B substantially outperforms its back-bone with an average gain of nearly 20%, and even surpasses several closed-source API-based models. As evidenced by the comprehensive evaluation in Table 1, our proposed model achieves a new state-of-the-art (SOTA) performance, consistently outper-forming all baseline methods across diverse spatial benchmarks. 
+
+> 5Tian et al.
+
+Table 1: Comparison between our LAST-7B and other baseline models. Numerical estimation tasks are highlighted with a pink background. Bold indicates the best performance in each category, while underline denotes the second best.                                                                                                                                                        
+
+> Models CVbench SPBench-SI EmbSpatial MSMU Avg 2D-REL 3D-Depth 3D-Dist Rel_Dir Rel_dist Size_Est Abs_Dist
+> General Models
+> Qwen2.5-VL-3B 72.46 79.00 65.00 27.45 67.39 18.61 10.67 56.29 8.67 45.06 LLAVA-NEXT-8B 70.62 66.67 60.30 23.43 72.34 27.63 15.34 50.30 10.63 44.14 LLAVA-OneVision-8B 78.23 78.23 75.77 45.27 50.63 35.70 25.00 56.20 14.00 51.00 InternVL3-8B 73.85 83.17 67.83 32.03 23.08 24.62 20.13 58.98 13.44 44.13 InternVL2.5-8B 70.63 78.15 71.33 30.42 40.29 30.63 18.56 50.82 12.20 44.78
+> Spatial VLMs
+> SpaceLLaVA-13B 62.03 68.23 63.16 40.46 55.37 20.33 16.67 67.40 15.67 45.48 Robopoint-13B 75.13 80.33 74.23 50.26 61.23 25.83 15.30 60.21 17.28 51.09 VILASR-7B 80.15 94.83 88.33 64.05 53.85 37.58 4.70 69.81 20.63 57.10
+> Closed Source APIs
+> GPT-5.1 60.60 82.93 76.76 51.31 64.84 46.87 8.83 75.13 18.69 54.00 Gemini-3.0-flash 58.64 68.90 73.20 48.04 73.63 50.54 14.09 63.27 25.07 52.82 Gemini-2.5-pro 67.48 79.41 80.35 49.67 71.43 52.27 14.77 77.27 27.52 57.80
+> Ours
+> Qwen2.5-VL-7B (Backbone) 81.15 80.00 73.67 39.22 78.26 41.99 20.00 69.70 14.20 55.35
+> LAST-7B 93.33 89.54 90.64 70.26 80.22 74.95 41.61 81.00 41.17 73.64
+> Improvement +12.18 +9.54 +16.97 +31.04 +1.96 +32.96 +21.61 +11.30 +26.97 +18.28
+
+The comparison with the Qwen2.5-VL-7B backbone is particularly compelling; our method delivers a substantial average performance boost of 18.28 points (from 55.35 to 73.64), effectively transforming a strong general-purpose vision-language model into a high-precision spatial expert. This enhancement is most pronounced in tasks re-quiring rigorous geometric and metric quantification rather than mere semantic description. Specifically, we observe remarkable gains in Size Estimation (+32.96), Relative Direction (+31.04), and MSMU (+26.97). These results suggest that our approach success-fully bridges the long-standing “metric gap” in multimodal LLMs, enabling the model to transition from coarse relative perception to fine-grained spatial measurement. Furthermore, the proposed model demonstrates superior scaling efficiency by significantly out-performing top-tier proprietary systems. Despite its 7B parameter size, it surpasses GPT-5.1 (Avg: 54.00) and Gemini-2.5-pro (Avg: 57.80) by margins of 19.64 and 15.84 points, respectively. Notably, our model maintains the highest or second-highest scores (indi-cated by bold and underline) in nearly every sub-metric, proving that specialized spatial alignment can yield reasoning capabilities that exceed even the most advanced closed-source large multimodal models. 
+
+Finding 2. The compressed skill abstraction in LAST-Box effectively enhances the reasoning performance of closed-source models. To investigate the generalizability of our proposed interactive sandbox (LAST-Box), specifically whether it can em-power closed-source models that cannot be fine-tuned, we ap-plied the framework to the Gemini model family and evaluated it across diverse spatial tasks. As shown in Table 2, the results demonstrate that introducing external tool support yields signifi-cant performance gains in general. Specifically, for the more capable Gemini-2.5-Pro, tool augmentation achieved consistent improve-ments across all metrics, delivering remarkable gains of 18.00% and 14.90% on CVBench’s 2D relationship reasoning (2D-REL) and 3D distance estimation (3D-Dist) tasks, respectively. This evidence shows that when the base model possesses sufficient instruction-following and reasoning capabilities, it can effectively leverage the precise geometric signals provided by the sandbox to correct its intrinsic spatial perception biases. Although we observed a perfor-mance drop (-8.06%) for the smaller Gemini-3-Flash model on the 3D distance task, we attribute this degradation primarily to its lim-ited reasoning capacity, which hampers robust generalization when multi-step spatial inference is required. In contrast, Gemini-3-Flash still exhibits substantial improvements of over 12% on perception-dominant tasks such as 2D-REL and 3D-Depth, where the demands on long-horizon reasoning are less pronounced. Overall, these re-sults indicate that our framework can also improve the spatial reasoning performance of closed-source commercial models. 
+
+Finding 3. The progressive training paradigm successfully teaches LAST-7B to utilize tool outputs for improved reason-ing. A critical question is whether LAST-7B can effectively exploit information returned by tools. To investigate this, we analyze tool usage across datasets using the Tool Success Rate (Tool SR), and compare final accuracy under successful versus unsuccessful tool ex-ecution (Acc(w/suc) vs. Acc(w/uns)), as shown in Table 3. LAST-7B 
+
+> 6LAST: Leveraging Tools as Hints to Enhance Spatial Reasoning for Multimodal Large Language Models
+
+Figure 4: Representative experimental examples of LAST-7B from CVBench, EmbSpatial, and MSMU. Table 2: Performance changes of closed-source models after integrating LAST-Box. 
+
+Models CVBench MSMU 2D-REL 3D-Depth 3D-Dist Gemini-3-flash 58.64 68.90 73.20 25.07 + LAST-Box 70.92 82.25 65.14 26.14 
+
+Δ (delta) 12.28 ↑ 13.35 ↑ 8.06 ↓ 1.07 ↑
+
+Gemini-2.5-Pro 67.48 79.41 80.35 27.52 + LAST-Box 85.48 90.32 95.25 30.06 
+
+Δ (delta) 18.00 ↑ 10.91 ↑ 14.90 ↑ 2.54 ↑
+
+achieves consistently high Tool SR across all evaluated benchmarks (88.67%–99.67%), indicating reliable tool invocation. More impor-tantly, successful tool usage leads to substantial accuracy gains: on SPBench-SI and EmbSpatial, accuracy improves by approximately 29% (69.69% vs. 40.82%) and 20% (80.74% vs. 60.00%), respectively. 
+
+Table 3: Tool success rate and accuracy under successful and unsuccessful tool usage across different datasets of LAST-7B. 
+
+Dataset Tool SR Acc(w/uns) Acc(w/suc) ΔAcc CVBench 88.67 87.65 91.51 ↑ 3.86 SPBench-SI 95.14 40.82 69.69 ↑ 28.87 EmbSpatial 99.67 60.00 80.74 ↑ 20.74 
+
+Even on CVBench, where the backbone already performs well, suc-cessful tool execution still yields a meaningful +3.86% improvement. These consistent gains confirm that the model meaningfully incor-porates tool outputs into its reasoning process rather than invoking them superficially. Beyond tool success rates, we further investigate how RL training shapes tool invocation behavior compared to SFT alone (Figure 5). As shown in Fig. 5(a), RL training leads to a more balanced tool usage distribution across benchmarks, reducing the dominance of SegmentObjects (from 37.0% to 33.2%) while increasing the us-age of EstimateSize (from 12.3% to 16.7%) and Get3DPoint (from 6.4% to 8.5%). Furthermore, as shown in Fig. 5(b), the RL model exhibits substantially higher multi-step tool invocation rates across        
+
+> 7Tian et al. 37.0% 33.2%
+> 33.5% 29.1%
+> 12.3% 16.7%
+> 6.4% 8.5%
+> After SFT After RL
+> SegObjects
+> EstDepth
+> EstSize
+> Get3DPoint
+> CVBench SPBench-SI MSMU
+> 0
+> 1
+> 2
+> 3
+> 4
+> 5
+> Multi-step Rate (%)
+> 0.1
+> 3.8
+> 0.3
+> 3.2
+> 4.3
+> 0.6
+> After SFT
+> After RL
+
+Figure 5: Comparison of tool invocation behavior between After SFT (Stage 2) and After RL (Stage 3). (a) Top-4 tool usage distribution across benchmarks. (b) Multi-step invocation rate across benchmarks. Table 4: Ablation on training stages. Removing any stage leads to performance degradation.                         
+
+> Settings CVBench SPBench-SI EmbSpatial MSMU Backbone 78.27 44.87 69.70 14.20 w/o Stage 1 (Warmup) 89.63 64.87 79.63 39.23 w/o Stage 2 (SFT) 79.30 48.26 65.45 20.63 w/o Stage 3 (RL) 90.37 65.20 80.67 38.74 LAST-7B 91.17 66.76 81.00 41.17
+
+all benchmarks, e.g., from 0.1% to 3.2% on CVBench. This indicates that RL training encourages the model to adaptively compose com-plementary tools for complex spatial reasoning tasks, rather than relying on a single tool call. 
+
+## 4.3 Ablation Studies 
+
+Ablation on Training Stages. To validate the effectiveness of each training stage, we conducted ablation studies as shown in Table 4. The results demonstrate that the full proposed model achieves superior performance across all benchmarks. Specifically, removing Stage 2 (SFT) leads to the most significant performance degrada-tion, highlighting its critical role in establishing the model’s core capabilities. Furthermore, the absence of either Stage 1 (Warmup) or Stage 3 (RL) also results in consistent performance drops. This confirms that the initialization provided by Warmup and the refine-ment from RL are indispensable and complementary for achieving optimal performance. 
+
+Ablation on Tool Hints. To study the role of tool hints, we com-pare three variants (Table 5): No-tool SFT trains with the same data but removes all tool outputs from the training trajectories; Text-only 
+
+and Image-only use the fully trained model (LAST-7B) but mask one hint modality during inference, retaining only the textual or visual output respectively. The full model with both modalities consis-tently outperforms the no-tool variant across all benchmarks (e.g., +7.65 on CVBench, +2.77 on EmbSpatial). While single-modality hints can introduce noise on metric tasks like MSMU, fusing both modalities recovers and surpasses the baseline, confirming that text and image hints provide complementary spatial cues whose combination yields consistent improvements. 
+
+Table 5: Ablation on tool hint modality. “No-tool SFT” trains with the same data but without any tool outputs. “Image-only” and “Text-only” restrict the hint modality during in-ference.                         
+
+> Settings CVBench SPBench-SI EmbSpatial MSMU Backbone 78.27 44.87 69.70 14.20 No-tool SFT 83.52 63.81 78.23 39.73 Text-only hint 86.77 66.90 80.16 38.38 Image-only hint 86.24 65.11 79.56 39.21 LAST-7B (Full hint) 91.17 66.76 81.00 41.17
+
+## 5 Related Work 
+
+Spatial Reasoning. Spatial reasoning ability [ 2 , 21 , 38 ] is com-monly defined as the capacity to interpret geometric relationships between objects and their surrounding environment [ 38 ]. This capability is fundamental to robotic perception and is widely re-garded as a core building block of embodied intelligence [ 24 ] and autonomous driving [ 3]. Early spatial reasoning efforts largely fo-cused on single-modality multi-step inference, whereas modern tasks predominantly target vision-based spatial reasoning with substantially higher complexity than conventional visual recogni-tion problems (see Yang et al., 2025; VSI-Bench). Despite recent advances in visual-language models on basic perception, they con-tinue to struggle with multi-step reasoning, precise scale estima-tion [ 4 ], and viewpoint transformation [ 17 ]. Benchmarking has also evolved—from static single-image settings (e.g., BLINK [ 9], CVBench [ 33 ]) to dynamic multi-view reasoning scenarios (e.g., VSI-Bench [ 38 ], STI-Bench [ 19 ]). To bridge these gaps, the field has begun shifting from resource-intensive task-specific fine-tuning [ 7 ]toward more generalizable approaches. Such approaches include progressive model training, integrating 3D-aware encodings [ 37 ], and modular systems that enable VLMs to invoke external com-puter vision tools to perform physical operations [ 5, 12 ]. Recent research interests have begun to shift towards spatial reasoning in path planning [28, 40]. 
+
+Tool-augmented Reasoning. A major research trend enhances LLMs by equipping them with external modules that supply com-plementary information. Typical examples integrate calculators [ 25 ,44 ], code executors [ 10 , 26 ] and symbolic solvers [ 20 , 31 , 32 , 50 ], leveraging their reliability to handle complex reasoning beyond the native capacity of language models [ 30 ]. In the multimodal setting [ 11 , 14 ], tools are extended to visual operations such as cropping, masking, or adjusting image attributes [ 46 , 48 ], some-times coordinated through reinforcement learning for tool selection and sequencing [ 22 , 49 ]. Spatial reasoning marks another important direction. Text-based systems increasingly adopt logic engines or ASP solvers for multi-hop inference [ 35 , 41 ], while multimodal spa-tial reasoning [ 5, 12 ] begins to exploit expert models for grounding and geometric analysis. However, existing approaches often depend on fixed prompting templates, limited interaction with tools, and mostly text-only outputs, restricting their flexibility and adaptabil-ity to dynamic environments. In contrast, our framework offers a unified tool suite capable of producing heterogeneous outputs, and our inductive design enables systematic generalization across tasks and novel settings. 
+
+> 8
+
+LAST: Leveraging Tools as Hints to Enhance Spatial Reasoning for Multimodal Large Language Models 
+
+## 6 Conclusion 
+
+We propose LAST, a unified tool-augmented framework that en-hances the spatial reasoning capabilities of MLLMs through struc-tured tool interaction, including the LAST-Box that encapsulates heterogeneous vision backbone models into low-level atomic in-structions and further composes them into short-horizon reusable spatial skills, effectively replacing long and error-prone tool-calling trajectories. These skills transform raw perceptual outputs into interpretable textual and visual hints that can be directly exploited by MLLMs. With a progressive curriculum training strategy, mod-els learn to reliably understand and invoke spatial skills, achieving consistent improvements across four spatial reasoning benchmarks. 
+
+## References 
+
+[1] Shuai Bai, Keqin Chen, Xuejing Liu, Jialin Wang, Wenbin Ge, Sibo Song, Kai Dang, Peng Wang, Shijie Wang, Jun Tang, et al . 2025. Qwen2. 5-vl technical report. arXiv preprint arXiv:2502.13923 (2025). [2] Boyuan Chen, Zhuo Xu, Sean Kirmani, Brain Ichter, Dorsa Sadigh, Leonidas Guibas, and Fei Xia. 2024. Spatialvlm: Endowing vision-language models with spatial reasoning capabilities. In Proceedings of the IEEE/CVF Conference on Com-puter Vision and Pattern Recognition . 14455–14465. [3] Li Chen, Penghao Wu, Kashyap Chitta, Bernhard Jaeger, Andreas Geiger, and Hongyang Li. 2024. End-to-end autonomous driving: Challenges and frontiers. 
+
+IEEE Transactions on Pattern Analysis and Machine Intelligence (2024). [4] Pingyi Chen, Yujing Lou, Shen Cao, Jinhui Guo, Lubin Fan, Yue Wu, Lin Yang, Lizhuang Ma, and Jieping Ye. 2025. SD-VLM: Spatial Measuring and Understanding with Depth-Encoded Vision-Language Models. arXiv preprint arXiv:2509.17664 (2025). [5] Siyi Chen, Mikaela Angelina Uy, Chan Hee Song, Faisal Ladhak, Adithyavairavan Murali, Qing Qu, Stan Birchfield, Valts Blukis, and Jonathan Tremblay. 2025. SpaceTools: Tool-Augmented Spatial Reasoning via Double Interactive RL. arXiv preprint arXiv:2512.04069 (2025). [6] Zhe Chen, Jiannan Wu, Wenhai Wang, Weijie Su, Guo Chen, Sen Xing, Muyan Zhong, Qinglong Zhang, Xizhou Zhu, Lewei Lu, et al . 2024. Internvl: Scaling up vision foundation models and aligning for generic visual-linguistic tasks. In Pro-ceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition .24185–24198. [7] An-Chieh Cheng, Hongxu Yin, Yang Fu, Qiushan Guo, Ruihan Yang, Jan Kautz, Xiaolong Wang, and Sifei Liu. 2024. Spatialrgpt: Grounded spatial reasoning in vision-language models. Advances in Neural Information Processing Systems 37 (2024), 135062–135093. [8] Mengfei Du, Binhao Wu, Zejun Li, Xuan-Jing Huang, and Zhongyu Wei. 2024. Embspatial-bench: Benchmarking spatial understanding for embodied tasks with large vision-language models. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 2: Short Papers) . 346–355. [9] Xingyu Fu, Yushi Hu, Bangzheng Li, Yu Feng, Haoyu Wang, Xudong Lin, Dan Roth, Noah A Smith, Wei-Chiu Ma, and Ranjay Krishna. 2024. Blink: Multimodal large language models can see but not perceive. In European Conference on Computer Vision . Springer, 148–166. [10] Luyu Gao, Aman Madaan, Shuyan Zhou, Uri Alon, Pengfei Liu, Yiming Yang, Jamie Callan, and Graham Neubig. 2023. Pal: Program-aided language models. In Proceedings of the 40th International Conference on Machine Learning . 10764– 10799. [11] Tanmay Gupta and Aniruddha Kembhavi. 2023. Visual programming: Com-positional visual reasoning without training. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition . 14953–14962. [12] Yi Han, Cheng Chi, Enshen Zhou, Shanyu Rong, Jingkun An, Pengwei Wang, Zhongyuan Wang, Lu Sheng, and Shanghang Zhang. 2025. TIGeR: Tool-Integrated Geometric Reasoning in Vision-Language Models for Robotics. arXiv preprint arXiv:2510.07181 (2025). [13] Yicong Hong, Qi Wu, Yuankai Qi, Cristian Rodriguez-Opazo, and Stephen Gould. 2021. Vln bert: A recurrent vision-and-language bert for navigation. In Pro-ceedings of the IEEE/CVF conference on Computer Vision and Pattern Recognition .1643–1653. [14] Yushi Hu, Weijia Shi, Xingyu Fu, Dan Roth, Mari Ostendorf, Luke Zettlemoyer, Noah A Smith, and Ranjay Krishna. 2024. Visual sketchpad: Sketching as a visual chain of thought for multimodal language models. Advances in Neural Information Processing Systems 37 (2024), 139348–139379. [15] Alexander Kirillov, Eric Mintun, Nikhila Ravi, Hanzi Mao, Chloe Rolland, Laura Gustafson, Tete Xiao, Spencer Whitehead, Alexander C. Berg, Wan-Yen Lo, Piotr Dollar, and Ross Girshick. 2023. Segment Anything. In Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV) . 4015–4026. [16] Bo Li, Yuanhan Zhang, Dong Guo, Renrui Zhang, Feng Li, Hao Zhang, Kaichen Zhang, Peiyuan Zhang, Yanwei Li, Ziwei Liu, et al . 2024. Llava-onevision: Easy visual task transfer. arXiv preprint arXiv:2408.03326 (2024). [17] Dingming Li, Hongxing Li, Zixuan Wang, Yuchen Yan, Hang Zhang, Siqi Chen, Guiyang Hou, Shengpei Jiang, Wenqi Zhang, Yongliang Shen, et al . 2025. ViewSpatial-Bench: Evaluating Multi-perspective Spatial Localization in Vision-Language Models. arXiv preprint arXiv:2505.21500 (2025). [18] Hongxing Li, Dingming Li, Zixuan Wang, Yuchen Yan, Hang Wu, Wenqi Zhang, Yongliang Shen, Weiming Lu, Jun Xiao, and Yueting Zhuang. 2025. Spatialladder: Progressive training for spatial reasoning in vision-language models. arXiv preprint arXiv:2510.08531 (2025). [19] Yun Li, Yiming Zhang, Tao Lin, XiangRui Liu, Wenxiao Cai, Zheng Liu, and Bo Zhao. 2025. Sti-bench: Are mllms ready for precise spatial-temporal world understanding? arXiv preprint arXiv:2503.23765 (2025). [20] Zenan Li, Zhi Zhou, Yuan Yao, Yu-Feng Li, Chun Cao, Fan Yang, Xian Zhang, and Xiaoxing Ma. 2024. Neuro-Symbolic Data Generation for Math Reasoning. 
+
+arXiv preprint arXiv:2412.04857 (2024). [21] Fangyu Liu, Guy Emerson, and Nigel Collier. 2023. Visual spatial reasoning. 
+
+Transactions of the Association for Computational Linguistics 11 (2023), 635–651. [22] Jiaqi Liu, Kaiwen Xiong, Peng Xia, Yiyang Zhou, Haonian Ji, Lu Feng, Siwei Han, Mingyu Ding, and Huaxiu Yao. 2025. Agent0-VL: Exploring Self-Evolving Agent for Tool-Integrated Vision-Language Reasoning. arXiv preprint arXiv:2511.19900 
+
+(2025). [23] Shilong Liu, Zhaoyang Zeng, Tianhe Ren, Feng Li, Hao Zhang, Jie Yang, Qing Jiang, Chunyuan Li, Jianwei Yang, Hang Su, et al . 2024. Grounding dino: Marrying dino with grounded pre-training for open-set object detection. In European conference on computer vision . Springer, 38–55. [24] Yang Liu, Weixing Chen, Yongjie Bai, Xiaodan Liang, Guanbin Li, Wen Gao, and Liang Lin. 2025. Aligning cyber space with physical world: A comprehensive survey on embodied ai. IEEE/ASME Transactions on Mechatronics (2025). [25] Reiichiro Nakano, Jacob Hilton, Suchir Balaji, Jeff Wu, Long Ouyang, Christina Kim, Christopher Hesse, Shantanu Jain, Vineet Kosaraju, William Saunders, et al .2021. Webgpt: Browser-assisted question-answering with human feedback. arXiv preprint arXiv:2112.09332 (2021). [26] Liangming Pan, Alon Albalak, Xinyi Wang, and William Yang Wang. 2023. Logic-lm: Empowering large language models with symbolic solvers for faithful logical reasoning. arXiv preprint arXiv:2305.12295 (2023). [27] Yujia Qin, Shengding Hu, Yankai Lin, Weize Chen, Ning Ding, Ganqu Cui, Zheni Zeng, Xuanhe Zhou, Yufei Huang, Chaojun Xiao, et al . 2024. Tool learning with foundation models. Comput. Surveys 57, 4 (2024), 1–40. [28] Ziqiao Shang, Lingyue Ge, Yang Chen, Shi-Yu Tian, Zhenyu Huang, Wenbo Fu, Yu-Feng Li, and Lan-Zhe Guo. 2026. MapTab: Can MLLMs Master Constrained Route Planning? arXiv preprint arXiv:2602.18600 (2026). [29] Zhihong Shao, Peiyi Wang, Qihao Zhu, Runxin Xu, Junxiao Song, Xiao Bi, Haowei Zhang, Mingchuan Zhang, YK Li, Yang Wu, et al . 2024. Deepseekmath: Pushing the limits of mathematical reasoning in open language models. arXiv preprint arXiv:2402.03300 (2024). [30] Shiyu Tian, Hongxin Wei, Yiqun Wang, and Lei Feng. 2024. Crosel: Cross selection of confident pseudo labels for partial-label learning. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition . 19479–19488. [31] Shi-Yu Tian, Zhi Zhou, Wei Dong, Kun-Yang Yu, Ming Yang, Zi-Jian Cheng, Lan-Zhe Guo, and Yu-Feng Li. 2025. TabularMath: Understanding Math Reasoning over Tables with Large Language Models. arXiv preprint arXiv:2505.19563 (2025). [32] Shi-Yu Tian, Zhi Zhou, Kun-Yang Yu, Ming Yang, Lin-Han Jia, Lan-Zhe Guo, and Yu-Feng Li. 2025. VCSearch: Bridging the Gap Between Well-Defined and Ill-Defined Problems in Mathematical Reasoning. In Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing . 12721–12742. [33] Peter Tong, Ellis Brown, Penghao Wu, Sanghyun Woo, Adithya Jairam Veda-giri IYER, Sai Charitha Akula, Shusheng Yang, Jihan Yang, Manoj Middepogu, Ziteng Wang, et al . 2024. Cambrian-1: A fully open, vision-centric exploration of multimodal llms. Advances in Neural Information Processing Systems 37 (2024), 87310–87356. [34] Jianyuan Wang, Minghao Chen, Nikita Karaev, Andrea Vedaldi, Christian Rup-precht, and David Novotny. 2025. VGGT: Visual Geometry Grounded Trans-former. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) . 5294–5306. [35] Rong Wang, Kun Sun, and Jonas Kuhn. 2024. Dspy-based Neural-Symbolic Pipeline to Enhance Spatial Reasoning in LLMs. arXiv preprint arXiv:2411.18564 
+
+(2024). [36] Junfei Wu, Jian Guan, Kaituo Feng, Qiang Liu, Shu Wu, Liang Wang, Wei Wu, and Tieniu Tan. 2025. Reinforcing spatial reasoning in vision-language models with interwoven thinking and visual drawing. arXiv preprint arXiv:2506.09965 
+
+(2025). [37] Runsen Xu, Xiaolong Wang, Tai Wang, Yilun Chen, Jiangmiao Pang, and Dahua Lin. 2024. Pointllm: Empowering large language models to understand point clouds. In European Conference on Computer Vision . Springer, 131–147. [38] Jihan Yang, Shusheng Yang, Anjali W Gupta, Rilyn Han, Li Fei-Fei, and Saining Xie. 2025. Thinking in space: How multimodal large language models see, 9Tian et al. 
+
+remember, and recall spaces. In Proceedings of the Computer Vision and Pattern Recognition Conference . 10632–10643. [39] Lihe Yang, Bingyi Kang, Zilong Huang, Zhen Zhao, Xiaogang Xu, Jiashi Feng, and Hengshuang Zhao. 2024. Depth Anything V2. arXiv:2406.09414 [cs.CV] [40] Ming Yang, Zhi Zhou, Shi-Yu Tian, Kun-Yang Yu, Lan-Zhe Guo, and Yu-Feng Li. 2026. NeSy-Route: A Neuro-Symbolic Benchmark for Constrained Route Planning in Remote Sensing. arXiv preprint arXiv:2603.16307 (2026). [41] Zhun Yang, Adam Ishay, and Joohyung Lee. 2023. Coupling large language models with logic programming for robust and general reasoning from text. 
+
+arXiv preprint arXiv:2307.07696 (2023). [42] Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran, Karthik R Narasimhan, and Yuan Cao. 2023. ReAct: Synergizing Reasoning and Acting in Language Models. In Proceedings of the 11th International Conference on Learning Represen-tations .[43] Wentao Yuan, Jiafei Duan, Valts Blukis, Wilbert Pumacay, Ranjay Krishna, Adithyavairavan Murali, Arsalan Mousavian, and Dieter Fox. 2024. RoboPoint: A Vision-Language Model for Spatial Affordance Prediction for Robotics. arXiv preprint arXiv:2406.10721 (2024). [44] Shaokun Zhang, Yi Dong, Jieyu Zhang, Jan Kautz, Bryan Catanzaro, Andrew Tao, Qingyun Wu, Zhiding Yu, and Guilin Liu. 2025. Nemotron-Research-Tool-N1: Exploring Tool-Using Language Models with Reinforced Reasoning. arXiv preprint arXiv:2505.00024 (2025). [45] Yuanhan Zhang, Bo Li, haotian Liu, Yong jae Lee, Liangke Gui, Di Fu, Jiashi Feng, Ziwei Liu, and Chunyuan Li. 2024. LLaVA-NeXT: A Strong Zero-shot Video Understanding Model. [46] Yi-Fan Zhang, Xingyu Lu, Shukang Yin, Chaoyou Fu, Wei Chen, Xiao Hu, Bin Wen, Kaiyu Jiang, Changyi Liu, Tianke Zhang, et al . 2025. Thyme: Think beyond images. arXiv preprint arXiv:2508.11630 (2025). [47] Yuze Zhao, Jintao Huang, Jinghan Hu, Xingjun Wang, Yunlin Mao, Daoze Zhang, Zeyinzi Jiang, Zhikai Wu, Baole Ai, Ang Wang, et al . 2025. Swift: a scalable lightweight infrastructure for fine-tuning. In Proceedings of the AAAI Conference on Artificial Intelligence , Vol. 39. 29733–29735. [48] Ziwei Zheng, Michael Yang, Jack Hong, Chenxiao Zhao, Guohai Xu, Le Yang, Chao Shen, and Xing Yu. 2025. DeepEyes: Incentivizing" Thinking with Images" via Reinforcement Learning. arXiv preprint arXiv:2505.14362 (2025). [49] Zetong Zhou, Dongping Chen, Zixian Ma, Zhihan Hu, Mingyang Fu, Sinan Wang, Yao Wan, Zhou Zhao, and Ranjay Krishna. 2025. Reinforced visual perception with tools. arXiv preprint arXiv:2509.01656 (2025). [50] Zhi Zhou, Kun-Yang Yu, Shi-Yu Tian, Xiao-Wen Yang, Jiang-Xin Shi, Pengxiao Song, Yi-Xuan Jin, Lan-Zhe Guo, and Yu-Feng Li. 2025. LawGPT: Knowledge-guided data generation and its application to legal LLM. arXiv preprint arXiv:2502.06572 (2025). [51] Jinguo Zhu, Weiyun Wang, Zhe Chen, Zhaoyang Liu, Shenglong Ye, Lixin Gu, Hao Tian, Yuchen Duan, Weijie Su, Jie Shao, et al . 2025. Internvl3: Exploring advanced training and test-time recipes for open-source multimodal models. 
+
+arXiv preprint arXiv:2504.10479 (2025). 10 LAST: Leveraging Tools as Hints to Enhance Spatial Reasoning for Multimodal Large Language Models 
+
+## A LAST-Box Details A.1 Spatial Perception Skills 
+
+We provide a suite of atomic spatial perception tools integrated into our sandbox. Each tool exposes a standardized interface with explicit inputs and outputs, enabling seamless composition into higher-level spatial reasoning skills. 
+
+(1) EstimateDepth .
+
+Description: Runs Depth-Anything v2 to obtain a dense depth matrix and computes the average depth for spec-ified objects. Produces both a depth visualiza-tion and numerical depth measurements. 
+
+Inputs: • img_path (str ): Path to the input image. 
+
+• text_labels (list[str] , optional): Object queries for depth aggregation, e.g., ["a person", "a frisbee"] .
+
+Outputs: • An image file path containing the depth vi-sualization. 
+
+• A textual description reporting the average depth for each detected object (if text_labels 
+
+is provided). 
+
+Example: EstimateDepth(img_path="image-0") EstimateDepth(img_path="image-0", text_labels=["a person", "a frisbee"]) 
+
+(2) EstimateSize .
+
+Description: Performs open-vocabulary object detection us-ing GroundingDINO and segments detected ob-jects with SAM2. Produces dense masks and centroid coordinates for object size estimation. 
+
+Inputs: • img_path (str ): Path to the input image. 
+
+• text_labels (list[str] ): Object queries to detect and segment. 
+
+• threshold (float , optional): Detection score threshold (default: 0.1). 
+
+Outputs: • An image file path visualizing segmentation masks. 
+
+• A textual description containing centroid coordinates for each detected object. 
+
+Example: EstimateSize(img_path="image-0", text_labels=["lamp"]) EstimateSize(img_path="image-0", text_labels=["a person"], threshold=0.1) 
+
+(3) SegmentObjects .
+
+Description: Detects and segments objects via GroundingDINO and SAM2 to support spatial relationship anal-ysis. 
+
+Inputs: • img_path (str ): Path to the input image. 
+
+• text_labels (list[str] ): Object queries to detect and segment. 
+
+• threshold (float , optional): Detection score threshold (default: 0.1). 
+
+Outputs: • An image file path showing segmentation results with bounding boxes. 
+
+• A textual description reporting centroid co-ordinates of detected objects. 
+
+Example: SegmentObjects(img_path="image-0", text_labels=["a person", "a frisbee"]) 
+
+(4) CountObjects .
+
+Description: Uses open-vocabulary detection with Ground-ingDINO to count multiple instances of queried objects and report their spatial locations. 
+
+Inputs: • img_path (str ): Path to the input image. 
+
+• text_labels (list[str] ): Object categories to detect and count. 
+
+• threshold (float , optional): Detection score threshold (default: 0.1). 
+
+Outputs: • An image file path with bounding boxes for all detected instances. 
+
+• A textual description reporting the count and centroid coordinates for each object type. 
+
+Example: CountObjects(img_path="image-0", text_labels=["table"]) 
+
+(5) ZoomCrop .
+
+Description: Crops and optionally zooms into a region of interest (ROI) specified by a bounding box or by center and size. 
+
+Inputs: • img_path (str ): Path to the input image. 
+
+• box (list[float] , optional): Bounding box 
+
+[x1, y1, x2, y2] in pixels. 
+
+• center (list[float] , optional): ROI cen-ter [cx, cy] in pixels. 
+
+• zoom_factor (float , optional): Zoom fac-tor (default: 1.0). 
+
+Outputs: • An image file path of the cropped region. 
+
+• A textual description containing crop meta-data. 
+
+Example: ZoomCrop(img_path="image-0", box=[100, 200, 300, 400]) 
+
+(6) Get3DPoint .
+
+Description: Combines GroundingDINO for object detection with VGGT (Visual Geometry Grounded Trans-former) to estimate the 3D coordinates of ob-jects relative to the camera coordinate system. 
+
+Inputs: • img_path (str ): Path to the input image. 
+
+• text_labels (list[str] ): Object queries to locate in 3D space. 
+
+Outputs: • An image file path showing 3D visualiza-tion. 
+
+• A textual description reporting [X, Y, Z] 
+
+coordinates. 
+
+Example: Get3DPoint(img_path="image-0", text_labels=["cup"]) 
+
+> 11 Tian et al.
+
+## B Dataset Details B.1 Evaluation Datasets 
+
+CVBench [ 33 ] is a vision-centric benchmark introduced in the Cambrian-1 study. It provides a comprehensive evaluation of Mul-timodal LLMs across diverse visual tasks, specifically assessing fundamental 2D visual recognition and 3D spatial perception capa-bilities to ensure robust visual grounding. 
+
+EmbSpatial [8 ] (EmbSpatial-Bench) focuses on spatial understand-ing within embodied AI scenarios. Unlike general visual bench-marks, it evaluates the model’s ability to interpret spatial relation-ships and constraints from an egocentric perspective in 3D environ-ments, which is critical for embodied agents. 
+
+SPBench-SI [ 18 ] is a subset of the Spatial Ladder evaluation frame-work designed for single-image spatial reasoning. It assesses the model’s proficiency in tasks such as object localization, relative dis-tance estimation, and spatial relation understanding within static 2D images, serving as a foundational test for spatial intelligence. 
+
+MSMU [ 4] (Massive Spatial Measuring and Understanding) is a large-scale dataset specifically curated for quantitative spatial per-ception. Distinct from qualitative VQA tasks, MSMU requires the model to output precise metric values (e.g., physical dimensions or absolute distances), thereby rigorously testing the model’s capabil-ity in numerical spatial reasoning. 
+
+## C Prompts 
+
+> 12 LAST: Leveraging Tools as Hints to Enhance Spatial Reasoning for Multimodal Large Language Models
+
+System Prompt for Tool-Integrated Spatial Reasoning 
+
+Role & Goal: 
+
+You are a helpful assistant specialized in spatial reasoning tasks . Your goal is to solve spatial reasoning problems by analyzing images and using available tools. Each tool processes the image and returns an augmented view or numerical data to assist your reasoning. 
+
+Available Tools: 
+
+• EstimateDepth(img_path, text_labels) : Estimate depth information for objects. Returns a depth map and average depth values. 
+
+• EstimateSize(img_path, text_labels) : Estimate the size of objects by generating segmentation masks. Returns a mask image and centroid coordinates. 
+
+• SegmentObjects(img_path, text_labels) : Segment objects to obtain their masks and boundaries. Returns a segmentation image with bounding boxes. 
+
+• CountObjects(img_path, text_labels) : Detect and count multiple instances of specified objects. Returns a bounding box image and count statistics. 
+
+• ZoomCrop(img_path, box) : Crop and zoom into a specific region of interest defined by a bounding box. Returns the cropped image. 
+
+• Get3DPoint(img_path, text_labels) : Estimate the 3D coordinates [X, Y, Z] of objects relative to the camera. Returns a 3D visualization and coordinates. 
+
+Format Requirements: 
+
+Please carefully analyze the given image and question, then use the appropriate tools to solve the spatial reasoning problem step by step. 
+
+• Your thinking process should be wrapped in <analy></analy> tags. 
+
+• Tool calls should be wrapped in <action></action> tags. 
+
+• Your final answer should be wrapped in <ans></ans> tags. 
+
+Figure 6: The system prompt designed to guide the model in selecting and executing visual tools.

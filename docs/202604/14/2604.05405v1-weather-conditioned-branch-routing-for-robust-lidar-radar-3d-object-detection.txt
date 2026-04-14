@@ -1,0 +1,555 @@
+Title: Weather-Conditioned Branch Routing for Robust LiDAR-Radar 3D Object Detection
+
+URL Source: https://arxiv.org/pdf/2604.05405v1
+
+Published Time: Wed, 08 Apr 2026 00:40:18 GMT
+
+Number of Pages: 11
+
+Markdown Content:
+# Weather-Conditioned Branch Routing for Robust LiDAR-Radar 3D Object Detection 
+
+# Hongsheng Li ∗
+
+Shenzhen International Graduate School, Tsinghua University Shenzhen, Guangdong, China lihs25@mails.tsinghua.edu.cn 
+
+# Lingfeng Zhang ∗
+
+Shenzhen International Graduate School, Tsinghua University Shenzhen, Guangdong, China lfzhang715@gmail.com 
+
+# Zexian Yang 
+
+College of Computer and Data Science, Fuzhou University Fuzhou, Fujian, China yangzexian@fzu.edu.cn 
+
+# Liang Li 
+
+Institute of Information Engineering, CAS Beijing, China liliang@iie.ac.cn 
+
+# Rong Yin 
+
+Institute of Information Engineering, CAS Beijing, China yinrong@iie.ac.cn 
+
+# Xiaoshuai Hao †‡ 
+
+Xiaomi EV Beijing, China haoxiaoshuai@xiaomi.com 
+
+# Wenbo Ding †
+
+Shenzhen International Graduate School, Tsinghua University Shenzhen, Guangdong, China ding.wenbo@tsinghua.edu.cn Existing LiDAR -4D Radar Fusion Methods 
+
+> Detection
+> LiDAR
+> 4D Radar
+> No explicit branch -level representation selection
+
+Weather -Conditioned Branch Routing (Ours) Why insufficient?          
+
+> Fusion -preferred
+> Lidar -dominant
+> 4D Radar -enhanced
+> Different conditions need
+> different representation
+> A (weather)
+> driving scene on
+> (environment)
+> at (time of date)
+> time
+> Weather -
+> Conditioned
+> Branch
+> Router
+> Weighted
+> Branch
+> Aggregation
+> 𝑤 !
+> 𝑤 "
+> 𝑤 #
+> Robust
+> 3D
+> Detection
+> HEAVY
+> SNOW
+> RAIN NORMAL
+> 𝑤 "
+> 𝑤 "𝑤 "
+> 𝑤 !𝑤 !𝑤 !
+> 𝑤 #𝑤 #
+> 𝑤 #
+> Explicit, interpretable, condition -aware representation
+> Only one shared
+> fused representation
+> Adaptive branch weights
+> under different conditions
+
+Fusion Camera 
+
+> Lidar
+> Radar
+
+Figure 1: Comparison between existing LiDAR-4D radar fusion methods and our proposed approach. Existing methods rely on a single, fixed fused representation, which struggles to adapt to changing environments. In contrast, our weather-conditioned branch routing explicitly maintains multiple representation branches and dynamically assigns adaptive weights based on the current weather condition. 
+
+## Abstract 
+
+Robust 3D object detection in adverse weather is highly challenging due to the varying reliability of different sensors. While existing 
+
+> ∗
+
+Both authors contributed equally to this research. 
+
+> †
+
+Corresponding Authors. 
+
+> ‡
+
+Project Leader. 
+
+LiDAR-4D radar fusion methods improve robustness, they predom-inantly rely on fixed or weakly adaptive pipelines, failing to dy-namically adjust modality preferences as environmental conditions change. To bridge this gap, we reformulate multi-modal perception as a weather-conditioned branch routing problem. Instead of com-puting a single fused output, our framework explicitly maintains three parallel 3D feature streams: a pure LiDAR branch, a pure 4D radar branch, and a condition-gated fusion branch. Guided by  
+
+> arXiv:2604.05405v1 [cs.CV] 7 Apr 2026 Conference acronym ’XX, June 03–05, 2018, Woodstock, NY Trovato et al.
+
+a condition token extracted from visual and semantic prompts, a lightweight router dynamically predicts sample-specific weights to softly aggregate these representations. Furthermore, to prevent branch collapse, we introduce a weather-supervised learning strat-egy with auxiliary classification and diversity regularization to enforce distinct, condition-dependent routing behaviors. Exten-sive experiments on the K-Radar benchmark demonstrate that our method achieves state-of-the-art performance. Furthermore, it pro-vides explicit and highly interpretable insights into modality pref-erences, transparently revealing how adaptive routing robustly shifts reliance between LiDAR and 4D radar across diverse adverse-weather scenarios. The source code with be released. 
+
+## CCS Concepts 
+
+• Computing methodologies → Vision for robotics ; Scene un-derstanding ; Shape representations. 
+
+## Keywords 
+
+3D Object Detection, LiDAR-4D radar Fusion, Robust Perception 
+
+## 1 Introduction 
+
+Multi-sensor perception is essential for reliable autonomous driving, especially in adverse weather where the strengths and weaknesses of different sensors become more pronounced.[ 2, 13 , 15 , 17 , 20 ,21 , 27 , 40 , 43 , 44 , 55 , 61 – 63 , 65 , 66 , 68 , 72 ]. LiDAR provides accu-rate geometric structure but may degrade under severe weather, while radar is generally more robust yet less spatially precise. This complementarity has motivated a growing body of LiDAR-radar fusion methods, many of which have achieved strong and even state-of-the-art performance on challenging benchmarks such as K-Radar[4, 6, 8, 9, 16, 25, 30, 34, 36, 46, 52, 64, 67, 69–71, 74]. Despite their effectiveness, most existing methods are still built upon fixed or unified fusion pipelines, where sensor interaction is largely determined by the architecture itself[ 1 , 35 , 73 ]. Such de-signs are powerful, but they do not explicitly address an important property of adverse-weather perception: the most reliable repre-sentation may vary with the weather condition. In some scenarios, LiDAR-dominant geometry may remain the most informative sig-nal, while in others radar cues or a stronger fused representation may be more favorable. This observation suggests that adverse-weather fusion should be formulated not only as feature fusion, but also as conditional representation selection. Moreover, when the fusion behavior is fully implicit, it becomes difficult to interpret why a model succeeds or fails under particular weather regimes.For safety-critical deployment, this lack of interpretability can be as limiting as raw accuracy. In this work, we revisit LiDAR-radar fusion from this perspective and formulate it as a weather-conditioned branch routing prob-lem. Instead of relying on a single fixed fusion path, we explicitly maintain three candidate representations: a LiDAR-only branch, a Radar-only branch, and a fused LiDAR-radar branch. A condition-aware router then predicts adaptive weights over these branches according to the current scene context. Importantly, weather infor-mation is not used as a hard rule for branch assignment. Instead, it is encoded into a learned condition token, which guides rout-ing in a data-driven manner. This design yields a routing-based fusion framework that is conceptually different from conventional fixed-fusion methods[ 1, 33 , 35 ] and complementary to more heavily redesigned unified-fusion architectures[ 5, 60 , 73 ]. By decoupling candidate representations from the routing decision, the framework provides both flexibility and transparency: it can adapt branch pref-erence online while preserving analyzable branch semantics. A practical challenge of this formulation is optimization. In our preliminary observations, naïvely training the router often leads to branch collapse, where the model quickly over-relies on a dominant fused branch and fails to learn meaningful weather-dependent pref-erences. To address this issue, we introduce a weather-supervised routing learning scheme. Specifically, we couple the routing process with an auxiliary weather classification objective, which encourages the condition token to preserve discriminative weather information, and a weather diversity regularization term, which promotes dis-tinguishable branch preference patterns across weather conditions. Together, these objectives improve the learnability and discrim-inability of weather-conditioned routing. We evaluate the proposed framework on the K-Radar dataset[ 36 ]. Experimental results show that our method achieves competitive performance against strong LiDAR-4D radar baselines and demon-strates state-of-the-art-level effectiveness within the branch-routing formulation. More importantly, beyond accuracy alone, our frame-work provides interpretable weather-aware branch preference pat-terns, enabling a clearer analysis of how modality reliance changes across adverse-weather conditions. We believe this explicit routing perspective offers a valuable and practical alternative to fixed fusion pipelines for robust multi-sensor 3D perception. Our main contributions are as follows: 
+
+• We propose a weather-conditioned branch routing frame-work for LiDAR-radar 3D object detection, which reformu-lates adverse-weather fusion as adaptive weighting over LiDAR-only, Radar-only, and fused feature branches. 
+
+• We introduce a weather-supervised routing learning strategy with auxiliary weather classification and weather diversity regularization to improve routing discriminability and ro-bustness under adverse-weather conditions. 
+
+• We conduct extensive experiments and analysis on K-Radar, showing that the proposed method achieves competitive performance with strong baselines while providing inter-pretable weather-aware branch preference behaviors. 
+
+## 2 Related works 
+
+Multi-modal 3D object detection. Multi-modal 3D object detec-tion has been widely studied to improve perception robustness by combining complementary sensing modalities such as cameras, Li-DAR, and radar[ 12 , 14 , 18 , 19 , 21 – 23 , 31 , 33 , 41 , 45 ]. Earlier studies mainly focused on LiDAR–camera fusion, and explored point-level, voxel-/pseudo-image-level, and BEV-level interaction strategies to enhance geometric and semantic representation[ 31 , 41 , 45 , 51 , 54 ,58 ]. More recently, radar has been introduced as an additional sensing modality because of its robustness to adverse weather and long-range measurement capability[ 36 , 47 , 51 , 53 ]. Existing radar-related methods typically perform fusion through early fu-sion, feature concatenation, cross-attention, or gated interaction modules[ 32 , 42 , 46 , 49 ], and have shown clear advantages over Weather-Conditioned Branch Routing for Robust LiDAR-Radar 3D Object Detection Conference acronym ’XX, June 03–05, 2018, Woodstock, NY Condition Prompt 
+
+LiDAR   
+
+> e.g. A heavy snow
+> driving scene on ur -
+> ban roads at daytime
+
+Image 
+
+4D Radar 
+
+> Text
+> Encoder
+> Image
+> Encoder
+> LiDAR
+> Encoder
+> Radar
+> Encoder
+> Text
+> Tokens
+> Image
+> Tokens
+> LiDAR
+> Tokens
+> Radar
+> Tokens
+> Conditional MLP
+> Conditional
+> Token
+
++ LiDAR features 
+
+> LiDAR -4D Radar
+> Fusion
+> Branch Router
+> MLP
+> Softmax  𝑤 𝐿
+> 𝑤 𝐹
+> 𝑤 𝑅
+
++ 
+
+> ×
+> 𝑤 𝐿
+> ×
+> ×
+> 𝑤 𝐹
+> 𝑤 𝑅
+> 3D
+> Detection
+> Head
+> Weather
+> Classifier
+> Auxiliary
+> Loss
+> Parallel, training -only
+
+# …           
+
+> LFR
+> NORMAL
+> LFR
+> RAIN
+> LFR
+> HEAVYSNOW
+> Grouped by Weather Label
+> Weather Diversity Loss
+> Weather Labels
+> Radar features
+> e.g. Aheavy snow
+> driving scene on ur -
+> ban roads at daytime
+> Final Output
+
+Figure 2: Framework overview of the proposed weather-conditioned branch routing method. The model takes LiDAR, 4D radar, and camera images as inputs. First, a condition token is generated by fusing visual features and semantic text prompts, which is further refined by sensor context. Next, LiDAR and radar features are processed through three parallel streams: a LiDAR-only branch, a radar-only branch, and a condition-gated fusion branch. A branch router then utilizes the condition token to predict adaptive weights ( 𝑤 𝐿 , 𝑤 𝐹 , 𝑤 𝑅 ). These weights softly aggregate the branch-wise BEV features for the final 3D detection head. During training, auxiliary weather classification and diversity losses are applied to ensure meaningful routing behavior. 
+
+single-modality detectors in challenging environments. With the emergence of 4D radar, recent work further extends multi-modal detection from conventional radar–camera settings to LiDAR–4D radar fusion[ 4, 36 , 37 , 46 ], demonstrating that richer elevation and Doppler cues can provide additional benefits for 3D object detection. Nevertheless, most current multi-modal detectors still emphasize how to design a stronger unified fusion backbone, while less at-tention has been paid to explicitly modeling condition-dependent preference over different modality-specific or fused representations. 
+
+Adverse-Weather 3D Object Detection. Robust 3D object detection under adverse weather has attracted increasing attention because sensor quality can change significantly across rain, snow, fog, and other challenging conditions[ 2, 24 , 38 , 43 ]. Existing efforts mainly improve robustness from the perspective of single-modality enhancement, such as adverse-weather simulation[ 11 , 26 ], LiDAR denoising[ 4 ], domain adaptation[ 7 , 48 , 50 , 57 , 59 ], and knowledge distillation[ 3, 24 ], with the goal of alleviating the degradation of LiDAR point clouds in corrupted environments. These methods improve detector generalization to some extent, but they still rely primarily on a single sensing stream and therefore remain limited when the dominant informative modality changes across weather conditions. Recent studies [ 4, 25 ]further emphasize that adverse-weather perception should account for the fact that different sensors exhibit different reliability under different weather, motivating the use of condition-aware mechanisms rather than treating all scenes with a fixed representation strategy. This observation suggests that robust 3D detection in adverse weather should not only enhance features under corruption, but also explicitly adapt representation preference according to the environmental condition. 
+
+LiDAR–4D Radar Fusion for Robust 3D Detection. LiDAR–r-adar fusion has become an important direction for robust 3D percep-tion because LiDAR provides accurate geometric structure while 4D radar offers stronger weather robustness, velocity cues, and longer sensing range[ 28 , 36 , 56 ]. Prior fusion methods, including InterFusion[ 46 ], 3D-LRF[ 4], and L4DR[ 25 ], have shown that com-bining LiDAR and 4D radar can outperform single-modality detec-tors, especially under adverse weather. However, most existing ap-proaches are still based on fixed or weakly adaptive fusion pipelines, where modality interaction is predefined by early fusion, feature-level fusion, attention, or gated enhancement modules. Although some methods introduce weather-aware gating or adaptive feature filtering, their adaptivity mainly operates within a unified fusion backbone and still aims to learn a single fused representation. In contrast, they do not explicitly model the possibility that different weather conditions may favor different representation branches, such as LiDAR-dominant, radar-dominant, or fused features. There-fore, existing LiDAR–4D radar fusion methods leave open an im-portant question: how to explicitly perform weather-conditioned representation selection, rather than only weather-conditioned fea-ture modulation, for robust multi-modal 3D object detection. Conference acronym ’XX, June 03–05, 2018, Woodstock, NY Trovato et al. 
+
+## 3 Methods 3.1 Framework Overview 
+
+The overall scheme of our framework is shown in Fig. 2. Our frame-work takes a LiDAR point cloud, a 4D radar sparse cube, and a front-view camera image as input. Specifically, the LiDAR point cloud is P𝐿 ∈ R𝑁 𝐿 ×4, the 4D radar sparse cube is P𝑅 ∈ R𝑁 𝑅 ×4,and the camera image is I ∈ R𝐻 ×𝑊 ×3, where 𝑁 𝐿 and 𝑁 𝑅 are the numbers of LiDAR and radar voxel points, and 𝐻 , 𝑊 are the image height and width, respectively. The camera image is first encoded by a lightweight 2D convolutional network pre-trained for weather classification, producing a visual condition token c𝑣 ∈ R512 . This token is fused with a semantically grounded weather prompt token 
+
+c𝑝 ∈ R512 from a frozen CLIP [ 39 ] text encoder, and further refined by a sensor-aware mixing MLP that incorporates pooled radar and LiDAR context, yielding the final condition token ˆc ∈ R512 .
+
+P𝐿 and P𝑅 are each mapped through an input layer to higher-dimensional voxel features L0 ∈ R𝑁 𝐿 ×𝐶 0 and R0 ∈ R𝑁 𝑅 ×𝐶 0 , and subsequently fed into three parallel three-layer sparse 3D convo-lution networks. At each layer 𝑙 ∈ { 1, 2, 3}, the LiDAR-only branch 
+
+extracts voxel features L𝑙 ∈ R𝑁 𝑙 ×𝐶 𝑙 , the Radar-only branch extracts 
+
+R𝑙 ∈ R𝑀 𝑙 ×𝐶 𝑙 , and the fusion branch produces F𝑙 ∈ R𝑁 𝑙 ×𝐶 𝑙 by aug-menting the LiDAR features with condition-gated KNN attention over radar neighbors (see Sec. 3.3). Each branch independently col-lapses its 3D voxel features to a BEV feature map via sparse 𝑧 -axis convolution and transposed convolution upsampling, and the per-layer BEV features are concatenated across all three layers to pro-duce branch-wise BEV representations ˜F𝐿 , ˜F𝑅 , ˜F𝐹 ∈ R𝐵 ×768 ×32 ×180 .A weather-conditioned branch router predicts a soft routing weight vector w = [𝑤 𝐿 , 𝑤 𝑅 , 𝑤 𝐹 ] from ˆc via a two-layer MLP, and as-sembles the final BEV feature ˜F ∈ R𝐵 ×1536 ×32 ×180 as a weighted combination of the three branches (see Sec. 3.3). ˜F is then passed to an anchor-based detection head to produce the final 3D bounding box predictions. 
+
+## 3.2 Weather-Conditioned Representation Modeling 
+
+The goal of this module is to construct a compact scene-level con-dition token ˆc ∈ R512 that captures the current weather state and guides downstream branch routing. The module combines two complementary sources of weather information. 
+
+Visual condition token. The front-view camera image I ∈
+
+R3×𝐻 ×𝑊 is passed through a lightweight three-layer 2D convolu-tional backbone pre-trained for weather classification. The back-bone progressively downsamples the image with stride-4 convolu-tions, producing a spatial feature map of shape R64 ×11 ×20 , which is then globally average-pooled and projected to obtain the visual condition token c𝑣 ∈ R512 .
+
+Semantic weather token. In parallel, we employ a frozen CLIP text encoder [ 39 ] to provide semantic weather priors. A set of seven weather-class text prompts of the form “A {weather} driving scene” (covering normal, overcast, fog, rain, sleet, light snow, and heavy snow) are encoded offline into a weather vocabulary matrix 
+
+W ∈ R7×512 , which is stored as a fixed buffer. At runtime, the per-sample scene description prompt is encoded by the same text encoder into a normalized prompt embedding p ∈ R512 , and its soft alignment to each weather class is computed as: 
+
+𝜶 = softmax (p W ⊤) ∈ R7, (1) yielding a soft weather probability vector 𝜶 . The semantic weather token is then obtained as the attention-weighted sum over the vocabulary, c𝑝 = Proj (𝜶 W) ∈ R512 , where Proj is a linear projec-tion followed by layer normalization and ReLU. This design en-codes weather information as a continuous distribution over known weather classes rather than a hard label, allowing the model to han-dle ambiguous or transitional weather conditions in a data-driven manner. 
+
+Sensor-aware condition token refinement. The visual and semantic tokens are averaged to form an initial condition token 
+
+c = 12 (c𝑣 + c𝑝 ) ∈ R512 . To further ground this token in the actual sensor observations of the current scene, we extract lightweight sensor context tokens by applying global average pooling over the initial sparse voxel features of each modality after the input layer, and project them to the same dimension via a shared linear layer: 
+
+t𝑅 , t𝐿 ∈ R512 . These are concatenated with the condition token and fed into a sensor-aware mixing MLP: 
+
+Δc = MLP ([ c ∥ t𝑅 ∥ t𝐿 ]) ∈ R512 , (2) where ∥ · ∥ denotes concatenation and the MLP consists of two linear layers with a hidden dimension of 1024. The final condition token is obtained via a residual connection and layer normalization, 
+
+ˆc = LN (c + Δc) ∈ R512 , and is used as the shared input to both the branch router and the per-layer condition-gated fusion in the multi-branch backbone. 
+
+## 3.3 Branch Routing over Multi-Branch Features 
+
+This module constructs three parallel sparse 3D feature streams from the radar and LiDAR inputs, and uses the condition token ˆc to predict per-sample routing weights that adaptively combine them. 
+
+Three parallel sparse 3D encoding streams. Both LiDAR and radar voxel features are processed through three-layer sparse 3D convolutional encoders[ 10 ], where each layer 𝑙 ∈ { 1, 2, 3} con-sists of a strided SparseConv3d for downsampling followed by two SubMConv3d residual blocks, producing feature channels 𝐶 𝑙 ∈{64 , 128 , 256 }. We maintain three independent streams throughout the encoder: a LiDAR-only branch that processes LiDAR features 
+
+L𝑙 ∈ R𝑁 𝑙 ×𝐶 𝑙 without any radar interaction; a Radar-only branch that processes radar features R𝑙 ∈ R𝑀 𝑙 ×𝐶 𝑙 independently; and a fusion branch that starts from the same LiDAR features as the LiDAR-only branch but receives radar-to-LiDAR cross-modal augmentation at every layer, yielding fused features F𝑙 ∈ R𝑁 𝑙 ×𝐶 𝑙 . The LiDAR-only and fusion branches share the same convolutional weights, so the only structural difference between them is the radar augmentation applied within the fusion branch. 
+
+Condition-gated KNN fusion. At each layer 𝑙 of the fusion branch, we augment each LiDAR voxel feature using its spatially neighboring radar voxels. For each LiDAR voxel 𝑖 with feature 
+
+q𝑖 = L𝑙 𝑖 ∈ R𝐶 𝑙 , we retrieve its 𝐾 𝑙 = ⌊64 /2𝑙 −1⌋ nearest radar voxels in 3D voxel index space and collect their features as keys K𝑖 ∈ R𝐾 𝑙 ×𝐶 𝑙 .A dot-product attention aggregates the radar context: 
+
+¯a𝑖 = softmax  q𝑖 K⊤
+
+> 𝑖
+
+ V𝑖 , V𝑖 = Linear (K𝑖 ), (3) Weather-Conditioned Branch Routing for Robust LiDAR-Radar 3D Object Detection Conference acronym ’XX, June 03–05, 2018, Woodstock, NY 
+
+where V𝑖 ∈ R𝐾 𝑙 ×𝐶 𝑙 is a linear projection of the keys. The aggregated feature ¯a𝑖 is then modulated by a condition gate derived from ˆc.Specifically, the condition token is projected to R𝐶 𝑙 via a layer-specific linear layer and concatenated with each radar key, yielding gate logits that are globally average-pooled and passed through a sigmoid activation: 
+
+g𝑖 = 𝜎 
+
+
+
+GAP 
+
+
+
+Linear ([ K𝑖 ∥ ˆc𝑙 ]) 
+
+ 
+
+∈ R𝐶 𝑙 , (4) where ˆc𝑙 is the layer-wise projected condition token. The final fused feature at voxel 𝑖 is: 
+
+F𝑙 𝑖 = (¯a𝑖 ⊙ g𝑖 ) + q𝑖 , (5) where ⊙ denotes element-wise multiplication and the q𝑖 term forms a residual connection that preserves the original LiDAR geometry. This gating mechanism allows the condition token to modulate how much radar information is absorbed at each layer, depending on the current weather context. 
+
+BEV feature construction. After all three encoding layers, the 3D sparse features of each branch are collapsed along the 𝑧 -axis via a full-kernel SparseConv3d and projected to the BEV plane via transposed convolution upsampling. Per-layer BEV maps from all three layers are concatenated along the channel dimension, pro-ducing branch-wise BEV feature maps ˜F𝐿 , ˜F𝑅 , ˜F𝐹 ∈ R𝐵 ×768 ×32 ×180 .
+
+Weather-conditioned branch router. A two-layer MLP maps the condition token ˆc to a three-dimensional routing logit vector, which is normalized via softmax to obtain branch weights: 
+
+w = [𝑤 𝐿 , 𝑤 𝑅 , 𝑤 𝐹 ] = softmax (MLP (ˆc)) . (6) To prevent branch collapse during early training, we apply a weight floor 𝜀 = 0.1 that guarantees a minimum contribution from each branch: 
+
+𝑤 𝑖 ← (1 − 3𝜀 ) 𝑤 𝑖 + 𝜀, ∀ 𝑖 ∈ { 𝐿, 𝑅, 𝐹 }. (7) The router is initialized with zero weights so that all three branches start with equal contribution 𝑤 𝐿 = 𝑤 𝑅 = 𝑤 𝐹 = 1/3, and the weights diverge as training progresses and the condition token acquires discriminative weather information. 
+
+Soft branch aggregation. The final BEV feature is assembled from the three branch-wise maps via a structured soft weighting that preserves the physical semantics of each branch: 
+
+˜F =  (𝑤 𝑅 + 𝑤 𝐹 ) ˜F𝑅 𝑤 𝐿 ˜F𝐿 + 𝑤 𝐹 ˜F𝐹 
+
+, (8) where ∥ · ∥ denotes channel-wise concatenation. The design re-flects the underlying hard-selection logic of the three branches: when 𝑤 𝐿 → 1, the radar-side channel vanishes and only pure Li-DAR features are retained; when 𝑤 𝑅 → 1, the lidar-side channel vanishes and only radar features are active; when 𝑤 𝐹 → 1, the radar-augmented fusion features dominate. Soft weighting thus enables a smooth, differentiable interpolation across these three representational preferences as a function of the weather condition. 
+
+˜F ∈ R𝐵 ×1536 ×32 ×180 is then passed to the detection head for final 3D object prediction. 
+
+## 3.4 Training Objectives 
+
+Training the proposed framework involves four objectives that to-gether encourage both accurate detection and meaningful weather-dependent routing behavior. 
+
+Detection loss. The primary objective is the standard anchor-based detection loss Ldet , consisting of a focal classification loss over foreground and background anchors and a smooth-ℓ1 regres-sion loss over the eight-dimensional box parameters (𝑥, 𝑦, 𝑧, 𝑤, 𝑙, ℎ, 
+
+sin 𝜃, cos 𝜃 ) for matched positive anchors. 
+
+Weather auxiliary classification loss. A key challenge in routing-based fusion is that the condition token ˆc may not sponta-neously retain discriminative weather information when trained with the detection loss alone. To address this, we attach a light-weight auxiliary head—a two-layer MLP mapping ˆc ∈ R512 to 𝐾 =7
+
+weather class logits—and supervise it with a class-weighted cross-entropy loss using the ground-truth weather label 𝑦 ∈ { 0, . . . , 6}:
+
+Laux = −𝜌 𝑦 log 𝑒 𝑧 𝑦 
+
+Í𝑘 𝑒 𝑧 𝑘 , (9) where 𝑧 𝑘 are the predicted logits and 𝜌 𝑘 is the class weight for weather condition 𝑘 . Since adverse weather conditions such as sleet, heavy snow, and fog are underrepresented in the dataset, we assign higher weights 𝜌 ∈ [ 1.0, 2.0] to these rare classes to prevent the token from collapsing toward the dominant normal/overcast distribution. This auxiliary objective ensures that ˆc preserves dis-criminative weather information and thus provides a meaningful basis for routing. 
+
+Weather diversity regularization. Even with a well-trained condition token, the branch router may learn to assign similar routing weights regardless of the weather category. To explicitly encourage weather-dependent routing patterns, we introduce a diversity regularization term Ldiv that operates on the routing weight vectors w ∈ R3 of all samples within a mini-batch. For each weather class 𝑘 present in the batch, we compute the mean routing vector 𝝁 𝑘 and penalize intra-class variance to promote consistent routing within the same condition: 
+
+Lintra = 1
+
+|K | ∑︁ 𝑘 ∈ K 
+
+1
+
+|B 𝑘 |∑︁ 𝑖 ∈ B 𝑘 
+
+∥w𝑖 − 𝝁 𝑘 ∥2, (10) where K is the set of unique weather classes in the batch and B𝑘 
+
+the corresponding sample indices. We further enforce inter-class separation by penalizing pairs of class centers that are too close in routing space via a hinge loss: 
+
+Linter = 1
+
+ | K | 
+
+> 2
+
+∑︁  
+
+> 𝑗 <𝑘
+
+max 
+
+
+
+0, 𝑚 − ∥ 𝝁 𝑗 − 𝝁 𝑘 ∥2
+
+
+
+, (11) where 𝑚 =0.12 is the margin. The combined diversity loss is Ldiv =
+
+Lintra + L inter .
+
+Branch entropy regularization. To prevent the router from collapsing to a near-deterministic single branch early in training, we introduce an entropy-based regularization term. The normalized routing entropy for a batch is defined as: 
+
+¯𝐻 = 1
+
+𝐵 
+
+> 𝐵
+
+∑︁ 
+
+> 𝑖 =1
+
+− Í𝑗 𝑤 𝑖 𝑗 log 𝑤 𝑖 𝑗 
+
+log 3 , (12) where log 3 normalizes the entropy to the range [0, 1]. We penalize configurations where the routing is overly concentrated (i.e., when 
+
+¯𝐻 falls below a target ratio 𝜏 ): 
+
+Lent = max (0, 𝜏 − ¯𝐻 ), (13) Conference acronym ’XX, June 03–05, 2018, Woodstock, NY Trovato et al. 
+
+with 𝜏 =0.78 , which corresponds to routing distributions that are moderately spread across the three branches rather than dominated by a single one. Together with the weight floor mechanism in Eq. (7) , this ensures that all branches remain active and meaningful throughout training. 
+
+Total loss and training strategy. The full training objective is: 
+
+L = Ldet + 𝜆 aux Laux + 𝜆 div Ldiv + 𝜆 ent Lent , (14) with 𝜆 aux = 0.1, 𝜆 div = 0.02 , and 𝜆 ent = 0.01 . Note that all weather labels are used only during training as supervisory signals for Laux 
+
+and Ldiv ; at inference, no weather label is required and routing is performed solely from the condition token. 
+
+## 4 Experiments 4.1 Experimental Setup 
+
+Dataset and Benchmark. We evaluate our method on the K-Radar dataset[ 36 ], following the same experimental protocol as 3D-LRF[ 4 ]for fair comparison. K-Radar is a large-scale autonomous driving benchmark that provides synchronized LiDAR, 4D radar, and cam-era data under diverse weather conditions, including normal, rain, fog, snow, sleet, and overcast scenes. Following prior work, we conduct evaluation on the Sedan category and adopt the official benchmark metrics, namely AP 3𝐷 and AP 𝐵𝐸𝑉 .
+
+Implementation Details All models are trained on the K-Radar dataset using the official train/test split. Input point clouds and radar sparse cubes are cropped to a driving-corridor ROI of 𝑥 ∈ [ 0, 72 ] m, 
+
+𝑦 ∈ [− 6.4, 6.4] m, 𝑧 ∈ [− 2, 6] m with a voxel grid size of 0.4 m. The backbone encodes features at three levels with channel dimensions 
+
+{64 , 128 , 256 }. Sedan anchors of size 4.2 × 2.1 × 2.0 m are placed at rotations {0, 𝜋 /2}, with positive/negative IoU thresholds of 0.5/0.2. The branch weight floor is set to 𝜀 = 0.1, the diversity margin to 
+
+𝑚 = 0.12 , and the entropy target to 𝜏 = 0.78 . The loss weights are 
+
+𝜆 aux = 0.1, 𝜆 div = 0.02 , and 𝜆 ent = 0.01 . The network is optimized with Adam ( 𝛽 1 = 0.9, 𝛽 2 = 0.999 , weight decay = 0.01 ) at an initial learning rate of 5 × 10 −4, decayed to 1 × 10 −4 via cosine annealing over 20 epochs with a batch size of 4. 
+
+## 4.2 Comparison with SOTA Methods 
+
+Compared with prior methods in Table 1, our approach establishes a new state of the art on K-Radar, with the most significant gains achieved over the previous strongest fusion baseline, 3D-LRF*[ 4]. While LiDAR-only, radar-only, and earlier fusion methods broadly demonstrate the advantage of multi-modal perception, the com-parison with 3D-LRF*[ 4] is the most critical since it represents the most competitive prior result. Specifically, under IoU = 0.3, our method achieves an improvement of +1.2 in AP BEV (from 80.0 to 81.2) and +6.4 in AP 3D (from 70.4 to 76.8). Under the more stringent IoU = 0.5 setting, the improvements become substantially larger, with AP BEV increasing by +7.4 (from 64.1 to 71.5) and AP 3D in-creasing by +13 .5 (from 30.0 to 43.5). Such results indicate that the proposed weather-conditioned branch routing is particularly effec-tive for precise 3D localization, where fixed fusion strategies tend to degrade more severely. Notably, the superiority of our method is also consistent across adverse-weather scenarios. Compared with 3D-LRF*[ 4], our method achieves clear gains in overcast conditions, improving AP 3D from 84.1 to 88.2 at IoU = 0.3 and from 40.0 to 63.3 at IoU = 0.5, while AP BEV increases from 89.0 to 92.5 and from 78.7 to 88.3, respectively. In foggy scenes, our method further improves AP BEV /AP 3D from 88.8/86.9 to 89.9/87.8 at IoU = 0.3, and more sub-stantially from 77.8/32.3 to 88.1/63.4 at IoU = 0.5. Similar trends are observed in snow conditions: under light snow, AP 3D is improved from 79.5 to 86.6 at IoU = 0.3 and from 52.8 to 66.8 at IoU = 0.5, while under heavy snow, AP BEV /AP 3D rises from 61.5/55.1 to 67.9/61.4 at IoU = 0.3 and from 45.7/24.5 to 57.2/33.7 at IoU = 0.5. Overall, these results suggest that explicitly modeling weather-dependent preference over LiDAR-only, radar-only, and fused representations is more effective than relying on a fixed fusion pathway, leading to stronger robustness and better generalization across diverse adverse-weather conditions. 
+
+## 4.3 Ablation Study 
+
+Effect of Each Component. Tab. 2 presents the ablation study of each component. First, removing branch routing and forcing the model to use only the fusion branch leads to a clear performance drop, reducing AP BEV /AP 3D at IoU = 0.5 from 71.5/43.5 to 54.8/22.0. This substantial degradation indicates that the main gain of our method does not come from simply introducing an additional fu-sion pathway, but from explicitly enabling weather-conditioned selection among LiDAR-only, radar-only, and fused representations. Second, removing the weather supervision terms ( 𝐿 aux and 𝐿 div )causes the performance to decrease to 70.7 AP BEV and 43.0 AP 3D at IoU = 0.5, and to 77.4/73.9 at IoU = 0.3, showing that weather-aware supervision helps the router learn more discriminative condition-dependent preferences. Third, removing only the diversity regular-ization results in a much larger drop, especially under the stricter IoU = 0.5 setting, where AP BEV and AP 3D fall to 64.8 and 30.2, respec-tively. This suggests that 𝐿 div plays a critical role in preventing the router from collapsing to similar branch preferences across weather conditions. The effect is particularly evident in adverse weather: for example, without branch routing, the AP 3D at IoU = 0.5 drops to 11.1 in fog and 5.3 in heavy snow, while removing 𝐿 div reduces the corresponding performance to 40.2 and 9.8, both far below the full model (63.4 and 33.7). Overall, these results verify that both the routing mechanism and the weather-aware learning objectives are necessary, and that the diversity regularization is especially important for achieving robust performance across challenging weather conditions. 
+
+Effect of Routing Module Design. We further compare differ-ent routing designs, including a Transformer-based router, a cross-attention router, and our MLP-based router. As shown in Tab. 3, the proposed MLP router achieves the best overall performance, reach-ing 71.5 AP BEV and 43.5 AP 3D at IoU@0.5, which is substantially higher than the Transformer-based design (48.17/27.31) and also better than the cross-attention variant. Specifically, compared with the Transformer router, the MLP design achieves an improvement of +23.3 AP BEV and +16.2 AP 3D on the full set. The advantage is even more evident in adverse weather conditions. In overcast scenes, the MLP router improves AP BEV /AP 3D from 30.83/7.40 to 88.3/63.3; in fog, it further increases the performance from 63.74/48.17 to 88.1/63.4. Similar gains are observed under snow conditions, where the MLP router achieves 83.0/66.8 in light snow and 57.2/33.7 in heavy snow, consistently outperforming both alternative designs. Weather-Conditioned Branch Routing for Robust LiDAR-Radar 3D Object Detection Conference acronym ’XX, June 03–05, 2018, Woodstock, NY 
+
+Table 1: Quantitative results of LiDAR and 4D radar-based 3D object detection methods on K-Radar dataset. We present the modality of each method (L: LiDAR, 4DR: 4D radar) and detailed performance for each weather condition. Best in bold with blue background (best), second in light blue background (second). * denotes our reproduced results. 
+
+Methods Modality IoU Metric Weather Condition Total Normal Overcast Fog Rain Sleet Lightsnow Heavysnow RTNH [36] 4DR 0.3 AP BEV 41.1 41.0 44.6 45.4 32.9 50.6 81.5 56.3 
+
+AP 3D 37.4 37.6 42.0 41.2 29.2 49.1 63.9 43.1 0.5 AP BEV 36.0 35.8 41.9 44.8 30.2 34.5 63.9 55.1 
+
+AP 3D 14.1 19.7 20.5 15.9 13.0 13.5 21.0 6.36 RTNH* [36] L0.3 AP BEV 76.5 76.5 88.2 86.3 77.3 55.3 81.1 59.5 
+
+AP 3D 72.7 73.1 76.5 84.8 64.5 53.4 80.3 52.9 0.5 AP BEV 66.3 65.4 87.4 83.8 73.7 48.8 78.5 48.1 
+
+AP 3D 37.8 39.8 46.3 59.8 28.2 31.4 50.7 24.6 PointPillars [29] L0.3 AP BEV 51.9 51.6 53.5 45.4 44.7 54.3 81.2 55.2 
+
+AP 3D 47.3 46.7 51.9 44.8 42.4 45.5 59.2 55.2 0.5 AP BEV 49.1 48.2 53.0 45.4 44.2 45.9 74.5 53.8 
+
+AP 3D 22.4 21.8 28.0 28.2 27.2 22.6 23.2 12.9 InterFusion [46] 4DR+L 0.3 AP BEV 57.5 57.2 60.8 81.2 52.8 27.5 72.6 57.2 
+
+AP 3D 53.0 51.1 58.1 80.9 40.4 23.0 71.0 55.2 0.5 AP BEV 52.9 50.0 59.0 80.3 50.0 22.7 72.2 53.3 
+
+AP 3D 17.5 15.3 20.5 47.6 12.9 9.33 56.8 25.7 3D-LRF* [4] 4DR+L 0.3 AP BEV 80.0 81.2 89.0 88.8 82.6 42.9 85.6 61.5 
+
+AP 3D 70.4 70.9 84.1 86.9 71.1 36.8 79.5 55.1 0.5 AP BEV 64.1 64.7 78.7 77.8 71.4 36.2 78.5 45.7 
+
+AP 3D 30.0 31.2 40.0 32.3 28.5 21.4 52.8 24.5 Ours 4DR+L 0.3 AP BEV 81.2 82.1 92.5 89.9 82.3 58.9 88.5 67.9 
+
+AP 3D 76.8 77.3 88.2 87.8 77.8 51.0 86.6 61.4 
+
+0.5 AP BEV 71.5 70.1 88.3 88.1 78.0 49.0 83.0 57.2 
+
+AP 3D 43.5 41.5 63.3 63.4 42.2 30.5 66.8 33.7 Table 2: Ablation study of the proposed method on K-Radar. Branch routing denotes the weather-conditioned multi-branch aggregation, 𝐿 aux is the auxiliary weather classification loss, and 𝐿 div is the weather diversity regularization. 
+
+Method Branch Routing 𝐿 aux 𝐿 div AP 0.5BEV AP 0.53D AP 0.3BEV AP 0.33D 
+
+w/o branch routing (force Fusion only) ✓ ✓ 54.8 22.0 78.6 68.8 w/o weather supervision ( 𝐿 aux , 𝐿 div ) ✓ 70.7 43.0 77.4 73.9 w/o 𝐿 div ✓ ✓ 64.8 30.2 78.3 72.9 Full model ✓ ✓ ✓ 71.5 43.5 81.2 76.8 
+
+Although the cross-attention router provides a stronger baseline than the Transformer router, it still remains inferior to the MLP design, suggesting that a lightweight and direct mapping from the weather-conditioned token to branch weights is more effective than more complicated token-interaction mechanisms. Overall, these re-sults show that MLP-based router offers a better trade-off between adaptivity, optimization stability, and detection performance. 
+
+Effect of Hyperparameters. We further conduct an ablation study to investigate the impact of key hyperparameters in our train-ing objectives: the auxiliary weather classification weight 𝜆 𝑎𝑢𝑥 , the Conference acronym ’XX, June 03–05, 2018, Woodstock, NY Trovato et al. 
+
+Table 3: Comparison of different routing designs on K-Radar. The MLP-based router (Ours) achieves the best overall performance and shows stronger robustness across adverse weather conditions. 
+
+Method All Overcast Fog Sleet Light Snow Heavy Snow BEV@0.5 3D@0.5 BEV@0.5 3D@0.5 BEV@0.5 3D@0.5 BEV@0.5 3D@0.5 BEV@0.5 3D@0.5 BEV@0.5 3D@0.5 Transformer router 48.17 27.31 30.83 7.40 63.74 48.17 40.77 27.66 65.72 43.69 53.30 35.33 Cross-attention router 56.8 33.9 41.2 18.6 71.5 53.8 44.8 28.7 71.4 49.6 54.9 28.1 MLP router (ours) 71.5 43.5 88.3 63.3 88.1 63.4 49.0 30.5 83.0 66.8 57.2 33.7 Table 4: Ablation study on key hyperparameters of the pro-posed method. We evaluate the impact of the auxiliary weather supervision weight ( 𝜆 aux ), diversity regularization weight ( 𝜆 div ), and entropy regularization weight ( 𝜆 ent ). Best results are highlighted in bold. 
+
+Hyperparameter Value AP 0.53D (%) AP 0.5BEV (%) 
+
+𝜆 aux 
+
+0.00 27.5 56.3 0.05 43.5 70.8 
+
+0.10 43.5 71.5 
+
+0.20 33.9 63.4 
+
+𝜆 div 
+
+0.00 30.2 64.8 0.01 37.9 68.7 
+
+0.02 43.5 71.5 
+
+0.05 41.5 70.1 
+
+𝜆 ent 
+
+0.000 35.9 63.6 0.005 42.6 70.8 
+
+0.010 43.5 71.5 
+
+0.020 42.1 70.4 
+
+weather diversity regularization weight 𝜆 𝑑𝑖𝑣 , and the branch en-tropy regularization weight 𝜆 𝑒𝑛𝑡 . As shown in Table 4, the model achieves its best performance with the default setting ( 𝜆 𝑎𝑢𝑥 = 0.10 ,
+
+𝜆 𝑑𝑖𝑣 = 0.02 , 𝜆 𝑒𝑛𝑡 = 0.010 ). Notably, the diversity weight 𝜆 𝑑𝑖𝑣 plays the most critical role. When 𝜆 𝑑𝑖𝑣 is set to 0.00, the performance suffers a drastic drop (from 43.5% to 30.2% in 𝐴𝑃 3𝐷 ), verifying that without explicit diversity penalties, the router fails to maintain dis-tinguishable branch preferences across different weather conditions and collapses into a degenerate state. Furthermore, the entropy reg-ularization 𝜆 𝑒𝑛𝑡 is shown to be necessary to prevent deterministic branch collapse during early training stages (yielding a drop to 35.9% 𝐴𝑃 3𝐷 when set to 0.000). However, an excessively large value (𝜆 𝑒𝑛𝑡 = 0.020 ) forces the routing distribution to be overly uniform, which hinders the model’s ability to adaptively select the dominant modality and thus degrades performance. Finally, varying the aux-iliary weather supervision weight 𝜆 𝑎𝑢𝑥 demonstrates that explicitly guiding the condition token provides a stable performance boost, with 𝜆 𝑎𝑢𝑥 = 0.10 striking the optimal balance between weather-aware representation learning and the primary detection task. 
+
+## 4.4 Qualitative Analysis 
+
+Fig. 3 visualizes the 3D detection results alongside the dynamic routing weights ( 𝑤 𝐿 , 𝑤 𝐹 , 𝑤 𝑅 ) under Normal, Rain, and Heavy Snow conditions, demonstrating our model’s interpretable modality pref-erence. In normal weather (top row), the router naturally favors HEAVYSNOW(%)     
+
+> 17.3 20.6
+> 62.1
+> SLEET(%)
+> 12.1
+> 22.2
+> 65.7
+> OVERCAST(%)
+> 33.6
+> 51.2
+> 14.3
+> NORMAL(%)
+> 𝑤 𝐿 𝑤 𝑅 𝑤 𝐹
+> 37.9
+> 49.5
+> 12.6
+> RAIN(%)
+> 𝑤 𝐿 𝑤 𝐹 𝑤 𝑅
+> 23.2
+> 60.7
+> 16.1
+> 𝑤 𝐿
+> 𝑤 𝐿
+> 𝑤 𝐿
+> 𝑤 𝐹
+> 𝑤 𝐹
+> 𝑤 𝐹
+> 𝑤 𝑅
+> 𝑤 𝑅
+> 𝑤 𝑅
+
+Figure 3: Qualitative results and interpretable routing behav-ior under diverse weather conditions. From top to bottom: Normal, Rain, Overcast, Sleet and Heavy Snow scenarios. For each scene, we visualize the camera view with 3D bounding box predictions (left), the adaptive branch weights 𝑤 𝐿 , 𝑤 𝐹 , 𝑤 𝑅 
+
+predicted by the weather-conditioned router (middle), and the corresponding radar and LiDAR BEV representations (right). 
+
+the accurate geometry of the pure LiDAR ( 𝑤 𝐿 = 37 .9% ) and fu-sion ( 𝑤 𝐹 = 49 .5% ) branches. However, as weather deteriorates and LiDAR signals suffer from scattering, the model adaptively shifts its reliance toward the more robust 4D radar. In rainy con-ditions (middle row), the fusion weight 𝑤 𝐹 increases to 60.7%. Un-der severe heavy snow (bottom row), where LiDAR point clouds Weather-Conditioned Branch Routing for Robust LiDAR-Radar 3D Object Detection Conference acronym ’XX, June 03–05, 2018, Woodstock, NY 
+
+are heavily corrupted, the pure LiDAR branch is explicitly sup-pressed ( 𝑤 𝐿 drops to 17.3%), while the network relies predomi-nantly on the radar-augmented fusion ( 𝑤 𝐹 = 62 .1% ) and pure radar (𝑤 𝑅 = 20 .6% ) branches. This logical adaptation aligns perfectly with sensor physics, proving that our framework ensures high detection accuracy while providing a transparent, condition-aware fusion process. By continuously recalibrating these weights, the network effectively mitigates the risk of severe performance degradation that typically plagues fixed-fusion detectors in harsh environments. Furthermore, this dynamic balancing acts as a built-in diagnostic tool, allowing developers to visually verify that the model shifts its sensor reliance safely and predictably. Furthermore, this confirms that our routing mechanism successfully avoids modality collapse, maintaining active utilization of all available branches. 
+
+## 5 Conclusion 
+
+In this paper, we propose a novel weather-conditioned branch routing framework for robust LiDAR-Radar 3D object detection. Diverging from conventional fixed fusion pipelines, our method dynamically aggregates LiDAR-only, radar-only, and fused rep-resentations based on the current environmental context. By in-corporating weather-supervised learning objectives—specifically auxiliary weather classification and diversity regularization—we effectively stabilize the routing process and prevent branch col-lapse during training. Extensive evaluations on K-Radar benchmark demonstrate that our approach establishes a new SOTA perfor-mance across diverse challenging conditions. By decoupling the candidate representations from the automated routing decision, our architecture preserves analytical transparency without sacrificing precise localization accuracy. This structural advantage ensures that the system is uniquely suited for safety-critical deployment, where understanding the reasoning behind modality shifts is fundamen-tally just as critical as the raw detection output. More importantly, the proposed explicit routing mechanism offers highly interpretable insights into weather-aware modality preferences, highlighting a practical and transparent alternative for robust multi-sensor per-ception. Ultimately, we believe this adaptive paradigm paves the way for safer, more reliable autonomous driving systems capable of navigating unpredictable, real-world environments. 
+
+## References 
+
+[1] Xuyang Bai, Zeyu Hu, Xinge Zhu, Qingqiu Huang, Yilun Chen, Hongbo Fu, and Chiew-Lan Tai. 2022. Transfusion: Robust lidar-camera fusion for 3d object detection with transformers. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition . 1090–1099. [2] Mario Bijelic, Tobias Gruber, Fahim Mannan, Florian Kraus, Werner Ritter, Klaus Dietmayer, and Felix Heide. 2020. Seeing through fog without seeing fog: Deep multimodal sensor fusion in unseen adverse weather. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition . 11682–11692. [3] Yujeong Chae, Hyeonseong Kim, Chang-Hwan Oh, Minseok Kim, and Kuk-Jin Yoon. 2024. LiDAR-Based All-Weather 3D Object Detection via Prompting and Distilling 4D Radar. In European Conference on Computer Vision .[4] Yujeong Chae, Hyeonseong Kim, and Kuk-Jin Yoon. 2024. Towards robust 3d object detection with lidar and 4d radar fusion in various weather conditions. In 
+
+Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition .15162–15172. [5] Xuanyao Chen, Tianyuan Zhang, Yue Wang, Yilun Wang, and Hang Zhao. 2023. Futr3d: A unified sensor fusion framework for 3d detection. In proceedings of the IEEE/CVF conference on computer vision and pattern recognition . 172–181. [6] Hao Cheng, Erjia Xiao, Yichi Wang, Lingfeng Zhang, Qiang Zhang, Jiahang Cao, Kaidi Xu, Mengshu Sun, Xiaoshuai Hao, Jindong Gu, et al . 2025. Exploring typographic visual prompts injection threats in cross-modality generation models. 
+
+arXiv preprint arXiv:2503.11519 (2025). [7] Anh The Do and Myungsik Yoo. 2022. LossDistillNet: 3D object detection in point cloud under harsh weather conditions. IEEE Access 10 (2022), 84882–84893. [8] Haoxiang Fu, Lingfeng Zhang, Hao Li, Ruibing Hu, Zhengrong Li, Guanjing Liu, Zimu Tan, Long Chen, Hangjun Ye, and Xiaoshuai Hao. 2026. SEF-MAP: Subspace-Decomposed Expert Fusion for Robust Multimodal HD Map Prediction. 
+
+arXiv preprint arXiv:2602.21589 (2026). [9] Zeying Gong, Rong Li, Tianshuai Hu, Ronghe Qiu, Lingdong Kong, Lingfeng Zhang, Yiyi Ding, Leying Zhang, and Junwei Liang. 2025. Stairway to success: Zero-shot floor-aware object-goal navigation via llm-driven coarse-to-fine explo-ration. arXiv e-prints (2025), arXiv–2505. [10] Ben Graham. 2015. Sparse 3D convolutional neural networks. arXiv preprint arXiv:1505.02890 (2015). [11] Martin Hahner, Christos Sakaridis, Dengxin Dai, and Luc Van Gool. 2021. Fog Simulation on Real LiDAR Point Clouds for 3D Object Detection in Adverse Weather. 2021 IEEE/CVF International Conference on Computer Vision (ICCV) 
+
+(2021), 15263–15272. [12] Xiaoshuai Hao, Yunfeng Diao, Mengchuan Wei, Yifan Yang, Peng Hao, Rong Yin, Hui Zhang, Weiming Li, Shu Zhao, and Yu Liu. 2025. Mapfusion: A novel bev feature fusion network for multi-modal map construction. Information Fusion 
+
+119 (2025), 103018. [13] Xiaoshuai Hao, Lingdong Kong, Rong Yin, Pengwei Wang, Jing Zhang, Yunfeng Diao, and Shu Zhao. 2025. SafeMap: Robust HD Map Construction from In-complete Observations. In International Conference on Machine Learning . PMLR, 22091–22102. [14] Xiaoshuai Hao, Ruikai Li, Hui Zhang, Dingzhe Li, Rong Yin, Sangil Jung, Seung-In Park, ByungIn Yoo, Haimei Zhao, and Jing Zhang. 2024. MapDistill: Boosting Efficient Camera-based HD Map Construction via Camera-LiDAR Fusion Model Distillation. In European Conference on Computer Vision .[15] Xiaoshuai Hao, Guanqun Liu, Yuting Zhao, Yuheng Ji, Mengchuan Wei, Haimei Zhao, Lingdong Kong, Rong Yin, and Yu Liu. 2025. Msc-bench: Benchmark-ing and analyzing multi-sensor corruption for driving perception. In 2025 IEEE International Conference on Multimedia and Expo (ICME) . IEEE, 1–6. [16] Xiaoshuai Hao, Huaihai Lyu, Lingfeng Zhang, Rui Liu, Dayan Wu, Jing Zhang, and Long Chen. 2026. H2R-BM: Can Leveraging Human Videos Enhance Performance and Generalizability in Robotic Bimanual Manipulation? Pattern Recognition 
+
+(2026), 113637. [17] Xiaoshuai Hao, Yingbo Tang, Lingfeng Zhang, Yanbiao Ma, Yunfeng Diao, Ziyu Jia, Wenbo Ding, Hangjun Ye, and Long Chen. 2025. RoboAfford++: A Gen-erative AI-Enhanced Dataset for Multimodal Affordance Learning in Robotic Manipulation and Navigation. arXiv preprint arXiv:2511.12436 (2025). [18] Xiaoshuai Hao, Mengchuan Wei, Yifan Yang, Haimei Zhao, Hui Zhang, Yi Zhou, Qiang Wang, Weiming Li, Lingdong Kong, and Jing Zhang. 2024. Is Your HD Map Constructor Reliable under Sensor Corruptions?. In Advances in Neural Information Processing System .[19] Xiaoshuai Hao, Hui Zhang, Yifan Yang, Yi Zhou, Sangil Jung, Seung-In Park, and ByungIn Yoo. 2024. Mbfusion: A new multi-modal bev feature fusion method for hd map construction. In 2024 IEEE International Conference on Robotics and Automation (ICRA) . IEEE, 15922–15928. [20] Xiaoshuai Hao, Yuting Zhao, Yuheng Ji, Luanyuan Dai, Peng Hao, Dingzhe Li, Shuai Cheng, and Rong Yin. 2025. What Really Matters for Robust Multi-Sensor HD Map Construction?. In 2025 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) . IEEE, 1298–1304. [21] Xiaoshuai Hao, Lei Zhou, et al . 2025. Mimo-embodied: X-embodied foundation model technical report. arXiv preprint arXiv:2511.16518 (2025). [22] Xiaoshuai Hao, Yi Zhu, Srikar Appalaraju, Aston Zhang, Wanqian Zhang, Bo Li, and Mu Li. 2023. Mixgen: A new multi-modal data augmentation. In Proceedings of the IEEE/CVF winter conference on applications of computer vision . 379–389. [23] Tengteng Huang, Zhe Liu, Xiwu Chen, and Xiang Bai. 2020. Epnet: Enhanc-ing point features with image semantics for 3d object detection. In European conference on computer vision . Springer, 35–52. [24] Xun Huang, Hai Wu, Xin Li, Xiaoliang Fan, Chenglu Wen, and Cheng Wang. 2024. Sunshine to rainstorm: Cross-weather knowledge distillation for robust 3d object detection. In Proceedings of the AAAI Conference on Artificial Intelligence ,Vol. 38. 2409–2416. [25] Xun Huang, Ziyu Xu, Hai Wu, Jinlong Wang, Qiming Xia, Yan Xia, Jonathan Li, Kyle Gao, Chenglu Wen, and Cheng Wang. 2025. L4dr: Lidar-4dradar fusion for weather-robust 3d object detection. In Proceedings of the AAAI conference on artificial intelligence , Vol. 39. 3806–3814. [26] Lingdong Kong, You-Chen Liu, Xin Li, Runnan Chen, Wenwei Zhang, Jiawei Ren, Liang Pan, Kaili Chen, and Ziwei Liu. 2023. Robo3D: Towards Robust and Reliable 3D Perception against Corruptions. 2023 IEEE/CVF International Conference on Computer Vision (ICCV) (2023), 19937–19949. [27] Lingdong Kong, Shaoyuan Xie, Zeying Gong, Ye Li, Meng Chu, Ao Liang, Yuhao Dong, Tianshuai Hu, Ronghe Qiu, Rong Li, et al . 2026. The RoboSense challenge: Sense anything, navigate anywhere, adapt across platforms. arXiv preprint arXiv:2601.05014 (2026). Conference acronym ’XX, June 03–05, 2018, Woodstock, NY Trovato et al. 
+
+[28] Seung-Hyun Kong, Dong-Hee Paek, and Sangjae Cho. 2023. RTNH+: Enhanced 4D radar object detection network using combined CFAR-based two-level pre-processing and vertical encoding. arXiv preprint arXiv:2310.17659 (2023). [29] Alex H Lang, Sourabh Vora, Holger Caesar, Lubing Zhou, Jiong Yang, and Os-car Beijbom. 2019. Pointpillars: Fast encoders for object detection from point clouds. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition . 12697–12705. [30] Dasong Li, Sizhuo Ma, Hang Hua, Wenjie Li, Jian Wang, Chris Wei Zhou, Feng-bin Guan, Xin Li, Zihao Yu, Yiting Lu, et al . 2025. Vquala 2025 challenge on engagement prediction for short videos: Methods and results. In Proceedings of the IEEE/CVF International Conference on Computer Vision . 3391–3401. [31] Xin Li, Tao Ma, Yuenan Hou, Botian Shi, Yuchen Yang, Youquan Liu, Xingjiao Wu, Qin Chen, Yikang Li, Yu Qiao, et al . 2023. Logonet: Towards accurate 3d object detection with local-to-global cross-modal fusion. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition . 17524–17534. [32] Yu Li, Yuenan Hou, Yingmei Wei, Xinge Zhu, Yuexin Ma, Wenqi Shao, and Yanming Guo. 2025. MoE3D: Mixture of Experts meets Multi-Modal 3D Under-standing. arXiv preprint arXiv:2511.22103 (2025). [33] Yingwei Li, Adams Wei Yu, Tianjian Meng, Ben Caine, Jiquan Ngiam, Daiyi Peng, Junyang Shen, Yifeng Lu, Denny Zhou, Quoc V Le, et al . 2022. Deepfusion: Lidar-camera deep fusion for multi-modal 3d object detection. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition . 17182–17191. [34] Peiran Liu, Qiang Zhang, Daojie Peng, Lingfeng Zhang, Yihao Qin, Hang Zhou, Jun Ma, Renjing Xu, and Yiding Ji. 2025. Toponav: Topological graphs as a key enabler for advanced object navigation. arXiv preprint arXiv:2509.01364 (2025). [35] Zhijian Liu, Haotian Tang, Alexander Amini, Xinyu Yang, Huizi Mao, Daniela L Rus, and Song Han. 2023. Bevfusion: Multi-task multi-sensor fusion with unified bird’s-eye view representation. In 2023 IEEE international conference on robotics and automation (ICRA) . IEEE, 2774–2781. [36] Dong-Hee Paek, Seung-Hyun Kong, and Kevin Tirta Wijaya. 2022. K-radar: 4d radar object detection for autonomous driving in various weather conditions. 
+
+Advances in Neural Information Processing Systems 35 (2022), 3819–3829. [37] Yuan Xiao Qi, Chun Liu, Hangbin Wu, Ruijie Chen, Chenglu Wen, Xun Huang, Shoujun Jia, and Keke Zhang. 2026. FusionBev: LiDAR and 4D radar fusion for 3D object detection. Inf. Fusion 132 (2026), 104240. [38] Kun Qian, Shilin Zhu, Xinyu Zhang, and Li Erran Li. 2021. Robust Multimodal Vehicle Detection in Foggy Weather Using Complementary Lidar and Radar Signals. In 2021 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) . 444–453. [39] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, et al . 2021. Learning transferable visual models from natural language supervision. In International conference on machine learning . PmLR, 8748–8763. [40] Hao Shan, Ruikai Li, Han Jiang, et al . 2025. Stability under scrutiny: Benchmarking representation paradigms for online hd mapping. arXiv preprint arXiv:2510.10660 
+
+(2025). [41] Vishwanath A Sindagi, Yin Zhou, and Oncel Tuzel. 2019. Mvx-net: Multimodal voxelnet for 3d object detection. In 2019 International Conference on Robotics and Automation (ICRA) . IEEE, 7276–7282. [42] Jingyu Song, Lingjun Zhao, and Katherine A. Skinner. 2024. LiRaFusion: Deep Adaptive LiDAR-Radar Fusion for 3D Object Detection. In 2024 IEEE International Conference on Robotics and Automation (ICRA) . 18250–18257. [43] Ziying Song, Lin Liu, Feiyang Jia, Yadan Luo, Caiyan Jia, Guoxin Zhang, Lei Yang, and Li Wang. 2024. Robustness-aware 3d object detection in autonomous driving: A review and outlook. IEEE Transactions on Intelligent Transportation Systems 25, 11 (2024), 15407–15436. [44] Yingbo Tang, Lingfeng Zhang, Shuyi Zhang, Yinuo Zhao, and Xiaoshuai Hao. 2025. Roboafford: A dataset and benchmark for enhancing object and spatial affordance learning in robot manipulation. In Proceedings of the 33rd ACM International Conference on Multimedia . 12706–12713. [45] Sourabh Vora, Alex H Lang, Bassam Helou, and Oscar Beijbom. 2020. Pointpaint-ing: Sequential fusion for 3d object detection. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition . 4604–4612. [46] Li Wang, Xinyu Zhang, Baowei Xv, Jinzhao Zhang, Rong Fu, Xiaoyu Wang, Lei Zhu, Haibing Ren, Pingping Lu, Jun Li, et al . 2022. InterFusion: Interaction-based 4D radar and LiDAR fusion for 3D object detection. In 2022 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) . IEEE, 12247–12253. [47] Yingjie Wang, Jiajun Deng, Yao Li, Jinshui Hu, Cong Liu, Yu Zhang, Jianmin Ji, Wanli Ouyang, and Yanyong Zhang. 2023. Bi-lrfusion: Bi-directional lidar-radar fusion for 3d dynamic object detection. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition . 13394–13403. [48] Yan Wang, Junbo Yin, Wei Li, Pascal Frossard, Ruigang Yang, and Jianbing Shen. 2023. Ssda3d: Semi-supervised domain adaptation for 3d object detection from point cloud. In Proceedings of the AAAI Conference on Artificial Intelligence , Vol. 37. 2707–2715. [49] Philipp Wolters, Johannes Gilg, Torben Teepe, Fabian Herzog, Anouar Laouichi, Martin Hofmann, and Gerhard Rigoll. 2025. Unleashing HyDRa: Hybrid Fusion, Depth Consistency and Radar for Unified 3D Perception. In 2025 IEEE International Conference on Robotics and Automation (ICRA) . 7467–7474. [50] Hongjing Wu, Cheng Chi, Jinlin Wu, Yanzhao Su, Zhen Lei, and Wenqi Ren. 2026. UniDA3D: A Unified Domain-Adaptive Framework for Multi-View 3D Object Detection. arXiv:2603.27995 [cs.CV] [51] Hai Wu, Chenglu Wen, Shaoshuai Shi, Xin Li, and Cheng Wang. 2023. Virtual sparse convolution for multimodal 3d object detection. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition . 21653–21662. [52] Yujie Wu, Huaihai Lyu, Yingbo Tang, Lingfeng Zhang, Zhihui Zhang, Wei Zhou, and Siqi Hao. 2025. Evaluating GPT-4o’s Embodied Intelligence: A Comprehensive Empirical Study. Authorea Preprints (2025). [53] Zizhang Wu, Guilian Chen, Yuanzhu Gan, Lei Wang, and Jian Pu. 2023. Mvfusion: Multi-view 3d object detection with semantic-aligned radar and camera fusion. 
+
+arXiv preprint arXiv:2302.10511 (2023). [54] Qiming Xia, Wei Ye, Hai Wu, Shijia Zhao, Leyuan Xing, Xun Huang, Jinhao Deng, Xin Li, Chenglu Wen, and Cheng Wang. 2024. Hinted: Hard instance enhanced detector with mixed-density feature fusion for sparsely-supervised 3d object detection. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition . 15321–15330. [55] Erjia Xiao, Lingfeng Zhang, Yingbo Tang, Hao Cheng, Renjing Xu, Wenbo Ding, Lei Zhou, Long Chen, Hangjun Ye, and Xiaoshuai Hao. 2025. Team Xiaomi EV-AD VLA: Learning to Navigate Socially Through Proactive Risk Perception– Technical Report for IROS 2025 RoboSense Challenge Social Navigation Track. 
+
+arXiv e-prints (2025), arXiv–2510. [56] Weiyi Xiong, Jianan Liu, Tao Huang, Qing-Long Han, Yuxuan Xia, and Bing Zhu. 2023. LXL: LiDAR excluded lean 3D object detection with 4D imaging radar and camera fusion. IEEE Transactions on Intelligent Vehicles 9, 1 (2023), 79–92. [57] Qiangeng Xu, Yin Zhou, Weiyue Wang, Charles R Qi, and Dragomir Anguelov. 2021. Spg: Unsupervised domain adaptation for 3d object detection via semantic point generation. In Proceedings of the IEEE/CVF international conference on computer vision . 15446–15456. [58] Junjie Yan, Yingfei Liu, Jianjian Sun, Fan Jia, Shuailin Li, Tiancai Wang, and Xiangyu Zhang. 2023. Cross modal transformer via coordinates encoding for 3d object dectection. arXiv preprint arXiv:2301.01283 2, 3 (2023), 4. [59] Jihan Yang, Shaoshuai Shi, Zhe Wang, Hongsheng Li, and Xiaojuan Qi. 2021. ST3D: Self-training for Unsupervised Domain Adaptation on 3D Object Detection. In 2021 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) .10363–10373. [60] Junbo Yin, Jianbing Shen, Runnan Chen, Wei Li, Ruigang Yang, Pascal Frossard, and Wenguan Wang. 2024. Is-fusion: Instance-scene collaborative fusion for multimodal 3d object detection. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition . 14905–14915. [61] Lingfeng Zhang, Haoxiang Fu, Xiaoshuai Hao, Shuyi Zhang, Qiang Zhang, Rui Liu, Long Chen, and Wenbo Ding. 2026. What You See is What You Reach: Towards Spatial Navigation with High-Level Human Instructions. (2026). [62] Lingfeng Zhang, Xiaoshuai Hao, Yingbo Tang, Haoxiang Fu, Xinyu Zheng, Peng-wei Wang, Zhongyuan Wang, Wenbo Ding, and Shanghang Zhang. 2025. 𝑁 𝑎𝑣𝐴 3:Understanding Any Instruction, Navigating Anywhere, Finding Anything. arXiv preprint arXiv:2508.04598 (2025). [63] Lingfeng Zhang, Xiaoshuai Hao, Qinwen Xu, Qiang Zhang, Xinyao Zhang, Peng-wei Wang, Jing Zhang, Zhongyuan Wang, Shanghang Zhang, and Renjing Xu. 2025. Mapnav: A novel memory representation via annotated semantic maps for vlm-based vision-and-language navigation. In Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) .13032–13056. [64] Lingfeng Zhang, Hao Wang, Erjia Xiao, Xinyao Zhang, Qiang Zhang, Zixuan Jiang, and Renjing Xu. 2025. Multi-floor zero-shot object navigation policy. In 
+
+2025 IEEE International Conference on Robotics and Automation (ICRA) . IEEE, 6416–6422. [65] Lingfeng Zhang, Erjia Xiao, Xiaoshuai Hao, Haoxiang Fu, Zeying Gong, Long Chen, Xiaojun Liang, Renjing Xu, Hangjun Ye, and Wenbo Ding. 2025. SocialNav-Map: Dynamic Mapping with Human Trajectory Prediction for Zero-Shot Social Navigation. arXiv preprint arXiv:2511.12232 (2025). [66] Lingfeng Zhang, Erjia Xiao, Yuchen Zhang, Haoxiang Fu, Ruibin Hu, Yanbiao Ma, Wenbo Ding, Long Chen, Hangjun Ye, and Xiaoshuai Hao. 2025. Team Xiaomi EV-AD VLA: Caption-Guided Retrieval System for Cross-Modal Drone Navigation–Technical Report for IROS 2025 RoboSense Challenge Track 4. arXiv preprint arXiv:2510.02728 (2025). [67] Lingfeng Zhang, Qiang Zhang, Hao Wang, Erjia Xiao, Zixuan Jiang, Honglei Chen, and Renjing Xu. 2024. Trihelper: Zero-shot object navigation with dynamic assistance. In 2024 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) . IEEE, 10035–10042. [68] Lingfeng Zhang, Yuchen Zhang, Hongsheng Li, Haoxiang Fu, Yingbo Tang, Hangjun Ye, Long Chen, Xiaojun Liang, Xiaoshuai Hao, and Wenbo Ding. 2025. Is your VLM Sky-Ready? A Comprehensive Spatial Intelligence Benchmark for UAV Navigation. arXiv preprint arXiv:2511.13269 (2025). [69] Qiang Zhang, Gang Han, Jingkai Sun, Wen Zhao, Jiahang Cao, Jiaxu Wang, Hao Cheng, Lingfeng Zhang, Yijie Guo, and Renjing Xu. 2025. Lips: Large-scale Weather-Conditioned Branch Routing for Robust LiDAR-Radar 3D Object Detection Conference acronym ’XX, June 03–05, 2018, Woodstock, NY 
+
+humanoid robot reinforcement learning with parallel-series structures. arXiv preprint arXiv:2503.08349 (2025). [70] Qiang Zhang, Peiran Ma, Jiahao @inproceedingshao2024mbfusion, ti-tle=Mbfusion: A new multi-modal bev feature fusion method for hd map construction, author=Hao, Xiaoshuai and Zhang, Hui and Yang, Yifan and Zhou, Yi and Jung, Sangil and Park, Seung-In and Yoo, ByungIn, booktitle=2024 IEEE In-ternational Conference on Robotics and Automation (ICRA), pages=15922–15928, year=2024, organization=IEEE and Liu, Shuai Shi, Zeran Su, Zifan Wang, Jingkai Sun, Wei Cui, Jialin Yu, Gang Han, et al . 2026. MeshMimic: Geometry-Aware Humanoid Motion Learning through 3D Scene Reconstruction. arXiv preprint arXiv:2602.15733 (2026). [71] Qiang Zhang, Zhang Zhang, Wei Cui, Jingkai Sun, Jiahang Cao, Yijie Guo, Gang Han, Wen Zhao, Jiaxu Wang, Chenghao Sun, et al . 2025. Humanoidpano: Hybrid spherical panoramic-lidar cross-modal perception for humanoid robots. arXiv preprint arXiv:2503.09010 (2025). [72] Shuyi Zhang, Xiaoshuai Hao, Yingbo Tang, Lingfeng Zhang, Pengwei Wang, Zhongyuan Wang, Hongxuan Ma, and Shanghang Zhang. 2025. Video-cot: A comprehensive dataset for spatiotemporal understanding of videos based on chain-of-thought. In Proceedings of the 33rd ACM International Conference on Multimedia . 12745–12752. [73] Haocheng Zhao, Runwei Guan, Taoyu Wu, Ka Lok Man, Limin Yu, and Yutao Yue. 2025. Unibevfusion: Unified radar-vision bevfusion for 3d object detection. In 2025 IEEE International Conference on Robotics and Automation (ICRA) . IEEE, 6321–6327. [74] Xinyu Zheng, Yangfan He, Yuhao Luo, Lingfeng Zhang, Jianhui Wang, Tianyu Shi, and Yun Bai. 2025. Railway side slope hazard detection system based on generative models. IEEE Sensors Journal (2025).
